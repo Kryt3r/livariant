@@ -13,6 +13,12 @@ import {
   type ReleaseDescriptor,
 } from "../src/runtime/index.js";
 import { createRuntimePackageFixture } from "./runtime-package-fixture.js";
+import {
+  MIGRATION_TARGET_VERSION,
+  NORMAL_TARGET_VERSION,
+  TEST_SOURCE_CHANNEL,
+  TEST_SOURCE_VERSION,
+} from "./release-test-baseline.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 const sourceId = "official-local-test-source";
@@ -32,17 +38,21 @@ async function writeManifest(projectPath: string, release: ReleaseDescriptor): P
   return path;
 }
 
+function escaped(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 test("Livariant update CLI plans read-only, requires explicit trust, and activates an attested Runtime", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-cli-update-"));
-  const targetVersion = "0.0.1-development.1";
+  const targetVersion = NORMAL_TARGET_VERSION;
   const fixture = await createRuntimePackageFixture(targetVersion);
   try {
     await initializeProject(projectPath, { authorized: true });
     const release: ReleaseDescriptor = {
       version: targetVersion,
-      channel: "development",
+      channel: TEST_SOURCE_CHANNEL,
       projectBrainSchema: 1,
-      compatibility: { from: ["0.0.0-development"] },
+      compatibility: { from: [TEST_SOURCE_VERSION] },
       sourceId,
       artifact: { id: "runtime-node-cli", sha256: fixture.sha256 },
     };
@@ -59,7 +69,7 @@ test("Livariant update CLI plans read-only, requires explicit trust, and activat
     const untrusted = runCli(projectPath, ["update", "--manifest", manifest, "--apply", "--artifact", fixture.path]);
     assert.equal(untrusted.status, 1);
     assert.match(untrusted.stderr, /trusted-source/i);
-    assert.equal((await getStatus(projectPath)).frameworkVersion, "0.0.0-development");
+    assert.equal((await getStatus(projectPath)).frameworkVersion, TEST_SOURCE_VERSION);
 
     const applied = runCli(projectPath, [
       "update", "--manifest", manifest,
@@ -67,7 +77,7 @@ test("Livariant update CLI plans read-only, requires explicit trust, and activat
       "--trusted-source", sourceId,
     ]);
     assert.equal(applied.status, 0, applied.stderr);
-    assert.match(applied.stdout, new RegExp(`Livariant update completed: 0\\.0\\.0-development -> ${targetVersion.replaceAll(".", "\\.")}`));
+    assert.match(applied.stdout, new RegExp(`Livariant update completed: ${escaped(TEST_SOURCE_VERSION)} -> ${escaped(targetVersion)}`));
     assert.equal((await getStatus(projectPath)).frameworkVersion, targetVersion);
   } finally {
     await fixture.cleanup();
@@ -77,15 +87,15 @@ test("Livariant update CLI plans read-only, requires explicit trust, and activat
 
 test("Livariant recover CLI inspects first and only rolls back after explicit apply", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-cli-recover-"));
-  const targetVersion = "0.0.1-development.2";
+  const targetVersion = MIGRATION_TARGET_VERSION;
   const fixture = await createRuntimePackageFixture(targetVersion);
   try {
     await initializeProject(projectPath, { authorized: true });
     const release: ReleaseDescriptor = {
       version: targetVersion,
-      channel: "development",
+      channel: TEST_SOURCE_CHANNEL,
       projectBrainSchema: 2,
-      compatibility: { from: ["0.0.0-development"] },
+      compatibility: { from: [TEST_SOURCE_VERSION] },
       sourceId,
       artifact: { id: "runtime-node-cli", sha256: fixture.sha256 },
     };
@@ -110,7 +120,7 @@ test("Livariant recover CLI inspects first and only rolls back after explicit ap
     assert.match(applied.stdout, /Recovery completed/);
     const status = await getStatus(projectPath);
     assert.equal(status.lifecycle, "initialized");
-    assert.equal(status.frameworkVersion, "0.0.0-development");
+    assert.equal(status.frameworkVersion, TEST_SOURCE_VERSION);
   } finally {
     await fixture.cleanup();
     await rm(projectPath, { recursive: true, force: true });
