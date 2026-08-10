@@ -1,12 +1,23 @@
 # Contributing to Livariant
 
-Livariant is in Public Preview preparation. Contributions are welcome when they preserve the framework's accepted ownership, authority, lifecycle, and compatibility boundaries.
+Livariant is in Public Preview preparation. Community participation is welcome when it preserves the framework's accepted ownership, authority, lifecycle, and compatibility boundaries.
 
-## Before contributing
+## Current contribution gate
+
+**External code contributions are not yet accepted for incorporation into Livariant.**
+
+The project is finalizing contributor terms that must remain compatible with Livariant's source-available licensing model and its ability to offer separate commercial licenses in the future. Until those terms are published, please do not open a pull request containing code intended for incorporation.
+
+Bug reports, reproducible issue reports, documentation feedback, design discussion, and other non-code participation are still welcome.
+
+This is a temporary ownership/licensing safeguard, not a statement that community code contributions will never be accepted.
+
+## Before contributing feedback
 
 Please read:
 
 - `README.md`;
+- `LICENSING.md`;
 - `docs/architecture-and-safety.md`;
 - `docs/preview-scope.md`;
 - `core/charter.md`;
@@ -14,30 +25,36 @@ Please read:
 
 The framework is intentionally past its Foundation-expansion phase. New ideas should be classified as a Preview blocker, a bounded Preview limitation, or post-Preview work rather than silently expanding architecture.
 
-## Contribution license
+## License
 
-The repository is licensed under the Apache License 2.0. Unless explicitly stated otherwise, intentionally submitted contributions are provided under the same license terms described by the repository `LICENSE`.
+Livariant is source-available under the **PolyForm Perimeter License 1.0.1** by default. It is not offered as OSI-approved Open Source.
 
-No separate Contributor License Agreement (CLA) or Developer Certificate of Origin (DCO) is required for the current Preview contribution process. If that policy ever changes, the change must be announced before it applies to new contributions.
+See `LICENSE` for the authoritative terms and `LICENSING.md` for the project's practical licensing explanation and commercial-licensing boundary.
 
-Do not submit code, documentation, assets, or other material that you do not have the right to contribute.
+Do not submit code, documentation, assets, or other material that you do not have the right to share.
 
-## Pull requests
+## Future code contributions
 
-Prefer focused changes with a clear reason and bounded effects. A useful pull request should state:
+Before external code contributions are opened, Livariant will publish contributor terms that define the rights granted with accepted contributions and their relationship to the default source-available license and possible separate commercial licensing.
+
+No assumption should be made that merely opening a pull request grants Livariant additional relicensing or commercial-licensing rights beyond whatever contributor terms are explicitly in force at that time.
+
+## Future pull requests
+
+When code contributions are opened, focused changes with a clear reason and bounded effects will be preferred. A useful pull request should state:
 
 - the problem being solved;
 - the protected behavior or contract involved;
 - what changes;
 - what intentionally does not change;
 - tests or executable evidence added/updated;
-- compatibility, migration, authority, privacy, or security implications when relevant.
+- compatibility, migration, authority, privacy, licensing, or security implications when relevant.
 
 For changes touching existing projects or lifecycle behavior, preservation and recovery behavior should be explicit rather than assumed.
 
 ## Required quality bar
 
-Before requesting review:
+For future code contributions, the baseline verification commands are:
 
 ```bash
 npm ci
@@ -50,7 +67,7 @@ Changes that alter a supported public path should include executable evidence at
 
 ## Compatibility and migrations
 
-Do not silently reinterpret an existing Project Brain schema, release channel, provider capability, or accepted lifecycle state.
+Do not propose silently reinterpreting an existing Project Brain schema, release channel, provider capability, or accepted lifecycle state.
 
 A breaking Project Brain change requires an explicit supported migration path or an explicit unsupported-state classification. A framework update must not use migration as permission to rewrite unrelated project-owned state.
 
@@ -58,9 +75,9 @@ A breaking Project Brain change requires an explicit supported migration path or
 
 Do not open a public issue containing exploitable vulnerability details. Follow `SECURITY.md`.
 
-## AI-assisted contributions
+## AI-assisted participation
 
-AI tools may be used to help create contributions, but the contributor remains responsible for reviewing the submitted material, ensuring they have the right to contribute it, and verifying that tests and claims are accurate.
+AI tools may be used to help prepare reports, documentation feedback, or future contributions, but the participant remains responsible for reviewing the submitted material, ensuring they have the right to submit it, and verifying that claims are accurate.
 
 Provider-generated text, hidden session state, or native agent instruction files do not outrank canonical repository contracts merely because an AI tool produced them.
 

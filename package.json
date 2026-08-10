@@ -3,7 +3,7 @@
   "version": "0.1.0-rc.1",
   "private": true,
   "description": "Livariant 0.1.0 release-candidate baseline for Public Preview preparation.",
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "files": [
     "dist/src"

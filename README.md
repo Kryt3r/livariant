@@ -153,9 +153,21 @@ Public CLI namespace: livariant
 
 The preliminary naming review and its legal boundary are recorded in [`distribution/product-naming-decision.md`](distribution/product-naming-decision.md). The review is not a formal trademark clearance, and the framework architecture must remain rename-safe if a future rights conflict ever requires a branding change.
 
-## License, privacy, security, contributions, and support
+## Licensing
 
-- [Apache License 2.0](LICENSE)
+Livariant is **source-available, not OSI-approved Open Source**.
+
+The default license is the [PolyForm Perimeter License 1.0.1](LICENSE). It is intended to allow broad use, modification, and distribution for permitted purposes — including using Livariant in commercial software-development work — while protecting Livariant against being used to provide others with a competing substitute for Livariant itself.
+
+Separate commercial terms may be offered for uses outside the default license or for organizations that need separately negotiated rights.
+
+External code contributions are temporarily gated until contributor terms compatible with the source-available and future commercial-licensing model are finalized.
+
+Read the practical licensing explanation in [`LICENSING.md`](LICENSING.md). The `LICENSE` file remains authoritative.
+
+## Privacy, security, contributions, and support
+
+- [Licensing](LICENSING.md)
 - [License, Warranty & Liability](docs/license-and-warranty.md)
 - [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 - [Privacy & Network Behavior](docs/privacy-and-network.md)
@@ -180,7 +192,7 @@ The Deep Hardening & Consistency Review has executable evidence for all eight FO
 
 The hardened package is built, packed, installed into a clean consumer project, and executed in CI. CI also builds a manifest-bound release bundle and verifies that its checksum and release manifest bind the exact artifact installed by a clean consumer.
 
-The repository-side legal/public baseline is documented. Remaining launch gates are operational: establish the canonical public Livariant repository, enable/verify host-side security and release protections, choose the first RC/Preview version, publish the release bundle, and perform the final Release Candidate review against that published candidate.
+The repository-side legal/public baseline is documented. Remaining launch gates are operational and presentation-focused: finalize public-facing repository presentation and documentation, establish contributor terms, enable/verify host-side security and release protections, publish the intended public candidate, and perform the final Public Preview review against that candidate.
 
 Read: [Public Preview Scope & Limitations](docs/preview-scope.md) and [Public Release Baseline Review](distribution/public-release-baseline-review.md).
 
@@ -211,4 +223,4 @@ For deeper framework contracts, see [`core/charter.md`](core/charter.md) and [`c
 
 ## Development status
 
-Livariant is in **Public Preview preparation**, not Foundation design. The product, package/runtime identity, installed CLI namespace, user journey, and repository-side public baseline are aligned. Remaining work is release-host finalization and Release Candidate verification, not new Foundation architecture.
+Livariant is in **Public Preview preparation**, not Foundation design. The product, package/runtime identity, installed CLI namespace, user journey, and private RC baseline are aligned. Remaining work is public-launch preparation and final Public Preview verification, not new Foundation architecture.
