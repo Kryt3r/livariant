@@ -10,8 +10,9 @@ import { ProjectBrainStore } from "../src/project-brain/store.js";
 import { activateInstalledRuntime, installVerifiedRuntime } from "../src/distribution/runtime-installation.js";
 import type { LocalReleaseArtifact, ReleaseIdentity } from "../src/distribution/release-integrity.js";
 import { createRuntimePackageFixture } from "./runtime-package-fixture.js";
+import { NORMAL_TARGET_VERSION, TEST_SOURCE_CHANNEL, TEST_SOURCE_VERSION } from "./release-test-baseline.js";
 
-const targetVersion = "0.0.1-development.1";
+const targetVersion = NORMAL_TARGET_VERSION;
 
 function runSourceCli(projectPath: string): { frameworkVersion?: string } {
   const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
@@ -31,7 +32,7 @@ test("a prepared Runtime cannot execute until the canonical Project pin activate
     await initializeProject(projectPath, { authorized: true });
     const identity: ReleaseIdentity = {
       version: targetVersion,
-      channel: "development",
+      channel: TEST_SOURCE_CHANNEL,
       sourceId: "official-local-test-source",
       artifactId: "runtime-node-cli",
       artifactSha256: fixture.sha256,
@@ -46,13 +47,13 @@ test("a prepared Runtime cannot execute until the canonical Project pin activate
     await activateInstalledRuntime(projectPath, installed);
 
     const prepared = await getStatus(projectPath);
-    assert.equal(prepared.frameworkVersion, "0.0.0-development");
-    assert.equal(prepared.executingRuntimeVersion, "0.0.0-development");
+    assert.equal(prepared.frameworkVersion, TEST_SOURCE_VERSION);
+    assert.equal(prepared.executingRuntimeVersion, TEST_SOURCE_VERSION);
     assert.equal(prepared.preparedRuntimeVersion, targetVersion);
     assert.equal(prepared.activatedRuntimeVersion, undefined);
-    assert.equal(runSourceCli(projectPath).frameworkVersion, "0.0.0-development");
+    assert.equal(runSourceCli(projectPath).frameworkVersion, TEST_SOURCE_VERSION);
 
-    await new ProjectBrainStore(projectPath).updateFrameworkLifecycle(targetVersion, "development");
+    await new ProjectBrainStore(projectPath).updateFrameworkLifecycle(targetVersion, TEST_SOURCE_CHANNEL);
 
     const activated = await getStatus(projectPath);
     assert.equal(activated.frameworkVersion, targetVersion);

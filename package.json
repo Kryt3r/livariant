@@ -1,8 +1,8 @@
 {
   "name": "livariant",
-  "version": "0.0.0-development",
+  "version": "0.1.0-rc.1",
   "private": true,
-  "description": "Development executable baseline for Livariant public-preview hardening.",
+  "description": "Livariant 0.1.0 release-candidate baseline for Public Preview preparation.",
   "license": "Apache-2.0",
   "type": "module",
   "files": [

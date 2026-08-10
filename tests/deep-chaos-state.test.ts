@@ -15,15 +15,16 @@ import {
   type ReleaseDescriptor,
 } from "../src/runtime/index.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
+import { NORMAL_TARGET_VERSION, TEST_SOURCE_CHANNEL, TEST_SOURCE_VERSION } from "./release-test-baseline.js";
 
 const normalArtifactPath = fileURLToPath(new URL("../../tests/fixtures/releases/runtime-normal.artifact", import.meta.url));
 const trustedSourceIds = new Set(["official-local-test-source"]);
 
 const normalRelease: ReleaseDescriptor = {
-  version: "0.0.1-development.1",
-  channel: "development",
+  version: NORMAL_TARGET_VERSION,
+  channel: TEST_SOURCE_CHANNEL,
   projectBrainSchema: 1,
-  compatibility: { from: ["0.0.0-development"] },
+  compatibility: { from: [TEST_SOURCE_VERSION] },
   sourceId: "official-local-test-source",
   artifact: { id: "runtime-node-cli", sha256: "92aec86650434112d3e4655385deaa9aa633330af26ad7cff6e8697c8b01cbca" },
 };

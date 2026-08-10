@@ -36,9 +36,9 @@ try {
   const built = run(process.execPath, [
     "scripts/build-release-bundle.mjs",
     "--source-id", sourceId,
-    "--channel", "development",
+    "--channel", "preview",
     "--schema", "1",
-    "--compatible-from", "0.0.0-development",
+    "--compatible-from", "0.1.0-rc.1",
     "--output", bundle,
   ]);
   const summary = JSON.parse(built.stdout);
@@ -49,8 +49,8 @@ try {
   const release = manifest?.[0];
   if (!release) throw new Error("Release manifest contains no release descriptor.");
   if (release.sourceId !== sourceId) throw new Error("Manifest sourceId is not the requested canonical source identity.");
-  if (release.version !== "0.0.0-development" || release.channel !== "development") throw new Error("Manifest release identity mismatch.");
-  if (release.projectBrainSchema !== 1 || !release.compatibility?.from?.includes("0.0.0-development")) throw new Error("Manifest compatibility metadata mismatch.");
+  if (release.version !== "0.1.0-rc.1" || release.channel !== "preview") throw new Error("Manifest release identity mismatch.");
+  if (release.projectBrainSchema !== 1 || !release.compatibility?.from?.includes("0.1.0-rc.1")) throw new Error("Manifest compatibility metadata mismatch.");
 
   const artifactPath = resolve(bundle, summary.artifact);
   const observedSha = createHash("sha256").update(await readFile(artifactPath)).digest("hex");
@@ -72,7 +72,7 @@ try {
   } catch {
     throw new Error(`Release-bundle consumer returned invalid machine-readable version identity:\n${versionResult.stdout}\n${versionResult.stderr}`);
   }
-  if (version.frameworkVersion !== "0.0.0-development" || version.runtime !== "node" || version.channel !== "development") {
+  if (version.frameworkVersion !== "0.1.0-rc.1" || version.runtime !== "node" || version.channel !== "preview") {
     throw new Error(`Release-bundle consumer identity mismatch: ${JSON.stringify(version)}`);
   }
 

@@ -15,6 +15,7 @@ import {
   runDoctor,
 } from "../src/runtime/index.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
+import { TEST_SOURCE_VERSION } from "./release-test-baseline.js";
 
 async function withInterruptedMigration(run: (projectPath: string) => Promise<void>): Promise<void> {
   const projectPath = await mkdtemp(join(tmpdir(), "pbf-recovery-"));
@@ -50,9 +51,9 @@ test("authorized recovery validates checkpoint and rolls back to the exact sourc
     for (const file of ["project.md","goals.md","decisions.md","knowledge.md"]) checkpointOwned[file]=await readFile(resolve(journal.checkpointPath,file),"utf8");
     const recoveryPlan=await planRecovery(projectPath); await assert.rejects(()=>applyRecovery(projectPath,recoveryPlan,{authorized:false}),/authorization/i); await applyRecovery(projectPath,recoveryPlan,{authorized:true});
     const metadata=JSON.parse(await readFile(resolve(projectPath,".project-brain","metadata.json"),"utf8")) as {framework:{version:string};projectBrain:{schemaVersion:number}};
-    assert.equal(metadata.framework.version,"0.0.0-development"); assert.equal(metadata.projectBrain.schemaVersion,1); assert.deepEqual(await readOwned(projectPath),checkpointOwned);
+    assert.equal(metadata.framework.version,TEST_SOURCE_VERSION); assert.equal(metadata.projectBrain.schemaVersion,1); assert.deepEqual(await readOwned(projectPath),checkpointOwned);
     const recoveredJournal=await readMigrationJournal(projectPath); assert.equal(recoveredJournal?.state,"failed"); assert.equal(recoveredJournal?.recovery?.state,"rolled-back"); assert.ok(recoveredJournal?.recovery?.recoveredAt);
-    const status=await getStatus(projectPath); assert.equal(status.lifecycle,"initialized"); assert.equal(status.frameworkVersion,"0.0.0-development");
+    const status=await getStatus(projectPath); assert.equal(status.lifecycle,"initialized"); assert.equal(status.frameworkVersion,TEST_SOURCE_VERSION);
     const nextPlan=await planMigrationUpdate(projectPath,migrationRelease); assert.notEqual(nextPlan.operationId,journal.operationId);
   });
 });
@@ -63,7 +64,7 @@ test("malformed durable migration evidence is recovery-required rather than trea
     await initializeProject(projectPath,{authorized:true}); const lifecycle=resolve(projectPath,".project-brain",".lifecycle"); await mkdir(lifecycle); await writeFile(resolve(lifecycle,"migration-journal.json"),"{corrupted","utf8");
     await assert.rejects(()=>readMigrationJournal(projectPath),/journal is invalid/i); const status=await getStatus(projectPath); assert.equal(status.lifecycle,"recovery-required"); assert.match(status.lifecycleReason??"",/invalid migration lifecycle evidence/i);
     const doctor=await runDoctor(projectPath); assert.equal(doctor.state,"recovery-required"); assert.equal(doctor.findings[0]?.code,"invalid-migration-evidence"); const recovery=await inspectRecovery(projectPath); assert.equal(recovery.state,"recovery-required"); assert.match(recovery.reason??"",/invalid/i);
-    await assert.rejects(()=>planMigrationUpdate(projectPath,migrationRelease),/journal is invalid/i); const metadata=JSON.parse(await readFile(resolve(projectPath,".project-brain","metadata.json"),"utf8")) as {framework:{version:string};projectBrain:{schemaVersion:number}}; assert.equal(metadata.framework.version,"0.0.0-development"); assert.equal(metadata.projectBrain.schemaVersion,1);
+    await assert.rejects(()=>planMigrationUpdate(projectPath,migrationRelease),/journal is invalid/i); const metadata=JSON.parse(await readFile(resolve(projectPath,".project-brain","metadata.json"),"utf8")) as {framework:{version:string};projectBrain:{schemaVersion:number}}; assert.equal(metadata.framework.version,TEST_SOURCE_VERSION); assert.equal(metadata.projectBrain.schemaVersion,1);
   } finally { await rm(projectPath,{recursive:true,force:true}); }
 });
 
