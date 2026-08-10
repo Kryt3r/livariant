@@ -1,3 +1,5 @@
+<img width="1376" height="682" alt="image" src="https://github.com/user-attachments/assets/16f5afee-a10a-4c79-8bc9-89d23135e0e9" />
+
 # Livariant — Public Preview Preparation
 
 **Livariant** is a tool-agnostic Living Software Framework for long-term AI-assisted software development.
