@@ -56,8 +56,14 @@ async function ensureSafeDirectory(path: string, root: string, label: string): P
 }
 
 function npmInstall(prefix: string, artifactPath: string): void {
-  const result = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--prefix", prefix, artifactPath], { encoding: "utf8", shell: false });
-  if (result.status !== 0) throw new Error(`Runtime package installation failed: ${result.stderr || result.stdout || `exit ${result.status}`}`);
+  const npmArgs = ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--prefix", prefix, artifactPath];
+  const result = process.platform === "win32"
+    ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm", ...npmArgs], { encoding: "utf8", shell: false })
+    : spawnSync("npm", npmArgs, { encoding: "utf8", shell: false });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
+    throw new Error(`Runtime package installation failed: ${detail}`);
+  }
 }
 
 function attestCli(cliPath: string, expectedVersion: string, projectPath: string): void {
@@ -129,7 +135,7 @@ async function readStoredReleaseEvidence(installRoot: string): Promise<Installed
     typeof evidence.artifactId !== "string" ||
     !/^[a-f0-9]{64}$/i.test(evidence.artifactSha256 ?? "") ||
     !/^[a-f0-9]{64}$/i.test(evidence.packageTreeSha256 ?? "")
-  ) throw new Error("Installed Runtime release evidence has an invalid shape.");
+  ) throw new Error("Installed Runtime has an invalid shape.");
 
   const validated = evidence as InstalledReleaseEvidence;
   const observedTree = await hashPackageTree(packageRootForInstall(installRoot));
