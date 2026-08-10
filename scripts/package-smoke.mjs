@@ -7,15 +7,19 @@ const root = process.cwd();
 const temp = await mkdtemp(resolve(tmpdir(), "livariant-package-smoke-"));
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const useWindowsCommandShell = process.platform === "win32" && (command === "npm" || command.toLowerCase().endsWith(".cmd"));
+  const executable = useWindowsCommandShell ? (process.env.ComSpec || "cmd.exe") : command;
+  const executableArgs = useWindowsCommandShell ? ["/d", "/s", "/c", command, ...args] : args;
+  const result = spawnSync(executable, executableArgs, {
     cwd: options.cwd ?? root,
     encoding: "utf8",
     env: { ...process.env, ...(options.env ?? {}) },
     shell: false,
   });
-  if (result.status !== 0) {
+  if (result.error || result.status !== 0) {
     throw new Error([
-      `${command} ${args.join(" ")} failed with exit ${result.status}`,
+      `${command} ${args.join(" ")} failed with exit ${String(result.status)}`,
+      result.error?.message,
       result.stdout,
       result.stderr,
     ].filter(Boolean).join("\n"));

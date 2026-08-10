@@ -11,14 +11,22 @@ const consumer = resolve(temp, "consumer");
 const sourceId = "github:Kryt3r/livariant";
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const useWindowsCommandShell = process.platform === "win32" && (command === "npm" || command.toLowerCase().endsWith(".cmd"));
+  const executable = useWindowsCommandShell ? (process.env.ComSpec || "cmd.exe") : command;
+  const executableArgs = useWindowsCommandShell ? ["/d", "/s", "/c", command, ...args] : args;
+  const result = spawnSync(executable, executableArgs, {
     cwd: options.cwd ?? root,
     encoding: "utf8",
     shell: false,
     env: { ...process.env, ...(options.env ?? {}) },
   });
-  if (result.status !== 0) {
-    throw new Error([`${command} ${args.join(" ")} failed with exit ${result.status}`, result.stdout, result.stderr].filter(Boolean).join("\n"));
+  if (result.error || result.status !== 0) {
+    throw new Error([
+      `${command} ${args.join(" ")} failed with exit ${String(result.status)}`,
+      result.error?.message,
+      result.stdout,
+      result.stderr,
+    ].filter(Boolean).join("\n"));
   }
   return result;
 }
@@ -52,9 +60,8 @@ try {
   const sums = await readFile(resolve(bundle, "SHA256SUMS"), "utf8");
   if (sums !== `${observedSha}  ${summary.artifact}\n`) throw new Error("SHA256SUMS does not match the packed artifact.");
 
-  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-  run(npm, ["init", "-y"], { cwd: consumer });
-  run(npm, ["install", "--ignore-scripts", "--no-audit", "--no-fund", artifactPath], { cwd: consumer });
+  run("npm", ["init", "-y"], { cwd: consumer });
+  run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", artifactPath], { cwd: consumer });
   const bin = process.platform === "win32"
     ? resolve(consumer, "node_modules", ".bin", "livariant.cmd")
     : resolve(consumer, "node_modules", ".bin", "livariant");

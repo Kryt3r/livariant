@@ -14,6 +14,26 @@ function option(name) {
   return value;
 }
 
+function runNpm(args) {
+  const result = process.platform === "win32"
+    ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm", ...args], {
+        cwd: root,
+        encoding: "utf8",
+        shell: false,
+      })
+    : spawnSync("npm", args, {
+        cwd: root,
+        encoding: "utf8",
+        shell: false,
+      });
+
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
+    throw new Error(`npm ${args.join(" ")} failed: ${detail}`);
+  }
+  return result;
+}
+
 const sourceId = option("--source-id");
 const channel = option("--channel");
 const schemaRaw = option("--schema");
@@ -38,13 +58,7 @@ if (typeof packageJson.version !== "string" || packageJson.version.length === 0)
 const output = resolve(root, outputRaw);
 await mkdir(output, { recursive: false });
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const packed = spawnSync(npm, ["pack", "--json", "--pack-destination", output], {
-  cwd: root,
-  encoding: "utf8",
-  shell: false,
-});
-if (packed.status !== 0) throw new Error(`npm pack failed: ${packed.stderr || packed.stdout || `exit ${packed.status}`}`);
+const packed = runNpm(["pack", "--json", "--pack-destination", output]);
 
 const result = JSON.parse(packed.stdout);
 const entry = result?.[0];

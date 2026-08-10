@@ -11,6 +11,32 @@ export interface RuntimePackageFixture {
   cleanup(): Promise<void>;
 }
 
+function runNpmPack(packageRoot: string, packRoot: string) {
+  const npmArgs = ["pack", "--json", "--pack-destination", packRoot];
+  const result = process.platform === "win32"
+    ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm", ...npmArgs], {
+        cwd: packageRoot,
+        encoding: "utf8",
+        shell: false,
+      })
+    : spawnSync("npm", npmArgs, {
+        cwd: packageRoot,
+        encoding: "utf8",
+        shell: false,
+      });
+
+  if (result.error || result.status !== 0) {
+    const detail =
+      result.error?.message ||
+      result.stderr ||
+      result.stdout ||
+      `npm pack exited with status ${String(result.status)}`;
+    throw new Error(`Failed to build runtime release fixture: ${detail}`);
+  }
+
+  return result.stdout;
+}
+
 export async function createRuntimePackageFixture(version: string): Promise<RuntimePackageFixture> {
   const root = await mkdtemp(resolve(tmpdir(), "livariant-runtime-release-fixture-"));
   const packageRoot = resolve(root, "package");
@@ -29,13 +55,7 @@ export async function createRuntimePackageFixture(version: string): Promise<Runt
     engines: { node: ">=20" },
   }, null, 2)}\n`, "utf8");
 
-  const result = spawnSync(
-    process.platform === "win32" ? "npm.cmd" : "npm",
-    ["pack", "--json", "--pack-destination", packRoot],
-    { cwd: packageRoot, encoding: "utf8", shell: false },
-  );
-  if (result.status !== 0) throw new Error(`Failed to build runtime release fixture: ${result.stderr || result.stdout}`);
-  const packed = JSON.parse(result.stdout) as Array<{ filename?: unknown }>;
+  const packed = JSON.parse(runNpmPack(packageRoot, packRoot)) as Array<{ filename?: unknown }>;
   const filename = packed[0]?.filename;
   if (typeof filename !== "string") throw new Error("Runtime fixture pack did not return a tarball filename.");
   const path = resolve(packRoot, filename);
