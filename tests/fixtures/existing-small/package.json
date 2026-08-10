@@ -1,0 +1,10 @@
+{
+  "name": "existing-small-app",
+  "private": true,
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "example-runtime": "1.0.0"
+  }
+}

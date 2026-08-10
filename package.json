@@ -1,0 +1,30 @@
+{
+  "name": "livariant",
+  "version": "0.0.0-development",
+  "private": true,
+  "description": "Development executable baseline for Livariant public-preview hardening.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "dist/src"
+  ],
+  "bin": {
+    "livariant": "./dist/src/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "test:package": "node scripts/package-smoke.mjs",
+    "test:release-bundle": "node scripts/release-bundle-smoke.mjs",
+    "release:bundle": "node scripts/build-release-bundle.mjs",
+    "prepack": "npm run build",
+    "dev": "npm run build && node dist/src/cli/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

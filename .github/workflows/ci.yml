@@ -1,0 +1,40 @@
+name: Hardening CI
+
+on:
+  push:
+    branches:
+      - hardening/public-preview-executable-baseline
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Run executable hardening tests
+        run: npm test
+
+      - name: Pack, install, and execute clean-consumer smoke test
+        run: npm run test:package
+
+      - name: Build and verify manifest-bound release bundle
+        run: npm run test:release-bundle

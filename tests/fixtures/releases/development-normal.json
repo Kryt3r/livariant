@@ -1,0 +1,24 @@
+[
+  {
+    "version": "0.0.1-development.1",
+    "channel": "development",
+    "projectBrainSchema": 1,
+    "compatibility": { "from": ["0.0.0-development"] },
+    "sourceId": "official-local-test-source",
+    "artifact": {
+      "id": "runtime-node-cli",
+      "sha256": "92aec86650434112d3e4655385deaa9aa633330af26ad7cff6e8697c8b01cbca"
+    }
+  },
+  {
+    "version": "0.0.1-preview.1",
+    "channel": "preview",
+    "projectBrainSchema": 1,
+    "compatibility": { "from": ["0.0.0-development"] },
+    "sourceId": "official-local-test-source",
+    "artifact": {
+      "id": "runtime-node-cli",
+      "sha256": "92aec86650434112d3e4655385deaa9aa633330af26ad7cff6e8697c8b01cbca"
+    }
+  }
+]
