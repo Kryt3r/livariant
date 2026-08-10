@@ -67,10 +67,10 @@ try {
     ? resolve(installDir, "node_modules", ".bin", "livariant.cmd")
     : resolve(installDir, "node_modules", ".bin", "livariant");
   const cli = run(binPath, ["version"], { cwd: installDir });
-  if (!/Livariant framework version: 0\.0\.0-development/.test(cli.stdout)) {
+  if (!/Livariant framework version: 0\.1\.0-rc\.1/.test(cli.stdout)) {
     throw new Error(`Installed CLI returned unexpected version output:\n${cli.stdout}`);
   }
-  if (!/Channel: development/.test(cli.stdout)) {
+  if (!/Channel: preview/.test(cli.stdout)) {
     throw new Error(`Installed CLI returned unexpected channel output:\n${cli.stdout}`);
   }
 
