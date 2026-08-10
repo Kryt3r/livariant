@@ -3,13 +3,16 @@ import { resolve } from "node:path";
 import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { readMigrationJournal } from "../lifecycle/migration.js";
+import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
 
 export type DoctorState = "healthy" | "drift-detected" | "unsupported-manual-state" | "partial-or-damaged" | "recovery-required";
 export interface DoctorFinding { code: string; severity: "info" | "warning" | "error"; message: string; }
 export interface DoctorReport { projectRoot: string; state: DoctorState; findings: DoctorFinding[]; changesMade: 0; }
 
-function acceptedFrameworkVersion(version: string): boolean { return version === "0.0.0-development" || /^0\.0\.\d+-development(?:\.\d+)?$/.test(version); }
+function acceptedFrameworkVersion(version: string): boolean {
+  return version === FRAMEWORK_VERSION || version === "0.0.0-development" || /^0\.0\.\d+-development(?:\.\d+)?$/.test(version);
+}
 function confirmedPackageName(projectMarkdown: string): string | undefined { return projectMarkdown.match(/^- Confirmed package name:\s*(.+)$/m)?.[1]?.trim(); }
 
 export async function runDoctor(projectPath: string = process.cwd()): Promise<DoctorReport> {
