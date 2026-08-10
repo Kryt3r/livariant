@@ -137,7 +137,7 @@ Release bundles are built from concrete package bytes and contain:
 - `SHA256SUMS`,
 - human-readable release notes at publication time.
 
-The current development repository is still private and named `Kryt3r/project-brain-framework`, so the public source `github:Kryt3r/livariant` is an accepted target identity, not yet an active published release source.
+The canonical Livariant repository now exists at `Kryt3r/livariant` and remains private during Preview preparation. The source identity `github:Kryt3r/livariant` becomes an active public release source only after the repository is made public and the corresponding release materials are actually published.
 
 Read: [Public Distribution Source](distribution/public-distribution-source.md)
 

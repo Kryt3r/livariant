@@ -93,7 +93,7 @@ with expected first public identity:
 github:Kryt3r/livariant
 ```
 
-The release source is not yet active because the current development repository remains private and named `Kryt3r/project-brain-framework`.
+The release source is not yet active because the canonical `Kryt3r/livariant` repository remains private and no Public Preview release has been published yet.
 
 The release bundle tooling now produces from concrete package bytes:
 

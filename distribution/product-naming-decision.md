@@ -21,7 +21,7 @@ livariant
 
 The existing `pb-dev` command remains a temporary development compatibility surface only. It must not be treated as the public product identity or as a durable architectural dependency.
 
-The current repository name `project-brain-framework` and package identity `project-brain-framework-runtime` are development-era identities. They may remain temporarily while the public repository/package transition is performed. The intended public product repository should use the Livariant identity where available and practical.
+The canonical product repository is `Kryt3r/livariant`, and the executable package/runtime identity is `livariant`. The former `project-brain-framework` and `project-brain-framework-runtime` identities remain relevant only to historical engineering records or deliberate compatibility/test evidence.
 
 ## Naming Rationale
 
@@ -76,12 +76,12 @@ Product: Livariant
 Public CLI namespace: livariant
 ```
 
-Temporary development identities:
+Canonical product identities:
 
 ```text
-CLI: pb-dev
-Repository: project-brain-framework
-Package: project-brain-framework-runtime
+CLI: livariant
+Repository: livariant
+Package: livariant
 ```
 
 The temporary identities may coexist during the migration to the public surface, but new user-facing documentation and lifecycle CLI work should target **Livariant** and `livariant` rather than introducing additional `pb-dev` dependencies.

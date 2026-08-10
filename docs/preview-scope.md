@@ -48,7 +48,7 @@ github:Kryt3r/livariant
 
 Release tooling produces a concrete Runtime tarball, a machine-readable manifest bound to the exact artifact SHA-256, and `SHA256SUMS`. CI verifies the bundle against a clean consumer.
 
-The source is **not active yet**: the current development repository remains private and named `Kryt3r/project-brain-framework`. Establishing/configuring the canonical public repository and publishing the first RC bundle are launch-time operational gates, not already completed release facts.
+The source is **not active yet**: the canonical `Kryt3r/livariant` repository exists but remains private. Making it public, configuring the required host protections, and publishing the first RC bundle are launch-time operational gates, not already completed release facts.
 
 ## License, security, privacy, contributions, and support
 

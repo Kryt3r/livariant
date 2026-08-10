@@ -27,7 +27,7 @@ For the intended first public Livariant repository, the expected canonical ident
 github:Kryt3r/livariant
 ```
 
-**Operational release gate:** the current development repository is still `Kryt3r/project-brain-framework` and private. The expected public source identity must not be presented as active until the canonical Livariant repository exists at that identity and the release materials are actually published there.
+**Operational release gate:** the canonical repository now exists as `Kryt3r/livariant` and remains private during Preview preparation. The expected public source identity must not be presented as active until that repository is public and the corresponding release materials are actually published there.
 
 The `sourceId` embedded in a release manifest does not make itself trusted. The user/installer must still select the corresponding trusted source context separately when applying a local release bundle.
 
