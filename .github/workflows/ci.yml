@@ -3,7 +3,7 @@ name: Hardening CI
 on:
   push:
     branches:
-      - hardening/public-preview-executable-baseline
+      - main
   pull_request:
     branches:
       - main
