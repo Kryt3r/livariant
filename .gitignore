@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# TypeScript / build output
+dist/
+
+# Generated release output
+release-bundle/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# Coverage and temporary caches
+coverage/
+.nyc_output/
+.cache/
+.tmp/
+tmp/
+
+# Editor / IDE state
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
