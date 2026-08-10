@@ -11,7 +11,7 @@ function readExecutingPackageVersion(): string {
 }
 
 export const FRAMEWORK_VERSION: string = readExecutingPackageVersion();
-export const UPDATE_CHANNEL = "development" as const;
+export const UPDATE_CHANNEL = "preview" as const;
 export const PROJECT_BRAIN_SCHEMA_VERSION = 1 as const;
 
 export type LifecycleState = "uninitialized" | "initialized" | "recovery-required" | "installation-required";
