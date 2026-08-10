@@ -1,8 +1,13 @@
 import type { LocalReleaseArtifact } from "../src/distribution/release-integrity.js";
 import type { ReleaseDescriptor } from "../src/lifecycle/update.js";
 import { createRuntimePackageFixture } from "./runtime-package-fixture.js";
+import {
+  MIGRATION_TARGET_VERSION,
+  TEST_SOURCE_CHANNEL,
+  TEST_SOURCE_VERSION,
+} from "./release-test-baseline.js";
 
-export const MIGRATION_TARGET_VERSION = "0.0.1-development.1";
+export { MIGRATION_TARGET_VERSION } from "./release-test-baseline.js";
 export const MIGRATION_SOURCE_ID = "official-local-test-source";
 export const MIGRATION_ARTIFACT_ID = "runtime-node-cli-migration";
 export const MIGRATION_TRUSTED_SOURCE_IDS = new Set([MIGRATION_SOURCE_ID]);
@@ -11,9 +16,9 @@ const fixture = await createRuntimePackageFixture(MIGRATION_TARGET_VERSION);
 
 export const migrationRelease: ReleaseDescriptor = {
   version: MIGRATION_TARGET_VERSION,
-  channel: "development",
+  channel: TEST_SOURCE_CHANNEL,
   projectBrainSchema: 2,
-  compatibility: { from: ["0.0.0-development"] },
+  compatibility: { from: [TEST_SOURCE_VERSION] },
   sourceId: MIGRATION_SOURCE_ID,
   artifact: { id: MIGRATION_ARTIFACT_ID, sha256: fixture.sha256 },
 };
