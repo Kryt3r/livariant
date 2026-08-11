@@ -21,7 +21,7 @@ async function snapshotBrain(projectPath: string): Promise<Record<string, string
 }
 
 test("version reports RC preview identity", () => {
-  const version = getVersionInfo(); assert.equal(version.frameworkVersion, "0.1.0-rc.1"); assert.equal(version.channel, "preview"); assert.equal(version.runtime, "node");
+  const version = getVersionInfo(); assert.equal(version.frameworkVersion, "0.1.0-rc.2"); assert.equal(version.channel, "preview"); assert.equal(version.runtime, "node");
 });
 
 test("status on a fresh directory is read-only and uninitialized", async () => {
@@ -63,7 +63,7 @@ test("failure before promotion leaves no apparently valid Project Brain", async 
 });
 
 test("bootstrap metadata records separate framework, channel, and schema identity", async () => {
-  await withTempProject(async(projectPath)=>{await initializeProject(projectPath,{authorized:true}); const metadata=JSON.parse(await readFile(resolve(projectPath,".project-brain","metadata.json"),"utf8")) as {framework:{version:string;channel:string};projectBrain:{schemaVersion:number}}; assert.equal(metadata.framework.version,"0.1.0-rc.1"); assert.equal(metadata.framework.channel,"preview"); assert.equal(metadata.projectBrain.schemaVersion,1);});
+  await withTempProject(async(projectPath)=>{await initializeProject(projectPath,{authorized:true}); const metadata=JSON.parse(await readFile(resolve(projectPath,".project-brain","metadata.json"),"utf8")) as {framework:{version:string;channel:string};projectBrain:{schemaVersion:number}}; assert.equal(metadata.framework.version,"0.1.0-rc.2"); assert.equal(metadata.framework.channel,"preview"); assert.equal(metadata.projectBrain.schemaVersion,1);});
 });
 
 test("bootstrap preserves unknown intent instead of inventing project assumptions", async () => {
