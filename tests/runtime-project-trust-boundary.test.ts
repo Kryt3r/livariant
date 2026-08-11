@@ -67,7 +67,7 @@ async function buildUntrustedProjectRuntime(projectPath: string, markerPath: str
   }, null, 2)}\n`, "utf8");
 }
 
-function runCli(projectPath: string, trustRoot: string, command: string): ReturnType<typeof spawnSync> {
+function runCli(projectPath: string, trustRoot: string, command: string) {
   const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
   return spawnSync(process.execPath, [cliPath, command], {
     cwd: projectPath,
@@ -92,7 +92,7 @@ test("project-local Runtime evidence cannot authorize code execution before mach
 
     const blocked = runCli(projectPath, trustRoot, "resume");
     assert.notEqual(blocked.status, 0);
-    assert.match(blocked.stderr, /not trusted on this machine|project-local evidence cannot authorize execution/i);
+    assert.match(String(blocked.stderr), /not trusted on this machine|project-local evidence cannot authorize execution/i);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
   } finally {
     await rm(projectPath, { recursive: true, force: true });
