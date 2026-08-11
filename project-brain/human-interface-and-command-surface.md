@@ -10,19 +10,23 @@ The human interface must preserve the same framework semantics regardless of lan
 
 ## Command Namespace
 
-The command namespace is product-defined and provider-independent.
+The accepted product CLI namespace is:
 
-During framework development, `pb` may be used as a placeholder namespace. It is not a permanent product decision. Before the first public product baseline, the namespace should be derived from the final product identity so that the CLI, documentation, package naming, and brand remain coherent.
+```text
+livariant
+```
 
-Examples in this document use `<cmd>` to represent the product-defined namespace.
+The namespace is product-defined and provider-independent. Framework command semantics remain independent from branding so a future product rename would not redefine lifecycle or Project Brain behavior.
+
+Examples in this document use `<cmd>` when discussing semantic command intent abstractly. For the current Livariant product surface, `<cmd>` resolves to `livariant`.
 
 For example:
 
 ```text
-<cmd> init
-<cmd> resume
-<cmd> status
-<cmd> doctor
+livariant init
+livariant resume
+livariant status
+livariant doctor
 ```
 
 The namespace changes presentation, not command semantics.
@@ -228,9 +232,7 @@ The human interface should not become:
 
 ## Core Rules
 
-> **Command semantics belong to the framework; invocation syntax belongs to the product and environment.**
-
-> **The development namespace `pb` is a placeholder, not a permanent product commitment.**
+> **Command semantics belong to the framework; the current product invocation namespace is `livariant`.**
 
 > **Natural language and native agent interfaces may invoke framework intents without requiring users to memorize commands.**
 
