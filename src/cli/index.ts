@@ -5,6 +5,7 @@ import { buildResumeContext, getStatus, getVersionInfo, initializeProject, inspe
 import { getPreviewResumeAdapter } from "../adapters/provider-resume-adapter.js";
 import type { ResumeProviderId } from "../adapters/resume-provider.js";
 import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
+import { UntrustedRuntimeError } from "../distribution/runtime-trust.js";
 import { handleRecover, handleUpdate } from "./lifecycle.js";
 
 function printVersion(args: string[]): void {
@@ -29,7 +30,7 @@ async function delegateToActiveRuntime(command: string | undefined): Promise<boo
   try {
     active = await readActiveRuntimePointer(process.cwd());
   } catch (error) {
-    if (canContinueWithoutRuntimeDelegation(command)) return false;
+    if (error instanceof UntrustedRuntimeError && canContinueWithoutRuntimeDelegation(command)) return false;
     throw error;
   }
   if (!active) return false;
