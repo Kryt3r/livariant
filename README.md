@@ -1,66 +1,52 @@
-<img width="1376" height="682" alt="image" src="https://github.com/user-attachments/assets/16f5afee-a10a-4c79-8bc9-89d23135e0e9" />
+<img width="1376" height="682" alt="Livariant — Living software framework for coherent AI-assisted development" src="https://github.com/user-attachments/assets/16f5afee-a10a-4c79-8bc9-89d23135e0e9" />
 
-# Livariant — Public Preview Preparation
+<p align="center">
+  <strong>English</strong> · <a href="README.de.md">Deutsch</a>
+</p>
 
-**Livariant** is a tool-agnostic Living Software Framework for long-term AI-assisted software development.
+# Livariant
 
-AI coding sessions are good at solving the task in front of them. Long-lived software projects need something else as well: persistent project truth, explicit decisions, architecture continuity, safety boundaries, recovery semantics, and a way to move between coding agents without making hidden provider memory the project itself.
+**A living software framework for coherent AI-assisted development across coding agents, tools, and sessions.**
 
-Livariant provides that continuity through a project-owned **Project Brain** plus a Runtime that keeps authority, lifecycle state, provider translation, updates, migrations, and recovery separate from canonical project knowledge.
+Livariant gives long-lived software projects a persistent, project-owned source of truth — the **Project Brain** — so decisions, architecture, goals, and known project facts can survive individual AI sessions and provider changes without turning hidden model memory into project state.
 
-## What problem does it solve?
+> [!IMPORTANT]
+> **Capability is not authority.** A tool being technically able to modify a project does not mean it is authorized to do so. Livariant keeps inspection, planning, authorization, mutation, verification, and recovery deliberately separate.
 
-Without durable project context, AI-assisted development tends to accumulate drift:
+## Table of contents
 
-- decisions disappear between sessions,
-- old assumptions return as if they were current,
-- one coding agent knows things another does not,
-- provider-native memory becomes an accidental source of truth,
-- updates or repairs become manual file replacement,
-- existing projects get normalized instead of understood,
-- technical write access is mistaken for permission to change the project.
+- [Why Livariant?](#why-livariant)
+- [How it works](#how-it-works)
+- [Five-minute start](#five-minute-start)
+- [Existing projects](#existing-projects)
+- [Claude Code and Codex](#claude-code-and-codex)
+- [Safe updates and recovery](#safe-updates-and-recovery)
+- [Safety model](#safety-model)
+- [Local-first privacy](#local-first-privacy)
+- [Preview status](#preview-status)
+- [Documentation](#documentation)
+- [Licensing, security, and contributions](#licensing-security-and-contributions)
+
+## Why Livariant?
+
+AI coding agents are good at solving the task in front of them. Long-lived software projects need something more durable.
+
+Without persistent project context, AI-assisted development tends to drift: decisions disappear, superseded assumptions return, different agents inherit different context, provider-native memory becomes an accidental source of truth, and updates or repairs devolve into manual file replacement.
 
 Livariant is designed around the opposite model:
 
 ```text
-Project-owned canonical knowledge
+project-owned canonical knowledge
 + explicit authority
-+ provider-independent Resume semantics
++ provider-independent resume semantics
 + preservation-first mutation
 + integrity-bound lifecycle operations
 + fail-closed diagnosis and recovery
 ```
 
-## Five-minute path
+## How it works
 
-Start with the [Five-Minute Quickstart](docs/quickstart.md).
-
-The executable CLI namespace is now:
-
-```bash
-livariant version
-livariant status
-livariant doctor
-livariant init
-livariant init --apply
-livariant resume
-LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
-LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
-livariant update --manifest <release-manifest.json>
-livariant recover
-```
-
-Mutation remains explicit. `init`, `update`, and `recover` inspect or plan without mutation unless their documented `--apply` form is used.
-
-## Existing projects are first-class
-
-Livariant is discovery-first and preservation-first. It does not require an existing repository to be rewritten into a preferred template before adoption.
-
-Read: [Existing Project Guide](docs/existing-projects.md)
-
-## Project Brain
-
-Initialization creates the minimal canonical Project Brain:
+The Project Brain is a small, explicit source of truth inside the project:
 
 ```text
 .project-brain/
@@ -71,41 +57,92 @@ Initialization creates the minimal canonical Project Brain:
   metadata.json
 ```
 
-Project Brain knowledge is project-owned. Framework lifecycle metadata is narrowly scoped and does not turn the whole Brain into framework-owned state.
+It belongs to the project — not to Claude Code, Codex, a model session, or Livariant's hidden runtime state.
 
-Resume output, provider projections, native agent instruction files, temporary plans, and hidden model/provider memory are not competing canonical sources of truth.
+Provider projections, temporary plans, native agent instruction files, and hidden provider memory are **not** competing canonical sources of truth. Livariant reconstructs useful context from the Project Brain when needed.
+
+### The lifecycle principle
+
+```text
+Inspect → Plan → Authorize → Mutate → Verify
+                         ↘ Recover explicitly if interrupted
+```
+
+Read [Architecture & Safety](docs/architecture-and-safety.md) for the deeper model.
+
+## Five-minute start
+
+Requirements for the current Preview baseline:
+
+- Node.js 20 or newer;
+- a local project directory;
+- the Livariant Preview release artifact.
+
+Start read-only:
+
+```bash
+livariant status
+livariant doctor
+livariant init
+```
+
+Review what Livariant discovered. If the initialization plan is correct:
+
+```bash
+livariant init --apply
+```
+
+Then verify and resume:
+
+```bash
+livariant status
+livariant doctor
+livariant resume
+```
+
+> [!NOTE]
+> `livariant init` without `--apply` is inspection-only. Livariant is deliberately plan-first rather than mutation-first.
+
+Read the [Five-Minute Quickstart](docs/quickstart.md) or the [German Quickstart](docs/de/quickstart.md).
+
+## Existing projects
+
+Existing projects are first-class. Livariant is **discovery-first and preservation-first**: adoption does not require rewriting an existing repository into a preferred template.
+
+The normal entry path is still:
+
+```bash
+livariant status
+livariant doctor
+livariant init
+```
+
+Existing project-owned files are protected by default; ambiguity narrows behavior toward inspection and diagnosis rather than heuristic rewriting.
+
+Read the [Existing Project Guide](docs/existing-projects.md).
 
 ## Claude Code and Codex
 
-The current hardened Preview surface supports **Project Brain Resume handoff** between Claude Code and Codex through separate Preview adapters.
+The current Preview supports **Project Brain Resume handoff** for Claude Code and Codex through separate adapters:
 
-This support is intentionally narrow: it proves provider-specific environment detection, capability/compatibility evidence, canonical Resume reconstruction, hidden-memory independence, and non-mutation of human-owned instruction files. It does not claim full control of every Claude Code or Codex capability.
+```bash
+LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
+LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
+```
 
-Read: [Provider Handoff](docs/provider-handoff.md)
+This claim is intentionally narrow. Livariant reconstructs provider-specific resume context from canonical Project Brain state; it does **not** claim to manage every provider feature, model option, tool invocation, authentication method, or native instruction mechanism.
 
-## Safety model
+Read [Provider Handoff](docs/provider-handoff.md).
 
-The central safety rule is simple:
+## Safe updates and recovery
 
-> **Capability is not authority.**
-
-The Runtime requires explicit authorization for project-affecting mutation. Existing files are protected by default; ambiguity narrows behavior instead of triggering heuristic repair.
-
-The executable baseline includes adversarial evidence for symlink/path escape, stale decision truth, interrupted migrations, checkpoint tampering, release artifact tampering, installed-runtime drift, provider instruction conflicts, unsupported migrations, concurrent project-owned mutation during update activation, and missing update trust evidence.
-
-Read: [Architecture & Safety](docs/architecture-and-safety.md)
-
-## Updates, migrations, and recovery
-
-The installed CLI exposes the hardened lifecycle engine.
-
-Plan an update from a supplied release manifest:
+Inspect an update first:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-Apply only after reviewing the plan and possessing the matching artifact from a source you explicitly trust:
+Only after reviewing the plan, apply the matching artifact from a source you explicitly trust:
 
 ```bash
 livariant update \
@@ -115,104 +152,66 @@ livariant update \
   --trusted-source <source-id>
 ```
 
-Schema-changing releases are detected by the same `update` command and routed through the supported migration lifecycle. There is no separate normal-path `migrate` shortcut.
+> [!WARNING]
+> **Do not update Livariant by manually replacing `.project-brain/`, copying framework-managed lifecycle files, editing schema/version metadata, or dropping a newer Runtime into managed storage.**
+>
+> Manual replacement bypasses compatibility checks, explicit authority, release integrity, migration checkpoints, replay safety, validation, and activation semantics.
 
-Recovery is separately inspected and authorized:
+> [!CAUTION]
+> If an update or migration is interrupted, **do not blindly rerun it and do not repair files by hand**. Diagnose first:
+>
+> ```bash
+> livariant doctor
+> livariant recover
+> ```
+>
+> Apply recovery only when Livariant reports a valid supported strategy:
+>
+> ```bash
+> livariant recover --apply
+> ```
 
-```bash
-livariant recover
-livariant recover --apply
-```
+Schema-changing releases use the same `update` path and are routed through the supported migration lifecycle automatically. There is intentionally no normal-path manual `migrate` shortcut.
 
-**Do not manually replace Project Brain or framework-managed lifecycle state as a substitute for these commands.**
+Read [Updates, Migrations & Recovery](docs/lifecycle-guide.md) or the [German lifecycle guide](docs/de/lifecycle-guide.md).
 
-Read: [Updates, Migrations & Recovery](docs/lifecycle-guide.md)
+## Safety model
 
-## Public Preview distribution
+Livariant's Runtime requires explicit authorization for project-affecting mutation. Existing project-owned state is protected by default, and ambiguous state narrows toward diagnosis rather than guessed repair.
 
-The accepted first Preview distribution path is **GitHub Releases from the canonical public Livariant repository**.
+The hardened Preview baseline includes executable coverage for path/symlink escape, stale decision truth, interrupted migrations, checkpoint tampering, release-artifact tampering, installed-runtime drift, provider instruction conflicts, unsupported migrations, concurrent project-owned mutation during activation, and missing update-trust evidence.
 
-Release bundles are built from concrete package bytes and contain:
+The key rule remains:
 
-- the packed `livariant` Runtime tarball,
-- `release-manifest.json` binding version/channel/schema/source/artifact/SHA-256,
-- `SHA256SUMS`,
-- human-readable release notes at publication time.
+> **Capability is not authority.**
 
-The canonical Livariant repository now exists at `Kryt3r/livariant` and remains private during Preview preparation. The source identity `github:Kryt3r/livariant` becomes an active public release source only after the repository is made public and the corresponding release materials are actually published.
+## Local-first privacy
 
-Read: [Public Distribution Source](distribution/public-distribution-source.md)
+The current Preview Runtime is designed to remain useful as a local-first tool:
 
-## Product identity
+- no Livariant analytics or usage telemetry;
+- no automatic Project Brain upload;
+- no Livariant cloud account required for local project operation;
+- no automatic remote update check;
+- provider-specific Resume handoff is rendered locally by Livariant.
 
-The accepted product identity is:
+What an external AI provider does with context you intentionally pass to it remains governed by that provider, not by Livariant.
 
-```text
-Product: Livariant
-Package/runtime identity: livariant
-Public CLI namespace: livariant
-```
+Read [Privacy & Network Behavior](docs/privacy-and-network.md).
 
-The preliminary naming review and its legal boundary are recorded in [`distribution/product-naming-decision.md`](distribution/product-naming-decision.md). The review is not a formal trademark clearance, and the framework architecture must remain rename-safe if a future rights conflict ever requires a branding change.
+## Preview status
 
-## Licensing
+Livariant is in **Public Preview**. The Preview is evidence-backed, but it is not a promise that every CLI detail or internal contract is frozen before 1.0.
 
-Livariant is **source-available, not OSI-approved Open Source**.
+The supported baseline is currently verified in CI on **Ubuntu and Windows with Node.js 24**. The package declares Node.js `>=20`, but the Preview test claim is intentionally limited to the environments actually exercised by the release pipeline.
 
-The default license is the [PolyForm Perimeter License 1.0.1](LICENSE). It is intended to allow broad use, modification, and distribution for permitted purposes — including using Livariant in commercial software-development work — while protecting Livariant against being used to provide others with a competing substitute for Livariant itself.
+Known bounded limitations may exist. Known data-loss, authority-escalation, migration-integrity, or release-trust bypasses on a supported path do not qualify as acceptable Preview limitations.
 
-Separate commercial terms may be offered for uses outside the default license or for organizations that need separately negotiated rights.
-
-External code contributions are temporarily gated until contributor terms compatible with the source-available and future commercial-licensing model are finalized.
-
-Read the practical licensing explanation in [`LICENSING.md`](LICENSING.md). The `LICENSE` file remains authoritative.
-
-## Privacy, security, contributions, and support
-
-- [Licensing](LICENSING.md)
-- [License, Warranty & Liability](docs/license-and-warranty.md)
-- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
-- [Privacy & Network Behavior](docs/privacy-and-network.md)
-- [Security Policy](SECURITY.md)
-- [Contributing](CONTRIBUTING.md)
-- [Public Preview Support & Stability](docs/preview-support-and-stability.md)
-
-The current Runtime has no Livariant telemetry, no automatic Project Brain upload, and no automatic remote update check. Public Preview support is maintainer/community support without a paid SLA unless separately agreed.
-
-## Public Preview readiness
-
-The Deep Hardening & Consistency Review has executable evidence for all eight FOUNDATION-10 required scenarios:
-
-1. fresh project,
-2. existing small project,
-3. existing messy project,
-4. Claude Code ↔ Codex Resume transition,
-5. normal framework-only update,
-6. migration update,
-7. interrupted update,
-8. failed-migration recovery.
-
-The hardened package is built, packed, installed into a clean consumer project, and executed in CI. CI also builds a manifest-bound release bundle and verifies that its checksum and release manifest bind the exact artifact installed by a clean consumer.
-
-The repository-side legal/public baseline is documented. Remaining launch gates are operational and presentation-focused: finalize public-facing repository presentation and documentation, establish contributor terms, enable/verify host-side security and release protections, publish the intended public candidate, and perform the final Public Preview review against that candidate.
-
-Read: [Public Preview Scope & Limitations](docs/preview-scope.md) and [Public Release Baseline Review](distribution/public-release-baseline-review.md).
-
-## Architecture
-
-The accepted logical layers are:
-
-1. **Core** — universal governance and safety rules.
-2. **Patterns** — reusable architecture/product patterns.
-3. **Profiles** — domain-specific rules and constraints.
-4. **Adapters** — environment-specific capability discovery and translation.
-5. **Project Brain** — canonical state for a concrete project.
-
-The executable Runtime coordinates these layers without allowing provider capability to redefine project authority.
-
-For deeper framework contracts, see [`core/charter.md`](core/charter.md) and [`core/framework-architecture.md`](core/framework-architecture.md).
+Read [Public Preview Support & Stability](docs/preview-support-and-stability.md) and [Public Preview Scope & Limitations](docs/preview-scope.md).
 
 ## Documentation
+
+### English
 
 - [Five-Minute Quickstart](docs/quickstart.md)
 - [Existing Project Guide](docs/existing-projects.md)
@@ -223,6 +222,30 @@ For deeper framework contracts, see [`core/charter.md`](core/charter.md) and [`c
 - [Public Preview Support & Stability](docs/preview-support-and-stability.md)
 - [Public Preview Scope & Limitations](docs/preview-scope.md)
 
-## Development status
+### Deutsch
 
-Livariant is in **Public Preview preparation**, not Foundation design. The product, package/runtime identity, installed CLI namespace, user journey, and private RC baseline are aligned. Remaining work is public-launch preparation and final Public Preview verification, not new Foundation architecture.
+- [Deutsche Projektübersicht](README.de.md)
+- [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
+- [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-guide.md)
+
+Additional German detail documentation will be added without changing the English canonical technical contracts.
+
+## Licensing, security, and contributions
+
+Livariant is **source-available, not OSI-approved Open Source** and is licensed under the [PolyForm Perimeter License 1.0.1](LICENSE).
+
+The license is intended to permit broad use — including use in commercial software-development work — while restricting use of Livariant to provide others with a competing substitute for Livariant itself. Separate commercial terms may be offered where separately negotiated rights are needed.
+
+Security-sensitive issues should follow [SECURITY.md](SECURITY.md) rather than being disclosed first through a public issue.
+
+External code contributions are currently gated until contributor-rights terms compatible with the source-available and future commercial-licensing model are finalized.
+
+- [Licensing](LICENSING.md)
+- [Security Policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
+- [License, Warranty & Liability](docs/license-and-warranty.md)
+- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
+
+---
+
+**Livariant** is built around a simple premise: AI-assisted development becomes more reliable when the project owns its memory, decisions stay explicit, and powerful tools still have to respect authority.
