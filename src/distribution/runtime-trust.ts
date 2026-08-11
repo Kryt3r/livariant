@@ -1,9 +1,17 @@
+import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
 const TRUST_SCHEMA = 1 as const;
 const PACKAGE_NAME = "livariant" as const;
+
+export class UntrustedRuntimeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UntrustedRuntimeError";
+  }
+}
 
 export interface RuntimeTrustIdentity {
   version: string;
@@ -24,23 +32,6 @@ function trustRoot(): string {
   return override ? resolve(override) : resolve(homedir(), ".livariant", "trust", "runtimes");
 }
 
-function recordPath(identity: RuntimeTrustIdentity): string {
-  if (!/^[a-f0-9]{64}$/i.test(identity.packageTreeSha256)) {
-    throw new Error("Runtime trust identity has an invalid package tree digest.");
-  }
-  return resolve(trustRoot(), `${identity.packageTreeSha256.toLowerCase()}.json`);
-}
-
-async function ensureTrustRoot(): Promise<string> {
-  const root = trustRoot();
-  await mkdir(root, { recursive: true });
-  const stats = await lstat(root);
-  if (!stats.isDirectory() || stats.isSymbolicLink()) {
-    throw new Error("Machine-local Livariant Runtime trust root must be a real directory.");
-  }
-  return root;
-}
-
 function normalized(identity: RuntimeTrustIdentity): RuntimeTrustRecord {
   return {
     schema: TRUST_SCHEMA,
@@ -52,6 +43,32 @@ function normalized(identity: RuntimeTrustIdentity): RuntimeTrustRecord {
     artifactSha256: identity.artifactSha256.toLowerCase(),
     packageTreeSha256: identity.packageTreeSha256.toLowerCase(),
   };
+}
+
+function recordPath(identity: RuntimeTrustIdentity): string {
+  const record = normalized(identity);
+  if (!/^[a-f0-9]{64}$/i.test(record.artifactSha256) || !/^[a-f0-9]{64}$/i.test(record.packageTreeSha256)) {
+    throw new Error("Runtime trust identity has an invalid digest.");
+  }
+  const key = createHash("sha256").update([
+    record.version,
+    record.channel,
+    record.sourceId,
+    record.artifactId,
+    record.artifactSha256,
+    record.packageTreeSha256,
+  ].join("\0")).digest("hex");
+  return resolve(trustRoot(), `${key}.json`);
+}
+
+async function ensureTrustRoot(): Promise<string> {
+  const root = trustRoot();
+  await mkdir(root, { recursive: true });
+  const stats = await lstat(root);
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new Error("Machine-local Livariant Runtime trust root must be a real directory.");
+  }
+  return root;
 }
 
 function sameRecord(left: RuntimeTrustRecord, right: RuntimeTrustRecord): boolean {
@@ -109,7 +126,7 @@ export async function assertRuntimeTrusted(identity: RuntimeTrustIdentity): Prom
     stats = await lstat(path);
   } catch (error) {
     if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error("Installed Runtime is not trusted on this machine; project-local evidence cannot authorize execution.");
+      throw new UntrustedRuntimeError("Installed Runtime is not trusted on this machine; project-local evidence cannot authorize execution.");
     }
     throw error;
   }
