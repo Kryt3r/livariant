@@ -55,7 +55,7 @@ Release tooling produces a concrete Runtime tarball, a machine-readable manifest
 
 The repository may remain private until the explicit public-visibility gate is approved. Public-facing documentation therefore does not rely on a package-manager installation path or on repository visibility as a Runtime safety assumption.
 
-A private release candidate already exists for validation. It is an immutable candidate and must not be recreated or overwritten merely to prepare the public Preview.
+A private release candidate already exists for validation. It is policy-frozen and must not be recreated or overwritten merely to prepare the public Preview. GitHub reports this historical RC itself as `immutable: false` because it predates activation of release immutability; future releases follow the configured immutable-release policy.
 
 ## License, security, privacy, contributions, and support
 

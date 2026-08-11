@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { readMigrationJournal } from "../lifecycle/migration.js";
+import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
 
@@ -21,7 +22,18 @@ export async function runDoctor(projectPath: string = process.cwd()): Promise<Do
   const inspection = await store.inspect();
   const findings: DoctorFinding[] = [];
 
-  if (inspection.health === "not-found") return { projectRoot: project.root, state: "partial-or-damaged", findings: [{ code: "project-brain-missing", severity: "error", message: "Project Brain is not initialized." }], changesMade: 0 };
+  if (inspection.health === "not-found") {
+    const stranded = await findStrandedLifecycleArtifacts(project.root);
+    if (stranded.length > 0) {
+      return {
+        projectRoot: project.root,
+        state: "recovery-required",
+        findings: [{ code: "stranded-lifecycle-state", severity: "error", message: `Canonical Project Brain is missing while lifecycle artifacts remain: ${stranded.join(", ")}. Do not initialize a new brain; recovery/diagnosis is required.` }],
+        changesMade: 0,
+      };
+    }
+    return { projectRoot: project.root, state: "partial-or-damaged", findings: [{ code: "project-brain-missing", severity: "error", message: "Project Brain is not initialized." }], changesMade: 0 };
+  }
   if (inspection.health !== "valid") return { projectRoot: project.root, state: "partial-or-damaged", findings: [{ code: "project-brain-invalid", severity: "error", message: inspection.reason ?? "Project Brain requires diagnosis." }], changesMade: 0 };
 
   let journal: Awaited<ReturnType<typeof readMigrationJournal>>;

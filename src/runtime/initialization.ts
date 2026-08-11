@@ -1,4 +1,5 @@
 import { FRAMEWORK_VERSION, PROJECT_BRAIN_SCHEMA_VERSION, UPDATE_CHANNEL } from "../lifecycle/state.js";
+import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
 import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore, type BootstrapOptions } from "../project-brain/store.js";
 import type { ProjectBrainHealth, ProjectBrainMetadata } from "../project-brain/types.js";
@@ -38,10 +39,14 @@ export async function inspectInitialization(projectPath: string = process.cwd())
   const project = discoverProject(projectPath);
   const store = new ProjectBrainStore(project.root);
   const brain = await store.inspect();
+  const stranded = brain.health === "not-found" ? await findStrandedLifecycleArtifacts(project.root) : [];
 
   const evidence = [...project.signals];
   if (project.packageName) {
     evidence.push(`package-name:${project.packageName}`);
+  }
+  if (stranded.length > 0) {
+    evidence.push(...stranded.map((name) => `stranded-lifecycle:${name}`));
   }
 
   const base = {
@@ -59,6 +64,16 @@ export async function inspectInitialization(projectPath: string = process.cwd())
     unknowns: ["project goals", "accepted architecture decisions", "deployment target"],
     confirmedProjectName: project.packageName,
   };
+
+  if (brain.health === "not-found" && stranded.length > 0) {
+    return {
+      ...base,
+      projectState: "unsupported-or-ambiguous",
+      filesToCreate: [],
+      action: "blocked-diagnosis",
+      reason: `Stranded lifecycle artifacts exist while the canonical Project Brain is missing: ${stranded.join(", ")}. Recovery/diagnosis is required before initialization.`,
+    };
+  }
 
   switch (brain.health) {
     case "valid":

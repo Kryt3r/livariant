@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -8,6 +9,7 @@ import {
   applyRecovery,
   getStatus,
   initializeProject,
+  inspectInitialization,
   inspectRecovery,
   planMigrationUpdate,
   planRecovery,
@@ -78,4 +80,46 @@ test("checkpoint with mismatched source metadata blocks automatic recovery", asy
 
 test("recovery promotion failure leaves interrupted state recoverable instead of guessing through", async () => {
   await withInterruptedMigration(async(projectPath)=>{const plan=await planRecovery(projectPath); await assert.rejects(()=>applyRecovery(projectPath,plan,{authorized:true,failBeforePromote:true}),/promotion failure/i); assert.equal((await getStatus(projectPath)).lifecycle,"recovery-required"); const inspection=await inspectRecovery(projectPath); assert.equal(inspection.state,"interrupted-migration"); assert.equal(inspection.checkpointValid,true);});
+});
+
+test("tampered operation identity cannot substitute the active Project Brain as a checkpoint", async () => {
+  await withInterruptedMigration(async (projectPath) => {
+    const journalPath = resolve(projectPath, ".project-brain", ".lifecycle", "migration-journal.json");
+    const journal = JSON.parse(await readFile(journalPath, "utf8")) as Record<string, unknown>;
+    journal.operationId = "x/../.project-brain";
+    journal.checkpointPath = resolve(projectPath, ".project-brain");
+    await writeFile(journalPath, `${JSON.stringify(journal, null, 2)}\n`, "utf8");
+
+    const brainBefore = await readFile(resolve(projectPath, ".project-brain", "project.md"), "utf8");
+    const inspection = await inspectRecovery(projectPath);
+    assert.equal(inspection.state, "recovery-required");
+    assert.equal(inspection.checkpointValid, false);
+    assert.match(inspection.reason ?? "", /operation identity is invalid/i);
+    await assert.rejects(() => planRecovery(projectPath), /operation identity is invalid/i);
+    assert.equal(await readFile(resolve(projectPath, ".project-brain", "project.md"), "utf8"), brainBefore);
+  });
+});
+
+test("hard interruption between recovery swap renames remains fail-closed and blocks fresh init", async () => {
+  await withInterruptedMigration(async (projectPath) => {
+    const displaced = resolve(projectPath, `.project-brain.recovery-displaced-${randomUUID()}`);
+    await rename(resolve(projectPath, ".project-brain"), displaced);
+
+    const status = await getStatus(projectPath);
+    assert.equal(status.lifecycle, "recovery-required");
+    assert.equal(status.projectBrain, "needs-diagnosis");
+    assert.match(status.lifecycleReason ?? "", /stranded lifecycle artifacts/i);
+
+    const doctor = await runDoctor(projectPath);
+    assert.equal(doctor.state, "recovery-required");
+    assert.equal(doctor.findings[0]?.code, "stranded-lifecycle-state");
+
+    const recovery = await inspectRecovery(projectPath);
+    assert.equal(recovery.state, "recovery-required");
+    assert.match(recovery.reason ?? "", /stranded lifecycle artifacts/i);
+
+    const init = await inspectInitialization(projectPath);
+    assert.equal(init.action, "blocked-diagnosis");
+    await assert.rejects(() => initializeProject(projectPath, { authorized: true }), /diagnosis|required|stranded/i);
+  });
 });
