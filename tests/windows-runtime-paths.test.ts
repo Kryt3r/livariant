@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { tmpdir, userInfo } from "node:os";
+import { basename, join, resolve } from "node:path";
 import test from "node:test";
 import { installVerifiedRuntime } from "../src/distribution/runtime-installation.js";
 import type { LocalReleaseArtifact, ReleaseIdentity } from "../src/distribution/release-integrity.js";
 import { createRuntimePackageFixture } from "./runtime-package-fixture.js";
 
 const version = "0.0.1-development.1";
+
+function machineTestTrustRoot(label: string): string {
+  return resolve(userInfo().homedir, ".livariant", "trust", "runtimes", `test-${label}-${randomUUID()}`);
+}
 
 function releaseInputs(path: string, sha256: string): { identity: ReleaseIdentity; artifact: LocalReleaseArtifact } {
   const identity: ReleaseIdentity = {
@@ -33,8 +38,9 @@ test("runtime installation preserves literal Windows metacharacters in project a
   const root = await mkdtemp(join(tmpdir(), "livariant-win-meta-"));
   const projectPath = join(root, "project & literal (path)");
   const artifactDir = join(root, "artifact ^ literal & path");
+  const trustRoot = machineTestTrustRoot("win-meta");
   const previousTrustRoot = process.env.LIVARIANT_TRUST_ROOT;
-  process.env.LIVARIANT_TRUST_ROOT = join(root, "trust");
+  process.env.LIVARIANT_TRUST_ROOT = trustRoot;
   try {
     await mkdir(projectPath, { recursive: true });
     await mkdir(artifactDir, { recursive: true });
@@ -50,14 +56,16 @@ test("runtime installation preserves literal Windows metacharacters in project a
     else process.env.LIVARIANT_TRUST_ROOT = previousTrustRoot;
     await fixture.cleanup();
     await rm(root, { recursive: true, force: true });
+    await rm(trustRoot, { recursive: true, force: true });
   }
 });
 
 test("runtime installation treats valid Windows cmd metacharacters as literal path data without whitespace", { skip: process.platform !== "win32" }, async () => {
   const fixture = await createRuntimePackageFixture(version);
   const root = await mkdtemp(join(tmpdir(), "livariant-win-meta-nowhitespace-"));
+  const trustRoot = machineTestTrustRoot("win-nowhitespace");
   const previousTrustRoot = process.env.LIVARIANT_TRUST_ROOT;
-  process.env.LIVARIANT_TRUST_ROOT = join(root, "trust");
+  process.env.LIVARIANT_TRUST_ROOT = trustRoot;
 
   // `|` and `"` are not legal Windows filename characters, so they cannot occur
   // in the filesystem paths passed to this installation API. These cases cover
@@ -84,5 +92,6 @@ test("runtime installation treats valid Windows cmd metacharacters as literal pa
     else process.env.LIVARIANT_TRUST_ROOT = previousTrustRoot;
     await fixture.cleanup();
     await rm(root, { recursive: true, force: true });
+    await rm(trustRoot, { recursive: true, force: true });
   }
 });
