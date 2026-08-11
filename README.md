@@ -152,8 +152,10 @@ livariant update \
   --trusted-source <source-id>
 ```
 
+For executable updates, that is still not sufficient by itself: the **exact artifact SHA-256 must already be authorized by an independent machine-local release policy outside project authority**. Project files, the manifest, `--trusted-source`, and Livariant's project-facing CLI/API cannot create that authority. If it is absent, update fails closed before npm installation or candidate Runtime attestation. There is intentionally no project-facing `authorize-runtime` command.
+
 > [!WARNING]
-> **Do not update Livariant by manually replacing `.project-brain/`, copying framework-managed lifecycle files, editing schema/version metadata, or dropping a newer Runtime into managed storage.**
+> **Do not update Livariant by manually replacing `.project-brain/`, copying framework-managed lifecycle files, editing schema/version metadata, dropping a newer Runtime into managed storage, or editing Runtime trust/release-authorization records.**
 >
 > Manual replacement bypasses compatibility checks, explicit authority, release integrity, migration checkpoints, replay safety, validation, and activation semantics.
 
@@ -179,7 +181,7 @@ Read [Updates, Migrations & Recovery](docs/lifecycle-guide.md) or the [German li
 
 Livariant's Runtime requires explicit authorization for project-affecting mutation. Existing project-owned state is protected by default, and ambiguous state narrows toward diagnosis rather than guessed repair.
 
-The hardened Preview baseline includes executable coverage for path/symlink escape, stale decision truth, interrupted migrations, checkpoint tampering, release-artifact tampering, installed-runtime drift, provider instruction conflicts, unsupported migrations, concurrent project-owned mutation during activation, and missing update-trust evidence.
+The hardened Preview baseline includes executable coverage for path/symlink escape, stale decision truth, interrupted migrations, checkpoint tampering, release-artifact tampering, installed-runtime drift, provider instruction conflicts, unsupported migrations, concurrent project-owned mutation during activation, missing update-trust evidence, hostile trust-root topology, pre-trust Runtime execution, and project attempts to create their own release authority.
 
 The key rule remains:
 
