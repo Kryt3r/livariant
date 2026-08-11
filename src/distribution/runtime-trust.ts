@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 const TRUST_SCHEMA = 1 as const;
 const PACKAGE_NAME = "livariant" as const;
@@ -27,9 +27,22 @@ interface RuntimeTrustRecord extends RuntimeTrustIdentity {
   packageName: typeof PACKAGE_NAME;
 }
 
+function pathIsWithin(root: string, candidate: string): boolean {
+  const rel = relative(resolve(root), resolve(candidate));
+  return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !rel.startsWith(sep));
+}
+
 function trustRoot(): string {
   const override = process.env.LIVARIANT_TRUST_ROOT;
-  return override ? resolve(override) : resolve(homedir(), ".livariant", "trust", "runtimes");
+  if (!override) return resolve(homedir(), ".livariant", "trust", "runtimes");
+  if (!isAbsolute(override)) {
+    throw new Error("LIVARIANT_TRUST_ROOT must be an absolute machine-local path.");
+  }
+  const root = resolve(override);
+  if (pathIsWithin(process.cwd(), root)) {
+    throw new Error("LIVARIANT_TRUST_ROOT must be outside the current project directory.");
+  }
+  return root;
 }
 
 function normalized(identity: RuntimeTrustIdentity): RuntimeTrustRecord {
