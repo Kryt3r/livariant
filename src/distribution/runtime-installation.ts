@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { assertPathWithinRoot, assertRegularFile } from "../project-brain/path-safety.js";
 import {
   verifyReleaseArtifact,
@@ -52,7 +52,11 @@ async function ensureSafeDirectory(path: string, root: string, label: string): P
 function npmInstall(prefix: string, artifactPath: string): void {
   const npmArgs = ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--prefix", prefix, artifactPath];
   const result = process.platform === "win32"
-    ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm", ...npmArgs], { encoding: "utf8", shell: false })
+    ? spawnSync(
+        process.execPath,
+        [resolve(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...npmArgs],
+        { encoding: "utf8", shell: false },
+      )
     : spawnSync("npm", npmArgs, { encoding: "utf8", shell: false });
   if (result.error || result.status !== 0) {
     const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
