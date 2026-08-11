@@ -5,6 +5,7 @@ phase: public-preview-hardening
 scope: executable-baseline
 language: en
 owner: framework
+updated: 2026-08-11
 ---
 
 # Minimal Runtime & CLI Architecture
@@ -97,7 +98,18 @@ The executable baseline requires only a small command surface sufficient to exer
 - `update`
 - `version`
 
-The final product namespace remains unresolved until product naming is explicitly accepted. Development invocation may use a temporary replaceable namespace.
+The accepted product CLI namespace is `livariant`. Product-facing invocation therefore uses commands such as:
+
+```text
+livariant init
+livariant status
+livariant resume
+livariant doctor
+livariant update
+livariant version
+```
+
+The semantic command surface remains independent from branding: a future product rename would change invocation identity, not lifecycle or Project Brain semantics.
 
 ### `init`
 
@@ -231,7 +243,7 @@ The executable hardening phase must not recreate Foundation expansion under a di
 
 > **The Runtime implements existing canonical Framework semantics rather than redefining them.**
 
-> **The CLI is a replaceable interface over Runtime capabilities.**
+> **The CLI is a replaceable interface over Runtime capabilities; the current product namespace is `livariant`.**
 
 > **The first `0.x` baseline is local-first, deterministic-first, and deliberately small.**
 
