@@ -12,7 +12,7 @@ updated: 2026-08-11
 
 Public installation and upgrade guidance is part of the framework safety surface. The supported path must be easier to discover and follow than unsafe manual mutation.
 
-> **Installation, existing-project adoption, upgrading, and recovery require version-aware documentation that clearly separates framework tooling updates from project migrations and prominently warns against manual replacement of managed project state.**
+> **Installation, existing-project adoption, upgrading, and recovery require version-aware documentation that clearly separates framework tooling updates from project migrations and prominently warns against manual replacement of managed project state. Executable updates must also expose the independent release-authority boundary rather than implying that project input can self-authorize candidate Runtime execution.**
 
 ## One Clear Supported Path
 
@@ -29,11 +29,13 @@ Install Livariant tooling
 → begin using the framework
 ```
 
-The recommended update flow should communicate:
+The recommended executable update flow should communicate:
 
 ```text
 Check for an update
 → review compatibility and impact
+→ verify source/artifact identity
+→ require pre-existing independent exact-artifact release authority
 → use the supported updater
 → run required migration and validation
 → confirm completion
@@ -41,9 +43,17 @@ Check for an update
 
 The current product CLI namespace is `livariant`. The lifecycle semantics defined by this policy remain independent from branding so a future rename would not redefine the safe update contract.
 
+## Independent Release Authority Must Be Visible
+
+Current user-facing update guidance must make clear that `--trusted-source`, the release manifest, artifact bytes, project files, and project-facing Livariant CLI/API do not create executable release authority.
+
+For the current Preview boundary, the exact artifact SHA-256 must already be authorized through an independent machine-local release process outside project authority before executable update can proceed. If that authority is absent, update fails closed before npm installation or candidate Runtime attestation.
+
+Documentation must not instruct users to run a project-facing `authorize-runtime` command; that command intentionally does not exist.
+
 ## Prominent Manual-Replacement Warning
 
-The installation and upgrade guidance must prominently warn users not to replace an existing Project Brain, framework-managed project integration, or other managed project state by manually copying files from a newer release.
+The installation and upgrade guidance must prominently warn users not to replace an existing Project Brain, framework-managed project integration, Runtime trust state, release-authorization state, or other managed project/framework security state by manually copying or editing files from a newer release.
 
 The guidance must clearly communicate that project-affecting framework changes must pass through a supported framework update path so ownership, compatibility, authority, migration, checkpoint, recovery, and validation semantics remain intact.
 
@@ -55,7 +65,7 @@ If a package manager such as npm is used as a distribution mechanism, documentat
 
 Where framework tooling can be upgraded separately from project state, the documentation must make that distinction explicit.
 
-Users should not reasonably infer that updating a package is equivalent to safely migrating every Project Brain or managed integration in an existing project.
+Users should not reasonably infer that updating a package is equivalent to safely migrating every Project Brain or managed integration in an existing project, or that package-manager availability by itself authorizes candidate Runtime execution.
 
 ## Fresh Project and Existing Project Are Distinct Paths
 
@@ -77,6 +87,8 @@ A usable upgrade guide should help the user understand how to:
 - identify the applicable channel and target release,
 - review breaking changes and migration requirements,
 - understand material update effects,
+- understand trusted-source evidence separately from independent release authority,
+- confirm that exact-artifact release authority exists before executable update,
 - establish or confirm a suitable checkpoint where required,
 - apply the supported update,
 - validate the result,
@@ -92,6 +104,8 @@ Interrupted or failed updates are expected lifecycle states and must have a docu
 Recovery guidance should warn users against trying to repair an interrupted update by manually overwriting managed project files.
 
 The supported recovery path should begin with diagnosis of the actual installation and migration state, for example through `livariant doctor` and `livariant recover`, before additional mutation is attempted.
+
+For the current Recovery implementation, documentation should preserve the cleanup invariant: after verified rollback the restored Project Brain is committed first, displaced Recovery state is removed before the final valid checkpoint, and checkpoint deletion is the last irreversible cleanup step.
 
 ## Version-Aware Documentation
 
@@ -115,7 +129,7 @@ Branding changes must not require redesigning the lifecycle, migration, or owner
 
 ## Technical Safety Communication and Legal Documentation
 
-Technical warnings about update safety, data loss risk, supported migration paths, manual replacement, backup or checkpoint requirements, and recovery behavior belong directly in the relevant technical guides.
+Technical warnings about update safety, data loss risk, supported migration paths, manual replacement, backup or checkpoint requirements, release authority, and recovery behavior belong directly in the relevant technical guides.
 
 They must not be hidden solely inside legal or warranty language.
 
@@ -144,6 +158,8 @@ Avoid:
 
 - presenting multiple equally prominent installation paths without identifying the supported default,
 - documenting `npm update` or equivalent as if it automatically proves project migration safety,
+- implying that manifest/trusted-source/project input can create executable release authority,
+- documenting a project-facing `authorize-runtime` flow,
 - placing the manual-replacement warning only in obscure troubleshooting or legal text,
 - using fresh-project instructions for established projects without discovery and preservation semantics,
 - documenting only the happy path and leaving interrupted updates undefined,
@@ -156,6 +172,8 @@ Avoid:
 > **The supported path must be easier to discover and follow than unsafe manual mutation.**
 
 > **Framework tooling updates and project migrations are distinct concepts and must be documented as such.**
+
+> **Executable update authority must remain independent from project-controlled input and must be visible in user guidance.**
 
 > **Fresh-project setup, existing-project adoption, upgrade, and recovery are all first-class documentation paths.**
 
