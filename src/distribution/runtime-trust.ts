@@ -29,7 +29,7 @@ interface RuntimeTrustRecord extends RuntimeTrustIdentity {
 
 function pathIsWithin(root: string, candidate: string): boolean {
   const rel = relative(resolve(root), resolve(candidate));
-  return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !rel.startsWith(sep));
+  return rel === "" || (!isAbsolute(rel) && !rel.startsWith(`..${sep}`) && rel !== ".." && !rel.startsWith(sep));
 }
 
 function machineTrustBase(): string {
