@@ -12,7 +12,10 @@ The repository uses third-party development/build tooling that is not shipped as
 
 The authoritative versions and integrity metadata are recorded in `package-lock.json`.
 
-This notice summarizes the current JavaScript dependency surface for Public Preview preparation. It does not replace the license texts or notices supplied by upstream projects, and it must be reviewed again if runtime dependencies, bundled third-party code, generated assets, or other redistributable components are added.
+This notice summarizes the current JavaScript dependency surface for the Livariant Public Preview baseline. It does not replace the license texts or notices supplied by upstream projects, and it must be reviewed again if runtime dependencies, bundled third-party code, generated assets, or other redistributable components are added.
+
+> [!NOTE]
+> The licenses listed above apply to the identified third-party components. Livariant itself is licensed separately under the PolyForm Perimeter License 1.0.1; see `LICENSE` and `LICENSING.md`.
 
 ## Runtime package boundary
 
