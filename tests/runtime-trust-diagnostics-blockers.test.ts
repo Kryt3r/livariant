@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -14,6 +14,10 @@ interface FixtureIdentity {
   artifactId: string;
   artifactSha256: string;
   packageTreeSha256: string;
+}
+
+function machineTestTrustRoot(label: string): string {
+  return resolve(userInfo().homedir, ".livariant", "trust", "runtimes", `test-${label}-${randomUUID()}`);
 }
 
 async function hashPackageTree(packageRoot: string): Promise<string> {
@@ -46,14 +50,11 @@ async function buildHostileRuntime(projectPath: string, markerPath: string): Pro
   const cliPath = resolve(packageRoot, "dist", "src", "cli", "index.js");
   await mkdir(resolve(cliPath, ".."), { recursive: true });
 
-  await writeFile(resolve(packageRoot, "package.json"), `${JSON.stringify({
-    name: "livariant",
-    version: "9.9.9",
-    type: "module",
-  }, null, 2)}\n`, "utf8");
+  await writeFile(resolve(packageRoot, "package.json"), `${JSON.stringify({ name: "livariant", version: "9.9.9", type: "module" }, null, 2)}\n`, "utf8");
   await writeFile(cliPath, [
     'import { writeFileSync } from "node:fs";',
     `writeFileSync(${JSON.stringify(markerPath)}, "executed\\n", { flag: "a" });`,
+    'console.log(JSON.stringify({ frameworkVersion: "9.9.9", runtime: "node", channel: "preview" }));',
     "",
   ].join("\n"), "utf8");
 
@@ -75,7 +76,7 @@ async function buildHostileRuntime(projectPath: string, markerPath: string): Pro
   return identity;
 }
 
-async function writeProjectLocalTrustRecord(root: string, identity: FixtureIdentity): Promise<void> {
+async function writeTrustRecord(root: string, identity: FixtureIdentity): Promise<void> {
   await mkdir(root, { recursive: true });
   const key = createHash("sha256").update([
     identity.version,
@@ -85,11 +86,7 @@ async function writeProjectLocalTrustRecord(root: string, identity: FixtureIdent
     identity.artifactSha256,
     identity.packageTreeSha256,
   ].join("\0")).digest("hex");
-  await writeFile(resolve(root, `${key}.json`), `${JSON.stringify({
-    schema: 1,
-    packageName: "livariant",
-    ...identity,
-  }, null, 2)}\n`, "utf8");
+  await writeFile(resolve(root, `${key}.json`), `${JSON.stringify({ schema: 1, packageName: "livariant", ...identity }, null, 2)}\n`, "utf8");
 }
 
 function runCli(projectPath: string, trustRoot: string, command: string, args: string[] = []) {
@@ -108,45 +105,57 @@ async function initializeFixture(projectPath: string, trustRoot: string): Promis
   assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
 }
 
-test("LIVARIANT_TRUST_ROOT cannot redirect machine trust into the current project", async () => {
-  const projectPath = await mkdtemp(join(tmpdir(), "livariant-trust-root-project-"));
-  const externalTrustRoot = await mkdtemp(join(tmpdir(), "livariant-trust-root-external-"));
+async function pinHostileVersion(projectPath: string, identity: FixtureIdentity): Promise<void> {
+  const metadataPath = resolve(projectPath, ".project-brain", "metadata.json");
+  const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as { framework: { version: string } };
+  metadata.framework.version = identity.version;
+  await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
+}
+
+test("LIVARIANT_TRUST_ROOT cannot redirect machine trust into project-controlled paths", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "livariant-hostile-workspace-"));
+  const projectPath = resolve(workspace, "packages", "victim");
+  const safeTrustRoot = machineTestTrustRoot("boundary");
   const markerPath = resolve(projectPath, "PWNED.txt");
   try {
-    await initializeFixture(projectPath, externalTrustRoot);
+    await mkdir(projectPath, { recursive: true });
+    await initializeFixture(projectPath, safeTrustRoot);
     const identity = await buildHostileRuntime(projectPath, markerPath);
-
-    const metadataPath = resolve(projectPath, ".project-brain", "metadata.json");
-    const metadata = JSON.parse(await readFile(metadataPath, "utf8")) as { framework: { version: string } };
-    metadata.framework.version = identity.version;
-    await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
+    await pinHostileVersion(projectPath, identity);
 
     const localTrustRoot = resolve(projectPath, ".livariant-trust");
-    await writeProjectLocalTrustRecord(localTrustRoot, identity);
+    await writeTrustRecord(localTrustRoot, identity);
+    const parentTrustRoot = resolve(workspace, ".livariant-trust");
+    await writeTrustRecord(parentTrustRoot, identity);
 
-    const relativeOverride = runCli(projectPath, ".livariant-trust", "status");
-    assert.equal(relativeOverride.status, 0, relativeOverride.stderr || relativeOverride.stdout);
-    assert.match(relativeOverride.stdout, /LIVARIANT_TRUST_ROOT must be an absolute machine-local path/i);
-    await assert.rejects(() => stat(markerPath), /ENOENT/);
+    for (const override of [".livariant-trust", localTrustRoot, parentTrustRoot]) {
+      const status = runCli(projectPath, override, "status");
+      assert.equal(status.status, 0, status.stderr || status.stdout);
+      assert.match(status.stdout, /LIVARIANT_TRUST_ROOT must/i);
+      await assert.rejects(() => stat(markerPath), /ENOENT/);
 
-    const absoluteOverride = runCli(projectPath, localTrustRoot, "status");
-    assert.equal(absoluteOverride.status, 0, absoluteOverride.stderr || absoluteOverride.stdout);
-    assert.match(absoluteOverride.stdout, /LIVARIANT_TRUST_ROOT must be outside the current project directory/i);
-    await assert.rejects(() => stat(markerPath), /ENOENT/);
+      const resume = runCli(projectPath, override, "resume");
+      assert.notEqual(resume.status, 0);
+      assert.match(resume.stderr, /LIVARIANT_TRUST_ROOT must/i);
+      await assert.rejects(() => stat(markerPath), /ENOENT/);
+    }
 
-    const executionCommand = runCli(projectPath, localTrustRoot, "resume");
-    assert.notEqual(executionCommand.status, 0);
-    assert.match(executionCommand.stderr, /LIVARIANT_TRUST_ROOT must be outside the current project directory/i);
-    await assert.rejects(() => stat(markerPath), /ENOENT/);
+    if (process.platform === "win32") {
+      const namespaced = `\\\\?\\${localTrustRoot}`;
+      const status = runCli(projectPath, namespaced, "status");
+      assert.equal(status.status, 0, status.stderr || status.stdout);
+      assert.match(status.stdout, /must not use Windows namespace, device, or UNC path aliases/i);
+      await assert.rejects(() => stat(markerPath), /ENOENT/);
+    }
   } finally {
-    await rm(projectPath, { recursive: true, force: true });
-    await rm(externalTrustRoot, { recursive: true, force: true });
+    await rm(workspace, { recursive: true, force: true });
+    await rm(safeTrustRoot, { recursive: true, force: true });
   }
 });
 
 test("malformed active Runtime evidence cannot deny version, help, status, or doctor", async () => {
   const projectPath = await mkdtemp(join(tmpdir(), "livariant-runtime-diagnostics-"));
-  const trustRoot = await mkdtemp(join(tmpdir(), "livariant-runtime-diagnostics-trust-"));
+  const trustRoot = machineTestTrustRoot("diagnostics");
   try {
     await initializeFixture(projectPath, trustRoot);
     const managedRoot = resolve(projectPath, ".framework-runtime");
