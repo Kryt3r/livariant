@@ -18,9 +18,20 @@ function printVersion(args: string[]): void {
   console.log(`Channel: ${info.channel}`);
 }
 
-async function delegateToActiveRuntime(): Promise<boolean> {
+function canContinueWithoutRuntimeDelegation(command: string | undefined): boolean {
+  return command === undefined || ["help", "--help", "-h", "version", "status", "doctor"].includes(command);
+}
+
+async function delegateToActiveRuntime(command: string | undefined): Promise<boolean> {
   if (process.env.PBF_RUNTIME_DELEGATION_BYPASS === "1") return false;
-  const active = await readActiveRuntimePointer(process.cwd());
+
+  let active;
+  try {
+    active = await readActiveRuntimePointer(process.cwd());
+  } catch (error) {
+    if (canContinueWithoutRuntimeDelegation(command)) return false;
+    throw error;
+  }
   if (!active) return false;
 
   const status = await getStatus(process.cwd());
@@ -146,9 +157,9 @@ async function handleInit(args: string[]): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  if (await delegateToActiveRuntime()) return;
   const command = process.argv[2];
   const args = process.argv.slice(3);
+  if (await delegateToActiveRuntime(command)) return;
   switch (command) {
     case "version": printVersion(args); return;
     case "status": await printStatus(); return;
