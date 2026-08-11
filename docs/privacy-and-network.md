@@ -28,9 +28,13 @@ livariant update \
   --trusted-source <source-id>
 ```
 
+For executable updates, the exact artifact SHA-256 must additionally already have independent machine-local release authorization outside project authority. That authority is not created by the manifest, `--trusted-source`, project files, or Livariant's project-facing CLI/API. If it is absent, the update fails closed before npm installation or candidate Runtime attestation. Livariant intentionally exposes no project-facing `authorize-runtime` command.
+
 The Runtime does not currently perform an automatic remote update check or silently download a release.
 
-Installing the verified local Runtime artifact uses npm in a constrained local-install flow with lifecycle scripts, audit, and funding prompts disabled. The current packed Runtime declares no runtime dependencies, so the supported release artifact does not require dependency resolution to fetch additional Runtime packages.
+Installing an independently authorized and verified local Runtime artifact uses npm in a constrained local-install flow with lifecycle scripts, audit, and funding prompts disabled. The current packed Runtime declares no runtime dependencies, so the supported release artifact does not require dependency resolution to fetch additional Runtime packages.
+
+Machine-local Runtime trust and release-authorization records are security state outside project authority. They are not Project Brain data and must not be treated as repository-controlled configuration.
 
 ## Project data
 
@@ -54,4 +58,6 @@ For the current Public Preview baseline:
 - no Livariant telemetry is implemented;
 - no automatic remote update check is implemented;
 - Project Brain is not automatically uploaded by Livariant;
+- executable updates require pre-existing independent machine-local exact-artifact release authority;
+- project input cannot create that authority through Livariant's project-facing CLI/API;
 - external provider behavior remains separate from Livariant's own Runtime behavior.
