@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { relative, resolve, sep } from "node:path";
@@ -6,12 +5,13 @@ import type { ReleaseIdentity } from "./release-integrity.js";
 
 const AUTH_SCHEMA = 1 as const;
 const PACKAGE_NAME = "livariant" as const;
-const AUTH_KIND = "release-authorization" as const;
+const AUTH_KIND = "artifact-digest-authorization" as const;
 
-interface ReleaseAuthorizationRecord extends ReleaseIdentity {
+interface ArtifactAuthorizationRecord {
   schema: typeof AUTH_SCHEMA;
   packageName: typeof PACKAGE_NAME;
   kind: typeof AUTH_KIND;
+  artifactSha256: string;
 }
 
 function pathIsWithin(root: string, candidate: string): boolean {
@@ -48,55 +48,28 @@ async function safeAuthorizationBase(projectPath: string): Promise<string> {
   return physicalBase;
 }
 
-function normalize(identity: ReleaseIdentity): ReleaseAuthorizationRecord {
-  if (!/^[a-f0-9]{64}$/i.test(identity.artifactSha256)) throw new Error("Release authorization requires a valid SHA-256 digest.");
-  if (!["stable", "preview", "development"].includes(identity.channel)) throw new Error("Release authorization channel is invalid.");
-  if (!identity.version.trim() || !identity.sourceId.trim() || !identity.artifactId.trim()) throw new Error("Release authorization identity is incomplete.");
-  return {
-    schema: AUTH_SCHEMA,
-    packageName: PACKAGE_NAME,
-    kind: AUTH_KIND,
-    version: identity.version,
-    channel: identity.channel,
-    sourceId: identity.sourceId,
-    artifactId: identity.artifactId,
-    artifactSha256: identity.artifactSha256.toLowerCase(),
-  };
+function normalizeDigest(value: string): string {
+  if (!/^[a-f0-9]{64}$/i.test(value)) throw new Error("Release authorization requires a valid SHA-256 digest.");
+  return value.toLowerCase();
 }
 
-function authorizationPath(root: string, identity: ReleaseIdentity): string {
-  const normalized = normalize(identity);
-  const key = createHash("sha256").update([
-    normalized.version,
-    normalized.channel,
-    normalized.sourceId,
-    normalized.artifactId,
-    normalized.artifactSha256,
-  ].join("\0")).digest("hex");
-  return resolve(root, `${key}.json`);
+function authorizationPath(root: string, digest: string): string {
+  return resolve(root, `${normalizeDigest(digest)}.json`);
 }
 
-function sameRecord(left: ReleaseAuthorizationRecord, right: ReleaseAuthorizationRecord): boolean {
-  return left.schema === right.schema && left.packageName === right.packageName && left.kind === right.kind &&
-    left.version === right.version && left.channel === right.channel && left.sourceId === right.sourceId &&
-    left.artifactId === right.artifactId && left.artifactSha256 === right.artifactSha256;
-}
-
-function parseRecord(value: unknown): ReleaseAuthorizationRecord {
-  const record = value as Partial<ReleaseAuthorizationRecord>;
-  if (record.schema !== AUTH_SCHEMA || record.packageName !== PACKAGE_NAME || record.kind !== AUTH_KIND ||
-      typeof record.version !== "string" || !["stable", "preview", "development"].includes(String(record.channel)) ||
-      typeof record.sourceId !== "string" || typeof record.artifactId !== "string" ||
-      !/^[a-f0-9]{64}$/i.test(record.artifactSha256 ?? "")) {
+function parseRecord(value: unknown): ArtifactAuthorizationRecord {
+  const record = value as Partial<ArtifactAuthorizationRecord>;
+  if (record.schema !== AUTH_SCHEMA || record.packageName !== PACKAGE_NAME || record.kind !== AUTH_KIND || !/^[a-f0-9]{64}$/i.test(record.artifactSha256 ?? "")) {
     throw new Error("Machine-local Livariant release authorization has an invalid shape.");
   }
-  return normalize(record as ReleaseIdentity);
+  return { schema: AUTH_SCHEMA, packageName: PACKAGE_NAME, kind: AUTH_KIND, artifactSha256: record.artifactSha256!.toLowerCase() };
 }
 
-export async function recordReleaseAuthorization(projectPath: string, identity: ReleaseIdentity): Promise<void> {
+export async function recordArtifactAuthorization(projectPath: string, artifactSha256: string): Promise<void> {
   const root = await safeAuthorizationBase(projectPath);
-  const expected = normalize(identity);
-  const path = authorizationPath(root, expected);
+  const digest = normalizeDigest(artifactSha256);
+  const expected: ArtifactAuthorizationRecord = { schema: AUTH_SCHEMA, packageName: PACKAGE_NAME, kind: AUTH_KIND, artifactSha256: digest };
+  const path = authorizationPath(root, digest);
   try {
     await writeFile(path, `${JSON.stringify(expected, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
     return;
@@ -106,23 +79,27 @@ export async function recordReleaseAuthorization(projectPath: string, identity: 
   const stats = await lstat(path);
   if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("Machine-local Livariant release authorization is unsafe.");
   const existing = parseRecord(JSON.parse(await readFile(path, "utf8")) as unknown);
-  if (!sameRecord(existing, expected)) throw new Error("Machine-local Livariant release authorization conflicts with the requested identity.");
+  if (existing.artifactSha256 !== digest) throw new Error("Machine-local Livariant release authorization conflicts with the requested artifact digest.");
+}
+
+export async function recordReleaseAuthorization(projectPath: string, identity: ReleaseIdentity): Promise<void> {
+  await recordArtifactAuthorization(projectPath, identity.artifactSha256);
 }
 
 export async function assertReleaseAuthorized(projectPath: string, identity: ReleaseIdentity): Promise<void> {
   const root = await safeAuthorizationBase(projectPath);
-  const expected = normalize(identity);
-  const path = authorizationPath(root, expected);
+  const digest = normalizeDigest(identity.artifactSha256);
+  const path = authorizationPath(root, digest);
   let stats;
   try {
     stats = await lstat(path);
   } catch (error) {
     if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error("Runtime release is not independently authorized on this machine. Run 'livariant authorize-runtime ... --apply' with the exact release identity before update.");
+      throw new Error("Runtime artifact bytes are not independently authorized on this machine. Run 'livariant authorize-runtime ... --apply' with the exact SHA-256 digest before update.");
     }
     throw error;
   }
   if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("Machine-local Livariant release authorization is unsafe.");
   const observed = parseRecord(JSON.parse(await readFile(path, "utf8")) as unknown);
-  if (!sameRecord(observed, expected)) throw new Error("Runtime release does not match its machine-local authorization.");
+  if (observed.artifactSha256 !== digest) throw new Error("Runtime artifact does not match its machine-local authorization.");
 }
