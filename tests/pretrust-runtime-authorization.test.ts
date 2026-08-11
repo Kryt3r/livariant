@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { initializeProject } from "../src/runtime/index.js";
 import { NORMAL_TARGET_VERSION, TEST_SOURCE_CHANNEL, TEST_SOURCE_VERSION } from "./release-test-baseline.js";
+import { provisionArtifactAuthorizationForTest } from "./runtime-package-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -30,7 +31,7 @@ function npmPack(packageRoot: string, packRoot: string): string {
   return resolve(packRoot, parsed[0]!.filename);
 }
 
-test("project-supplied Runtime cannot execute before exact artifact bytes are machine-authorized", async () => {
+test("project-supplied Runtime cannot create its own machine release authority before execution", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-pretrust-"));
   const packageRoot = resolve(projectPath, "hostile-package");
   const packRoot = resolve(projectPath, "pack");
@@ -68,10 +69,10 @@ test("project-supplied Runtime cannot execute before exact artifact bytes are ma
 
     const blocked = run(projectPath, ["update", "--manifest", manifestPath, "--apply", "--artifact", artifactPath, "--trusted-source", sourceId]);
     assert.notEqual(blocked.status, 0);
-    assert.match(blocked.stderr, /not independently authorized|authorize-runtime/i);
+    assert.match(blocked.stderr, /not independently authorized|independent machine-local release process/i);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
 
-    const authorize = run(projectPath, [
+    const selfAuthorize = run(projectPath, [
       "authorize-runtime",
       "--version", NORMAL_TARGET_VERSION,
       "--channel", TEST_SOURCE_CHANNEL,
@@ -80,9 +81,16 @@ test("project-supplied Runtime cannot execute before exact artifact bytes are ma
       "--sha256", sha256,
       "--apply",
     ]);
-    assert.equal(authorize.status, 0, authorize.stderr || authorize.stdout);
-    assert.match(authorize.stdout, /No Runtime code was executed/i);
+    assert.notEqual(selfAuthorize.status, 0);
+    assert.match(selfAuthorize.stderr, /unknown command/i);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
+
+    const stillBlocked = run(projectPath, ["update", "--manifest", manifestPath, "--apply", "--artifact", artifactPath, "--trusted-source", sourceId]);
+    assert.notEqual(stillBlocked.status, 0);
+    await assert.rejects(() => stat(markerPath), /ENOENT/);
+
+    // This simulates independent machine provisioning. Product/runtime code has no API or CLI that performs this write.
+    await provisionArtifactAuthorizationForTest(sha256);
 
     const applied = run(projectPath, ["update", "--manifest", manifestPath, "--apply", "--artifact", artifactPath, "--trusted-source", sourceId]);
     assert.equal(applied.status, 0, applied.stderr || applied.stdout);

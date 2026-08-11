@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { ReleaseIdentity } from "./release-integrity.js";
@@ -65,27 +65,6 @@ function parseRecord(value: unknown): ArtifactAuthorizationRecord {
   return { schema: AUTH_SCHEMA, packageName: PACKAGE_NAME, kind: AUTH_KIND, artifactSha256: record.artifactSha256!.toLowerCase() };
 }
 
-export async function recordArtifactAuthorization(projectPath: string, artifactSha256: string): Promise<void> {
-  const root = await safeAuthorizationBase(projectPath);
-  const digest = normalizeDigest(artifactSha256);
-  const expected: ArtifactAuthorizationRecord = { schema: AUTH_SCHEMA, packageName: PACKAGE_NAME, kind: AUTH_KIND, artifactSha256: digest };
-  const path = authorizationPath(root, digest);
-  try {
-    await writeFile(path, `${JSON.stringify(expected, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
-    return;
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "EEXIST")) throw error;
-  }
-  const stats = await lstat(path);
-  if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("Machine-local Livariant release authorization is unsafe.");
-  const existing = parseRecord(JSON.parse(await readFile(path, "utf8")) as unknown);
-  if (existing.artifactSha256 !== digest) throw new Error("Machine-local Livariant release authorization conflicts with the requested artifact digest.");
-}
-
-export async function recordReleaseAuthorization(projectPath: string, identity: ReleaseIdentity): Promise<void> {
-  await recordArtifactAuthorization(projectPath, identity.artifactSha256);
-}
-
 export async function assertReleaseAuthorized(projectPath: string, identity: ReleaseIdentity): Promise<void> {
   const root = await safeAuthorizationBase(projectPath);
   const digest = normalizeDigest(identity.artifactSha256);
@@ -95,7 +74,7 @@ export async function assertReleaseAuthorized(projectPath: string, identity: Rel
     stats = await lstat(path);
   } catch (error) {
     if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error("Runtime artifact bytes are not independently authorized on this machine. Run 'livariant authorize-runtime ... --apply' with the exact SHA-256 digest before update.");
+      throw new Error("Runtime artifact bytes are not independently authorized on this machine. Project input cannot create release authority; provision exact artifact authorization through an independent machine-local release process.");
     }
     throw error;
   }
