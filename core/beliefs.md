@@ -5,7 +5,7 @@ domain: core
 language: en
 owner: framework
 created: 2026-08-09
-updated: 2026-08-09
+updated: 2026-08-11
 ---
 
 # Beliefs
@@ -69,6 +69,12 @@ This remains subject to the anti-bloat principle: not every action deserves docu
 
 ### Every relevant fact or rule needs one source of truth
 Copied truths drift. Other documents should reference the canonical source instead of restating it independently.
+
+### Presence is not currency
+A claim being present in a legitimate project-owned file does not prove that it still represents current project truth. Current guidance, historical records, dependent documentation, and ephemeral projections have different semantic roles and must not be treated as interchangeable.
+
+### Canonical truth needs dependency awareness
+A project can have the correct canonical fact and still mislead humans or agents if dependent current artifacts remain stale. When canonical truth changes, affected truth surfaces should be identified, classified, reviewed, and verified rather than assumed to have changed with it.
 
 ### Every important decision must be discoverable
 No “we discussed that somewhere in a chat”. A future human or agent should be able to deliberately find the reasoning behind important choices.
