@@ -1,6 +1,6 @@
 # Public Preview Scope & Limitations
 
-This document states what the first Livariant Public Preview is intended to claim — and what it is not.
+This document states what the current Livariant Public Preview claims — and what it does not.
 
 ## Supported executable baseline
 
@@ -8,9 +8,11 @@ The hardened baseline has executable evidence for fresh and existing projects, C
 
 The executable package/runtime identity and installed command are both `livariant`.
 
+The current CI support claim is intentionally limited to the environments exercised by the release pipeline: Ubuntu and Windows with Node.js 24. The package declares Node.js `>=20`.
+
 ## Provider support is intentionally narrow
 
-The first Preview supports Claude Code and Codex for Project Brain Resume handoff. Current provider applicability evidence uses `LIVARIANT_PROVIDER_ENV`. Explicit provider selection establishes environment evidence for Resume; it does not create execution or mutation authority.
+The current Preview supports Claude Code and Codex for Project Brain Resume handoff. Current provider applicability evidence uses `LIVARIANT_PROVIDER_ENV`. Explicit provider selection establishes environment evidence for Resume; it does not create execution or mutation authority.
 
 Livariant does not claim full control of every provider capability, tool, model-selection feature, authentication surface, or native instruction mechanism.
 
@@ -21,6 +23,9 @@ Livariant does not claim full control of every provider capability, tool, model-
 The release manifest does not make its own source trusted. Artifact bytes still have to match the identity and SHA-256 bound by the selected release descriptor.
 
 Schema-changing compatible releases use the same `livariant update` flow and are routed through the explicit migration lifecycle. The currently proven schema-changing path is 1 → 2. Unsupported migration paths fail closed.
+
+> [!WARNING]
+> Manual replacement of Project Brain files, framework-managed lifecycle state, schema/version metadata, or installed Runtime files is not a supported update mechanism. It bypasses the authority, compatibility, integrity, checkpoint, activation, and recovery guarantees of the lifecycle.
 
 ## Recovery surface
 
@@ -40,7 +45,7 @@ The current Runtime implements no Livariant telemetry, automatic Project Brain u
 
 ## Public distribution
 
-The accepted first Preview distribution path is GitHub Releases from the canonical public Livariant repository, with expected source identity:
+The intended public Preview distribution path is GitHub Releases from the canonical Livariant repository, with expected source identity:
 
 ```text
 github:Kryt3r/livariant
@@ -48,13 +53,15 @@ github:Kryt3r/livariant
 
 Release tooling produces a concrete Runtime tarball, a machine-readable manifest bound to the exact artifact SHA-256, and `SHA256SUMS`. CI verifies the bundle against a clean consumer.
 
-The source is **not active yet**: the canonical `Kryt3r/livariant` repository exists but remains private. Making it public, configuring the required host protections, and publishing the first RC bundle are launch-time operational gates, not already completed release facts.
+The repository may remain private until the explicit public-visibility gate is approved. Public-facing documentation therefore does not rely on a package-manager installation path or on repository visibility as a Runtime safety assumption.
+
+A private release candidate already exists for validation. It is an immutable candidate and must not be recreated or overwritten merely to prepare the public Preview.
 
 ## License, security, privacy, contributions, and support
 
-The repository-side public baseline is documented through:
+The repository-side Preview baseline is documented through:
 
-- Apache-2.0 `LICENSE`;
+- PolyForm Perimeter License 1.0.1 in `LICENSE`;
 - `THIRD_PARTY_NOTICES.md`;
 - `SECURITY.md`;
 - `CONTRIBUTING.md`;
@@ -62,7 +69,11 @@ The repository-side public baseline is documented through:
 - `docs/privacy-and-network.md`;
 - `docs/preview-support-and-stability.md`.
 
-The security policy deliberately does not claim that host-side private vulnerability reporting is enabled before that setting is verified on the canonical public repository.
+Livariant is source-available and is not offered as OSI-approved Open Source.
+
+External code contributions remain gated until contributor-rights terms compatible with the source-available and future commercial-licensing model are finalized.
+
+Host-side security features that are unavailable for the current private repository plan are public-gate items rather than claims of current coverage.
 
 ## Preview expectations
 
@@ -70,13 +81,13 @@ Public Preview means users should expect a deliberately limited supported surfac
 
 Public Preview support is maintainer/community support without a paid SLA unless separately agreed. The eventual 1.0 stability/compatibility contract requires its own later readiness decision.
 
-## Remaining launch gates
+## Remaining public-visibility gates
 
-Before announcing the first Public Preview:
+Before the repository itself is made public and the Preview is announced broadly:
 
-1. establish the canonical public `Kryt3r/livariant` repository;
-2. verify private vulnerability reporting and applicable release/tag protections;
-3. choose the first RC/Preview version;
-4. publish the manifest-bound bundle and release notes from that canonical source;
-5. verify published artifact/source identity;
-6. run the final Release Candidate readiness review against the published candidate.
+1. receive explicit approval to change `Kryt3r/livariant` from private to public;
+2. enable and verify the host protections that become available at the public gate, including Secret Scanning / Push Protection and CodeQL where applicable;
+3. verify release/tag protections and the intended immutable release flow;
+4. publish or promote only an approved manifest-bound Preview bundle from the canonical source without recreating the existing private RC artifact;
+5. verify published artifact/source identity and checksums;
+6. run the final public-release readiness review against the exact published candidate.
