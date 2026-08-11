@@ -1,25 +1,24 @@
 # Public Preview Launch Readiness
 
-Status: **private RC exists; public launch not yet authorized**
+Status: **private candidate is pre-public ready; visibility change still requires explicit authorization**
 
 This document tracks the current Public Preview launch gates against the actual canonical repository state. It is a current-facing readiness surface, not a historical preparation record.
 
 > [!IMPORTANT]
-> Repository visibility remains private until every required pre-public gate is explicitly accepted. A private RC, green CI, or completed documentation block does not authorize publication by itself.
+> Repository visibility remains private until the visibility change is explicitly authorized. Green CI or a completed readiness review does not change visibility by itself.
 
 ## Current verified baseline
 
 - Canonical repository: `Kryt3r/livariant`.
 - Repository visibility: private.
-- Current `main`: `ebf91d7e95a573e78d375f06fdb060c1bc4fa0bb` after PR #7.
-- Post-merge Hardening CI #36: Ubuntu + Windows success, including the public truth-surface consistency check.
+- Current `main`: `4cd1a0065c15c3cc50ca5128667aef8a195b70b7` after PR #9.
+- Post-merge Hardening CI #40: Ubuntu + Windows success, including current-truth consistency, hardening tests, clean-consumer package smoke, and manifest-bound release-bundle smoke.
 - RC version: `0.1.0-rc.1`.
 - Release channel: `preview`.
 - RC tag: `v0.1.0-rc.1`.
 - RC source commit: `f8b5b7afa646b9532d9c47ef46843ff821c722f6`.
 - RC artifact SHA-256: `ea7fb30a057ef14277ea4d6d4e2e363ba487a079a998ee74afb51e2ced1506d5`.
-- Private GitHub pre-release contains the packed Runtime, `release-manifest.json`, and `SHA256SUMS`.
-- The existing RC is evidence and must not be recreated or overwritten casually.
+- The existing private RC is evidence and must not be recreated or overwritten casually.
 
 ## Gate summary
 
@@ -27,81 +26,47 @@ This document tracks the current Public Preview launch gates against the actual 
 | --- | --- | --- |
 | A | Product-facing README and presentation | **CLOSED** |
 | B | License and ownership decision | **CLOSED** |
-| C | Repository hygiene and publication contents | **MATERIAL COMPLETE — final private tree audit remains** |
-| D | GitHub branch/change protection | **CONFIGURED — public-transition re-verification remains** |
-| E | Security reporting and GitHub security features | **PARTIAL — public-host activation remains** |
-| F | Release protection and supply-chain policy | **CONFIGURED WITH DOCUMENTED RC EXCEPTION** |
-| G | Distribution and installation user journey | **MATERIAL COMPLETE — final candidate walkthrough remains** |
-| H | Privacy and network-behavior review | **MATERIAL COMPLETE — final candidate re-verification remains** |
-| I | Contribution, support, and community surface | **BOUNDED — contributor-rights policy remains** |
-| J | Documentation consistency | **CLOSED WITH AUTOMATED REGRESSION GUARD** |
-| K | Public-host configuration and visibility | **CLOSED BY POLICY UNTIL FINAL PRE-PUBLIC GATES PASS** |
-| L | Final Public Preview release review | **NOT STARTED** |
+| C | Repository hygiene and publication contents | **CLOSED** |
+| D | GitHub branch/change protection | **CONFIGURED — public-state re-verification required** |
+| E | Security reporting and GitHub security features | **PUBLIC-STATE ACTIVATION REQUIRED** |
+| F | Release protection and supply-chain policy | **CLOSED WITH DOCUMENTED RC EXCEPTION** |
+| G | Distribution and installation user journey | **CLOSED FOR PRE-PUBLIC** |
+| H | Privacy and network-behavior review | **CLOSED FOR PRE-PUBLIC** |
+| I | Contribution, support, and community surface | **BOUNDED — external code contributions remain closed** |
+| J | Documentation/current-truth consistency | **CLOSED WITH AUTOMATED REGRESSION GUARD** |
+| K | Public-host configuration and visibility | **READY FOR EXPLICIT VISIBILITY DECISION** |
+| L | Final Public Preview release review | **REQUIRED AFTER PUBLIC-HOST ACTIVATION** |
 
-## Launch gate A — Product-facing README and repository presentation
-
-**Status: CLOSED.**
-
-PR #5 converted the README into the accepted multilingual product-landing presentation with branding, English/German navigation, table of contents, Quickstart, visible safety callouts, current lifecycle guidance, narrow Claude Code/Codex Resume claims, and linked user documentation.
-
-PR #6 then corrected stale current-facing linked documentation.
-
-Any further changes are normal product-documentation maintenance unless a later change invalidates a launch-relevant claim.
-
-## Launch gate B — License and ownership decision
+## Gate C — Repository hygiene and publication contents
 
 **Status: CLOSED.**
 
-Livariant is source-available under the **PolyForm Perimeter License 1.0.1**. It is not presented as OSI Open Source.
+The final private tracked-tree audit found no accidental maintainer-only repository, local environment, generated build output, credential file, or real secret material intended to remain private.
 
-Current-facing license surfaces are aligned, including `LICENSE`, `LICENSING.md`, `CONTRIBUTING.md`, README documentation, and third-party notices. Third-party Apache/MIT licenses are explicitly separated from Livariant's own license.
+The deliberately tracked `.env` fixture under `tests/fixtures/existing-messy/` contains only synthetic values used to prove secret-preservation behavior:
 
-External code contribution rights remain a separate Gate I policy question; they do not reopen the product-license decision.
+```text
+DATABASE_PASSWORD=fixture-secret-do-not-ingest
+API_TOKEN=fixture-token-do-not-ingest
+```
 
-## Launch gate C — Repository hygiene and publication contents
+It is test evidence, not a credential leak. Package smoke also verifies that test fixtures and compiled tests are not shipped in the packed Runtime artifact.
 
-**Status: MATERIAL COMPLETE — final private tree audit remains.**
+## Gate D — GitHub branch/change protection
 
-Established:
+**Status: CONFIGURED — public-state re-verification required.**
 
-- root `.gitignore` excludes dependencies, build output, generated release output, logs, local environment/secrets, caches, editor state, and OS metadata;
-- package payload is restricted and verified by package smoke tests;
-- current tracked tree has been repeatedly exercised through cross-platform CI;
-- current user-facing truth surfaces are checked for known superseded claims.
+Configured host policy includes PR-required changes to `main`, required Ubuntu and Windows Hardening CI checks, linear history, conversation resolution, deletion/force-push protection, squash-only merge policy, and `v*` release-tag protection.
 
-Remaining before visibility change:
+The repository uses GitHub Rulesets rather than classic branch protection. Effective Rulesets and required checks must be re-verified immediately after the repository becomes public because the private-repository plan/integration does not currently expose complete Ruleset verification evidence.
 
-1. perform one final private tracked-tree audit for accidental private/local artifacts, credentials, secrets, obsolete generated files, and publication-inappropriate material;
-2. confirm test fixtures containing deliberate `.env`/legacy examples contain only synthetic non-secret data;
-3. confirm no private maintainer-only material has entered the product repository.
+## Gate E — Security reporting and GitHub security features
 
-This is a bounded final audit, not an invitation for broad repository cleanup.
-
-## Launch gate D — GitHub branch/change protection
-
-**Status: CONFIGURED — public-transition re-verification remains.**
-
-The selected host policy has been configured:
-
-- PR-required changes to `main`;
-- required Ubuntu and Windows Hardening CI checks;
-- linear history;
-- conversation resolution;
-- deletion and force-push protection;
-- squash merge only; merge commits and rebase merges disabled;
-- release-tag protection for `v*`.
-
-The repository metadata API confirms the selected merge-method policy. The classic branch-protection endpoint reports no classic branch protection because Livariant uses repository rulesets instead. The ruleset API is not readable for this private repository through the current plan/integration and returns a plan-related `403`.
-
-Therefore the controls are treated as configured from host-side setup evidence, but their effective public-state behavior must be re-verified immediately after the repository becomes public. Do not misinterpret the classic `protected: false` field as proof that the configured ruleset does not exist.
-
-## Launch gate E — Security reporting and GitHub security features
-
-**Status: PARTIAL — public-host activation remains.**
+**Status: PUBLIC-STATE ACTIVATION REQUIRED.**
 
 Already established:
 
-- `SECURITY.md` defines the intended private reporting model without falsely claiming it is already operational;
+- `SECURITY.md` defines the intended private reporting model;
 - dependency graph enabled;
 - Dependabot alerts enabled;
 - Dependabot security updates enabled;
@@ -109,150 +74,100 @@ Already established:
 - Dependabot malware alerts enabled;
 - Actions are constrained and pinned to full commit SHAs.
 
-Deferred because of current private-repository plan limitations:
+Immediately after the repository becomes public, enable and verify Secret Scanning, Push Protection, CodeQL / Code Scanning where GitHub makes them available, and the intended private vulnerability-reporting path. Re-read `SECURITY.md` against the actually enabled reporting mechanism before treating Public Preview launch as complete.
 
-- enable and verify Secret Scanning;
-- enable and verify Push Protection;
-- enable and verify CodeQL / Code Scanning where available;
-- enable and test the intended private vulnerability-reporting path / Security Advisories as available in the public repository state;
-- re-read `SECURITY.md` against the actual enabled reporting mechanism.
+## Gate F — Release protection and supply-chain policy
 
-A working private security-reporting path is required before the first public Preview release is treated as launched.
+**Status: CLOSED WITH DOCUMENTED RC EXCEPTION.**
 
-## Launch gate F — Release protection and supply-chain policy
+The RC is manifest/checksum bound, its source commit and artifact digest are recorded, `v*` protection is configured, future release immutability is enabled, and CI verifies release-bundle behavior.
 
-**Status: CONFIGURED WITH DOCUMENTED RC EXCEPTION.**
+`v0.1.0-rc.1` predates release-immutability activation and remains `immutable: false` in GitHub. It must not be recreated or overwritten. This historical exception does not authorize mutable future releases.
 
-Established:
+## Gate G — Distribution and installation user journey
 
-- RC artifact is manifest/checksum bound;
-- release source commit and artifact digest are recorded;
-- `v*` tag protection is configured against updates/deletions/force pushes while permitting release-tag creation;
-- release immutability is enabled for future releases;
-- release evidence includes checksum and manifest material;
-- CI verifies release-bundle behavior.
+**Status: CLOSED FOR PRE-PUBLIC.**
 
-Documented exception:
+The public documentation defines the supported release-artifact path, inspect/apply initialization, existing-project adoption, bounded Claude Code/Codex Resume handoff, manifest/artifact/trusted-source updates, automatic schema migration routing through the supported lifecycle, and inspect/apply recovery.
 
-- `v0.1.0-rc.1` predates release-immutability activation and GitHub reports that existing release as `immutable: false`;
-- it must not be recreated or overwritten;
-- this historical exception does not authorize mutable future releases.
+The final clean-consumer verification runs from a fresh temporary project and successfully:
 
-Cryptographic signing of the existing RC tag/commit is not retroactively required for Preview. Any future signing policy should be introduced deliberately rather than rewriting this evidence baseline.
+1. packs the Livariant package,
+2. installs that packed artifact locally,
+3. executes `livariant version`,
+4. initializes a Project Brain,
+5. produces a capability-bounded Codex Resume handoff,
+6. exercises read-only update discovery,
+7. exercises recovery inspection,
+8. verifies the installed `livariant` CLI identity.
 
-## Launch gate G — Distribution and installation user journey
+This passed on Ubuntu and Windows in Hardening CI #40.
 
-**Status: MATERIAL COMPLETE — final candidate walkthrough remains.**
+## Gate H — Privacy and network behavior
 
-Current public documentation covers:
+**Status: CLOSED FOR PRE-PUBLIC.**
 
-- supported release-artifact installation path;
-- `version`, `status`, and `doctor`;
-- fresh `init` inspect/apply behavior;
-- existing-project adoption;
-- Claude Code/Codex Project Brain Resume handoff;
-- manifest/artifact/trusted-source update flow;
-- schema-changing update routing;
-- `recover` inspect/apply behavior;
-- integrity/checksum concepts;
-- explicit warnings against manual Runtime/Project-Brain/lifecycle replacement.
+The final candidate re-verification found no automatic telemetry, Project Brain upload, Livariant cloud-account requirement, automatic remote update check, or Runtime network-fetch implementation.
 
-Before visibility change, perform one final clean-consumer walkthrough using only the public documentation and the candidate intended for public consumption. The walkthrough must test the documented path, not invent a package-manager flow that Livariant does not yet support.
+The supported update path consumes a local release manifest and local artifact. The current packed Runtime declares no runtime dependencies. Provider handoff renders local projections; separately operated provider/client behavior remains outside Livariant's Runtime boundary.
 
-## Launch gate H — Privacy and network behavior
+Any later network, telemetry, registry, sync, hosted account, or automatic-update feature reopens this gate and requires a new privacy/trust review.
 
-**Status: MATERIAL COMPLETE — final candidate re-verification remains.**
+## Gate I — Contribution, support, and community surface
 
-`docs/privacy-and-network.md` currently states that Livariant implements no telemetry, no automatic Project Brain upload, no Livariant cloud-account requirement for local operation, and no automatic remote update check. Provider behavior is explicitly separated from Livariant Runtime behavior.
+**Status: BOUNDED.**
 
-Before publication, re-verify those statements against the exact candidate source/runtime intended for the public Preview. Any newly introduced network behavior would reopen this gate.
+Issues and Discussions may be used for bug reports, documentation feedback, and design discussion. External code contributions remain closed for incorporation until contributor-rights/CLA or equivalent terms are finalized.
 
-## Launch gate I — Contribution, support, and community surface
+That unresolved contributor-rights question does not block public read-only repository visibility while external code incorporation remains explicitly closed.
 
-**Status: BOUNDED — contributor-rights policy remains.**
-
-Already established:
-
-- Issues enabled;
-- Discussions enabled;
-- Projects disabled intentionally;
-- `CONTRIBUTING.md` explicitly blocks external code incorporation for now while permitting bug reports, documentation feedback, and design discussion;
-- Preview support is community/maintainer based with no paid SLA by default;
-- conduct expectations are stated in `CONTRIBUTING.md`.
-
-Remaining deliberate decision:
-
-- finalize contributor rights / CLA or equivalent terms before external code contributions can be accepted for incorporation.
-
-This is **not required to make the repository readable publicly** if external code contributions remain explicitly closed. It is required before accepting external code.
-
-Issue/PR templates, a standalone `CODE_OF_CONDUCT.md`, Wiki, and public roadmap tooling are optional improvements unless a concrete launch problem makes one necessary.
-
-## Launch gate J — Documentation consistency
+## Gate J — Documentation/current-truth consistency
 
 **Status: CLOSED WITH AUTOMATED REGRESSION GUARD.**
 
-PR #6 corrected current-facing stale CLI, licensing, preparation-state, and launch claims. PR #7 generalized the failure into Knowledge Drift / Truth Surfaces and added `npm run test:public-docs` to both required Hardening CI jobs.
-
-The rule is now explicit:
+PRs #6, #7, and #9 corrected current-facing drift and established the rule:
 
 > **Presence is not currency.**
 
-Historical records may preserve superseded terms when they are genuinely historical. Current user-facing truth surfaces may not silently present superseded project identity or policy as current.
+`npm run test:public-docs` now checks public documentation plus selected accepted/current normative contracts for superseded identity and preparation-state claims while preserving legitimate historical evidence. The expanded check passed on Ubuntu and Windows in PR CI #39 and post-merge CI #40.
 
-A future canonical change that invalidates current documentation reopens the affected surface, not this entire historical gate by default.
+## Gate K — Public-host configuration and visibility
 
-## Launch gate K — Public-host configuration and visibility
+**Status: READY FOR EXPLICIT VISIBILITY DECISION.**
 
-**Status: CLOSED BY POLICY UNTIL FINAL PRE-PUBLIC GATES PASS.**
+The bounded pre-public technical work is complete:
 
-The repository must remain private until the following bounded pre-public work is complete:
+- final tracked-tree/publication audit complete;
+- final clean-consumer verification complete;
+- final privacy/network verification complete;
+- current-truth audit complete;
+- final private candidate blocker review found no unresolved Critical/Major safety, authority, migration, recovery, data-integrity, release-integrity, or publication blocker;
+- no open GitHub issues currently represent a launch blocker.
 
-1. final private tracked-tree/publication audit (Gate C);
-2. final clean-consumer documentation/user-journey walkthrough (Gate G);
-3. final privacy/network re-verification (Gate H);
-4. final private candidate review for unresolved Critical/Major safety, authority, migration, recovery, or release-integrity blockers.
+Repository visibility must still change only as an explicit standalone action.
 
-Then, and only then:
+After that action, immediately:
 
-1. make the repository public as an explicit standalone action;
-2. immediately verify rulesets, required checks, tag protection, merge policy, Actions permissions, and release settings in the public state;
-3. enable/test the public-state security features in Gate E;
-4. configure the selected Social Preview image;
-5. verify README, license, documentation, and repository presentation as an unauthenticated viewer.
+1. verify effective Rulesets, required checks, tag protection, merge policy, Actions permissions, and release settings;
+2. enable/test the public-state security features in Gate E;
+3. configure the selected Social Preview image where appropriate;
+4. verify README, license, documentation, releases, and repository presentation as an unauthenticated viewer.
 
-Repository visibility must never change implicitly as part of another gate.
+## Gate L — Final Public Preview release review
 
-## Launch gate L — Final Public Preview release review
+**Status: REQUIRED AFTER PUBLIC-HOST ACTIVATION.**
 
-**Status: NOT STARTED.**
+After the public-host/security checks are complete, perform one final review against the actual public candidate and verify version/channel/schema/source identity, CI evidence, package/release-bundle evidence, artifact integrity, user documentation, known limitations, security-reporting path, licensing/notices, and absence of unresolved Critical/Major blockers.
 
-After public-host/security configuration is verified, perform one final review against the actual candidate intended for public use. Confirm at least:
-
-- version/channel/schema/source identity;
-- candidate source commit and tag policy;
-- Ubuntu/Windows CI evidence;
-- package and release-bundle smoke evidence;
-- artifact digest/manifest/checksum integrity;
-- installation/user-journey documentation;
-- known limitations and required user actions;
-- private security-reporting path;
-- license and third-party notices;
-- no unresolved Critical/Major safety, authority, migration, recovery, data-integrity, or release-trust blocker.
-
-Only an explicitly accepted result of this review authorizes calling the release a Public Preview.
+Only that final accepted public-state review authorizes calling the launch complete.
 
 ## Current next order
 
-The remaining work is now intentionally narrow:
+1. merge this final private readiness status update after required CI passes;
+2. verify its post-merge `main` CI;
+3. wait for explicit authorization to change `Kryt3r/livariant` from private to public;
+4. perform the immediate public-host/security verification and activation sequence;
+5. perform unauthenticated public-view verification;
+6. perform and accept the final Public Preview release review.
 
-1. final private repository/publication audit;
-2. final documented clean-consumer user-journey walkthrough;
-3. final privacy/network claim verification;
-4. final private candidate blocker review;
-5. explicit repository visibility decision/action;
-6. immediate public-host security/protection verification and activation;
-7. unauthenticated public-view verification;
-8. final Public Preview release review.
-
-The Project Lexicon / Provisional Naming capability is valuable post-gate work but is not required to complete this Public Preview launch sequence.
+The Project Lexicon / Provisional Naming capability remains valuable post-gate work and is not required for this Public Preview launch.
