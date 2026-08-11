@@ -1,6 +1,6 @@
 # Contributing to Livariant
 
-Livariant is in Public Preview preparation. Community participation is welcome when it preserves the framework's accepted ownership, authority, lifecycle, and compatibility boundaries.
+Livariant is in Public Preview. Community participation is welcome when it preserves the framework's accepted ownership, authority, lifecycle, and compatibility boundaries.
 
 ## Current contribution gate
 
@@ -20,8 +20,7 @@ Please read:
 - `LICENSING.md`;
 - `docs/architecture-and-safety.md`;
 - `docs/preview-scope.md`;
-- `core/charter.md`;
-- `distribution/public-preview-readiness.md`.
+- `core/charter.md`.
 
 The framework is intentionally past its Foundation-expansion phase. New ideas should be classified as a Preview blocker, a bounded Preview limitation, or post-Preview work rather than silently expanding architecture.
 
@@ -70,6 +69,9 @@ Changes that alter a supported public path should include executable evidence at
 Do not propose silently reinterpreting an existing Project Brain schema, release channel, provider capability, or accepted lifecycle state.
 
 A breaking Project Brain change requires an explicit supported migration path or an explicit unsupported-state classification. A framework update must not use migration as permission to rewrite unrelated project-owned state.
+
+> [!IMPORTANT]
+> Capability is not authority. A contribution that adds a technical capability must not silently expand what Livariant is authorized to inspect, mutate, migrate, repair, or publish.
 
 ## Security issues
 
