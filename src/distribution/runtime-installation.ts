@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { assertPathWithinRoot, assertRegularFile } from "../project-brain/path-safety.js";
+import { assertReleaseAuthorized } from "./release-authorization.js";
 import {
   verifyReleaseArtifact,
   type LocalReleaseArtifact,
@@ -190,16 +191,23 @@ export async function installVerifiedRuntime(projectPath: string, identity: Rele
       await assertRuntimeTrusted(projectPath, evidence);
       return await attestInstalledRoot(projectPath, finalRoot, identity.version);
     }
+
+    // New candidate code may not execute until the exact artifact identity has
+    // already been authorized in independent machine-local state.
+    await assertReleaseAuthorized(projectPath, identity);
     await mkdir(stagingRoot, { recursive: false });
     npmInstall(stagingRoot, artifact.path);
-    await attestInstalledRoot(projectPath, stagingRoot, identity.version);
     await writeReleaseEvidence(stagingRoot, identity);
     const stagedEvidence = await assertReleaseEvidence(stagingRoot, identity);
     await recordRuntimeTrust(projectPath, stagedEvidence);
+    await assertRuntimeTrusted(projectPath, stagedEvidence);
+    const stagedAttestation = await attestInstalledRoot(projectPath, stagingRoot, identity.version);
     await rename(stagingRoot, finalRoot);
     const finalEvidence = await assertReleaseEvidence(finalRoot, identity);
     await assertRuntimeTrusted(projectPath, finalEvidence);
-    return await attestInstalledRoot(projectPath, finalRoot, identity.version);
+    const finalAttestation = await attestInstalledRoot(projectPath, finalRoot, identity.version);
+    if (relative(stagingRoot, stagedAttestation.cliPath) === stagedAttestation.cliPath) throw new Error("Staged Runtime attestation escaped its installation root.");
+    return finalAttestation;
   } catch (error) {
     await rm(stagingRoot, { recursive: true, force: true });
     throw error;
