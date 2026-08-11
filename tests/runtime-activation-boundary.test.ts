@@ -14,15 +14,15 @@ import { NORMAL_TARGET_VERSION, TEST_SOURCE_CHANNEL, TEST_SOURCE_VERSION } from 
 
 const targetVersion = NORMAL_TARGET_VERSION;
 
-function runSourceCli(projectPath: string): { frameworkVersion?: string } {
+function runSourceStatus(projectPath: string): string {
   const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
-  const result = spawnSync(process.execPath, [cliPath, "version", "--json"], {
+  const result = spawnSync(process.execPath, [cliPath, "status"], {
     cwd: projectPath,
     encoding: "utf8",
     shell: false,
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  return JSON.parse(result.stdout) as { frameworkVersion?: string };
+  return result.stdout;
 }
 
 test("a prepared Runtime cannot execute until the canonical Project pin activates the same release", async () => {
@@ -51,7 +51,7 @@ test("a prepared Runtime cannot execute until the canonical Project pin activate
     assert.equal(prepared.executingRuntimeVersion, TEST_SOURCE_VERSION);
     assert.equal(prepared.preparedRuntimeVersion, targetVersion);
     assert.equal(prepared.activatedRuntimeVersion, undefined);
-    assert.equal(runSourceCli(projectPath).frameworkVersion, TEST_SOURCE_VERSION);
+    assert.match(runSourceStatus(projectPath), new RegExp(`Executing Runtime: ${TEST_SOURCE_VERSION.replaceAll(".", "\\.")}`));
 
     await new ProjectBrainStore(projectPath).updateFrameworkLifecycle(targetVersion, TEST_SOURCE_CHANNEL);
 
@@ -59,7 +59,7 @@ test("a prepared Runtime cannot execute until the canonical Project pin activate
     assert.equal(activated.frameworkVersion, targetVersion);
     assert.equal(activated.activatedRuntimeVersion, targetVersion);
     assert.equal(activated.preparedRuntimeVersion, undefined);
-    assert.equal(runSourceCli(projectPath).frameworkVersion, targetVersion);
+    assert.match(runSourceStatus(projectPath), new RegExp(`Executing Runtime: ${targetVersion.replaceAll(".", "\\.")}`));
   } finally {
     await fixture.cleanup();
     await rm(projectPath, { recursive: true, force: true });

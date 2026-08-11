@@ -105,13 +105,14 @@ test("tampered Runtime matching the Project pin is never delegated to by the lau
     await writeFile(installed.cliPath, `${original}\n// tampered active Runtime\n`, "utf8");
 
     const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
-    const result = spawnSync(process.execPath, [cliPath, "version", "--json"], {
+    const result = spawnSync(process.execPath, [cliPath, "status"], {
       cwd: project,
       encoding: "utf8",
       shell: false,
     });
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /package tree integrity mismatch/i);
-    assert.doesNotMatch(result.stdout, new RegExp(version.replaceAll(".", "\\.")));
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /Lifecycle:\s*recovery-required/i);
+    assert.match(result.stdout, /package tree integrity mismatch/i);
+    assert.doesNotMatch(result.stdout, new RegExp(`Executing Runtime: ${version.replaceAll(".", "\\.")}`));
   } finally { await fixture.cleanup(); await rm(project, { recursive: true, force: true }); }
 });

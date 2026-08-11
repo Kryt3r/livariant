@@ -5,7 +5,6 @@ import { buildResumeContext, getStatus, getVersionInfo, initializeProject, inspe
 import { getPreviewResumeAdapter } from "../adapters/provider-resume-adapter.js";
 import type { ResumeProviderId } from "../adapters/resume-provider.js";
 import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
-import { UntrustedRuntimeError } from "../distribution/runtime-trust.js";
 import { handleRecover, handleUpdate } from "./lifecycle.js";
 
 function printVersion(args: string[]): void {
@@ -19,8 +18,12 @@ function printVersion(args: string[]): void {
   console.log(`Channel: ${info.channel}`);
 }
 
+function commandSkipsRuntimeDelegation(command: string | undefined): boolean {
+  return command === undefined || ["help", "--help", "-h", "version"].includes(command);
+}
+
 function canContinueWithoutRuntimeDelegation(command: string | undefined): boolean {
-  return command === undefined || ["help", "--help", "-h", "version", "status", "doctor"].includes(command);
+  return command === "status" || command === "doctor";
 }
 
 async function delegateToActiveRuntime(command: string | undefined): Promise<boolean> {
@@ -30,7 +33,7 @@ async function delegateToActiveRuntime(command: string | undefined): Promise<boo
   try {
     active = await readActiveRuntimePointer(process.cwd());
   } catch (error) {
-    if (error instanceof UntrustedRuntimeError && canContinueWithoutRuntimeDelegation(command)) return false;
+    if (canContinueWithoutRuntimeDelegation(command)) return false;
     throw error;
   }
   if (!active) return false;
@@ -160,7 +163,7 @@ async function handleInit(args: string[]): Promise<void> {
 async function main(): Promise<void> {
   const command = process.argv[2];
   const args = process.argv.slice(3);
-  if (await delegateToActiveRuntime(command)) return;
+  if (!commandSkipsRuntimeDelegation(command) && await delegateToActiveRuntime(command)) return;
   switch (command) {
     case "version": printVersion(args); return;
     case "status": await printStatus(); return;

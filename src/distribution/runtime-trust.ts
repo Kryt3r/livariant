@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 const TRUST_SCHEMA = 1 as const;
 const PACKAGE_NAME = "livariant" as const;
@@ -27,9 +27,22 @@ interface RuntimeTrustRecord extends RuntimeTrustIdentity {
   packageName: typeof PACKAGE_NAME;
 }
 
-function trustRoot(): string {
+function pathIsWithin(root: string, candidate: string): boolean {
+  const rel = relative(resolve(root), resolve(candidate));
+  return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !rel.startsWith(sep));
+}
+
+function trustRoot(projectPath: string): string {
   const override = process.env.LIVARIANT_TRUST_ROOT;
-  return override ? resolve(override) : resolve(homedir(), ".livariant", "trust", "runtimes");
+  if (!override) return resolve(homedir(), ".livariant", "trust", "runtimes");
+  if (!isAbsolute(override)) {
+    throw new Error("LIVARIANT_TRUST_ROOT must be an absolute machine-local path.");
+  }
+  const root = resolve(override);
+  if (pathIsWithin(projectPath, root)) {
+    throw new Error("LIVARIANT_TRUST_ROOT must be outside the current project directory.");
+  }
+  return root;
 }
 
 function normalized(identity: RuntimeTrustIdentity): RuntimeTrustRecord {
@@ -45,7 +58,7 @@ function normalized(identity: RuntimeTrustIdentity): RuntimeTrustRecord {
   };
 }
 
-function recordPath(identity: RuntimeTrustIdentity): string {
+function recordPath(projectPath: string, identity: RuntimeTrustIdentity): string {
   const record = normalized(identity);
   if (!/^[a-f0-9]{64}$/i.test(record.artifactSha256) || !/^[a-f0-9]{64}$/i.test(record.packageTreeSha256)) {
     throw new Error("Runtime trust identity has an invalid digest.");
@@ -58,11 +71,11 @@ function recordPath(identity: RuntimeTrustIdentity): string {
     record.artifactSha256,
     record.packageTreeSha256,
   ].join("\0")).digest("hex");
-  return resolve(trustRoot(), `${key}.json`);
+  return resolve(trustRoot(projectPath), `${key}.json`);
 }
 
-async function ensureTrustRoot(): Promise<string> {
-  const root = trustRoot();
+async function ensureTrustRoot(projectPath: string): Promise<string> {
+  const root = trustRoot(projectPath);
   await mkdir(root, { recursive: true });
   const stats = await lstat(root);
   if (!stats.isDirectory() || stats.isSymbolicLink()) {
@@ -99,10 +112,10 @@ function parseRecord(value: unknown): RuntimeTrustRecord {
   return normalized(record as RuntimeTrustIdentity);
 }
 
-export async function recordRuntimeTrust(identity: RuntimeTrustIdentity): Promise<void> {
-  await ensureTrustRoot();
+export async function recordRuntimeTrust(projectPath: string, identity: RuntimeTrustIdentity): Promise<void> {
+  await ensureTrustRoot(projectPath);
   const expected = normalized(identity);
-  const path = recordPath(expected);
+  const path = recordPath(projectPath, expected);
   try {
     await writeFile(path, `${JSON.stringify(expected, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
     return;
@@ -118,9 +131,9 @@ export async function recordRuntimeTrust(identity: RuntimeTrustIdentity): Promis
   }
 }
 
-export async function assertRuntimeTrusted(identity: RuntimeTrustIdentity): Promise<void> {
+export async function assertRuntimeTrusted(projectPath: string, identity: RuntimeTrustIdentity): Promise<void> {
   const expected = normalized(identity);
-  const path = recordPath(expected);
+  const path = recordPath(projectPath, expected);
   let stats;
   try {
     stats = await lstat(path);
