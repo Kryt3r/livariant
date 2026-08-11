@@ -20,6 +20,30 @@ The Project Brain is the durable source of truth for project context. Resume out
 
 A provider-specific Resume projection may look different for Claude Code and Codex while representing the same canonical state.
 
+## Presence is not currency
+
+Canonical truth does not guarantee that every project-owned artifact still reflects that truth.
+
+A README, quickstart, architecture summary, provider instruction file, example, or release guide may contain a claim that was correct when written and is now stale after a product, policy, CLI, provider, lifecycle, licensing, or architecture decision changed.
+
+Livariant calls this **Knowledge Drift**.
+
+> [!IMPORTANT]
+> **Presence is not currency.** A claim being present in a legitimate project-owned file does not prove that the claim is still current.
+
+The framework distinguishes:
+
+- **canonical current truth** — authoritative current knowledge for its domain;
+- **dependent current truth** — current-facing artifacts that must remain consistent with canonical truth;
+- **historical truth** — records intentionally preserving earlier states or decisions;
+- **ephemeral projections** — temporary context derived from canonical truth.
+
+When canonical truth changes, affected dependent current surfaces should be identified and reviewed. Historical records should normally remain historical rather than being rewritten merely to remove old terminology.
+
+Detection also does not create authority: identifying a stale document does not authorize Livariant to rewrite it.
+
+The canonical semantic contract is defined in [`core/knowledge-drift-and-truth-surfaces.md`](../core/knowledge-drift-and-truth-surfaces.md).
+
 ## Capability is not authority
 
 A recurring framework rule is:

@@ -2,7 +2,7 @@
   "name": "livariant",
   "version": "0.1.0-rc.1",
   "private": true,
-  "description": "Livariant 0.1.0 release-candidate baseline for Public Preview preparation.",
+  "description": "Livariant 0.1.0 release-candidate baseline for Public Preview.",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "files": [
@@ -16,6 +16,7 @@
     "test": "npm run build && node --test dist/tests/*.test.js",
     "test:package": "node scripts/package-smoke.mjs",
     "test:release-bundle": "node scripts/release-bundle-smoke.mjs",
+    "test:public-docs": "node scripts/check-public-doc-consistency.mjs",
     "release:bundle": "node scripts/build-release-bundle.mjs",
     "prepack": "npm run build",
     "dev": "npm run build && node dist/src/cli/index.js"
