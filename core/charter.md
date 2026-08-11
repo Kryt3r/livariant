@@ -3,7 +3,7 @@ type: POLICY
 status: accepted
 owner: framework-director
 created: 2026-08-09
-updated: 2026-08-09
+updated: 2026-08-11
 ---
 
 # Project Brain Framework — Charter
@@ -30,6 +30,7 @@ A project should still be able to answer, after hundreds of sessions, model chan
 - What risks exist?
 - Which decisions were made?
 - What must the next change not break?
+- Which project artifacts may no longer reflect current truth?
 
 ## Core principles
 
@@ -41,6 +42,9 @@ Agents load only the context needed for the current task. A small current-contex
 
 ### Code describes reality; Brain describes intent and context
 When Code and Brain disagree, Code wins for facts about what currently exists, Brain wins for documented intent about what should exist, and the contradiction is recorded explicitly instead of silently resolved.
+
+### Presence is not currency
+A claim being present in a legitimate project-owned artifact does not prove that it is still current. Livariant distinguishes current canonical truth, dependent current truth, historical truth, and ephemeral projections so superseded knowledge is not accidentally used as present guidance.
 
 ### Do not guess
 Missing context triggers research or a question, not plausible invention.
@@ -92,7 +96,7 @@ The framework must not:
 
 ## Quality objective
 
-A successful Project Brain Framework deployment means a new agent can take over without relearning the whole project, important decisions remain understandable months later, known failure modes are not repeatedly reintroduced, high-risk changes receive stronger controls, and product/design quality does not reset to generic model defaults after model changes.
+A successful Project Brain Framework deployment means a new agent can take over without relearning the whole project, important decisions remain understandable months later, known failure modes are not repeatedly reintroduced, high-risk changes receive stronger controls, product/design quality does not reset to generic model defaults after model changes, and stale dependent project knowledge is surfaced instead of silently treated as current.
 
 The objective is not maximum documentation.
 
