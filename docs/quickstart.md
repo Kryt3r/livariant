@@ -8,9 +8,12 @@ Current executable baseline requirements:
 
 - Node.js 20 or newer,
 - a local project directory,
-- the Livariant package/release artifact for the current Preview candidate.
+- the Livariant release artifact for the current Public Preview baseline.
 
-The repository package identity and installed CLI namespace are both `livariant`. The package remains private during Public Preview preparation; do not publish a package-manager installation command until the public distribution source itself is finalized.
+The repository package identity and installed CLI namespace are both `livariant`.
+
+> [!NOTE]
+> Package-manager installation is not part of the currently documented supported Preview path. Use the release artifact supplied through an approved Livariant distribution source rather than inventing a manual installation or update path.
 
 ## 1. Inspect before changing anything
 
@@ -73,6 +76,9 @@ LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
 
 The provider output is an ephemeral projection of canonical Project Brain state. It is not a second source of truth and does not gain authority from provider memory or from `CLAUDE.md` / `AGENTS.md`.
 
+> [!IMPORTANT]
+> Claude Code and Codex support in the current Preview is intentionally limited to Project Brain Resume handoff. Livariant does not claim full integration with every provider feature, model, authentication surface, tool invocation, or native instruction mechanism.
+
 ## 5. Inspect an update before applying it
 
 Given a release manifest obtained through the chosen trusted Preview distribution path:
@@ -96,6 +102,9 @@ livariant update \
 The manifest cannot silently make its own `sourceId` trusted. `--trusted-source` is separate evidence of the trust context selected for this operation. Artifact bytes still must match the digest bound by the release manifest.
 
 If the target changes Project Brain schema, `livariant update` routes through the supported migration lifecycle automatically. Do not manually edit schema/version metadata and do not run a separate ad-hoc migration.
+
+> [!WARNING]
+> Do not update Livariant by manually replacing `.project-brain/`, copying framework-managed lifecycle files, editing schema/version metadata, or dropping a newer Runtime into managed storage. Manual replacement bypasses compatibility, authority, integrity, checkpoint, activation, and recovery guarantees.
 
 ## 6. Recover an interrupted migration
 
