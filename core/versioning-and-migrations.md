@@ -3,7 +3,7 @@ type: POLICY
 status: accepted
 owner: framework-director
 created: 2026-08-09
-updated: 2026-08-10
+updated: 2026-08-11
 foundation: FOUNDATION-10A
 ---
 
@@ -143,11 +143,11 @@ Project pinning does not grant permission to update. Discovery of a newer Framew
 
 ## Branding and command namespace independence
 
-Lifecycle metadata must not depend on the temporary development namespace `pb` or on an unaccepted product name.
+The accepted current product identity is **Livariant**, with package/runtime and CLI namespace `livariant`.
 
-The final product identity may later define public executable or command naming, but changing branding must not require semantic migration of Framework or Project Brain lifecycle metadata unless a real compatibility change independently requires it.
+Lifecycle metadata must not make framework semantics depend on that branding. A future product rename must not require semantic migration of Framework or Project Brain lifecycle metadata unless a real compatibility change independently requires it.
 
-Development examples may continue to use `pb` as a placeholder only.
+Current product-facing examples should use the canonical `livariant` namespace. Historical records may preserve earlier development namespaces when their historical role is explicit.
 
 ## Migration principle
 
@@ -172,7 +172,7 @@ Detailed migration metadata, compatibility evaluation, update planning, rollback
 
 A product-facing command surface may assist lifecycle operations, but command capabilities must derive from canonical Framework contracts rather than inventing parallel rules.
 
-Candidate semantic operations include initialization, diagnostics, migration, update discovery, and compatibility inspection. Their final public invocation namespace remains product-defined rather than permanently bound to `pb`.
+Candidate semantic operations include initialization, diagnostics, migration, update discovery, and compatibility inspection. The current Livariant CLI exposes supported operations through the `livariant` namespace, while the semantic contracts remain provider- and branding-independent.
 
 ## Change history
 

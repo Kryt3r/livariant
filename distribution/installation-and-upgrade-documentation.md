@@ -5,6 +5,7 @@ domain: distribution
 language: en
 owner: framework
 foundation: FOUNDATION-10G
+updated: 2026-08-11
 ---
 
 # Installation & Upgrade Documentation Contract
@@ -22,7 +23,7 @@ Alternative distribution mechanisms may exist, but users should not need to infe
 The recommended installation flow should communicate, at an appropriate level:
 
 ```text
-Install framework tooling
+Install Livariant tooling
 → initialize or connect the project
 → inspect the resulting state
 → begin using the framework
@@ -38,7 +39,7 @@ Check for an update
 → confirm completion
 ```
 
-The exact product command namespace is not fixed by this policy.
+The current product CLI namespace is `livariant`. The lifecycle semantics defined by this policy remain independent from branding so a future rename would not redefine the safe update contract.
 
 ## Prominent Manual-Replacement Warning
 
@@ -90,7 +91,7 @@ Interrupted or failed updates are expected lifecycle states and must have a docu
 
 Recovery guidance should warn users against trying to repair an interrupted update by manually overwriting managed project files.
 
-The supported recovery path should begin with diagnosis of the actual installation and migration state, for example through the framework's diagnostic or recovery surface, before additional mutation is attempted.
+The supported recovery path should begin with diagnosis of the actual installation and migration state, for example through `livariant doctor` and `livariant recover`, before additional mutation is attempted.
 
 ## Version-Aware Documentation
 
@@ -106,9 +107,9 @@ Public documentation must avoid presenting a newer migration procedure as univer
 
 ## Product Naming Independence
 
-The documentation contract must not make the temporary development namespace `pb` a permanent technical dependency.
+The accepted current product and CLI identity is Livariant / `livariant`.
 
-Development examples may use a clearly identified placeholder namespace until the product identity is accepted.
+Current user-facing command examples should use that namespace. Historical engineering records may preserve earlier development placeholders when their historical role is explicit.
 
 Branding changes must not require redesigning the lifecycle, migration, or ownership semantics.
 
@@ -147,7 +148,7 @@ Avoid:
 - using fresh-project instructions for established projects without discovery and preservation semantics,
 - documenting only the happy path and leaving interrupted updates undefined,
 - publishing upgrade instructions without version applicability,
-- hard-coding the temporary `pb` namespace into durable lifecycle requirements,
+- reintroducing superseded development namespaces into current user-facing lifecycle guidance,
 - assuming technical safety can be delegated to disclaimers.
 
 ## Core Principles

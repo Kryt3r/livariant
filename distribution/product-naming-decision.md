@@ -2,6 +2,7 @@
 type: product-identity-decision
 status: accepted
 date: 2026-08-10
+updated: 2026-08-11
 scope: public-product-identity
 language: en
 owner: framework
@@ -19,9 +20,9 @@ The accepted public CLI namespace is:
 livariant
 ```
 
-The existing `pb-dev` command remains a temporary development compatibility surface only. It must not be treated as the public product identity or as a durable architectural dependency.
+The canonical product repository is `Kryt3r/livariant`, and the executable package/runtime identity is `livariant`.
 
-The canonical product repository is `Kryt3r/livariant`, and the executable package/runtime identity is `livariant`. The former `project-brain-framework` and `project-brain-framework-runtime` identities remain relevant only to historical engineering records or deliberate compatibility/test evidence.
+Earlier development identities such as `pb`, `pb-dev`, `project-brain-framework`, and `project-brain-framework-runtime` are superseded product-surface names. They may remain in clearly historical engineering records or deliberate compatibility/test evidence, but they are not current product identity and must not re-enter current user guidance or current normative command examples.
 
 ## Naming Rationale
 
@@ -60,7 +61,7 @@ No formal trademark registration is required by this framework decision before d
 The current product strategy is intentionally pragmatic:
 
 - use **Livariant** as the product name,
-- use the Livariant identity for the public repository and technical namespace where practical,
+- use the Livariant identity for the canonical repository and technical namespace,
 - do not block development on a trademark filing,
 - re-evaluate trademark registration if the product gains meaningful public adoption, commercial value, branding investment, or distribution reach,
 - if a credible third-party rights conflict is raised later, assess the concrete claim and, if necessary, rename the product rather than treating the current name as architecturally immutable.
@@ -69,32 +70,35 @@ Branding must therefore remain separable from Core lifecycle and Project Brain s
 
 ## Public Identity Boundary
 
-Accepted:
+Accepted and current:
 
 ```text
 Product: Livariant
-Public CLI namespace: livariant
-```
-
-Canonical product identities:
-
-```text
 CLI: livariant
 Repository: livariant
-Package: livariant
+Package/runtime: livariant
+Provider environment variable: LIVARIANT_PROVIDER_ENV
 ```
 
-The temporary identities may coexist during the migration to the public surface, but new user-facing documentation and lifecycle CLI work should target **Livariant** and `livariant` rather than introducing additional `pb-dev` dependencies.
+Historical development aliases do not form part of the Public Preview product contract.
 
-## Follow-up
+## Migration status
 
-The next public-surface work should:
+The identity migration required by this decision is materially complete for the current product surface:
 
-1. migrate the installed CLI surface from `pb-dev` to `livariant`, retaining a temporary development alias only if useful for compatibility;
-2. choose and verify the final package-manager package name separately from the already accepted product/CLI name;
-3. update Quickstart and lifecycle documentation to the real installed `livariant` commands once those commands exist;
-4. create or rename the intended public repository around the Livariant identity when the repository transition is performed;
-5. revisit formal trademark clearance/registration only when product maturity or risk justifies the cost.
+- installed CLI identity is `livariant`;
+- package/runtime identity is `livariant`;
+- canonical repository is `Kryt3r/livariant`;
+- current Quickstart and lifecycle guidance use `livariant`;
+- current public documentation must not present superseded development identities as active alternatives.
+
+Historical engineering records may continue to document the transition as historical truth.
+
+## Remaining follow-up
+
+- maintain product/CLI/package/repository identity consistency through truth-surface checks;
+- keep branding separable from Framework semantics so a future rename remains bounded;
+- revisit formal trademark clearance/registration only when product maturity or risk justifies the cost.
 
 ## Core Rule
 

@@ -3,6 +3,7 @@ type: POLICY
 status: accepted
 owner: core-governance
 language: en
+updated: 2026-08-11
 ---
 
 # Localization Policy
@@ -117,7 +118,7 @@ This keeps decision logic stable while allowing international interaction.
 
 Translations are derived artifacts and may become stale when their canonical source changes.
 
-Future tooling such as `pb doctor` should be able to detect outdated translations and report them without treating the translation as canonical truth.
+Current or future diagnostics such as `livariant doctor` should be able to detect outdated translations and report them without treating the translation as canonical truth.
 
 Example:
 
@@ -128,13 +129,13 @@ Example:
 
 ## Development-phase rule
 
-During early private foundation work, full duplication of every human-facing document is not required.
+During early private foundation work, full duplication of every human-facing document was not required.
 
-Minimum expectation during foundation:
+The resulting rule remains relevant for future translation expansion:
 
 - normative Core remains English,
-- English is the default README/documentation source,
-- German support architecture is defined from the beginning,
-- complete bilingual public documentation is required before a public release that claims German support.
+- English is the default canonical README/documentation source,
+- additional translations are dependent current truth rather than independent normative sources,
+- a public release must not claim maintained language support that its current translated user documentation does not actually provide.
 
 This avoids unnecessary translation churn while preserving internationalization as a first-class architectural concern.
