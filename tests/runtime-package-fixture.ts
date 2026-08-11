@@ -4,6 +4,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { recordArtifactAuthorization } from "../src/distribution/release-authorization.js";
 
 export interface RuntimePackageFixture {
   path: string;
@@ -37,7 +38,7 @@ function runNpmPack(packageRoot: string, packRoot: string) {
   return result.stdout;
 }
 
-export async function createRuntimePackageFixture(version: string): Promise<RuntimePackageFixture> {
+export async function createRuntimePackageFixture(version: string, options: { authorize?: boolean } = {}): Promise<RuntimePackageFixture> {
   const root = await mkdtemp(resolve(tmpdir(), "livariant-runtime-release-fixture-"));
   const packageRoot = resolve(root, "package");
   const packRoot = resolve(root, "pack");
@@ -60,6 +61,7 @@ export async function createRuntimePackageFixture(version: string): Promise<Runt
   if (typeof filename !== "string") throw new Error("Runtime fixture pack did not return a tarball filename.");
   const path = resolve(packRoot, filename);
   const sha256 = createHash("sha256").update(await readFile(path)).digest("hex");
+  if (options.authorize !== false) await recordArtifactAuthorization(process.cwd(), sha256);
 
   return {
     path,
