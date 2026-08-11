@@ -74,6 +74,9 @@ async function validatePhysicalTrustRoot(projectPath: string, root: string): Pro
   if (!pathIsWithin(physicalBase, physicalRoot)) {
     throw new Error("LIVARIANT_TRUST_ROOT resolves outside the machine-local Livariant trust directory.");
   }
+  if (pathIsWithin(physicalBase, physicalProject)) {
+    throw new Error("Livariant project directories must not reside inside the machine-local Runtime trust directory.");
+  }
   if (pathIsWithin(physicalProject, physicalRoot) || pathIsWithin(physicalRoot, physicalProject)) {
     throw new Error("Machine-local Livariant Runtime trust must not overlap the current project directory.");
   }

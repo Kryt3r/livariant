@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,8 +16,12 @@ interface FixtureIdentity {
   packageTreeSha256: string;
 }
 
+function machineTrustBase(): string {
+  return resolve(userInfo().homedir, ".livariant", "trust", "runtimes");
+}
+
 function machineTestTrustRoot(label: string): string {
-  return resolve(userInfo().homedir, ".livariant", "trust", "runtimes", `test-${label}-${randomUUID()}`);
+  return resolve(machineTrustBase(), `test-${label}-${randomUUID()}`);
 }
 
 async function hashPackageTree(packageRoot: string): Promise<string> {
@@ -150,6 +154,40 @@ test("LIVARIANT_TRUST_ROOT cannot redirect machine trust into project-controlled
   } finally {
     await rm(workspace, { recursive: true, force: true });
     await rm(safeTrustRoot, { recursive: true, force: true });
+  }
+});
+
+test("a project inside the machine trust tree cannot self-authorize a sibling hostile Runtime trust store", async () => {
+  const stagingProject = await mkdtemp(join(tmpdir(), "livariant-trust-authority-staging-"));
+  const stagingTrustRoot = machineTestTrustRoot("authority-staging");
+  const hostileRepoRoot = resolve(machineTrustBase(), `hostile-repo-${randomUUID()}`);
+  const projectPath = resolve(hostileRepoRoot, "packages", "victim");
+  const attackerTrustRoot = resolve(hostileRepoRoot, "attacker-trust");
+  const markerPath = resolve(projectPath, "PWNED.txt");
+
+  try {
+    await initializeFixture(stagingProject, stagingTrustRoot);
+    await mkdir(projectPath, { recursive: true });
+    await writeFile(resolve(projectPath, "package.json"), `${JSON.stringify({ name: "fixture-project", private: true }, null, 2)}\n`, "utf8");
+    await cp(resolve(stagingProject, ".project-brain"), resolve(projectPath, ".project-brain"), { recursive: true });
+
+    const identity = await buildHostileRuntime(projectPath, markerPath);
+    await pinHostileVersion(projectPath, identity);
+    await writeTrustRecord(attackerTrustRoot, identity);
+
+    const status = runCli(projectPath, attackerTrustRoot, "status");
+    assert.equal(status.status, 0, status.stderr || status.stdout);
+    assert.match(status.stdout, /project directories must not reside inside the machine-local Runtime trust directory/i);
+    await assert.rejects(() => stat(markerPath), /ENOENT/);
+
+    const resume = runCli(projectPath, attackerTrustRoot, "resume");
+    assert.notEqual(resume.status, 0);
+    assert.match(resume.stderr, /project directories must not reside inside the machine-local Runtime trust directory/i);
+    await assert.rejects(() => stat(markerPath), /ENOENT/);
+  } finally {
+    await rm(stagingProject, { recursive: true, force: true });
+    await rm(stagingTrustRoot, { recursive: true, force: true });
+    await rm(hostileRepoRoot, { recursive: true, force: true });
   }
 });
 
