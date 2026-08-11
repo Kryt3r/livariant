@@ -223,14 +223,22 @@ Read [Public Preview Support & Stability](docs/preview-support-and-stability.md)
 - [Privacy & Network Behavior](docs/privacy-and-network.md)
 - [Public Preview Support & Stability](docs/preview-support-and-stability.md)
 - [Public Preview Scope & Limitations](docs/preview-scope.md)
+- [License, Warranty & Liability](docs/license-and-warranty.md)
 
 ### Deutsch
 
 - [Deutsche Projektübersicht](README.de.md)
 - [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
+- [Leitfaden für bestehende Projekte](docs/de/existing-projects.md)
+- [Architektur & Sicherheit](docs/de/architecture-and-safety.md)
+- [Provider-Handoff](docs/de/provider-handoff.md)
 - [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-guide.md)
+- [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md)
+- [Public-Preview-Support & Stabilität](docs/de/preview-support-and-stability.md)
+- [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md)
+- [Lizenz, Gewährleistung & Haftung](docs/de/license-and-warranty.md)
 
-Additional German detail documentation will be added without changing the English canonical technical contracts.
+English remains the canonical technical-contract language where a deeper framework/internal contract has no translated counterpart; the user-facing documentation set above is now mirrored in German.
 
 ## Licensing, security, and contributions
 
