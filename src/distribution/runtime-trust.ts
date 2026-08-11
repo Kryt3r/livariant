@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { userInfo } from "node:os";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 const TRUST_SCHEMA = 1 as const;
@@ -32,17 +32,57 @@ function pathIsWithin(root: string, candidate: string): boolean {
   return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !rel.startsWith(sep));
 }
 
-function trustRoot(projectPath: string): string {
+function machineTrustBase(): string {
+  return resolve(userInfo().homedir, ".livariant", "trust", "runtimes");
+}
+
+function rejectsWindowsAliasPath(path: string): boolean {
+  if (process.platform !== "win32") return false;
+  return /^(?:\\\\[?.]\\|\/\/[?.]\/|\\\\[^\\]+\\)/.test(path);
+}
+
+function configuredTrustRoot(): string {
+  const base = machineTrustBase();
   const override = process.env.LIVARIANT_TRUST_ROOT;
-  if (!override) return resolve(homedir(), ".livariant", "trust", "runtimes");
-  if (!isAbsolute(override)) {
-    throw new Error("LIVARIANT_TRUST_ROOT must be an absolute machine-local path.");
+  if (!override) return base;
+  if (!isAbsolute(override)) throw new Error("LIVARIANT_TRUST_ROOT must be an absolute machine-local path.");
+  if (rejectsWindowsAliasPath(override)) {
+    throw new Error("LIVARIANT_TRUST_ROOT must not use Windows namespace, device, or UNC path aliases.");
   }
   const root = resolve(override);
-  if (pathIsWithin(projectPath, root)) {
-    throw new Error("LIVARIANT_TRUST_ROOT must be outside the current project directory.");
+  if (!pathIsWithin(base, root)) {
+    throw new Error("LIVARIANT_TRUST_ROOT must stay within the machine-local Livariant trust directory.");
   }
   return root;
+}
+
+async function validatePhysicalTrustRoot(projectPath: string, root: string): Promise<string> {
+  const base = machineTrustBase();
+  await mkdir(base, { recursive: true });
+  await mkdir(root, { recursive: true });
+
+  const [physicalHome, physicalBase, physicalRoot, physicalProject] = await Promise.all([
+    realpath(userInfo().homedir),
+    realpath(base),
+    realpath(root),
+    realpath(projectPath),
+  ]);
+
+  if (!pathIsWithin(physicalHome, physicalBase)) {
+    throw new Error("Machine-local Livariant trust directory resolves outside the operating-system user home.");
+  }
+  if (!pathIsWithin(physicalBase, physicalRoot)) {
+    throw new Error("LIVARIANT_TRUST_ROOT resolves outside the machine-local Livariant trust directory.");
+  }
+  if (pathIsWithin(physicalProject, physicalRoot) || pathIsWithin(physicalRoot, physicalProject)) {
+    throw new Error("Machine-local Livariant Runtime trust must not overlap the current project directory.");
+  }
+
+  const stats = await lstat(physicalRoot);
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new Error("Machine-local Livariant Runtime trust root must be a real directory.");
+  }
+  return physicalRoot;
 }
 
 function normalized(identity: RuntimeTrustIdentity): RuntimeTrustRecord {
@@ -58,7 +98,7 @@ function normalized(identity: RuntimeTrustIdentity): RuntimeTrustRecord {
   };
 }
 
-function recordPath(projectPath: string, identity: RuntimeTrustIdentity): string {
+function recordPath(root: string, identity: RuntimeTrustIdentity): string {
   const record = normalized(identity);
   if (!/^[a-f0-9]{64}$/i.test(record.artifactSha256) || !/^[a-f0-9]{64}$/i.test(record.packageTreeSha256)) {
     throw new Error("Runtime trust identity has an invalid digest.");
@@ -71,17 +111,11 @@ function recordPath(projectPath: string, identity: RuntimeTrustIdentity): string
     record.artifactSha256,
     record.packageTreeSha256,
   ].join("\0")).digest("hex");
-  return resolve(trustRoot(projectPath), `${key}.json`);
+  return resolve(root, `${key}.json`);
 }
 
-async function ensureTrustRoot(projectPath: string): Promise<string> {
-  const root = trustRoot(projectPath);
-  await mkdir(root, { recursive: true });
-  const stats = await lstat(root);
-  if (!stats.isDirectory() || stats.isSymbolicLink()) {
-    throw new Error("Machine-local Livariant Runtime trust root must be a real directory.");
-  }
-  return root;
+async function safeTrustRoot(projectPath: string): Promise<string> {
+  return validatePhysicalTrustRoot(projectPath, configuredTrustRoot());
 }
 
 function sameRecord(left: RuntimeTrustRecord, right: RuntimeTrustRecord): boolean {
@@ -113,9 +147,9 @@ function parseRecord(value: unknown): RuntimeTrustRecord {
 }
 
 export async function recordRuntimeTrust(projectPath: string, identity: RuntimeTrustIdentity): Promise<void> {
-  await ensureTrustRoot(projectPath);
+  const root = await safeTrustRoot(projectPath);
   const expected = normalized(identity);
-  const path = recordPath(projectPath, expected);
+  const path = recordPath(root, expected);
   try {
     await writeFile(path, `${JSON.stringify(expected, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
     return;
@@ -132,8 +166,9 @@ export async function recordRuntimeTrust(projectPath: string, identity: RuntimeT
 }
 
 export async function assertRuntimeTrusted(projectPath: string, identity: RuntimeTrustIdentity): Promise<void> {
+  const root = await safeTrustRoot(projectPath);
   const expected = normalized(identity);
-  const path = recordPath(projectPath, expected);
+  const path = recordPath(root, expected);
   let stats;
   try {
     stats = await lstat(path);
