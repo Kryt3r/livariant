@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+
+function machineTestTrustRoot(): string {
+  return resolve(userInfo().homedir, ".livariant", "trust", "runtimes", `test-boundary-${randomUUID()}`);
+}
 
 async function hashPackageTree(packageRoot: string): Promise<string> {
   const hash = createHash("sha256");
@@ -37,12 +41,7 @@ async function buildUntrustedProjectRuntime(projectPath: string, markerPath: str
   const cliPath = resolve(packageRoot, "dist", "src", "cli", "index.js");
   await mkdir(resolve(cliPath, ".."), { recursive: true });
 
-  await writeFile(resolve(packageRoot, "package.json"), `${JSON.stringify({
-    name: "livariant",
-    version: "9.9.9",
-    type: "module",
-  }, null, 2)}\n`, "utf8");
-
+  await writeFile(resolve(packageRoot, "package.json"), `${JSON.stringify({ name: "livariant", version: "9.9.9", type: "module" }, null, 2)}\n`, "utf8");
   await writeFile(cliPath, [
     'import { writeFileSync } from "node:fs";',
     `writeFileSync(${JSON.stringify(markerPath)}, "executed\\n", { flag: "a" });`,
@@ -79,9 +78,10 @@ function runCli(projectPath: string, trustRoot: string, command: string) {
 
 test("project-local Runtime evidence cannot authorize code execution before machine-local trust", async () => {
   const projectPath = await mkdtemp(join(tmpdir(), "livariant-untrusted-runtime-project-"));
-  const trustRoot = await mkdtemp(join(tmpdir(), "livariant-empty-runtime-trust-"));
+  const trustRoot = machineTestTrustRoot();
   const markerPath = resolve(projectPath, "PWNED.txt");
   try {
+    await mkdir(trustRoot, { recursive: true });
     await buildUntrustedProjectRuntime(projectPath, markerPath);
 
     for (const command of ["version", "help", "status", "doctor"]) {
