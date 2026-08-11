@@ -1,27 +1,41 @@
 ---
 type: public-preview-documentation-review
 status: accepted
-phase: public-preview-preparation
+phase: rc-preparation
 scope: user-journey
 language: en
 owner: framework
+updated: 2026-08-11
 ---
 
 # Public Preview Documentation & User-Journey Review
 
 This review evaluates whether a new user can understand and safely exercise the current executable Livariant baseline without relying on private development history.
 
+## Current reviewed baseline
+
+- Canonical repository: `Kryt3r/livariant`.
+- Repository visibility: private.
+- Canonical `main`: `62576aad5f3d8fcc0466bd38d32ba4ba58d483c0` after PR #19.
+- Package/release identity: `0.1.0-rc.2`.
+- Post-merge Hardening CI #70: success.
+- Final focused acceptance recheck of the remaining Runtime release-authority and Recovery findings: **GO**.
+
+This review does not authorize a tag, GitHub Release, npm publication, or repository visibility change.
+
 ## Documentation set
 
-The public-facing documentation includes:
+The public/current-facing documentation includes:
 
-- `README.md` — product problem, current scope, architecture, safety, and entry points;
-- `docs/quickstart.md` — discovery/init/status/doctor/resume/update/recovery path;
+- `README.md` and `README.de.md` — product problem, current scope, architecture, safety, and entry points;
+- `docs/quickstart.md` and `docs/de/quickstart.md` — discovery/init/status/doctor/resume/update/recovery path;
 - `docs/existing-projects.md` — preservation-first adoption;
 - `docs/architecture-and-safety.md` — ownership, authority, failure, update, migration, and provider boundaries;
 - `docs/provider-handoff.md` — Claude Code/Codex Resume handoff contract;
-- `docs/lifecycle-guide.md` — exact update, migration, interruption, recovery, and manual-replacement guidance;
-- `docs/preview-scope.md` — supported Preview claims and explicit limitations.
+- `docs/lifecycle-guide.md` and `docs/de/lifecycle-guide.md` — exact update, migration, interruption, recovery, and manual-replacement guidance;
+- `docs/preview-scope.md` — supported Preview claims and explicit limitations;
+- `docs/privacy-and-network.md` — local-first and update/network boundaries;
+- accepted distribution contracts that define installation, upgrade, release integrity, and current launch readiness.
 
 ## Supported end-to-end user journey
 
@@ -36,13 +50,15 @@ install packed Livariant artifact
 → resume provider-neutral context
 → perform bounded Claude Code/Codex Resume handoff
 → inspect update plan without mutation
-→ explicitly apply a release with separate trusted-source evidence
+→ supply matching local artifact + trusted-source evidence
+→ require pre-existing independent machine-local authority for the exact artifact digest
+→ only then allow supported executable update / candidate Runtime attestation
 → route schema-changing releases through migration
 → inspect interrupted migration recovery
 → explicitly apply validated recovery
 ```
 
-Focused CLI tests exercise update and recovery through separate CLI processes. The clean-consumer package smoke exercises the installed `livariant` binary and verifies lifecycle inspection commands are present in the distributable package.
+Project-controlled input must not be able to create the machine-local Release Authority later relied upon for its own Runtime execution. The project-facing `authorize-runtime` command has been removed and must not appear in current user guidance.
 
 ## Documentation gate assessment
 
@@ -50,9 +66,9 @@ Focused CLI tests exercise update and recovery through separate CLI processes. T
 
 The README explains the continuity problem and Livariant's role without requiring Foundation history.
 
-### Five-minute Quickstart — GREEN for the executable Preview candidate
+### Quickstart — GREEN for the current executable candidate
 
-The Quickstart uses the actual installed `livariant` namespace and documents inspection-first initialization, Resume, update planning/application, and recovery. It does not invent a public registry installation command before a distribution source has been selected.
+The English and German Quickstarts use the actual installed `livariant` namespace and document inspection-first initialization, Resume, update planning/application, independent Release Authority, and recovery. They do not invent a public registry installation command.
 
 ### Existing-project guide — GREEN
 
@@ -60,15 +76,15 @@ The guide matches executable preservation-first adoption behavior, including mal
 
 ### Architecture / ownership / safety — GREEN
 
-The public guide presents the relevant ownership and authority model at user level while deeper Foundation contracts remain available for maintainers.
+The public guide presents the relevant ownership and authority model at user level, including machine-local Runtime trust, independent exact-artifact Release Authority, the pre-trust execution boundary, and the separation between project data and execution authority.
 
 ### Provider handoff — GREEN for the supported Preview surface
 
-The guide accurately limits support to Project Brain Resume handoff for Claude Code and Codex. Public provider environment evidence uses `LIVARIANT_PROVIDER_ENV`, and adapter capability never becomes mutation authority.
+The guide accurately limits support to Project Brain Resume handoff for Claude Code and Codex. Public provider environment evidence uses `LIVARIANT_PROVIDER_ENV`, and adapter capability never becomes mutation or Runtime execution authority.
 
 ### Update / migration / recovery — GREEN
 
-The installed CLI now exposes one coherent safe lifecycle surface:
+The installed CLI exposes one coherent safe lifecycle surface:
 
 ```text
 livariant update --manifest <path>
@@ -79,41 +95,44 @@ livariant recover --apply
 
 Planning and diagnosis remain read-only by default. Schema-changing compatible releases are routed by `update` through the supported migration contract rather than requiring a manual migration shortcut.
 
-The apply path retains explicit authorization, exact release/artifact identity, SHA-256 verification, separately supplied trusted-source evidence, installed Runtime attestation/integrity, migration checkpoints, durable interruption evidence, and validated recovery.
+For executable update, the exact artifact SHA-256 must already be authorized through an independent machine-local release process outside project authority. Manifest contents, `--trusted-source`, project files, and project-facing Livariant CLI/API cannot create that authority. Missing authority fails closed before npm installation or candidate Runtime attestation.
+
+Recovery documentation also reflects the accepted cleanup order: restore/commit the verified Project Brain first, remove displaced Recovery state before the final valid checkpoint, and delete that checkpoint only as the final irreversible cleanup step.
 
 ### Manual-replacement warning — GREEN
 
-The warning appears where users perform lifecycle actions, rather than only in legal documentation.
+Warnings cover Project Brain/lifecycle files as well as Runtime trust and Release-Authorization state; manual replacement is not presented as a supported lifecycle shortcut.
 
 ### Version awareness — GREEN for the current supported baseline
 
-The lifecycle guide states the currently proven schema migration scope and shows version/source/artifact information during planning. Release-specific compatibility remains carried by release descriptors rather than static prose.
+The repository package identity is `0.1.0-rc.2`. Historical `v0.1.0-rc.1` evidence remains historical and must not be presented as the current fixed candidate. Release-specific compatibility remains carried by release descriptors rather than static prose.
 
 ## Product identity
 
-Public documentation and executable package identity are aligned:
+Current documentation and executable package identity are aligned:
 
 ```text
 Product: Livariant
 Package/runtime: livariant
 CLI: livariant
+Version identity: 0.1.0-rc.2
 Provider environment evidence: LIVARIANT_PROVIDER_ENV
 ```
 
-Historical/internal framework identifiers may remain in accepted design history or internal implementation plumbing when they are not a public user dependency.
+Historical/internal framework identifiers may remain in accepted design history when their historical role is explicit.
 
 ## Remaining distribution boundary
 
-The documentation gate is distinct from selecting and publishing the actual public release source.
+Documentation readiness is distinct from publishing an actual release.
 
-Livariant is proven packable and installable into a clean consumer environment, but Public Preview still requires a finalized public distribution location/trust context. Until that is selected, documentation must not invent a registry or download endpoint.
+Livariant is proven packable and testable as a clean consumer, but the current repository remains private and no new `0.1.0-rc.2` tag, GitHub Release, or npm publication is authorized by this documentation review. Those are separate release-gate actions.
 
 ## Current documentation readiness
 
-**DOCUMENTATION / USER-JOURNEY GATE: GREEN for the executable Preview candidate.**
+**DOCUMENTATION / USER-JOURNEY GATE: GREEN for the current accepted `0.1.0-rc.2` baseline, subject to the documentation-alignment PR itself passing required CI.**
 
-The remaining work is public-release readiness rather than a missing user lifecycle surface: distribution publication, legal/public baseline, support/stability communication, and Release Candidate review.
+No new Runtime/Security Hardening is implied by this documentation work. A further hardening change requires a concrete finding.
 
 ## Core rule
 
-> Public documentation must describe the product that actually exists. Livariant's documented lifecycle path now corresponds to the installed executable surface, while publication details remain explicitly separate until a real release source is selected.
+> Public documentation must describe the product that actually exists. Current Truth Surfaces must preserve the independent Release-Authority and Recovery invariants of the accepted executable baseline without turning historical evidence into current release state.

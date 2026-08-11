@@ -39,19 +39,26 @@ livariant update \
   --trusted-source <source-id>
 ```
 
-Das Release-Manifest autorisiert seine eigene Source-ID **nicht** selbst. Die explizit angegebene Trust-Evidenz wird separat geprüft, und das Artefakt muss weiterhin zur im Manifest gebundenen Release-Identität und SHA-256 passen.
+Das Release-Manifest autorisiert seine eigene Source-ID **nicht** selbst. Die explizit angegebene Trusted-Source-Menge wird separat geprüft, und das Artefakt muss weiterhin zur im Manifest gebundenen Release-Identität und SHA-256 passen.
+
+Zusätzlich muss der exakte Artefakt-Digest bereits durch eine **unabhängige machine-local Release-Authority** außerhalb des ausgewählten Projekts autorisiert sein. Projektinput, Release-Manifeste, `--trusted-source` und die projektseitige Livariant-CLI können diese Authority weder erzeugen noch verändern. Fehlt die exakte Digest-Autorisierung in dieser unabhängigen machine-local Policy, bricht das Update geschlossen ab, bevor Candidate-Runtime-Code installiert oder ausgeführt wird.
+
+Einen projektseitigen `authorize-runtime`-Befehl gibt es absichtlich nicht. Die Preview-Distribution muss Release-Authority über einen getrennten vertrauenswürdigen Release-/Installationsprozess bereitstellen, statt einem Repository zu erlauben, seine eigenen Bytes zur Execution Authority zu erheben.
 
 Der sichere normale Update-Ablauf ist:
 
 ```text
 Zielrelease auflösen
-→ Release-Identität und Trust-Beziehung prüfen
+→ Release-Identität und Trusted-Source-Beziehung prüfen
 → Artefakt-SHA-256 prüfen
 → Kompatibilität und Channel prüfen
-→ explizite Autorisierung verlangen
+→ explizite --apply-Autorisierung verlangen
+→ bereits vorhandene unabhängige machine-local Artefakt-Authority verlangen
 → Ziel-Runtime ohne Lifecycle-Skripte installieren
-→ Paketidentität/-version attestieren
-→ installierten Runtime-Baum verifizieren
+→ gebundene Release-Evidenz schreiben und prüfen
+→ installierten Runtime-Baum messen
+→ machine-local Runtime-Trust herstellen und erneut prüfen
+→ erst dann Candidate-Runtime-Attestation ausführen
 → Preservation-/Lifecycle-Bedingungen erneut prüfen
 → kanonischen Project-Brain-Framework-Pin committen
 ```
@@ -132,18 +139,20 @@ Recovery ist eine separate, explizit autorisierte Lifecycle-Operation. Vor Rollb
 - Quellrelease/-schema-Metadaten;
 - Digests der kanonischen Project-Brain-Checkpoint-Dateien.
 
+Recovery committet das verifizierte wiederhergestellte Project Brain vor dem Cleanup. Der displaced Pre-Recovery-Baum wird zuerst entfernt; der letzte gültige Recovery-Checkpoint wird erst als finaler irreversibler Cleanup-Schritt gelöscht. Ein später Fehler beim displaced-tree Cleanup darf weder das wiederhergestellte Project Brain zurückrollen noch diesen Checkpoint zerstören.
+
 Ein fehlender, verschobener, manipulierter oder mehrdeutiger Checkpoint löst keine geratene Wiederherstellung aus.
 
 ## Retry-Semantik
 
-Eine während eines unterbrochenen Versuchs bereits installierte Ziel-Runtime darf nur wiederverwendet werden, wenn ihre gebundene Release-Evidenz exakt übereinstimmt: Version, Channel, Source-ID, Artefakt-ID, Artefakt-Digest, Paketidentität und Integrität des installierten Paketbaums.
+Eine während eines unterbrochenen Versuchs bereits installierte Ziel-Runtime darf nur wiederverwendet werden, wenn ihre gebundene Release-Evidenz exakt übereinstimmt: Version, Channel, Source-ID, Artefakt-ID, Artefakt-Digest, Paketidentität und Integrität des installierten Paketbaums, und der installierte Baum weiterhin zum machine-local Runtime-Trust passt.
 
 Ein anderes Artefakt kann eine existierende Installation nicht übernehmen, nur weil es dieselbe Versionsnummer behauptet.
 
 ## Warnung vor manueller Reparatur
 
 > [!CAUTION]
-> **Project Brain oder Livariant-verwalteten Lifecycle-State niemals manuell ersetzen, um ein Update abzuschließen, zu reparieren oder abzukürzen.**
+> **Project Brain, Livariant-verwalteten Lifecycle-State, Runtime-Trust-Records oder Release-Authorization-Records niemals manuell ersetzen, um ein Update abzuschließen, zu reparieren oder abzukürzen.**
 >
 > Das umgeht Kompatibilität, Autorität, Checkpoints, Replay-Sicherheit, Integritätsprüfung und Aktivierungssemantik.
 >
@@ -156,4 +165,4 @@ Ein anderes Artefakt kann eine existierende Installation nicht übernehmen, nur 
 
 ## Aktuelle Preview-Distribution
 
-Die CLI-Lifecycle-Oberfläche ist ausführbar. Die Preview-Distribution basiert auf passenden Release-Artefakten, Manifest und Prüfsummen aus dem gewählten vertrauenswürdigen Veröffentlichungsweg. Beispiele verwenden deshalb konkrete Manifest-/Artefaktpfade statt einen nicht existierenden Registry-Endpunkt zu erfinden.
+Die CLI-Lifecycle-Oberfläche ist ausführbar. Für die Public-Preview-Distribution braucht es noch einen finalisierten öffentlichen Weg, über den Nutzer Livariant-Paket, Release-Manifest, passendes Runtime-Artefakt und die für ausführbare Updates erforderliche unabhängige machine-local Release-Authority erhalten. Bis dieser Release-/Installationspfad veröffentlicht ist, verwenden Beispiele lokale Manifest-/Artefaktpfade und benennen die Authority-Voraussetzung, statt einen nicht existierenden Registry-, Signer- oder Download-Endpunkt zu erfinden.

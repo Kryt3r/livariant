@@ -101,10 +101,12 @@ livariant update \
 
 The manifest cannot silently make its own `sourceId` trusted. `--trusted-source` is separate evidence of the trust context selected for this operation. Artifact bytes still must match the digest bound by the release manifest.
 
+Executable updates have one additional prerequisite: the exact artifact digest must already be authorized by independent machine-local release policy outside the project. Project files, the manifest, `--trusted-source`, and the Livariant project CLI cannot create that authority. If it is missing, update fails closed before candidate Runtime code can execute. There is intentionally no project-facing `authorize-runtime` command.
+
 If the target changes Project Brain schema, `livariant update` routes through the supported migration lifecycle automatically. Do not manually edit schema/version metadata and do not run a separate ad-hoc migration.
 
 > [!WARNING]
-> Do not update Livariant by manually replacing `.project-brain/`, copying framework-managed lifecycle files, editing schema/version metadata, or dropping a newer Runtime into managed storage. Manual replacement bypasses compatibility, authority, integrity, checkpoint, activation, and recovery guarantees.
+> Do not update Livariant by manually replacing `.project-brain/`, copying framework-managed lifecycle files, editing schema/version metadata, dropping a newer Runtime into managed storage, or fabricating Runtime trust/release-authorization records. Manual replacement bypasses compatibility, authority, integrity, checkpoint, activation, and recovery guarantees.
 
 ## 6. Recover an interrupted migration
 
@@ -121,13 +123,13 @@ If Livariant reports a valid checkpoint and a supported rollback strategy, autho
 livariant recover --apply
 ```
 
-A missing, moved, tampered, or ambiguous checkpoint is not guessed through. Automatic recovery remains blocked and diagnosis stays visible.
+A missing, moved, tampered, or ambiguous checkpoint is not guessed through. Automatic recovery remains blocked and diagnosis stays visible. After a verified rollback is committed, Livariant removes displaced recovery state before deleting the final valid checkpoint; a late cleanup failure must not destroy the restored Project Brain or that checkpoint.
 
 ## 7. Keep the safety boundary intact
 
 Do **not** manually replace `.project-brain/` files with files from another Livariant version. Do **not** manually copy a newer runtime into framework-managed lifecycle storage in order to simulate an update.
 
-The supported lifecycle verifies release identity, artifact integrity, migration checkpoints, installed runtime integrity, activation state, and recovery evidence before protected state becomes active.
+The supported lifecycle verifies release identity, artifact integrity, independent release authority, migration checkpoints, installed runtime integrity, activation state, and recovery evidence before protected state becomes active.
 
 ## Product identity note
 

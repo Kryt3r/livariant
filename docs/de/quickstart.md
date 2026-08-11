@@ -100,12 +100,14 @@ livariant update \
   --trusted-source <source-id>
 ```
 
+Ein Manifest darf seine eigene `sourceId` nicht selbst als vertrauenswürdig deklarieren. `--trusted-source` ist davon getrennte Trust-Evidenz. Die Artefaktbytes müssen zusätzlich zum im Manifest gebundenen Digest passen.
+
+Für ausführbare Updates gilt außerdem: Der exakte Artefakt-Digest muss bereits durch eine unabhängige machine-local Release-Policy außerhalb des Projekts autorisiert sein. Projektdateien, Manifest, `--trusted-source` und die projektseitige Livariant-CLI können diese Authority nicht erzeugen. Fehlt sie, bricht das Update geschlossen ab, bevor Candidate-Runtime-Code ausgeführt werden kann. Einen projektseitigen `authorize-runtime`-Befehl gibt es absichtlich nicht.
+
 > [!WARNING]
-> **Nicht** `.project-brain/`, Lifecycle-State, `metadata.json` oder verwaltete Runtime-Dateien manuell ersetzen, um ein Update oder eine Migration zu simulieren.
+> **Nicht** `.project-brain/`, Lifecycle-State, `metadata.json`, verwaltete Runtime-Dateien oder Runtime-Trust-/Release-Authorization-Records manuell ersetzen, um ein Update oder eine Migration zu simulieren.
 >
 > Damit würdest du Kompatibilitäts-, Autoritäts-, Integritäts-, Checkpoint-, Replay- und Aktivierungsprüfungen umgehen.
-
-Ein Manifest darf seine eigene `sourceId` nicht selbst als vertrauenswürdig deklarieren. `--trusted-source` ist davon getrennte Trust-Evidenz. Die Artefaktbytes müssen zusätzlich zum im Manifest gebundenen Digest passen.
 
 Schema-ändernde Releases werden automatisch über denselben `update`-Pfad in den unterstützten Migrations-Lifecycle geroutet.
 
@@ -127,11 +129,13 @@ livariant recover --apply
 > [!CAUTION]
 > Ein fehlender, verschobener, manipulierter oder mehrdeutiger Checkpoint wird nicht geraten. In diesem Fall bleibt automatische Wiederherstellung blockiert und die Diagnose sichtbar.
 
+Nach einem verifizierten Rollback entfernt Livariant displaced Recovery-State, bevor der letzte gültige Checkpoint gelöscht wird. Ein später Cleanup-Fehler darf weder das wiederhergestellte Project Brain noch diesen Checkpoint zerstören.
+
 ## 7. Sicherheitsgrenze erhalten
 
 Ersetze `.project-brain/` nicht mit Dateien aus einer anderen Livariant-Version und kopiere keine neuere Runtime manuell in framework-verwalteten Lifecycle-Speicher, um ein Update vorzutäuschen.
 
-Der unterstützte Lifecycle prüft Release-Identität, Artefaktintegrität, Migrations-Checkpoints, installierte Runtime-Integrität, Aktivierungszustand und Recovery-Evidenz, bevor geschützter Zustand aktiv wird.
+Der unterstützte Lifecycle prüft Release-Identität, Artefaktintegrität, unabhängige Release-Authority, Migrations-Checkpoints, installierte Runtime-Integrität, Aktivierungszustand und Recovery-Evidenz, bevor geschützter Zustand aktiv wird.
 
 ## Danach lesen
 

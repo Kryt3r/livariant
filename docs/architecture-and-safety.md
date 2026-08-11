@@ -52,6 +52,8 @@ A recurring framework rule is:
 
 Supported mutations therefore require explicit authority at the Runtime boundary. This applies to initialization, canonical decision changes, framework updates, migrations, and recovery.
 
+The same principle applies to executable release trust: project input may describe a release or request an update, but it cannot promote its own bytes into execution authority.
+
 ## Existing projects are protected by default
 
 The mutation model is preservation-first:
@@ -78,6 +80,7 @@ Examples of states that narrow behavior rather than trigger automatic repair inc
 - symlinked managed write surfaces,
 - unsupported migration paths,
 - unexpected release sources or artifact identities,
+- missing independent machine-local artifact authority,
 - installed-runtime integrity drift,
 - ambiguous or stale compatibility evidence.
 
@@ -85,7 +88,7 @@ Examples of states that narrow behavior rather than trigger automatic repair inc
 
 ## Update trust and activation
 
-A verified release artifact is not automatically authorized, compatible, installed, or active.
+A verified release artifact is not automatically authorized, compatible, installed, trusted for execution, or active.
 
 The implemented lifecycle keeps these concepts separate:
 
@@ -93,11 +96,18 @@ The implemented lifecycle keeps these concepts separate:
 release identity
 → artifact/source integrity
 → compatibility
-→ explicit authorization
-→ runtime installation and attestation
-→ validation
+→ explicit --apply authorization
+→ pre-existing independent machine-local artifact authority
+→ runtime installation without lifecycle scripts
+→ release-evidence verification
+→ installed package-tree measurement
+→ machine-local Runtime trust establishment and recheck
+→ candidate Runtime attestation/execution
+→ lifecycle validation
 → canonical Project Brain release pin
 ```
+
+Project-controlled input cannot create the independent release-authority record through the Livariant CLI or production API. There is intentionally no project-facing `authorize-runtime` command.
 
 The Project Brain framework pin is the canonical activation decision. A prepared runtime on disk cannot activate itself.
 
@@ -105,7 +115,7 @@ The Project Brain framework pin is the canonical activation decision. A prepared
 
 Schema-changing updates use durable migration evidence and checkpoint integrity. Interrupted non-replay-safe work cannot simply be re-run because the command was repeated.
 
-Recovery is a separately authorized lifecycle operation. Checkpoints are path-bound and content-integrity-bound before restore.
+Recovery is a separately authorized lifecycle operation. Checkpoints are path-bound and content-integrity-bound before restore. Once a rollback has produced and validated the restored Project Brain, cleanup may not undo that committed restore: displaced state is removed before the final valid checkpoint is deleted, and a late cleanup failure preserves both the restored brain and checkpoint.
 
 ## Provider boundary
 

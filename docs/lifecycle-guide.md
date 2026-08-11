@@ -37,6 +37,10 @@ livariant update \
 
 The release manifest does **not** self-authorize its own source ID. The explicitly supplied trusted-source set is evaluated separately, and the artifact still has to match the manifest-bound release identity and SHA-256.
 
+In addition, the exact artifact digest must already be authorized by an **independent machine-local release authority** outside the selected project. Project input, release manifests, `--trusted-source`, and the Livariant project CLI cannot create or mutate that authority. If the exact digest is not already present in that independent machine-local policy, update fails closed before candidate Runtime code is installed or executed.
+
+There is intentionally no project-facing `authorize-runtime` command. Preview distribution must provision release authority through a separate trusted release/install process rather than letting a repository promote its own bytes to trusted execution authority.
+
 The safe normal-update order is:
 
 ```text
@@ -44,10 +48,13 @@ resolve target release
 → verify release identity and trusted-source relationship
 → verify artifact SHA-256
 → check compatibility and channel
-→ require explicit authorization
+→ require explicit --apply authorization
+→ require pre-existing independent machine-local artifact authority
 → install target Runtime without lifecycle scripts
-→ attest installed package identity/version
-→ verify installed Runtime tree integrity
+→ write and verify bound release evidence
+→ measure installed Runtime tree
+→ establish and recheck machine-local Runtime trust
+→ only then execute candidate Runtime attestation
 → recheck preservation/lifecycle conditions
 → commit the canonical Project Brain framework pin
 ```
@@ -127,20 +134,22 @@ Recovery is a separate, explicitly authorized lifecycle operation. Before rollba
 - source release/schema metadata,
 - digests of canonical Project Brain checkpoint files.
 
+Recovery commits the verified restored Project Brain before cleanup. The displaced pre-recovery tree is removed first, and the last valid recovery checkpoint is deleted only as the final irreversible cleanup step. A late displaced-tree cleanup failure must not undo the restored Project Brain or destroy that checkpoint.
+
 A missing, moved, tampered, or ambiguous checkpoint does not trigger a guessed restore.
 
 ## Retry semantics
 
-A target Runtime installed during an interrupted attempt may be reused only when its bound release evidence matches exactly: version, channel, source ID, artifact ID, artifact digest, package identity, and installed package-tree integrity.
+A target Runtime installed during an interrupted attempt may be reused only when its bound release evidence matches exactly: version, channel, source ID, artifact ID, artifact digest, package identity, and installed package-tree integrity, and the installed tree still matches machine-local Runtime trust.
 
 A different artifact cannot take over an existing installation merely by claiming the same version.
 
 ## Manual replacement warning
 
-> **Do not manually replace Project Brain or Livariant-managed lifecycle state to complete, repair, or shortcut an update.**
+> **Do not manually replace Project Brain, Livariant-managed lifecycle state, Runtime trust records, or release-authorization records to complete, repair, or shortcut an update.**
 
 Doing so bypasses compatibility, authority, checkpoints, replay safety, integrity verification, and activation semantics. If a lifecycle operation is interrupted or state is unclear, diagnose the actual state first with `livariant doctor` and `livariant recover`.
 
 ## Current Preview distribution boundary
 
-The CLI lifecycle surface is executable. Public Preview distribution still needs one finalized public source from which users obtain the Livariant package, release manifest, and matching runtime artifact. Until that source is published, examples use local manifest/artifact paths rather than inventing a registry or download endpoint.
+The CLI lifecycle surface is executable. Public Preview distribution still needs one finalized public source from which users obtain the Livariant package, release manifest, matching runtime artifact, and the independent machine-local release-authority evidence required for executable updates. Until that distribution/install path is published, examples use local manifest/artifact paths and describe the authority prerequisite rather than inventing a registry, signer, or download endpoint that does not yet exist.

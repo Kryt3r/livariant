@@ -146,8 +146,10 @@ livariant update \
   --trusted-source <source-id>
 ```
 
+Für ausführbare Updates reicht das allein weiterhin nicht: Der **exakte Artefakt-SHA-256 muss bereits durch eine unabhängige machine-local Release-Policy außerhalb der Projektautorität autorisiert sein**. Projektdateien, Manifest, `--trusted-source` und die projektseitige Livariant-CLI/API können diese Authority nicht erzeugen. Fehlt sie, bricht das Update geschlossen ab, bevor npm-Installation oder Candidate-Runtime-Attestation stattfinden. Einen projektseitigen `authorize-runtime`-Befehl gibt es absichtlich nicht.
+
 > [!WARNING]
-> **Livariant niemals aktualisieren, indem `.project-brain/`, framework-verwalteter Lifecycle-State oder Schema-/Versionsmetadaten manuell ersetzt bzw. verändert werden oder indem einfach eine neuere Runtime in verwalteten Speicher kopiert wird.**
+> **Livariant niemals aktualisieren, indem `.project-brain/`, framework-verwalteter Lifecycle-State oder Schema-/Versionsmetadaten manuell ersetzt bzw. verändert werden, indem einfach eine neuere Runtime in verwalteten Speicher kopiert wird oder indem Runtime-Trust-/Release-Authorization-Records editiert werden.**
 >
 > Damit würden Kompatibilitätsprüfung, explizite Autorität, Release-Integrität, Migrations-Checkpoints, Replay-Sicherheit, Validierung und Aktivierungssemantik umgangen.
 
@@ -173,7 +175,7 @@ Mehr dazu unter [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-gui
 
 Livariant verlangt für projektverändernde Mutationen explizite Autorisierung. Bestehender projekt-eigener Zustand wird standardmäßig geschützt; unklarer Zustand führt zu Diagnose statt zu geratenen Reparaturen.
 
-Die gehärtete Preview-Baseline deckt unter anderem Path-/Symlink-Escape, veraltete Entscheidungswahrheit, unterbrochene Migrationen, manipulierte Checkpoints, manipulierte Release-Artefakte, Runtime-Drift, Provider-Instruktionskonflikte, nicht unterstützte Migrationen, konkurrierende Projektänderungen während Aktivierung und fehlende Trust-Evidenz ab.
+Die gehärtete Preview-Baseline deckt unter anderem Path-/Symlink-Escape, veraltete Entscheidungswahrheit, unterbrochene Migrationen, manipulierte Checkpoints, manipulierte Release-Artefakte, Runtime-Drift, Provider-Instruktionskonflikte, nicht unterstützte Migrationen, konkurrierende Projektänderungen während Aktivierung, fehlende Trust-Evidenz, feindliche Trust-Root-Topologien, Pre-Trust-Runtime-Ausführung und Versuche von Projekten ab, ihre eigene Release-Authority zu erzeugen.
 
 Der Kern bleibt:
 
