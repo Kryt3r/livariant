@@ -34,6 +34,7 @@ export interface RecoveryPlan {
 export interface ApplyRecoveryOptions {
   authorized: boolean;
   failBeforePromote?: boolean;
+  failDisplacedCleanup?: boolean;
 }
 
 const REQUIRED = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"] as const;
@@ -214,10 +215,6 @@ export async function applyRecovery(projectPath: string, plan: RecoveryPlan, opt
         state: "failed",
         recovery: { state: "rolled-back", recoveredAt: new Date().toISOString() },
       });
-      const cleanupCheckpoint = canonicalCheckpointPath(projectPath, journal.operationId);
-      if (cleanupCheckpoint === resolve(projectPath, ".project-brain")) throw new Error("Refusing to remove an unsafe recovery checkpoint path.");
-      await rm(cleanupCheckpoint, { recursive: true, force: true });
-      await rm(displacedPath, { recursive: true, force: true });
     } catch (error) {
       await rm(brainPath, { recursive: true, force: true });
       await rename(displacedPath, brainPath);
@@ -229,6 +226,14 @@ export async function applyRecovery(projectPath: string, plan: RecoveryPlan, opt
       });
       throw error;
     }
+
+    // Recovery is committed. Cleanup failures after this point must never undo
+    // the verified restored brain or destroy the last valid checkpoint.
+    if (options.failDisplacedCleanup) throw new Error("simulated displaced recovery cleanup failure");
+    await rm(displacedPath, { recursive: true, force: true });
+    const cleanupCheckpoint = canonicalCheckpointPath(projectPath, journal.operationId);
+    if (cleanupCheckpoint === brainPath) throw new Error("Refusing to remove an unsafe recovery checkpoint path.");
+    await rm(cleanupCheckpoint, { recursive: true, force: true });
   } finally {
     await rm(candidatePath, { recursive: true, force: true });
   }

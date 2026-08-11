@@ -5,7 +5,7 @@ import { buildResumeContext, getStatus, getVersionInfo, initializeProject, inspe
 import { getPreviewResumeAdapter } from "../adapters/provider-resume-adapter.js";
 import type { ResumeProviderId } from "../adapters/resume-provider.js";
 import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
-import { handleRecover, handleUpdate } from "./lifecycle.js";
+import { handleAuthorizeRuntime, handleRecover, handleUpdate } from "./lifecycle.js";
 
 function printVersion(args: string[]): void {
   const info = getVersionInfo();
@@ -19,7 +19,7 @@ function printVersion(args: string[]): void {
 }
 
 function commandSkipsRuntimeDelegation(command: string | undefined): boolean {
-  return command === undefined || ["help", "--help", "-h", "version"].includes(command);
+  return command === undefined || ["help", "--help", "-h", "version", "authorize-runtime"].includes(command);
 }
 
 function canContinueWithoutRuntimeDelegation(command: string | undefined): boolean {
@@ -170,6 +170,7 @@ async function main(): Promise<void> {
     case "doctor": await printDoctor(); return;
     case "resume": await printResume(args); return;
     case "init": await handleInit(args); return;
+    case "authorize-runtime": await handleAuthorizeRuntime(args); return;
     case "update": await handleUpdate(args); return;
     case "recover": await handleRecover(args); return;
     case undefined:
@@ -183,6 +184,7 @@ async function main(): Promise<void> {
       console.log("  doctor");
       console.log("  resume [--provider claude-code|codex]");
       console.log("  init [--apply]");
+      console.log("  authorize-runtime --version <v> --channel <stable|preview|development> --source <source-id> --artifact-id <id> --sha256 <digest> [--apply]");
       console.log("  update --manifest <release-manifest.json> [--apply --artifact <runtime.tgz> --trusted-source <source-id>]");
       console.log("  recover [--apply]");
       return;
