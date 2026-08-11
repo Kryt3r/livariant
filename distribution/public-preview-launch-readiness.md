@@ -1,56 +1,63 @@
 # Public Preview Launch Readiness
 
-Status: **private candidate is pre-public ready; visibility change still requires explicit authorization**
+Status: **current private baseline passed focused acceptance; RC preparation continues; publication still requires separate explicit authorization**
 
 This document tracks the current Public Preview launch gates against the actual canonical repository state. It is a current-facing readiness surface, not a historical preparation record.
 
 > [!IMPORTANT]
-> Repository visibility remains private until the visibility change is explicitly authorized. Green CI or a completed readiness review does not change visibility by itself.
+> Repository visibility remains private until the visibility change is explicitly authorized. Green CI, a GO acceptance result, or completion of documentation alignment does not authorize tags, releases, npm publishing, or visibility changes by itself.
 
 ## Current verified baseline
 
 - Canonical repository: `Kryt3r/livariant`.
 - Repository visibility: private.
-- Current `main`: `4cd1a0065c15c3cc50ca5128667aef8a195b70b7` after PR #9.
-- Post-merge Hardening CI #40: Ubuntu + Windows success, including current-truth consistency, hardening tests, clean-consumer package smoke, and manifest-bound release-bundle smoke.
-- RC version: `0.1.0-rc.1`.
-- Release channel: `preview`.
-- RC tag: `v0.1.0-rc.1`.
-- RC source commit: `f8b5b7afa646b9532d9c47ef46843ff821c722f6`.
-- RC artifact SHA-256: `ea7fb30a057ef14277ea4d6d4e2e363ba487a079a998ee74afb51e2ced1506d5`.
-- The existing private RC is evidence and must not be recreated or overwritten casually.
+- Current canonical `main`: `62576aad5f3d8fcc0466bd38d32ba4ba58d483c0` after PR #19.
+- Package/release identity: `0.1.0-rc.2`.
+- Post-merge Hardening CI #70: success on the canonical commit.
+- Final focused acceptance recheck of the remaining Runtime release-authority and Recovery findings: **GO**.
+- Historical private release: `v0.1.0-rc.1` from the pre-fix baseline; it remains historical evidence only and must not be recreated, overwritten, retagged, or represented as the current candidate.
+- No `0.1.0-rc.2` tag, GitHub Release, npm publication, or repository visibility change is authorized by this readiness document.
+
+## Security/release-authority baseline
+
+The current accepted executable baseline includes the focused fixes through PR #19:
+
+- Recovery checkpoint-substitution defense;
+- stranded-Recovery detection;
+- machine-local Runtime trust outside project authority;
+- Windows shell-free Runtime installation path;
+- hardened machine trust-root topology and rejection of projects under the reserved trust tree;
+- fail-closed diagnostic/lifecycle behavior across reviewed trust states;
+- independent exact-artifact machine-local Release Authority before executable candidate installation/attestation;
+- removal of the project-facing `authorize-runtime` command and all production project-side authority creation/mutation;
+- Recovery cleanup ordering that removes displaced state before deleting the last valid checkpoint.
+
+No new Security Hardening is part of the current documentation-alignment step. Further hardening requires a concrete new finding.
 
 ## Gate summary
 
 | Gate | Area | Current state |
 | --- | --- | --- |
-| A | Product-facing README and presentation | **CLOSED** |
+| A | Product-facing README and presentation | **ALIGNMENT IN PR** |
 | B | License and ownership decision | **CLOSED** |
 | C | Repository hygiene and publication contents | **CLOSED** |
 | D | GitHub branch/change protection | **CONFIGURED — public-state re-verification required** |
 | E | Security reporting and GitHub security features | **PUBLIC-STATE ACTIVATION REQUIRED** |
-| F | Release protection and supply-chain policy | **CLOSED WITH DOCUMENTED RC EXCEPTION** |
-| G | Distribution and installation user journey | **CLOSED FOR PRE-PUBLIC** |
-| H | Privacy and network-behavior review | **CLOSED FOR PRE-PUBLIC** |
+| F | Release protection and supply-chain policy | **CLOSED FOR CURRENT PRIVATE PREPARATION; RC2 RELEASE ACTION NOT YET AUTHORIZED** |
+| G | Distribution and installation user journey | **ALIGNMENT IN PR** |
+| H | Privacy and network-behavior review | **ALIGNMENT IN PR; Runtime behavior unchanged** |
 | I | Contribution, support, and community surface | **BOUNDED — external code contributions remain closed** |
-| J | Documentation/current-truth consistency | **CLOSED WITH AUTOMATED REGRESSION GUARD** |
-| K | Public-host configuration and visibility | **READY FOR EXPLICIT VISIBILITY DECISION** |
-| L | Final Public Preview release review | **REQUIRED AFTER PUBLIC-HOST ACTIVATION** |
+| J | Documentation/current-truth consistency | **IN PROGRESS — this PR is the current reconciliation** |
+| K | Public-host configuration and visibility | **BLOCKED ON EXPLICIT VISIBILITY AUTHORIZATION** |
+| L | Candidate-specific release/publication review | **REQUIRED AFTER AN EXPLICIT RC2 RELEASE ACTION** |
 
 ## Gate C — Repository hygiene and publication contents
 
 **Status: CLOSED.**
 
-The final private tracked-tree audit found no accidental maintainer-only repository, local environment, generated build output, credential file, or real secret material intended to remain private.
+The established private tracked-tree audit found no accidental maintainer-only repository, local environment, generated build output, credential file, or real secret material intended to remain private.
 
-The deliberately tracked `.env` fixture under `tests/fixtures/existing-messy/` contains only synthetic values used to prove secret-preservation behavior:
-
-```text
-DATABASE_PASSWORD=fixture-secret-do-not-ingest
-API_TOKEN=fixture-token-do-not-ingest
-```
-
-It is test evidence, not a credential leak. Package smoke also verifies that test fixtures and compiled tests are not shipped in the packed Runtime artifact.
+The deliberately tracked `.env` fixture under `tests/fixtures/existing-messy/` contains only synthetic values used to prove secret-preservation behavior. Package smoke verifies that test fixtures and compiled tests are not shipped in the packed Runtime artifact.
 
 ## Gate D — GitHub branch/change protection
 
@@ -58,60 +65,43 @@ It is test evidence, not a credential leak. Package smoke also verifies that tes
 
 Configured host policy includes PR-required changes to `main`, required Ubuntu and Windows Hardening CI checks, linear history, conversation resolution, deletion/force-push protection, squash-only merge policy, and `v*` release-tag protection.
 
-The repository uses GitHub Rulesets rather than classic branch protection. Effective Rulesets and required checks must be re-verified immediately after the repository becomes public because the private-repository plan/integration does not currently expose complete Ruleset verification evidence.
+Effective host protections must be re-verified when/if repository visibility changes because public-state capabilities and enforcement evidence may differ from the current private state.
 
 ## Gate E — Security reporting and GitHub security features
 
 **Status: PUBLIC-STATE ACTIVATION REQUIRED.**
 
-Already established:
+Already established private-host posture includes `SECURITY.md`, dependency graph, Dependabot security features, constrained Actions, and SHA-pinned Actions dependencies.
 
-- `SECURITY.md` defines the intended private reporting model;
-- dependency graph enabled;
-- Dependabot alerts enabled;
-- Dependabot security updates enabled;
-- grouped security updates enabled;
-- Dependabot malware alerts enabled;
-- Actions are constrained and pinned to full commit SHAs.
-
-Immediately after the repository becomes public, enable and verify Secret Scanning, Push Protection, CodeQL / Code Scanning where GitHub makes them available, and the intended private vulnerability-reporting path. Re-read `SECURITY.md` against the actually enabled reporting mechanism before treating Public Preview launch as complete.
+After an explicitly authorized public visibility change, verify and enable the applicable public-state protections such as Secret Scanning / Push Protection and CodeQL / Code Scanning, and re-check the security-reporting path against the actually enabled host features.
 
 ## Gate F — Release protection and supply-chain policy
 
-**Status: CLOSED WITH DOCUMENTED RC EXCEPTION.**
+**Status: CLOSED FOR CURRENT PRIVATE PREPARATION; RC2 RELEASE ACTION NOT YET AUTHORIZED.**
 
-The RC is manifest/checksum bound, its source commit and artifact digest are recorded, `v*` protection is configured, future release immutability is enabled, and CI verifies release-bundle behavior.
+The current package identity is `0.1.0-rc.2`, and release-bundle behavior is exercised by required CI. The executable update trust model now distinguishes release identity/integrity evidence from independent machine-local exact-artifact Release Authority.
 
-`v0.1.0-rc.1` predates release-immutability activation and remains `immutable: false` in GitHub. It must not be recreated or overwritten. This historical exception does not authorize mutable future releases.
+The historical `v0.1.0-rc.1` predates later security fixes and cannot be reused as the current release. It must remain immutable historical evidence in practice even though GitHub records that historical release according to the settings that existed when it was created.
+
+Creating `v0.1.0-rc.2`, creating a GitHub Release, publishing to npm, or otherwise publishing candidate bytes is a separate release action and requires explicit authorization after this documentation/Truth-Surface gate.
 
 ## Gate G — Distribution and installation user journey
 
-**Status: CLOSED FOR PRE-PUBLIC.**
+**Status: ALIGNMENT IN PR.**
 
-The public documentation defines the supported release-artifact path, inspect/apply initialization, existing-project adoption, bounded Claude Code/Codex Resume handoff, manifest/artifact/trusted-source updates, automatic schema migration routing through the supported lifecycle, and inspect/apply recovery.
+Current documentation must preserve the supported release-artifact path, inspect/apply initialization, existing-project adoption, bounded Claude Code/Codex Resume handoff, manifest/artifact/trusted-source update inputs, **pre-existing independent exact-artifact Release Authority**, automatic schema migration routing through the supported lifecycle, and inspect/apply recovery.
 
-The final clean-consumer verification runs from a fresh temporary project and successfully:
-
-1. packs the Livariant package,
-2. installs that packed artifact locally,
-3. executes `livariant version`,
-4. initializes a Project Brain,
-5. produces a capability-bounded Codex Resume handoff,
-6. exercises read-only update discovery,
-7. exercises recovery inspection,
-8. verifies the installed `livariant` CLI identity.
-
-This passed on Ubuntu and Windows in Hardening CI #40.
+For executable update, manifest contents, `--trusted-source`, project files, and project-facing Livariant CLI/API cannot create the machine-local authority required for candidate execution. The project-facing `authorize-runtime` command no longer exists. Missing authority fails closed before npm installation or candidate Runtime attestation.
 
 ## Gate H — Privacy and network behavior
 
-**Status: CLOSED FOR PRE-PUBLIC.**
+**Status: ALIGNMENT IN PR; Runtime behavior unchanged.**
 
-The final candidate re-verification found no automatic telemetry, Project Brain upload, Livariant cloud-account requirement, automatic remote update check, or Runtime network-fetch implementation.
+The accepted baseline still has no automatic Livariant telemetry, Project Brain upload, Livariant cloud-account requirement, automatic remote update check, or Runtime network-fetch implementation.
 
-The supported update path consumes a local release manifest and local artifact. The current packed Runtime declares no runtime dependencies. Provider handoff renders local projections; separately operated provider/client behavior remains outside Livariant's Runtime boundary.
+The supported update path consumes a local release manifest and local artifact. Independent machine-local Runtime trust and release-authorization state are security state outside project authority; they are not Project Brain data and are not remotely provisioned by the current Runtime.
 
-Any later network, telemetry, registry, sync, hosted account, or automatic-update feature reopens this gate and requires a new privacy/trust review.
+Any later network, telemetry, registry, sync, hosted account, remote authority-provisioning, or automatic-update feature reopens this gate and requires a new privacy/trust review.
 
 ## Gate I — Contribution, support, and community surface
 
@@ -119,55 +109,50 @@ Any later network, telemetry, registry, sync, hosted account, or automatic-updat
 
 Issues and Discussions may be used for bug reports, documentation feedback, and design discussion. External code contributions remain closed for incorporation until contributor-rights/CLA or equivalent terms are finalized.
 
-That unresolved contributor-rights question does not block public read-only repository visibility while external code incorporation remains explicitly closed.
-
 ## Gate J — Documentation/current-truth consistency
 
-**Status: CLOSED WITH AUTOMATED REGRESSION GUARD.**
+**Status: IN PROGRESS — this PR is the current reconciliation.**
 
-PRs #6, #7, and #9 corrected current-facing drift and established the rule:
+The repository's Truth-Surface model requires current-facing artifacts to track canonical truth while preserving legitimate historical records:
 
 > **Presence is not currency.**
 
-`npm run test:public-docs` now checks public documentation plus selected accepted/current normative contracts for superseded identity and preparation-state claims while preserving legitimate historical evidence. The expanded check passed on Ubuntu and Windows in PR CI #39 and post-merge CI #40.
+The current alignment work updates user-facing and accepted/current distribution surfaces to reflect the canonical `0.1.0-rc.2` baseline, independent Release Authority, the removed `authorize-runtime` path, the pre-trust execution boundary, and the Recovery cleanup order.
+
+Required CI, including the current-truth regression guard, must pass on the documentation PR and resulting merge before this gate returns to CLOSED.
 
 ## Gate K — Public-host configuration and visibility
 
-**Status: READY FOR EXPLICIT VISIBILITY DECISION.**
+**Status: BLOCKED ON EXPLICIT VISIBILITY AUTHORIZATION.**
 
-The bounded pre-public technical work is complete:
+The repository remains private. No documentation or acceptance result changes that fact.
 
-- final tracked-tree/publication audit complete;
-- final clean-consumer verification complete;
-- final privacy/network verification complete;
-- current-truth audit complete;
-- final private candidate blocker review found no unresolved Critical/Major safety, authority, migration, recovery, data-integrity, release-integrity, or publication blocker;
-- no open GitHub issues currently represent a launch blocker.
+Only after a separate explicit visibility authorization may the public-host/security activation and unauthenticated-view verification sequence begin.
 
-Repository visibility must still change only as an explicit standalone action.
+## Gate L — Candidate-specific release/publication review
 
-After that action, immediately:
+**Status: REQUIRED AFTER AN EXPLICIT RC2 RELEASE ACTION.**
 
-1. verify effective Rulesets, required checks, tag protection, merge policy, Actions permissions, and release settings;
-2. enable/test the public-state security features in Gate E;
-3. configure the selected Social Preview image where appropriate;
-4. verify README, license, documentation, releases, and repository presentation as an unauthenticated viewer.
+The current acceptance GO applies to the reviewed canonical implementation baseline. It is not a substitute for verifying the identity and bytes of a subsequently created candidate release.
 
-## Gate L — Final Public Preview release review
+If an `0.1.0-rc.2` tag/release is separately authorized, verify at minimum:
 
-**Status: REQUIRED AFTER PUBLIC-HOST ACTIVATION.**
-
-After the public-host/security checks are complete, perform one final review against the actual public candidate and verify version/channel/schema/source identity, CI evidence, package/release-bundle evidence, artifact integrity, user documentation, known limitations, security-reporting path, licensing/notices, and absence of unresolved Critical/Major blockers.
-
-Only that final accepted public-state review authorizes calling the launch complete.
+- tag → exact canonical commit;
+- release manifest → exact artifact identity;
+- artifact SHA-256 / `SHA256SUMS`;
+- clean-consumer behavior for the exact published candidate bytes;
+- required CI evidence;
+- user documentation and known limitations;
+- security-reporting and licensing surfaces;
+- absence of unresolved Critical/Major release blockers.
 
 ## Current next order
 
-1. merge this final private readiness status update after required CI passes;
-2. verify its post-merge `main` CI;
-3. wait for explicit authorization to change `Kryt3r/livariant` from private to public;
-4. perform the immediate public-host/security verification and activation sequence;
-5. perform unauthenticated public-view verification;
-6. perform and accept the final Public Preview release review.
+1. finish the current Truth-Surface/documentation alignment on `docs/align-release-authority-truth`;
+2. open the focused documentation PR;
+3. require Ubuntu + Windows Hardening CI and current-truth consistency for that PR;
+4. merge only after required review/CI, then verify post-merge `main` CI;
+5. stop at the next RC-preparation gate;
+6. do not create tags, Releases, npm publications, or change PRIVATE → PUBLIC without separate explicit authorization.
 
-The Project Lexicon / Provisional Naming capability remains valuable post-gate work and is not required for this Public Preview launch.
+The Project Lexicon / Provisional Naming capability remains valuable post-Preview work and is not claimed as executable in the current release baseline.
