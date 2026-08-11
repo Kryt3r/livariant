@@ -1,6 +1,6 @@
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
-import { relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { ReleaseIdentity } from "./release-integrity.js";
 
 const AUTH_SCHEMA = 1 as const;
@@ -16,7 +16,7 @@ interface ArtifactAuthorizationRecord {
 
 function pathIsWithin(root: string, candidate: string): boolean {
   const rel = relative(resolve(root), resolve(candidate));
-  return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !rel.startsWith(sep));
+  return rel === "" || (!isAbsolute(rel) && !rel.startsWith(`..${sep}`) && rel !== ".." && !rel.startsWith(sep));
 }
 
 function authorizationBase(): string {
