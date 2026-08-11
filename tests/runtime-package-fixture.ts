@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { recordArtifactAuthorization } from "../src/distribution/release-authorization.js";
 
 export interface RuntimePackageFixture {
   path: string;
@@ -38,6 +37,21 @@ function runNpmPack(packageRoot: string, packRoot: string) {
   return result.stdout;
 }
 
+export async function provisionArtifactAuthorizationForTest(artifactSha256: string): Promise<void> {
+  if (!/^[a-f0-9]{64}$/i.test(artifactSha256)) throw new Error("test artifact authorization requires a valid SHA-256 digest");
+  const digest = artifactSha256.toLowerCase();
+  const root = resolve(userInfo().homedir, ".livariant", "trust", "release-authorizations");
+  await mkdir(root, { recursive: true });
+  const path = resolve(root, `${digest}.json`);
+  const payload = {
+    schema: 1,
+    packageName: "livariant",
+    kind: "artifact-digest-authorization",
+    artifactSha256: digest,
+  };
+  await writeFile(path, `${JSON.stringify(payload, null, 2)}\n`, { encoding: "utf8", flag: "w" });
+}
+
 export async function createRuntimePackageFixture(version: string, options: { authorize?: boolean } = {}): Promise<RuntimePackageFixture> {
   const root = await mkdtemp(resolve(tmpdir(), "livariant-runtime-release-fixture-"));
   const packageRoot = resolve(root, "package");
@@ -61,7 +75,7 @@ export async function createRuntimePackageFixture(version: string, options: { au
   if (typeof filename !== "string") throw new Error("Runtime fixture pack did not return a tarball filename.");
   const path = resolve(packRoot, filename);
   const sha256 = createHash("sha256").update(await readFile(path)).digest("hex");
-  if (options.authorize !== false) await recordArtifactAuthorization(process.cwd(), sha256);
+  if (options.authorize !== false) await provisionArtifactAuthorizationForTest(sha256);
 
   return {
     path,
