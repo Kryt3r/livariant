@@ -15,7 +15,7 @@ async function markdownFiles(dir) {
   return files;
 }
 
-const currentSurfaces = [
+const publicSurfaces = [
   join(root, 'README.md'),
   join(root, 'README.de.md'),
   join(root, 'CONTRIBUTING.md'),
@@ -24,11 +24,36 @@ const currentSurfaces = [
   ...await markdownFiles(join(root, 'docs')),
 ];
 
+// These are current normative/accepted framework contracts that directly
+// describe the active product identity or command surface. Historical
+// reviews and implementation snapshots are intentionally excluded.
+const currentContractSurfaces = [
+  join(root, 'core', 'localization-policy.md'),
+  join(root, 'core', 'versioning-and-migrations.md'),
+  join(root, 'distribution', 'installation-and-upgrade-documentation.md'),
+  join(root, 'distribution', 'product-naming-decision.md'),
+  join(root, 'project-brain', 'human-interface-and-command-surface.md'),
+  join(root, 'project-brain', 'resume-context-and-session-re-entry.md'),
+  join(root, 'runtime', 'minimal-runtime-and-cli-architecture.md'),
+];
+
+const currentSurfaces = [...publicSurfaces, ...currentContractSurfaces];
+
 const rules = [
   {
     id: 'superseded-cli',
     pattern: /\bpb-dev\b/g,
-    message: 'current-facing documentation must use the canonical `livariant` CLI',
+    message: 'current-facing truth surfaces must not present the superseded `pb-dev` CLI as active or transitional',
+  },
+  {
+    id: 'superseded-pb-command',
+    pattern: /\bpb\s+(?:init|resume|status|doctor|update|version)\b/g,
+    message: 'current command examples must use the canonical `livariant` namespace',
+  },
+  {
+    id: 'unresolved-product-identity',
+    pattern: /(?:final product (?:identity|namespace)[^\n]{0,120}(?:unresolved|later)|product identity[^\n]{0,120}(?:not fixed|not accepted|until .*accepted)|development namespace `pb`[^\n]{0,120}placeholder)/gi,
+    message: 'current contracts must reflect the accepted Livariant product/CLI identity',
   },
   {
     id: 'preparation-state',
@@ -59,10 +84,10 @@ if (/Public Preview preparation/i.test(packageJson)) {
 }
 
 if (failures.length > 0) {
-  console.error('Public truth-surface consistency check failed:');
+  console.error('Public/current truth-surface consistency check failed:');
   for (const failure of failures) console.error(`- ${failure}`);
-  console.error('\nHistorical/internal records are intentionally outside this check.');
+  console.error('\nHistorical review/evidence artifacts are intentionally outside this check unless explicitly promoted to a current truth surface.');
   process.exit(1);
 }
 
-console.log(`Public truth-surface consistency check passed (${currentSurfaces.length} current documentation surfaces + package metadata).`);
+console.log(`Public/current truth-surface consistency check passed (${currentSurfaces.length} current documentation/contract surfaces + package metadata).`);
