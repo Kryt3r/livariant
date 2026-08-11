@@ -13,8 +13,7 @@ import {
   type ReleaseDescriptor,
   type UpdatePlan,
 } from "../runtime/index.js";
-import { recordReleaseAuthorization } from "../distribution/release-authorization.js";
-import type { LocalReleaseArtifact, ReleaseChannel, ReleaseIdentity } from "../distribution/release-integrity.js";
+import type { LocalReleaseArtifact } from "../distribution/release-integrity.js";
 
 function optionValues(args: string[], name: string): string[] {
   const values: string[] = [];
@@ -94,34 +93,6 @@ function artifactForPlan(plan: UpdatePlan | MigrationPlan, artifactPath: string)
   };
 }
 
-export async function handleAuthorizeRuntime(args: string[]): Promise<void> {
-  const channel = requiredOption(args, "--channel") as ReleaseChannel;
-  if (!["stable", "preview", "development"].includes(channel)) throw new Error("--channel must be stable, preview, or development.");
-  const identity: ReleaseIdentity = {
-    version: requiredOption(args, "--version"),
-    channel,
-    sourceId: requiredOption(args, "--source"),
-    artifactId: requiredOption(args, "--artifact-id"),
-    artifactSha256: requiredOption(args, "--sha256").toLowerCase(),
-  };
-  console.log("Livariant Runtime release authorization");
-  console.log("");
-  console.log(`Version: ${identity.version}`);
-  console.log(`Channel: ${identity.channel}`);
-  console.log(`Source ID: ${identity.sourceId}`);
-  console.log(`Artifact ID: ${identity.artifactId}`);
-  console.log(`Artifact SHA-256: ${identity.artifactSha256}`);
-  console.log("Machine-local authorization required: yes");
-  if (!args.includes("--apply")) {
-    console.log("");
-    console.log("No authorization recorded. Verify this exact identity and digest independently, then rerun with --apply.");
-    return;
-  }
-  await recordReleaseAuthorization(process.cwd(), identity);
-  console.log("");
-  console.log("Machine-local Runtime release authorization recorded. No Runtime code was executed.");
-}
-
 export async function handleUpdate(args: string[]): Promise<void> {
   const manifestPath = requiredOption(args, "--manifest");
   const releases = await loadReleaseManifest(manifestPath);
@@ -143,7 +114,7 @@ export async function handleUpdate(args: string[]): Promise<void> {
 
   if (!args.includes("--apply")) {
     console.log("");
-    console.log("No changes applied. Independently authorize the exact release with 'livariant authorize-runtime', then rerun with --apply, --artifact <path>, and --trusted-source <source-id>.");
+    console.log("No changes applied. The exact artifact digest must already be authorized by independent machine-local release policy before --apply can succeed.");
     return;
   }
 
