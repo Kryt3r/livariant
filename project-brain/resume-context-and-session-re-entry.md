@@ -155,15 +155,13 @@ Likewise, a handoff should not be converted into durable Project Brain truth mer
 
 ## Provider-Independent Command Intent
 
-The development placeholder command may appear as:
+The accepted product CLI namespace is `livariant`:
 
 ```text
-pb resume
+livariant resume
 ```
 
-The `pb` namespace is provisional and will be replaced by the finalized product-defined command namespace before public release.
-
-The stable contract is the semantic intent `resume`, not the literal prefix.
+The stable framework contract remains the semantic intent `resume`; the product namespace is a presentation and distribution identity rather than the owner of resume semantics.
 
 Natural-language requests such as:
 
