@@ -2,6 +2,7 @@ import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { FRAMEWORK_VERSION, UPDATE_CHANNEL, type LifecycleState } from "../lifecycle/state.js";
 import { readMigrationJournal } from "../lifecycle/migration.js";
+import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
 import { compareSemver } from "../lifecycle/update.js";
 import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
 export { initializeProject, inspectInitialization } from "./initialization.js";
@@ -16,7 +17,7 @@ export { applyNormalUpdate, checkForUpdate, compareSemver, planNormalUpdate } fr
 export type { ApplyUpdateOptions, ReleaseDescriptor, UpdateCheck, UpdatePlan } from "../lifecycle/update.js";
 export { applyMigrationUpdate, planMigrationUpdate, readMigrationJournal } from "../lifecycle/migration.js";
 export type { ApplyMigrationOptions, MigrationContract, MigrationExecutionState, MigrationJournal, MigrationPlan, MigrationStepState } from "../lifecycle/migration.js";
-export { applyRecovery, inspectRecovery, planRecovery } from "../lifecycle/recovery.js";
+export { applyRecovery, findStrandedLifecycleArtifacts, inspectRecovery, planRecovery } from "../lifecycle/recovery.js";
 export type { ApplyRecoveryOptions, RecoveryInspection, RecoveryPlan } from "../lifecycle/recovery.js";
 
 export interface VersionInfo {
@@ -46,6 +47,7 @@ export async function getStatus(projectPath: string = process.cwd()): Promise<St
   const project = discoverProject(projectPath);
   const store = new ProjectBrainStore(project.root);
   const brain = await store.inspect();
+  const stranded = brain.health === "not-found" ? await findStrandedLifecycleArtifacts(project.root) : [];
 
   let journal: Awaited<ReturnType<typeof readMigrationJournal>> = null;
   let journalError: string | undefined;
@@ -74,9 +76,9 @@ export async function getStatus(projectPath: string = process.cwd()): Promise<St
     runtimePointerVersion && runtimePointerVersion !== frameworkVersion ? runtimePointerVersion : undefined;
 
   const lifecycle: LifecycleState =
-    brain.health === "not-found"
+    brain.health === "not-found" && stranded.length === 0
       ? "uninitialized"
-      : brain.health !== "valid" || interrupted || journalError !== undefined || runtimeEvidenceError !== undefined
+      : brain.health !== "valid" || interrupted || journalError !== undefined || runtimeEvidenceError !== undefined || stranded.length > 0
         ? "recovery-required"
         : "initialized";
 
@@ -84,13 +86,15 @@ export async function getStatus(projectPath: string = process.cwd()): Promise<St
     ? `invalid active Runtime evidence: ${runtimeEvidenceError}`
     : journalError
       ? `invalid migration lifecycle evidence: ${journalError}`
-      : interrupted
-        ? "interrupted migration"
-        : brain.health !== "valid" && brain.health !== "not-found"
-          ? brain.reason
-          : activatedRuntimeVersion && activatedRuntimeVersion !== FRAMEWORK_VERSION
-            ? `Runtime ${activatedRuntimeVersion} is activated; a new CLI invocation will execute it.`
-            : undefined;
+      : stranded.length > 0
+        ? `stranded lifecycle artifacts detected while Project Brain is missing: ${stranded.join(", ")}`
+        : interrupted
+          ? "interrupted migration"
+          : brain.health !== "valid" && brain.health !== "not-found"
+            ? brain.reason
+            : activatedRuntimeVersion && activatedRuntimeVersion !== FRAMEWORK_VERSION
+              ? `Runtime ${activatedRuntimeVersion} is activated; a new CLI invocation will execute it.`
+              : undefined;
 
   return {
     projectRoot: project.root,
@@ -99,7 +103,7 @@ export async function getStatus(projectPath: string = process.cwd()): Promise<St
     activatedRuntimeVersion,
     preparedRuntimeVersion,
     channel,
-    projectBrain: brain.health === "not-found" ? "not-found" : brain.health === "valid" ? "present" : "needs-diagnosis",
+    projectBrain: stranded.length > 0 ? "needs-diagnosis" : brain.health === "not-found" ? "not-found" : brain.health === "valid" ? "present" : "needs-diagnosis",
     lifecycle,
     lifecycleReason,
     changesMade: 0,
