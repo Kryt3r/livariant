@@ -117,6 +117,8 @@ livariant init
 
 Projekt-eigene Dateien sind standardmäßig geschützt. Unklarheit führt zu mehr Inspektion und Diagnose, nicht zu heuristischem Umschreiben.
 
+Mehr dazu im [Leitfaden für bestehende Projekte](docs/de/existing-projects.md).
+
 ## Claude Code und Codex
 
 Die aktuelle Preview unterstützt **Project Brain Resume Handoff** für Claude Code und Codex über getrennte Adapter:
@@ -127,6 +129,8 @@ LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
 ```
 
 Diese Aussage ist bewusst eng gefasst. Livariant rekonstruiert provider-spezifischen Resume-Kontext aus dem kanonischen Project Brain. Es beansprucht **nicht**, sämtliche Features, Modelloptionen, Tool-Aufrufe, Authentifizierungsmethoden oder nativen Instruktionsmechanismen dieser Provider zu verwalten.
+
+Mehr dazu unter [Provider-Handoff](docs/de/provider-handoff.md).
 
 ## Sichere Updates und Wiederherstellung
 
@@ -181,6 +185,8 @@ Der Kern bleibt:
 
 > **Fähigkeit ist nicht Autorität.**
 
+Mehr dazu unter [Architektur & Sicherheit](docs/de/architecture-and-safety.md).
+
 ## Local-first Datenschutz
 
 Die aktuelle Preview-Runtime ist local-first ausgelegt:
@@ -193,6 +199,8 @@ Die aktuelle Preview-Runtime ist local-first ausgelegt:
 
 Was ein externer KI-Provider mit Kontext macht, den du bewusst an ihn weitergibst, richtet sich nach dessen Bedingungen und nicht nach Livariant.
 
+Mehr dazu unter [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md).
+
 ## Preview-Status
 
 Livariant befindet sich in **Public Preview**. Die Preview ist evidenzgestützt, bedeutet aber noch keinen Freeze sämtlicher CLI-Details oder interner Verträge vor 1.0.
@@ -201,14 +209,21 @@ Die aktuell nachgewiesene Baseline läuft in CI auf **Ubuntu und Windows mit Nod
 
 Begrenzte bekannte Preview-Einschränkungen können existieren. Bekannte Datenverlust-, Autoritätseskalations-, Migrationsintegritäts- oder Release-Trust-Bypässe auf unterstützten Pfaden gelten nicht als akzeptable Preview-Limitierungen.
 
+Mehr dazu unter [Public-Preview-Support & Stabilität](docs/de/preview-support-and-stability.md) und [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md).
+
 ## Dokumentation
 
 ### Deutsch
 
 - [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
+- [Leitfaden für bestehende Projekte](docs/de/existing-projects.md)
+- [Architektur & Sicherheit](docs/de/architecture-and-safety.md)
+- [Provider-Handoff](docs/de/provider-handoff.md)
 - [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-guide.md)
-
-Weitere deutsche Detaildokumente werden schrittweise ergänzt. Die englischen technischen Verträge bleiben bis dahin die vollständigste Referenz.
+- [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md)
+- [Public-Preview-Support & Stabilität](docs/de/preview-support-and-stability.md)
+- [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md)
+- [Lizenz, Gewährleistung & Haftung](docs/de/license-and-warranty.md)
 
 ### English
 
@@ -220,6 +235,7 @@ Weitere deutsche Detaildokumente werden schrittweise ergänzt. Die englischen te
 - [Privacy & Network Behavior](docs/privacy-and-network.md)
 - [Public Preview Support & Stability](docs/preview-support-and-stability.md)
 - [Public Preview Scope & Limitations](docs/preview-scope.md)
+- [License, Warranty & Liability](docs/license-and-warranty.md)
 
 ## Lizenz, Sicherheit und Beiträge
 
@@ -234,7 +250,7 @@ Externe Code-Beiträge sind derzeit ausgesetzt, bis Contributor-Rechte mit dem s
 - [Lizenzierung](LICENSING.md)
 - [Security Policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
-- [Lizenz, Gewährleistung & Haftung](docs/license-and-warranty.md)
+- [Lizenz, Gewährleistung & Haftung](docs/de/license-and-warranty.md)
 - [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 
 ---
