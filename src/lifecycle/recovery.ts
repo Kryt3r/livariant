@@ -1,4 +1,4 @@
-import { access, cp, mkdir, readFile, rename, rm } from "node:fs/promises";
+import { access, cp, lstat, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { ProjectBrainStore } from "../project-brain/store.js";
@@ -37,28 +37,56 @@ export interface ApplyRecoveryOptions {
 }
 
 const REQUIRED = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"] as const;
+const OPERATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STRANDED_PREFIXES = [
+  ".project-brain.recovery-displaced-",
+  ".project-brain.rollback-displaced-",
+  ".project-brain.recovery-candidate-",
+  ".project-brain.rollback-candidate-",
+  ".project-brain.checkpoint-",
+] as const;
 
-async function validateCheckpoint(projectPath: string, journal: MigrationJournal): Promise<{ valid: boolean; reason?: string }> {
+function canonicalCheckpointPath(projectPath: string, operationId: string): string {
+  if (!OPERATION_ID.test(operationId)) throw new Error("migration operation identity is invalid");
+  const path = resolve(projectPath, `.project-brain.checkpoint-${operationId}`);
+  assertPathWithinRoot(projectPath, path, "Recovery checkpoint path");
+  const brainPath = resolve(projectPath, ".project-brain");
+  if (path === brainPath) throw new Error("recovery checkpoint must not alias the active Project Brain");
+  return path;
+}
+
+export async function findStrandedLifecycleArtifacts(projectPath: string): Promise<string[]> {
+  const entries = await readdir(projectPath, { withFileTypes: true });
+  return entries
+    .filter((entry) => STRANDED_PREFIXES.some((prefix) => entry.name.startsWith(prefix)))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+async function validateCheckpoint(projectPath: string, journal: MigrationJournal): Promise<{ valid: boolean; reason?: string; path?: string }> {
   try {
-    assertPathWithinRoot(projectPath, journal.checkpointPath, "Recovery checkpoint path");
-    const expectedPrefix = resolve(projectPath, `.project-brain.checkpoint-${journal.operationId}`);
-    if (resolve(journal.checkpointPath) !== expectedPrefix) {
+    const expectedPath = canonicalCheckpointPath(projectPath, journal.operationId);
+    if (resolve(journal.checkpointPath) !== expectedPath) {
       return { valid: false, reason: "checkpoint path does not match the interrupted operation" };
     }
-    await access(journal.checkpointPath);
+    const checkpointStats = await lstat(expectedPath);
+    if (!checkpointStats.isDirectory() || checkpointStats.isSymbolicLink()) {
+      return { valid: false, reason: "checkpoint root must be a real directory and must not be a symbolic link" };
+    }
+    await access(expectedPath);
     for (const file of REQUIRED) {
-      const candidate = resolve(journal.checkpointPath, file);
-      assertPathWithinRoot(journal.checkpointPath, candidate, `Recovery checkpoint file '${file}'`);
+      const candidate = resolve(expectedPath, file);
+      assertPathWithinRoot(expectedPath, candidate, `Recovery checkpoint file '${file}'`);
       await assertRegularFile(candidate, `Recovery checkpoint file '${file}'`);
     }
-    const metadata = JSON.parse(await readFile(resolve(journal.checkpointPath, "metadata.json"), "utf8")) as {
+    const metadata = JSON.parse(await readFile(resolve(expectedPath, "metadata.json"), "utf8")) as {
       framework?: { version?: unknown };
       projectBrain?: { schemaVersion?: unknown };
     };
     if (metadata.framework?.version !== journal.sourceVersion) return { valid: false, reason: "checkpoint source version does not match journal" };
     if (metadata.projectBrain?.schemaVersion !== journal.sourceSchema) return { valid: false, reason: "checkpoint source schema does not match journal" };
-    await validateCheckpointDigests(journal.checkpointPath, journal.checkpointDigests);
-    return { valid: true };
+    await validateCheckpointDigests(expectedPath, journal.checkpointDigests);
+    return { valid: true, path: expectedPath };
   } catch (error) {
     return { valid: false, reason: error instanceof Error ? error.message : "checkpoint is missing or invalid" };
   }
@@ -76,7 +104,22 @@ export async function inspectRecovery(projectPath: string): Promise<RecoveryInsp
     };
   }
 
-  if (!journal || journal.state === "complete" || journal.state === "failed") {
+  if (!journal) {
+    const brainInspection = await new ProjectBrainStore(projectPath).inspect();
+    if (brainInspection.health === "not-found") {
+      const stranded = await findStrandedLifecycleArtifacts(projectPath);
+      if (stranded.length > 0) {
+        return {
+          state: "recovery-required",
+          checkpointValid: false,
+          reason: `stranded lifecycle artifacts exist while the canonical Project Brain is missing: ${stranded.join(", ")}`,
+        };
+      }
+    }
+    return { state: "none", checkpointValid: false };
+  }
+
+  if (journal.state === "complete" || journal.state === "failed") {
     return { state: "none", checkpointValid: false };
   }
 
@@ -97,7 +140,7 @@ export async function inspectRecovery(projectPath: string): Promise<RecoveryInsp
     sourceSchema: journal.sourceSchema,
     targetSchema: journal.targetSchema,
     currentSchema,
-    checkpointPath: journal.checkpointPath,
+    checkpointPath: checkpoint.path,
     checkpointValid: checkpoint.valid,
     recommendedStrategy: checkpoint.valid ? "rollback" : undefined,
     reason: checkpoint.reason,
@@ -113,7 +156,7 @@ export async function planRecovery(projectPath: string): Promise<RecoveryPlan> {
     recoveryOperationId: randomUUID(),
     interruptedOperationId: inspection.operationId,
     strategy: "rollback",
-    checkpointPath: inspection.checkpointPath,
+    checkpointPath: canonicalCheckpointPath(projectPath, inspection.operationId),
     expectedSourceVersion: inspection.sourceVersion,
     expectedSourceSchema: inspection.sourceSchema,
     authorizationRequired: true,
@@ -122,23 +165,28 @@ export async function planRecovery(projectPath: string): Promise<RecoveryPlan> {
 
 export async function applyRecovery(projectPath: string, plan: RecoveryPlan, options: ApplyRecoveryOptions): Promise<void> {
   if (!options.authorized) throw new Error("Recovery application requires explicit authorization.");
+  if (!OPERATION_ID.test(plan.interruptedOperationId) || !OPERATION_ID.test(plan.recoveryOperationId)) {
+    throw new Error("Recovery plan contains an invalid operation identity.");
+  }
   const journal = await readMigrationJournal(projectPath);
   if (!journal || journal.operationId !== plan.interruptedOperationId) throw new Error("Recovery plan is stale for the current migration state.");
   const checkpoint = await validateCheckpoint(projectPath, journal);
-  if (!checkpoint.valid) {
+  if (!checkpoint.valid || !checkpoint.path) {
     await writeMigrationJournal(projectPath, { ...journal, state: "recovery-required", recovery: { state: "recovery-required", reason: checkpoint.reason } });
     throw new Error(checkpoint.reason ?? "Checkpoint validation failed.");
   }
 
-  assertPathWithinRoot(projectPath, plan.checkpointPath, "Recovery checkpoint path");
+  const checkpointPath = canonicalCheckpointPath(projectPath, journal.operationId);
+  if (resolve(plan.checkpointPath) !== checkpointPath) throw new Error("Recovery plan checkpoint identity is stale or invalid.");
   const brainPath = resolve(projectPath, ".project-brain");
+  if (checkpointPath === brainPath) throw new Error("Recovery checkpoint must not alias the active Project Brain.");
   const candidatePath = resolve(projectPath, `.project-brain.recovery-candidate-${plan.recoveryOperationId}`);
   const displacedPath = resolve(projectPath, `.project-brain.recovery-displaced-${plan.recoveryOperationId}`);
   assertPathWithinRoot(projectPath, candidatePath, "Recovery candidate path");
   assertPathWithinRoot(projectPath, displacedPath, "Recovery displaced path");
 
   try {
-    await cp(plan.checkpointPath, candidatePath, { recursive: true });
+    await cp(checkpointPath, candidatePath, { recursive: true });
     await validateCheckpointDigests(candidatePath, journal.checkpointDigests);
     const candidateMetadata = JSON.parse(await readFile(resolve(candidatePath, "metadata.json"), "utf8")) as {
       framework: { version: string };
@@ -162,16 +210,20 @@ export async function applyRecovery(projectPath: string, plan: RecoveryPlan, opt
       await mkdir(resolve(brainPath, ".lifecycle"), { recursive: true });
       await writeMigrationJournal(projectPath, {
         ...journal,
+        checkpointPath,
         state: "failed",
         recovery: { state: "rolled-back", recoveredAt: new Date().toISOString() },
       });
-      await rm(plan.checkpointPath, { recursive: true, force: true });
+      const cleanupCheckpoint = canonicalCheckpointPath(projectPath, journal.operationId);
+      if (cleanupCheckpoint === resolve(projectPath, ".project-brain")) throw new Error("Refusing to remove an unsafe recovery checkpoint path.");
+      await rm(cleanupCheckpoint, { recursive: true, force: true });
       await rm(displacedPath, { recursive: true, force: true });
     } catch (error) {
       await rm(brainPath, { recursive: true, force: true });
       await rename(displacedPath, brainPath);
       await writeMigrationJournal(projectPath, {
         ...journal,
+        checkpointPath,
         state: "recovery-required",
         recovery: { state: "recovery-required", reason: error instanceof Error ? error.message : "recovery failed" },
       });
