@@ -7,9 +7,9 @@ Existing projects are a first-class use case. The framework is discovery-first a
 From the project root:
 
 ```bash
-pb-dev status
-pb-dev doctor
-pb-dev init
+livariant status
+livariant doctor
+livariant init
 ```
 
 The inspection phase is read-only. Review the detected evidence and proposed Project Brain files before authorizing anything.
@@ -17,10 +17,13 @@ The inspection phase is read-only. Review the detected evidence and proposed Pro
 If initialization is applicable:
 
 ```bash
-pb-dev init --apply
+livariant init --apply
 ```
 
 Supported adoption creates framework-owned Project Brain state. It does not reorganize source code, rewrite configuration, resolve contradictory documentation, ingest secrets, or replace existing agent instruction files simply to make the repository look cleaner.
+
+> [!IMPORTANT]
+> Existing project-owned files remain authoritative for their own domains unless Livariant has an explicit framework-owned contract for them. Discovery capability does not grant mutation authority.
 
 ## What the framework may observe
 
@@ -34,6 +37,8 @@ Sensitive-file presence such as `.env` may be observed as a safety signal. Secre
 
 Existing `CLAUDE.md` and `AGENTS.md` remain project-owned. Their presence is detected, but supported adoption does not overwrite them or promote contradictory text from those files into canonical Project Brain truth.
 
+Provider projections and provider-native memory are not competing Sources of Truth. The Project Brain remains the project-owned canonical truth for Livariant-managed project knowledge.
+
 ## Re-running initialization
 
 Once a valid Project Brain exists, fresh initialization is no longer the supported action. Re-running `init --apply` must not overwrite or normalize it.
@@ -41,10 +46,18 @@ Once a valid Project Brain exists, fresh initialization is no longer the support
 If the Brain is damaged, partial, drifted, or lifecycle recovery is required, use diagnosis first:
 
 ```bash
-pb-dev doctor
+livariant doctor
+livariant recover
 ```
 
-Do not delete `.project-brain/` and initialize again as a repair technique. That would discard project history and bypass the lifecycle/recovery model.
+> [!CAUTION]
+> Do not delete or manually replace `.project-brain/` and initialize again as a repair technique. That would discard or reinterpret project history and bypass the supported lifecycle/recovery model.
+
+Apply recovery only when Livariant reports a valid supported strategy:
+
+```bash
+livariant recover --apply
+```
 
 ## Filesystem boundaries
 
