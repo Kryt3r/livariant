@@ -14,7 +14,7 @@ Du triffst mit einem Agenten eine Architekturentscheidung. Eine Woche später sc
 
 Livariant wird dafür gebaut, dass das Projekt selbst zur dauerhaften Quelle für Kontinuität wird und nicht eine einzelne KI-Sitzung.
 
-Die aktuelle Version `0.1.0-rc.2` ist die **Foundation Preview**. Sie stellt bereits den sicheren, projekt-eigenen Kern bereit. Die nächste Schicht soll diesen Kern im normalen Arbeitsalltag deutlich aktiver und intuitiver machen.
+Der aktuelle Kandidat `0.1.0-rc.3` ist der **Foundation-Preview-Kandidat**. Er stellt den sicheren, projekt-eigenen Kern bereit. Die nächste Schicht soll diesen Kern im normalen Arbeitsalltag deutlich aktiver und intuitiver machen.
 
 ## Die Idee in einer Minute
 
@@ -127,7 +127,7 @@ Zu dieser Richtung gehören unter anderem:
 - sicherere Fortsetzung zwischen unterschiedlichen Coding-Agents;
 - reichhaltigere Integrationen auf Basis des bestehenden Authority- und Recovery-Modells.
 
-Diese Punkte sind **Produkt-Richtung und keine aktuellen RC2-Funktionsversprechen**. Der Sinn der Foundation Preview ist gerade, zuerst einen vertrauenswürdigen dauerhaften Kern zu haben, bevor mehr Automatisierung darauf handeln darf.
+Diese Punkte sind **Produkt-Richtung und keine aktuellen RC3-Funktionsversprechen**. Der Sinn der Foundation Preview ist gerade, zuerst einen vertrauenswürdigen dauerhaften Kern zu haben, bevor mehr Automatisierung darauf handeln darf.
 
 ## Warum zuerst das Fundament?
 
@@ -152,16 +152,16 @@ Das tiefere Modell erklärt [Architektur & Sicherheit](docs/de/architecture-and-
 
 ## Fünf-Minuten-Start
 
-Voraussetzungen für die aktuelle Preview:
+Voraussetzungen für den aktuellen Preview-Kandidaten:
 
 - Node.js 20 oder neuer;
 - ein lokales Softwareprojekt;
-- der verifizierte Livariant-Preview-Release-Tarball aus dem kanonischen GitHub Release, sobald dieser veröffentlicht ist.
+- der verifizierte Livariant-Preview-Release-Tarball aus dem kanonischen GitHub Release, sobald RC3 veröffentlicht ist.
 
 Installiere Livariant als Tool für deinen Rechner oder Benutzeraccount. Livariant wird nicht als Claude-Code- oder Codex-Plugin installiert und nicht in die `package.json` deines Projekts eingetragen.
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
 livariant version
 ```
 
@@ -283,13 +283,15 @@ Mehr dazu unter [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md
 
 ## Foundation-Preview-Status
 
-`0.1.0-rc.2` ist der aktuelle Kandidat für die Foundation Preview.
+`0.1.0-rc.3` ist der aktuelle Foundation-Preview-Kandidat.
+
+Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz und nicht der aktuelle Kandidat.
 
 Die unterstützte Baseline wird in CI auf Ubuntu und Windows geprüft. Preview bedeutet, dass das unterstützte Verhalten durch Evidenz abgesichert ist, während sich Oberflächen und Produktumfang vor 1.0 noch weiterentwickeln können.
 
 Bekannte Datenverlust-, Autoritätseskalations-, Migrationsintegritäts- oder Release-Trust-Bypässe auf unterstützten Pfaden gelten nicht als akzeptable Preview-Einschränkungen.
 
-Die größere Active-Project-Intelligence-Richtung wird bewusst nicht als bereits implementiertes RC2-Verhalten dargestellt.
+Die größere Active-Project-Intelligence-Richtung wird bewusst nicht als bereits implementiertes RC3-Verhalten dargestellt.
 
 Mehr dazu unter [Public-Preview-Support & Stabilität](docs/de/preview-support-and-stability.md) und [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md).
 

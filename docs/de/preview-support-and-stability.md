@@ -1,6 +1,8 @@
 # Public-Preview-Support & Stabilität
 
-Livariant `0.1.0-rc.2` ist ein Preview-Kandidat. Preview bedeutet, dass unterstütztes Verhalten durch Evidenz abgesichert ist. Es bedeutet noch keinen endgültigen 1.0-Kompatibilitäts-Freeze.
+Livariant `0.1.0-rc.3` ist der aktuelle Foundation-Preview-Kandidat. Preview bedeutet, dass unterstütztes Verhalten durch Evidenz abgesichert ist. Es bedeutet noch keinen endgültigen 1.0-Kompatibilitäts-Freeze.
+
+Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz und nicht der aktuelle Kandidat.
 
 ## Worauf du dich bei unterstützten Pfaden verlassen können sollst
 

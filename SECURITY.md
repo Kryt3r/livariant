@@ -6,11 +6,9 @@ Livariant treats project ownership, mutation authority, release integrity, migra
 
 **Do not post vulnerability or exploit details in a public Issue or Discussion.**
 
-For the Public Preview, the intended reporting path is GitHub Private Vulnerability Reporting / Security Advisories on the canonical Livariant repository.
+Use GitHub Private Vulnerability Reporting / Security Advisories on the canonical Livariant repository. Private Vulnerability Reporting is enabled for the public repository and is the preferred path for suspected security issues.
 
-That host-side feature must be enabled and verified before the public Preview is launched. Until that check has actually passed, this policy does not pretend that private reporting is already available.
-
-If the private reporting option is unavailable on the repository you are viewing, do not publish exploit details just to get attention. Contact the maintainer through an available private GitHub channel and reference this policy.
+If the private reporting option is unexpectedly unavailable, do not publish exploit details just to get attention. Contact the maintainer through an available private GitHub channel and reference this policy.
 
 ## What a useful report contains
 

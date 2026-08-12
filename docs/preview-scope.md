@@ -38,7 +38,7 @@ Livariant does not claim to manage every provider feature, tool, model-selection
 
 ## Semantic knowledge editing
 
-The `0.1.0-rc.2` executable supports a bounded repeated-use editing surface for durable Project Brain truth.
+The current `0.1.0-rc.3` candidate supports a bounded repeated-use editing surface for durable Project Brain truth.
 
 The executable command surface is:
 
@@ -128,7 +128,7 @@ The current Runtime implements no Livariant telemetry, automatic Project Brain u
 
 ## Public distribution
 
-The intended Preview distribution path is GitHub Releases from the canonical Livariant repository, using the expected source identity:
+The canonical repository is public at `Kryt3r/livariant`. The Preview distribution path uses GitHub Releases from that repository with the expected source identity:
 
 ```text
 github:Kryt3r/livariant
@@ -142,11 +142,11 @@ Release tooling produces:
 
 CI verifies the release bundle against a clean consumer.
 
-The repository remains private until the separate public-visibility gate is explicitly approved. The public documentation therefore does not assume that repository visibility is a Runtime safety property and does not invent an npm-registry distribution path that does not exist.
+The existing immutable `v0.1.0-rc.2` GitHub Release is historical pre-public release evidence. It contains older release text and older bundle bytes and must not be overwritten, retagged, or presented as the current candidate.
 
-The historical private `v0.1.0-rc.1` release remains validation evidence from the pre-fix baseline. It must not be recreated, overwritten, retagged, or presented as the current candidate.
+The current repository package identity is `0.1.0-rc.3`. RC3 is intended to be the first clean public Foundation Preview release. Tag creation, GitHub Release publication, and any other publication action still require separate explicit approval.
 
-The current repository package identity is `0.1.0-rc.2`. Tag creation, GitHub Release publication, npm publication, and repository visibility changes each require separate explicit approval.
+No npm publication path is claimed for the current Preview.
 
 ## License, security, privacy, contributions, and support
 
@@ -165,7 +165,7 @@ Livariant is source-available and is not offered as OSI-approved Open Source.
 
 External code contributions remain gated until contributor-rights terms compatible with the source-available and future commercial-licensing model are finalized.
 
-Host-side security features that are not available in the current private state remain public-gate items. They are not claimed as current coverage before they are actually enabled and verified.
+GitHub Private Vulnerability Reporting, Dependabot Alerts, CodeQL, Secret Scanning, Push Protection, restrictive Actions permissions, the main ruleset, and the release-tag ruleset are enabled for the public repository.
 
 ## What Preview means
 
@@ -181,15 +181,14 @@ Preview support is maintainer and community support without a paid SLA unless se
 
 The eventual 1.0 stability and compatibility contract requires its own later readiness decision.
 
-## Remaining public-visibility work
+## Current RC3 release gate
 
-Before the repository itself is made public and the Preview is announced broadly, the release process still needs to:
+Before RC3 may be tagged and published, the release process still needs to:
 
-1. finish the current private human-documentation and repository acceptance pass;
-2. rebuild and verify the final candidate after packaged public text is stable;
-3. receive explicit approval to change `Kryt3r/livariant` from private to public;
-4. enable and verify applicable public-state host protections;
-5. verify release and tag protection plus the intended immutable release flow;
-6. publish only an explicitly approved manifest-bound Preview bundle from the exact canonical candidate;
-7. verify published artifact identity, source identity, and checksums;
-8. run the final public-release readiness check against the exact published candidate.
+1. finish the RC3 documentation and current-truth alignment;
+2. rebuild and verify the exact RC3 candidate after the packaged public text is stable;
+3. run the required public-doc, build, test, package-smoke, and release-bundle-smoke checks;
+4. review and merge the RC3 preparation PR only after explicit approval;
+5. build the final manifest-bound RC3 bundle from the exact canonical source;
+6. receive explicit approval before creating the tag or publishing the GitHub Release;
+7. verify published artifact identity, source identity, manifest, and checksums after publication.

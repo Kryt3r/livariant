@@ -1,6 +1,8 @@
 # Public Preview Support & Stability
 
-Livariant `0.1.0-rc.2` is a Preview candidate. Preview means supported behavior is backed by evidence, but the product is not yet under a final 1.0 compatibility freeze.
+Livariant `0.1.0-rc.3` is the current Foundation Preview candidate. Preview means supported behavior is backed by evidence, but the product is not yet under a final 1.0 compatibility freeze.
+
+The existing immutable `v0.1.0-rc.2` GitHub Release is historical pre-public release evidence and is not the current candidate.
 
 ## What you should be able to rely on
 

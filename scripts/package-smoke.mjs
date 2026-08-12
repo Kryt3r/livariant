@@ -5,6 +5,8 @@ import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
 const temp = await mkdtemp(resolve(tmpdir(), "livariant-package-smoke-"));
+const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+const expectedVersion = packageJson.version;
 
 function npmInvocation(args) {
   return process.platform === "win32"
@@ -79,7 +81,7 @@ try {
     : resolve(globalPrefix, "lib", "node_modules", "livariant");
   const globalCliPath = resolve(globalPackageRoot, "dist", "src", "cli", "index.js");
   const globalCli = run(process.execPath, [globalCliPath, "version"], { cwd: installDir });
-  if (!/Livariant framework version: 0\.1\.0-rc\.2/.test(globalCli.stdout) || !/Channel: preview/.test(globalCli.stdout)) {
+  if (!globalCli.stdout.includes(`Livariant framework version: ${expectedVersion}`) || !/Channel: preview/.test(globalCli.stdout)) {
     throw new Error(`Globally installed release-tarball CLI returned unexpected version output:\n${globalCli.stdout}`);
   }
 
@@ -88,7 +90,7 @@ try {
 
   const cliPath = resolve(installDir, "node_modules", "livariant", "dist", "src", "cli", "index.js");
   const cli = run(process.execPath, [cliPath, "version"], { cwd: installDir });
-  if (!/Livariant framework version: 0\.1\.0-rc\.2/.test(cli.stdout)) {
+  if (!cli.stdout.includes(`Livariant framework version: ${expectedVersion}`)) {
     throw new Error(`Installed CLI returned unexpected version output:\n${cli.stdout}`);
   }
   if (!/Channel: preview/.test(cli.stdout)) {
@@ -126,11 +128,11 @@ try {
   }
 
   const installedPackage = JSON.parse(await readFile(resolve(installDir, "node_modules", "livariant", "package.json"), "utf8"));
-  if (installedPackage.name !== "livariant" || installedPackage.bin?.livariant !== "./dist/src/cli/index.js") {
-    throw new Error("Installed package does not expose the expected Livariant CLI identity");
+  if (installedPackage.name !== "livariant" || installedPackage.version !== expectedVersion || installedPackage.bin?.livariant !== "./dist/src/cli/index.js") {
+    throw new Error("Installed package does not expose the expected Livariant package and CLI identity");
   }
 
-  console.log("Package smoke test passed: Livariant packed, globally installed from the release tarball, project-locally installed for packaging compatibility, initialized, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.");
+  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed, globally installed from the release tarball, project-locally installed for packaging compatibility, initialized, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
