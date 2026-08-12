@@ -76,9 +76,16 @@ Requirements for the current Preview baseline:
 
 - Node.js 20 or newer;
 - a local project directory;
-- the Livariant Preview release artifact.
+- the verified Livariant Preview release tarball from the canonical GitHub Release.
 
-Start read-only:
+Livariant is **not installed inside Claude Code or Codex**. Install the release tarball as machine/user tooling first:
+
+```bash
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+livariant version
+```
+
+Then open the root of the project you already use with your coding agent and start read-only:
 
 ```bash
 livariant status
@@ -101,9 +108,9 @@ livariant resume
 ```
 
 > [!NOTE]
-> `livariant init` without `--apply` is inspection-only. Livariant is deliberately plan-first rather than mutation-first.
+> `livariant init` without `--apply` is inspection-only. Livariant is deliberately plan-first rather than mutation-first. Installing the CLI does not add Livariant to the target project's `package.json` or initialize it automatically.
 
-Read the [Five-Minute Quickstart](docs/quickstart.md) or the [German Quickstart](docs/de/quickstart.md).
+Read [Installation & First Project](docs/installation.md), the [Five-Minute Quickstart](docs/quickstart.md), or the [German Quickstart](docs/de/quickstart.md).
 
 ## Existing projects
 
@@ -215,6 +222,7 @@ Read [Public Preview Support & Stability](docs/preview-support-and-stability.md)
 
 ### English
 
+- [Installation & First Project](docs/installation.md)
 - [Five-Minute Quickstart](docs/quickstart.md)
 - [Existing Project Guide](docs/existing-projects.md)
 - [Architecture & Safety](docs/architecture-and-safety.md)
@@ -228,6 +236,7 @@ Read [Public Preview Support & Stability](docs/preview-support-and-stability.md)
 ### Deutsch
 
 - [Deutsche Projektübersicht](README.de.md)
+- [Installation & erstes Projekt](docs/de/installation.md)
 - [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
 - [Leitfaden für bestehende Projekte](docs/de/existing-projects.md)
 - [Architektur & Sicherheit](docs/de/architecture-and-safety.md)
@@ -238,7 +247,7 @@ Read [Public Preview Support & Stability](docs/preview-support-and-stability.md)
 - [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md)
 - [Lizenz, Gewährleistung & Haftung](docs/de/license-and-warranty.md)
 
-English remains the canonical technical-contract language where a deeper framework/internal contract has no translated counterpart; the user-facing documentation set above is now mirrored in German.
+English remains the canonical technical-contract language where a deeper framework/internal contract has no translated counterpart; the user-facing documentation set above is mirrored in German.
 
 ## Licensing, security, and contributions
 
