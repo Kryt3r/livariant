@@ -10,19 +10,21 @@ updated: 2026-08-12
 
 # Public Preview Documentation & User-Journey Review
 
-This review evaluates whether a new user can understand and safely exercise the current Livariant RC2 candidate without relying on private development history.
+This review evaluates whether a new user can understand and safely exercise the final Livariant RC2 candidate without relying on private development history.
 
 ## Current reviewed state
 
 - Canonical repository: `Kryt3r/livariant`.
 - Repository visibility: private.
-- Current canonical `main`: `686670fc2343f3ca02e01c1233f17103a71c35de` after PR #25.
-- Post-merge Hardening CI #84: success on that exact current `main`.
+- Final bound RC2 source: `b27fb5e8c786728ee7714bd535d9fe0fa2603984`.
+- Post-merge Hardening CI #86: success on that exact source.
 - Package/release identity: `0.1.0-rc.2`.
 - Final focused acceptance recheck of the remaining Runtime release-authority and Recovery findings: **GO**.
-- Previously verified RC2 tarball from source `69d555c3f5850536e04cd0bf869bd058ba6406c2`: `livariant-0.1.0-rc.2.tgz`.
-- Previously verified tarball SHA-256: `a50a925ac62399f0e0a648e31551efc9565888120fad22030348ac7178ea1b0b`.
-- Build RC Bundle run #2: success, including exact-source checkout, full verification, independent digest/manifest/checksum verification, and digest-keyed cache persistence.
+- Final verified RC2 tarball: `livariant-0.1.0-rc.2.tgz`.
+- Final verified tarball SHA-256: `d040677806549e9d2a46bbb458984696b4a9d199d9d599bdf77e63e8bd6c662f`.
+- Build RC Bundle run #3: success, including exact-source checkout, full verification, independent digest/manifest/checksum verification, package smoke, global tarball-install verification, and digest-keyed cache persistence.
+
+The final digest differs from the earlier pre-onboarding candidate because the required README/onboarding documentation is included by npm in the packed tarball. Direct source comparison found no `src/` or `package.json` changes between the earlier source and the final bound source.
 
 This review does not authorize a tag, GitHub Release, npm publication, or repository visibility change.
 
@@ -44,8 +46,6 @@ The public/current-facing documentation includes:
 - accepted distribution contracts for installation, upgrade, release integrity, and launch readiness.
 
 ## Supported end-to-end first-user journey
-
-The current documented and tested Preview path is:
 
 ```text
 obtain the canonical GitHub Release tarball
@@ -79,22 +79,13 @@ The README explains the continuity problem and Livariant's role without requirin
 
 ### First install / acquisition — GREEN
 
-PR #25 added English and German installation/first-project guidance that explicitly covers:
+The English and German installation guidance covers Node.js prerequisites, canonical GitHub Release acquisition, SHA-256 verification, global machine/user tooling installation from the verified `.tgz`, `livariant version`, entry into an existing project root, provider-plugin boundaries, and Windows PowerShell differences where relevant.
 
-- Node.js prerequisites;
-- canonical GitHub Release acquisition;
-- SHA-256 verification;
-- global machine/user tooling installation from the verified `.tgz`;
-- installation verification through `livariant version`;
-- entry into the existing project root;
-- the distinction between Livariant and Claude Code/Codex plugins;
-- Windows PowerShell command differences where relevant.
-
-The global tarball-install path is executable evidence, not documentation-only: Hardening CI #83 verified it on Ubuntu and Windows before merge, and post-merge CI #84 passed on current `main`.
+The global tarball-install path is executable evidence: Hardening CI #83 verified it on Ubuntu and Windows before merge, post-merge CI #84 passed, and final Build RC Bundle run #3 passed package/global-install smoke from the final source.
 
 ### Quickstart — GREEN
 
-The English and German Quickstarts now begin from the installation path and continue through inspection-first initialization, Resume, update planning/application, independent Release Authority, and Recovery.
+The English and German Quickstarts connect installation to inspection-first initialization, Resume, update planning/application, independent Release Authority, and Recovery.
 
 ### Existing-project guide — GREEN
 
@@ -116,24 +107,18 @@ Planning and diagnosis remain read-only by default. Schema-changing compatible r
 
 Warnings cover Project Brain/lifecycle files and Runtime trust/Release-Authorization state. Manual replacement is not presented as a supported lifecycle shortcut.
 
-### Version and candidate identity — GREEN WITH FINAL SOURCE REBIND PENDING
-
-The previously verified package bytes are:
+### Version and final candidate identity — GREEN
 
 ```text
 Version: 0.1.0-rc.2
-Previous source: 69d555c3f5850536e04cd0bf869bd058ba6406c2
+Source: b27fb5e8c786728ee7714bd535d9fe0fa2603984
 Artifact: livariant-0.1.0-rc.2.tgz
-SHA-256: a50a925ac62399f0e0a648e31551efc9565888120fad22030348ac7178ea1b0b
+SHA-256: d040677806549e9d2a46bbb458984696b4a9d199d9d599bdf77e63e8bd6c662f
 ```
-
-Because final required onboarding documentation and installation smoke coverage were merged after that source binding, the final pre-tag release process must rebuild the bundle from the final canonical `main` and record the resulting source/digest binding. This is a release-identity consistency step, not an open documentation gap.
 
 Historical `v0.1.0-rc.1` remains historical pre-fix evidence and must not be presented as the current candidate.
 
 ## Product identity
-
-Current documentation and executable package identity remain aligned:
 
 ```text
 Product: Livariant
@@ -147,9 +132,9 @@ Provider environment evidence: LIVARIANT_PROVIDER_ENV
 
 **DOCUMENTATION / USER-JOURNEY GATE: GREEN.**
 
-A new user now has one explicit, test-backed path from canonical release acquisition through installation, existing-project adoption, provider Resume handoff, update, and Recovery. No provider-plugin or npm-registry capability is invented.
+A new user has one explicit, test-backed path from canonical release acquisition through installation, existing-project adoption, provider Resume handoff, update, and Recovery. No provider-plugin or npm-registry capability is invented.
 
-The remaining pre-release work is candidate source/digest rebinding to final canonical `main`, followed by separately authorized publication actions.
+The final RC2 source/digest identity is now known and verified. Remaining work consists only of separately authorized tag/release/visibility actions and their post-publication verification.
 
 No new Runtime/Security Hardening is implied. A further hardening change requires a concrete finding.
 
