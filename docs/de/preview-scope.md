@@ -33,6 +33,26 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Pro
 
 Livariant beansprucht nicht, jede Provider-Funktion, jedes Tool, jede Modellauswahl, Authentifizierungsmethode oder native Instruktionsdatei zu verwalten.
 
+## Laufende Wissensänderungen sind noch nicht Teil der ausführbaren CLI
+
+Das breitere Framework-Design sieht geführte semantische Operationen für Änderungen an Projektzielen, Entscheidungen und Wissen vor. Diese Operationen sind in der CLI von `0.1.0-rc.2` noch nicht verfügbar.
+
+Die aktuelle ausführbare Befehlsoberfläche lautet:
+
+```text
+init
+status
+doctor
+resume
+update
+recover
+version
+```
+
+Die Preview kann damit Project-Brain-Zustand anlegen, prüfen und diagnostizieren, Resume-Kontext erzeugen sowie den unterstützten Lifecycle verwalten. Sie bietet noch keine First-Class-Befehle wie `goals`, `decisions` oder `knowledge`, mit denen laufende semantische Wissensänderungen vorgeschlagen und angewendet werden können.
+
+Nutzer sollten deshalb nicht davon ausgehen, dass zukünftige Natural-Language- oder provider-native Wissenspflege bereits Bestandteil von RC2 ist. Die Framework-Verträge beschreiben diese Richtung, die aktuelle ausführbare Support-Zusage bleibt aber auf die oben genannten Befehle begrenzt.
+
 ## Update- und Migrationssupport
 
 `livariant update --manifest <path>` plant standardmäßig nur ein Update.
