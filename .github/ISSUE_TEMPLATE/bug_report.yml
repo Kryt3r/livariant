@@ -1,0 +1,92 @@
+name: Bug report
+description: Report a reproducible problem with Livariant
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        **Do not report security vulnerabilities here.** If the problem could expose project data, bypass authority, execute untrusted code, escape managed paths, tamper with release trust, or affect migration/recovery integrity, follow `SECURITY.md` instead.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the README, current documentation, and existing issues for the same problem.
+          required: true
+        - label: This report does not contain secrets, credentials, private project data, or vulnerability exploit details.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Livariant version
+      description: Run `livariant version` and enter the reported version.
+      placeholder: 0.1.0-rc.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      description: Run `node --version`.
+      placeholder: v24.x.x
+    validations:
+      required: true
+
+  - type: input
+    id: command
+    attributes:
+      label: Command or workflow
+      description: Which Livariant command or supported workflow is affected?
+      placeholder: livariant doctor
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Include the exact error text when it is safe to share.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Give the smallest set of steps that reproduces the problem. Remove private project information.
+      placeholder: |
+        1. Create or open ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add any non-sensitive details that may help reproduce the problem.
