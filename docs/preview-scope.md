@@ -33,6 +33,26 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider expli
 
 Livariant does not claim to manage every provider feature, tool, model-selection option, authentication mechanism, or native instruction system.
 
+## Knowledge editing is not yet part of the executable CLI
+
+The broader Framework design includes guided semantic operations for changing project goals, decisions, and knowledge. Those operations are not yet exposed by the `0.1.0-rc.2` CLI.
+
+The current executable command surface is:
+
+```text
+init
+status
+doctor
+resume
+update
+recover
+version
+```
+
+This means the Preview can bootstrap Project Brain state, inspect and diagnose it, render Resume context, and manage the supported lifecycle. It does not yet provide first-class commands such as `goals`, `decisions`, or `knowledge` for proposing and applying ongoing semantic knowledge changes.
+
+Do not assume that future natural-language or provider-native knowledge-editing behavior already exists in RC2. The Framework contracts describe that direction, but the executable support claim remains limited to the commands above.
+
 ## Update and migration support
 
 `livariant update --manifest <path>` only plans an update unless `--apply` is provided.
