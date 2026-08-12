@@ -20,8 +20,13 @@ import type {
 } from "./types.js";
 
 const REQUIRED_FILES = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"] as const;
+type ManagedTextDocument = "goals.md" | "decisions.md" | "knowledge.md";
 
 export interface BootstrapOptions {
+  beforePromote?: () => void | Promise<void>;
+}
+
+export interface ManagedDocumentWriteOptions {
   beforePromote?: () => void | Promise<void>;
 }
 
@@ -120,6 +125,66 @@ export class ProjectBrainStore {
     assertPathWithinRoot(resolve(this.projectRoot, ".project-brain"), metadataPath, "Project Brain metadata path");
     await assertRegularFile(metadataPath, "Project Brain metadata");
     return JSON.parse(await readFile(metadataPath, "utf8")) as ProjectBrainMetadata;
+  }
+
+  async readGoalsDocument(): Promise<string> {
+    return this.readManagedTextDocument("goals.md");
+  }
+
+  async readDecisionsDocument(): Promise<string> {
+    return this.readManagedTextDocument("decisions.md");
+  }
+
+  async readKnowledgeDocument(): Promise<string> {
+    return this.readManagedTextDocument("knowledge.md");
+  }
+
+  async replaceGoalsDocument(expectedOriginal: string, content: string, options: ManagedDocumentWriteOptions = {}): Promise<void> {
+    await this.replaceManagedTextDocument("goals.md", expectedOriginal, content, options);
+  }
+
+  async replaceDecisionsDocument(expectedOriginal: string, content: string, options: ManagedDocumentWriteOptions = {}): Promise<void> {
+    await this.replaceManagedTextDocument("decisions.md", expectedOriginal, content, options);
+  }
+
+  async replaceKnowledgeDocument(expectedOriginal: string, content: string, options: ManagedDocumentWriteOptions = {}): Promise<void> {
+    await this.replaceManagedTextDocument("knowledge.md", expectedOriginal, content, options);
+  }
+
+  private async readManagedTextDocument(filename: ManagedTextDocument): Promise<string> {
+    const brainPath = resolve(this.projectRoot, ".project-brain");
+    const path = resolve(brainPath, filename);
+    assertPathWithinRoot(brainPath, path, `Project Brain ${filename} path`);
+    await assertRegularFile(path, `Project Brain ${filename}`);
+    return readFile(path, "utf8");
+  }
+
+  private async replaceManagedTextDocument(
+    filename: ManagedTextDocument,
+    expectedOriginal: string,
+    content: string,
+    options: ManagedDocumentWriteOptions,
+  ): Promise<void> {
+    const brainPath = resolve(this.projectRoot, ".project-brain");
+    const path = resolve(brainPath, filename);
+    const tempPath = resolve(brainPath, `.${filename}.tmp-${randomUUID()}`);
+    assertPathWithinRoot(brainPath, path, `Project Brain ${filename} path`);
+    assertPathWithinRoot(brainPath, tempPath, `Project Brain ${filename} candidate path`);
+    await assertRegularFile(path, `Project Brain ${filename}`);
+    await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" });
+    try {
+      await assertRegularFile(tempPath, `Project Brain ${filename} candidate`);
+      await options.beforePromote?.();
+      await assertRegularFile(path, `Project Brain ${filename}`);
+      const current = await readFile(path, "utf8");
+      if (current !== expectedOriginal) {
+        throw new Error(`Project Brain ${filename} changed concurrently; refusing to overwrite newer project-owned state.`);
+      }
+      await rename(tempPath, path);
+    } catch (error) {
+      await rm(tempPath, { force: true });
+      throw error;
+    }
   }
 
   async updateFrameworkLifecycle(version: string, channel: string): Promise<void> {

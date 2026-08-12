@@ -1,7 +1,19 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { buildResumeContext, getStatus, getVersionInfo, initializeProject, inspectInitialization, runDoctor } from "../runtime/index.js";
+import {
+  addConfirmedGoal,
+  addConfirmedKnowledge,
+  buildResumeContext,
+  getStatus,
+  getVersionInfo,
+  initializeProject,
+  inspectInitialization,
+  listAcceptedDecisions,
+  recordAcceptedDecision,
+  runDoctor,
+  supersedeAcceptedDecision,
+} from "../runtime/index.js";
 import { getPreviewResumeAdapter } from "../adapters/provider-resume-adapter.js";
 import type { ResumeProviderId } from "../adapters/resume-provider.js";
 import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
@@ -112,8 +124,14 @@ async function printResume(args: string[]): Promise<void> {
   console.log("Identity:");
   console.log(context.projectIdentity.length ? context.projectIdentity.map((item) => `- ${item}`).join("\n") : "- none confirmed");
   console.log("");
+  console.log("Confirmed goals:");
+  console.log(context.confirmedGoals.length ? context.confirmedGoals.map((item) => `- ${item}`).join("\n") : "- none confirmed");
+  console.log("");
   console.log("Active decisions:");
   console.log(context.activeDecisions.length ? context.activeDecisions.map((item) => `- ${item}`).join("\n") : "- none confirmed");
+  console.log("");
+  console.log("Known facts:");
+  console.log(context.knownFacts.length ? context.knownFacts.map((item) => `- ${item}`).join("\n") : "- none confirmed");
   console.log("");
   console.log("Unresolved unknowns:");
   console.log(context.unresolvedUnknowns.length ? context.unresolvedUnknowns.map((item) => `- ${item}`).join("\n") : "- none");
@@ -160,6 +178,122 @@ async function handleInit(args: string[]): Promise<void> {
   console.log(`Project Brain initialized: ${result.projectBrainPath}`);
 }
 
+function textBeforeFlags(args: string[], start: number, stopFlags: string[]): string {
+  const parts: string[] = [];
+  for (let index = start; index < args.length; index += 1) {
+    if (stopFlags.includes(args[index])) break;
+    parts.push(args[index]);
+  }
+  const text = parts.join(" ").trim();
+  if (!text) throw new Error("A non-empty text value is required.");
+  return text;
+}
+
+function flagValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  if (index === -1) return undefined;
+  const value = args[index + 1];
+  if (!value || value.startsWith("--")) throw new Error(`${flag} requires a value.`);
+  return value;
+}
+
+function printChangePlan(kind: string, text: string): void {
+  console.log("Canonical knowledge change plan");
+  console.log("");
+  console.log(`Kind: ${kind}`);
+  console.log(`Proposed value: ${text}`);
+  console.log("Target: Project Brain canonical state");
+  console.log("Changes made: 0");
+}
+
+async function handleGoals(args: string[]): Promise<void> {
+  const action = args[0] ?? "list";
+  if (action === "list") {
+    const context = await buildResumeContext();
+    console.log("Confirmed goals:");
+    console.log(context.confirmedGoals.length ? context.confirmedGoals.map((item) => `- ${item}`).join("\n") : "- none confirmed");
+    return;
+  }
+  if (action !== "add") throw new Error("Goals command supports 'list' or 'add <goal> [--apply]'.");
+  const text = textBeforeFlags(args, 1, ["--apply"]);
+  printChangePlan("goal", text);
+  if (!args.includes("--apply")) {
+    console.log("");
+    console.log("No changes applied. Add --apply to authorize this goal.");
+    return;
+  }
+  await addConfirmedGoal(text, process.cwd(), { authorized: true });
+  console.log("");
+  console.log("Confirmed goal recorded and verified.");
+}
+
+async function handleKnowledge(args: string[]): Promise<void> {
+  const action = args[0] ?? "list";
+  if (action === "list") {
+    const context = await buildResumeContext();
+    console.log("Known facts:");
+    console.log(context.knownFacts.length ? context.knownFacts.map((item) => `- ${item}`).join("\n") : "- none confirmed");
+    return;
+  }
+  if (action !== "add") throw new Error("Knowledge command supports 'list' or 'add <fact> [--apply]'.");
+  const text = textBeforeFlags(args, 1, ["--apply"]);
+  printChangePlan("knowledge", text);
+  if (!args.includes("--apply")) {
+    console.log("");
+    console.log("No changes applied. Add --apply to authorize this knowledge change.");
+    return;
+  }
+  await addConfirmedKnowledge(text, process.cwd(), { authorized: true });
+  console.log("");
+  console.log("Confirmed project knowledge recorded and verified.");
+}
+
+async function handleDecisions(args: string[]): Promise<void> {
+  const action = args[0] ?? "list";
+  if (action === "list") {
+    const records = await listAcceptedDecisions();
+    console.log("Accepted decisions:");
+    const active = records.filter((record) => record.status === "active");
+    console.log(active.length ? active.map((record) => `- [${record.id}] ${record.text}`).join("\n") : "- none confirmed");
+    return;
+  }
+
+  if (action === "add") {
+    const text = textBeforeFlags(args, 1, ["--apply"]);
+    printChangePlan("decision", text);
+    if (!args.includes("--apply")) {
+      console.log("");
+      console.log("No changes applied. Add --apply to authorize this decision.");
+      return;
+    }
+    const record = await recordAcceptedDecision(text, process.cwd(), { authorized: true });
+    console.log("");
+    console.log(`Accepted decision recorded and verified: ${record.id}`);
+    return;
+  }
+
+  if (action === "supersede") {
+    const decisionId = args[1];
+    if (!decisionId || decisionId.startsWith("--")) throw new Error("Decision supersession requires a decision id.");
+    const replacement = textBeforeFlags(args, 2, ["--reason", "--apply"]);
+    const reason = flagValue(args, "--reason");
+    printChangePlan("decision supersession", replacement);
+    console.log(`Supersedes: ${decisionId}`);
+    if (reason) console.log(`Reason: ${reason}`);
+    if (!args.includes("--apply")) {
+      console.log("");
+      console.log("No changes applied. Add --apply to authorize this supersession.");
+      return;
+    }
+    const result = await supersedeAcceptedDecision({ decisionId, replacement, reason }, process.cwd(), { authorized: true });
+    console.log("");
+    console.log(`Decision ${result.superseded.id} superseded by ${result.replacement.id} and verified.`);
+    return;
+  }
+
+  throw new Error("Decisions command supports 'list', 'add <decision> [--apply]', or 'supersede <id> <replacement> [--reason <reason>] [--apply]'.");
+}
+
 async function main(): Promise<void> {
   const command = process.argv[2];
   const args = process.argv.slice(3);
@@ -170,6 +304,9 @@ async function main(): Promise<void> {
     case "doctor": await printDoctor(); return;
     case "resume": await printResume(args); return;
     case "init": await handleInit(args); return;
+    case "goals": await handleGoals(args); return;
+    case "knowledge": await handleKnowledge(args); return;
+    case "decisions": await handleDecisions(args); return;
     case "update": await handleUpdate(args); return;
     case "recover": await handleRecover(args); return;
     case undefined:
@@ -183,6 +320,10 @@ async function main(): Promise<void> {
       console.log("  doctor");
       console.log("  resume [--provider claude-code|codex]");
       console.log("  init [--apply]");
+      console.log("  goals [list] | goals add <goal> [--apply]");
+      console.log("  knowledge [list] | knowledge add <fact> [--apply]");
+      console.log("  decisions [list] | decisions add <decision> [--apply]");
+      console.log("  decisions supersede <id> <replacement> [--reason <reason>] [--apply]");
       console.log("  update --manifest <release-manifest.json> [--apply --artifact <runtime.tgz> --trusted-source <source-id>]");
       console.log("  recover [--apply]");
       return;

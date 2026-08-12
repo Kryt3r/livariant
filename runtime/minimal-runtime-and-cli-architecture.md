@@ -5,7 +5,7 @@ phase: public-preview-hardening
 scope: executable-baseline
 language: en
 owner: framework
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # Minimal Runtime & CLI Architecture
@@ -30,11 +30,11 @@ Conceptually:
 
 ```text
 CLI
- ↓
+ |
 Runtime
- ↓
+ |
 Lifecycle / Project Brain / Adapters
- ↓
+ |
 Filesystem / Git / supported tool environments
 ```
 
@@ -89,13 +89,19 @@ These module names are implementation-level organization and may evolve. Their o
 
 ## Initial Semantic Command Surface
 
-The executable baseline requires only a small command surface sufficient to exercise the Public Preview readiness gates:
+The Public Preview executable baseline keeps a small command surface, but it must cover the complete first-use and repeated-use path rather than only installation and lifecycle safety.
+
+The supported commands are:
 
 - `init`
 - `status`
 - `resume`
 - `doctor`
+- `goals`
+- `knowledge`
+- `decisions`
 - `update`
+- `recover`
 - `version`
 
 The accepted product CLI namespace is `livariant`. Product-facing invocation therefore uses commands such as:
@@ -104,12 +110,16 @@ The accepted product CLI namespace is `livariant`. Product-facing invocation the
 livariant init
 livariant status
 livariant resume
+livariant goals
+livariant knowledge
+livariant decisions
 livariant doctor
 livariant update
+livariant recover
 livariant version
 ```
 
-The semantic command surface remains independent from branding: a future product rename would change invocation identity, not lifecycle or Project Brain semantics.
+The semantic command surface remains independent from branding. A future product rename would change invocation identity, not lifecycle or Project Brain semantics.
 
 ### `init`
 
@@ -124,7 +134,25 @@ Provides read-only lifecycle and Project Brain status such as installed Framewor
 
 ### `resume`
 
-Builds a minimal relevant Resume context from canonical Project Brain and accepted durable project state. It must not depend on hidden provider memory for correctness.
+Builds relevant Resume context from canonical Project Brain and accepted durable project state. Human-readable Resume output includes confirmed goals, active decisions, known facts, unresolved unknowns, and project identity where available. It must not depend on hidden provider memory for correctness.
+
+### `goals`
+
+Provides read access to confirmed goals and a plan-first `add` operation for recording a new confirmed goal.
+
+Mutation requires explicit `--apply` authorization. The Runtime validates Project Brain health, writes through the managed storage boundary, and verifies the persisted value before reporting success.
+
+### `knowledge`
+
+Provides read access to known facts and a plan-first `add` operation for recording confirmed project knowledge.
+
+Mutation requires explicit `--apply` authorization. Confirmed project knowledge remains distinct from discovery evidence and unresolved unknowns even when all three are stored in the same canonical knowledge document.
+
+### `decisions`
+
+Provides read access to accepted decisions plus plan-first operations to add an accepted decision or supersede an active decision.
+
+Decision supersession preserves the old decision as historical truth and creates a new active decision identity. A supersession may include a reason. Mutation requires explicit `--apply` authorization.
 
 ### `doctor`
 
@@ -138,9 +166,32 @@ Exposes the canonical update lifecycle through explicit semantic stages such as 
 
 Invoking `update` must not mean unconditional immediate mutation.
 
+### `recover`
+
+Inspects supported recovery state by default and applies a validated recovery plan only after separate explicit `--apply` authorization.
+
 ### `version`
 
 Reports concrete executable/Framework release identity and relevant lifecycle metadata needed for diagnosis and reproducibility.
+
+## Semantic Knowledge Mutation Rules
+
+The first supported knowledge-editing surface is intentionally bounded. It does not attempt to implement every future natural-language or multi-area impact-analysis capability in one release.
+
+For the Preview baseline:
+
+- reads are non-mutating;
+- a proposed goal, fact, decision, or decision supersession is shown before mutation;
+- mutation requires `--apply`;
+- canonical writes require a valid, healthy Project Brain;
+- duplicate simple additions fail rather than silently rewriting existing truth;
+- decision supersession preserves historical state;
+- persistence must go through `ProjectBrainStore`; Runtime code must not establish a parallel direct-filesystem write path for managed canonical documents;
+- the storage boundary performs managed-path checks, symlink rejection, atomic replacement, and exact-original concurrency checks before promotion;
+- unrelated human-authored canonical content must be preserved;
+- post-write verification is required before success is reported.
+
+Future guided natural-language editing can add richer impact analysis over the same Runtime boundary. It must not weaken these authority and verification rules.
 
 ## CLI / Runtime Separation
 
@@ -152,8 +203,8 @@ Conceptually:
 
 ```text
 CLI invocation
-→ Runtime API operation
-→ canonical lifecycle / Project Brain / Adapter implementation
+-> Runtime API operation
+-> canonical lifecycle / Project Brain / Adapter implementation
 ```
 
 This allows future interfaces such as an installer, GUI, IDE integration, Codex environment, Claude environment, or other product surfaces to invoke the same Runtime semantics.
@@ -162,19 +213,13 @@ This allows future interfaces such as an installer, GUI, IDE integration, Codex 
 
 Executable code must not scatter assumptions about the physical Project Brain file layout throughout the Runtime.
 
-The Project Brain implementation should expose semantic storage operations behind a storage boundary, for example conceptually:
+The Project Brain implementation exposes semantic storage operations behind `ProjectBrainStore`, including reading and controlled replacement of canonical goals, decisions, and knowledge documents.
 
-```text
-ProjectBrainStore
-  readProjectIdentity()
-  readGoals()
-  readDecisions()
-  readFrameworkMetadata()
-  writeAcceptedBootstrap(...)
-  applyAuthorizedSemanticChange(...)
-```
+Runtime operations may decide what semantic content should change, but managed path construction, candidate promotion, symlink checks, and concurrency-safe replacement remain inside the Project Brain storage boundary.
 
-The concrete Markdown/YAML/file representation remains behind that boundary.
+This is an authority boundary as well as an organization boundary. Adding a new semantic Runtime operation must not create a second direct persistence implementation for managed Project Brain documents.
+
+The H-04 focused review found an early implementation of semantic editing that wrote managed documents directly from Runtime code. That path was rejected before merge and replaced with `ProjectBrainStore` operations. The review also added regression coverage for symlink rejection and concurrent project-owned edits.
 
 This preserves the accepted rule that semantic Project Brain structure matters more than any one physical file layout and makes schema migration practical without rewriting unrelated Runtime logic.
 
@@ -201,12 +246,13 @@ Deterministic mechanisms should first implement operations such as:
 - canonical knowledge loading,
 - schema and invariant validation,
 - persistence,
+- semantic knowledge mutation,
 - migration primitives,
 - recovery-state classification.
 
 Supported coding agents and models may use these mechanisms through Adapters and product integrations.
 
-This separation is intentional evidence for provider independence: basic ownership, lifecycle, update, migration, and recovery safety must not depend on one model's hidden reasoning or memory.
+This separation is intentional evidence for provider independence: basic ownership, knowledge persistence, lifecycle, update, migration, and recovery safety must not depend on one model's hidden reasoning or memory.
 
 ## Testability and Fixtures
 
@@ -226,6 +272,8 @@ interrupted-update/
 
 Exact fixture names and formats are implementation details. The important contract is that protected properties and lifecycle transitions can be tested repeatedly from known starting states.
 
+Repeated-use acceptance must also prove that a user can initialize a project, add durable goals/knowledge/decisions, supersede a stale decision, and see the resulting canonical truth in Resume output.
+
 ## Scope Control
 
 The minimal executable baseline is not permission to implement every planned future product feature.
@@ -236,6 +284,8 @@ New implementation work during hardening must remain classified as:
 - necessary to fix a blocker discovered by evidence,
 - an explicitly accepted Preview limitation,
 - or post-preview work.
+
+The semantic knowledge-editing surface was added as a direct response to the H-04 Public Preview utility finding: the earlier executable baseline could initialize and read Project Brain state but did not expose the repeated-use path needed to record new durable project truth.
 
 The executable hardening phase must not recreate Foundation expansion under a different name.
 
@@ -248,5 +298,7 @@ The executable hardening phase must not recreate Foundation expansion under a di
 > **The first `0.x` baseline is local-first, deterministic-first, and deliberately small.**
 
 > **Project Brain access uses semantic storage boundaries rather than scattered file-layout assumptions.**
+
+> **Repeated-use product utility is a release property: users must be able to record and retrieve durable project truth, not only initialize storage.**
 
 > **Ownership, interruption, migration, and validation semantics must be technically representable before the first readiness scenario can pass.**
