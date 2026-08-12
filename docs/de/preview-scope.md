@@ -9,6 +9,9 @@ Sie ist keine Marketingliste. Sie soll so klar sein, dass Nutzer erkennen könne
 Die gehärtete Baseline besitzt ausführbare Evidenz für:
 
 - neue und bestehende Projekte;
+- wiederholte semantische Pflege bestätigter Ziele, bestätigten Projektwissens und akzeptierter Entscheidungen;
+- plan-first Mutation mit ausdrücklichem `--apply`;
+- Supersession von Entscheidungen mit erhaltener Historie;
 - Project-Brain-Resume-Handoff für Claude Code und Codex;
 - Schutz vor veraltetem Kontext;
 - normale Updates;
@@ -33,25 +36,46 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Pro
 
 Livariant beansprucht nicht, jede Provider-Funktion, jedes Tool, jede Modellauswahl, Authentifizierungsmethode oder native Instruktionsdatei zu verwalten.
 
-## Laufende Wissensänderungen sind noch nicht Teil der ausführbaren CLI
+## Semantische Wissenspflege
 
-Das breitere Framework-Design sieht geführte semantische Operationen für Änderungen an Projektzielen, Entscheidungen und Wissen vor. Diese Operationen sind in der CLI von `0.1.0-rc.2` noch nicht verfügbar.
+Die ausführbare CLI von `0.1.0-rc.2` unterstützt eine klar begrenzte Oberfläche für wiederholte Änderungen an dauerhafter Project-Brain-Wahrheit.
 
-Die aktuelle ausführbare Befehlsoberfläche lautet:
+Die ausführbare Befehlsoberfläche lautet:
 
 ```text
 init
 status
 doctor
 resume
+goals
+knowledge
+decisions
 update
 recover
 version
 ```
 
-Die Preview kann damit Project-Brain-Zustand anlegen, prüfen und diagnostizieren, Resume-Kontext erzeugen sowie den unterstützten Lifecycle verwalten. Sie bietet noch keine First-Class-Befehle wie `goals`, `decisions` oder `knowledge`, mit denen laufende semantische Wissensänderungen vorgeschlagen und angewendet werden können.
+Unterstützt werden:
 
-Nutzer sollten deshalb nicht davon ausgehen, dass zukünftige Natural-Language- oder provider-native Wissenspflege bereits Bestandteil von RC2 ist. Die Framework-Verträge beschreiben diese Richtung, die aktuelle ausführbare Support-Zusage bleibt aber auf die oben genannten Befehle begrenzt.
+```text
+livariant goals [list]
+livariant goals add <goal> [--apply]
+
+livariant knowledge [list]
+livariant knowledge add <fact> [--apply]
+
+livariant decisions [list]
+livariant decisions add <decision> [--apply]
+livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
+```
+
+Mutation ist plan-first. Ohne `--apply` zeigt Livariant die geplante kanonische Änderung und schreibt nichts. Eine unterstützte Änderung darf nur bei einem gültigen und gesunden Project Brain angewendet werden. Verwaltete Writes bleiben hinter der Project-Brain-Storage-Grenze, lehnen unsichere Managed-File-Topologien ab, verwenden atomare Ersetzung mit Exact-Original-Concurrency-Prüfung und verifizieren den gespeicherten Zustand, bevor Erfolg gemeldet wird.
+
+Einfache Duplikate werden abgelehnt, statt bestehenden Projektstand still umzuschreiben. Beim Superseden einer Entscheidung bleibt die alte Entscheidung als Historie erhalten und eine neue aktive Entscheidungsidentität wird angelegt.
+
+`livariant resume` enthält bestätigte Ziele, aktive Entscheidungen, bekannte Fakten, offene Unklarheiten und vorhandene Projektidentität. Die Resume-Projektionen für Claude Code und Codex verwenden denselben kanonischen Zustand.
+
+Das bedeutet nicht, dass Livariant Gespräche automatisch beobachtet oder selbst entscheidet, welche KI-Ausgabe Projektwahrheit werden soll. Der Nutzer entscheidet weiterhin, welcher bestätigte Projektzustand dauerhaft festgehalten wird. Reichhaltigere Natural-Language- oder provider-native Wissenspflege kann später hinzukommen, darf diese Authority- und Verifikationsgrenzen aber nicht schwächen.
 
 ## Update- und Migrationssupport
 
