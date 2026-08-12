@@ -47,7 +47,7 @@ jobs:
           if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             : > changed-files.txt
           else
-            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
+            git diff --name-only --no-renames "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
           fi
           echo "Changed paths:"
           cat changed-files.txt
@@ -93,7 +93,7 @@ jobs:
           package-manager-cache: false
 
       - name: Verify public truth-surface consistency
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' || needs.classify.outputs.run_full == 'true'
         run: node scripts/check-public-doc-consistency.mjs
 
       - name: Install locked dependencies
