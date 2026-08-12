@@ -1,6 +1,8 @@
 # Existing Project Guide
 
-Existing projects are a first-class use case. The framework is discovery-first and preservation-first: it should understand the project that exists before proposing framework-owned state.
+You do not need a fresh repository to start using Livariant. Existing projects are a normal use case.
+
+Livariant inspects the project first and tries to preserve what is already there. It should not reorganize your repository simply to make it look more like a Livariant project.
 
 ## Safe adoption flow
 
@@ -12,38 +14,57 @@ livariant doctor
 livariant init
 ```
 
-The inspection phase is read-only. Review the detected evidence and proposed Project Brain files before authorizing anything.
+These commands let you inspect the project before any Livariant-managed state is created.
 
-If initialization is applicable:
+`livariant init` without `--apply` is read-only planning. Review what Livariant detected and which Project Brain files it proposes to create.
+
+If the plan is correct:
 
 ```bash
 livariant init --apply
 ```
 
-Supported adoption creates framework-owned Project Brain state. It does not reorganize source code, rewrite configuration, resolve contradictory documentation, ingest secrets, or replace existing agent instruction files simply to make the repository look cleaner.
+Supported initialization adds the Project Brain. It does not automatically:
+
+- reorganize your source code;
+- rewrite configuration files;
+- resolve contradictory documentation;
+- copy secrets into the Project Brain;
+- replace existing agent instruction files just to make the repository cleaner.
 
 > [!IMPORTANT]
-> Existing project-owned files remain authoritative for their own domains unless Livariant has an explicit framework-owned contract for them. Discovery capability does not grant mutation authority.
+> Existing project-owned files remain under project ownership. Livariant being able to inspect a file does not give it permission to rewrite that file.
 
-## What the framework may observe
+## What Livariant can notice during discovery
 
-The current baseline can use direct project evidence such as a package name, source-directory presence, Git presence, and selected structural signals. It deliberately does not invent project goals or architectural intent from weak signals.
+The current baseline can use direct evidence such as:
 
-Malformed or conflicting evidence narrows what may be concluded. For example, a malformed `package.json` can be recorded as unreadable evidence rather than guessed through.
+- a package name from valid package metadata;
+- the presence of source directories;
+- whether the directory is a Git repository;
+- selected structural signals relevant to supported initialization.
 
-Sensitive-file presence such as `.env` may be observed as a safety signal. Secret contents are not adopted into Project Brain knowledge by the supported initialization path.
+Livariant deliberately avoids inventing project goals or architecture from weak hints.
 
-## Human-owned provider files
+If evidence is malformed or contradictory, Livariant narrows what it claims to know. For example, a malformed `package.json` can be reported as unreadable instead of being guessed through.
 
-Existing `CLAUDE.md` and `AGENTS.md` remain project-owned. Their presence is detected, but supported adoption does not overwrite them or promote contradictory text from those files into canonical Project Brain truth.
+Livariant may notice that a sensitive file such as `.env` exists because that matters for safe discovery. The supported initialization path does not copy secret contents into Project Brain knowledge.
 
-Provider projections and provider-native memory are not competing Sources of Truth. The Project Brain remains the project-owned canonical truth for Livariant-managed project knowledge.
+## Existing Claude Code and Codex files
 
-## Re-running initialization
+Files such as `CLAUDE.md` and `AGENTS.md` remain project-owned.
 
-Once a valid Project Brain exists, fresh initialization is no longer the supported action. Re-running `init --apply` must not overwrite or normalize it.
+Livariant can detect that they exist, but supported adoption does not overwrite them. Text in those files also does not become canonical Project Brain truth merely because a provider uses it.
 
-If the Brain is damaged, partial, drifted, or lifecycle recovery is required, use diagnosis first:
+Provider memory and Resume projections are useful working context, not competing project records.
+
+## Do not initialize again as a repair method
+
+Once a valid Project Brain exists, fresh initialization is no longer the normal action.
+
+Running `init --apply` again must not overwrite or normalize an existing valid Project Brain.
+
+If the Project Brain is damaged, partial, drifted, or waiting for lifecycle recovery, diagnose first:
 
 ```bash
 livariant doctor
@@ -51,7 +72,7 @@ livariant recover
 ```
 
 > [!CAUTION]
-> Do not delete or manually replace `.project-brain/` and initialize again as a repair technique. That would discard or reinterpret project history and bypass the supported lifecycle/recovery model.
+> Do not delete or manually replace `.project-brain/` and then run initialization again as a repair shortcut. That can discard project history and bypass the supported recovery model.
 
 Apply recovery only when Livariant reports a valid supported strategy:
 
@@ -61,6 +82,8 @@ livariant recover --apply
 
 ## Filesystem boundaries
 
-Managed Project Brain write surfaces must be real files/directories inside their authorized project boundary. Symlinked canonical Brain files or lifecycle directories are rejected rather than followed for writes.
+Livariant-managed Project Brain files and lifecycle directories must stay inside the authorized project boundary.
 
-This is intentional: filesystem write capability must never expand semantic authority beyond the Project Brain storage boundary.
+If a canonical Project Brain file or managed lifecycle directory is replaced with a symlink that would redirect writes elsewhere, Livariant rejects that write path instead of following it.
+
+This keeps filesystem access from silently expanding Livariant's authority beyond the Project Brain storage boundary.
