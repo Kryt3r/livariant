@@ -35,6 +35,39 @@ Supported initialization adds the Project Brain. It does not automatically:
 > [!IMPORTANT]
 > Existing project-owned files remain under project ownership. Livariant being able to inspect a file does not give it permission to rewrite that file.
 
+## After adoption: add only confirmed project truth
+
+Initialization does not mean Livariant now watches the project or decides what belongs in the Project Brain. You choose what becomes durable project truth.
+
+Inspect the current semantic state with:
+
+```bash
+livariant goals
+livariant knowledge
+livariant decisions
+```
+
+When something is confirmed and should survive future AI sessions, plan the change first:
+
+```bash
+livariant goals add "Keep backward compatibility during the migration"
+livariant knowledge add "The existing API is used by the mobile client"
+livariant decisions add "Keep the current API shape for the Preview"
+```
+
+These commands do not write until you repeat the chosen command with `--apply`.
+
+This matters especially for existing projects. Livariant should not convert guesses from repository discovery into project truth. Discovery helps with safe adoption; semantic Project Brain changes remain explicit and authorized.
+
+If an accepted decision later changes, supersede it instead of deleting history:
+
+```bash
+livariant decisions
+livariant decisions supersede <decision-id> "Adopt the new API shape" --reason "Migration completed"
+```
+
+Review the supersession first and add `--apply` only when it is correct.
+
 ## What Livariant can notice during discovery
 
 The current baseline can use direct evidence such as:
@@ -57,6 +90,8 @@ Files such as `CLAUDE.md` and `AGENTS.md` remain project-owned.
 Livariant can detect that they exist, but supported adoption does not overwrite them. Text in those files also does not become canonical Project Brain truth merely because a provider uses it.
 
 Provider memory and Resume projections are useful working context, not competing project records.
+
+After you explicitly record confirmed goals, knowledge, or decisions through Livariant, a new `livariant resume` is generated from the current Project Brain rather than from stale provider memory.
 
 ## Do not initialize again as a repair method
 
