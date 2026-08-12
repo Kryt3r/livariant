@@ -1,0 +1,6 @@
+name: CI risk probe
+about: Temporary Class A verification probe
+body:
+  - type: markdown
+    attributes:
+      value: Temporary CI classification probe. Do not merge.
