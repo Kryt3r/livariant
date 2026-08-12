@@ -74,9 +74,16 @@ Voraussetzungen für die aktuelle Preview-Baseline:
 
 - Node.js 20 oder neuer;
 - ein lokales Projektverzeichnis;
-- das Livariant-Preview-Release-Artefakt.
+- der verifizierte Livariant-Preview-Release-Tarball aus dem kanonischen GitHub Release.
 
-Zuerst nur lesen und prüfen:
+Livariant wird **nicht in Claude Code oder Codex installiert**. Installiere zuerst den Release-Tarball als Machine-/User-Tooling:
+
+```bash
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+livariant version
+```
+
+Wechsle danach in den Root des Projekts, das du bereits mit deinem Coding-Agent nutzt, und beginne read-only:
 
 ```bash
 livariant status
@@ -99,9 +106,9 @@ livariant resume
 ```
 
 > [!NOTE]
-> `livariant init` ohne `--apply` verändert nichts. Livariant ist bewusst plan-first statt mutation-first.
+> `livariant init` ohne `--apply` verändert nichts. Livariant ist bewusst plan-first statt mutation-first. Die CLI-Installation fügt Livariant nicht zur `package.json` des Zielprojekts hinzu und initialisiert es nicht automatisch.
 
-Mehr dazu im [deutschen Fünf-Minuten-Schnellstart](docs/de/quickstart.md).
+Mehr dazu unter [Installation & erstes Projekt](docs/de/installation.md) und im [deutschen Fünf-Minuten-Schnellstart](docs/de/quickstart.md).
 
 ## Bestehende Projekte
 
@@ -215,6 +222,7 @@ Mehr dazu unter [Public-Preview-Support & Stabilität](docs/de/preview-support-a
 
 ### Deutsch
 
+- [Installation & erstes Projekt](docs/de/installation.md)
 - [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
 - [Leitfaden für bestehende Projekte](docs/de/existing-projects.md)
 - [Architektur & Sicherheit](docs/de/architecture-and-safety.md)
@@ -227,6 +235,7 @@ Mehr dazu unter [Public-Preview-Support & Stabilität](docs/de/preview-support-a
 
 ### English
 
+- [Installation & First Project](docs/installation.md)
 - [Five-Minute Quickstart](docs/quickstart.md)
 - [Existing Project Guide](docs/existing-projects.md)
 - [Architecture & Safety](docs/architecture-and-safety.md)

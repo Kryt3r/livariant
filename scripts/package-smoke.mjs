@@ -30,9 +30,11 @@ function run(command, args, options = {}) {
 try {
   const packDir = resolve(temp, "pack");
   const installDir = resolve(temp, "install");
+  const globalPrefix = resolve(temp, "global-prefix");
   await import("node:fs/promises").then(({ mkdir }) => Promise.all([
     mkdir(packDir, { recursive: true }),
     mkdir(installDir, { recursive: true }),
+    mkdir(globalPrefix, { recursive: true }),
   ]));
 
   const packed = run("npm", ["pack", "--json", "--pack-destination", packDir]);
@@ -60,6 +62,20 @@ try {
     throw new Error("Packed artifact unexpectedly contains test fixtures or compiled tests");
   }
 
+  // The supported first-install Preview path installs the verified release
+  // tarball as machine/user tooling instead of adding Livariant to the
+  // target project's package.json or node_modules.
+  run("npm", ["install", "--global", "--prefix", globalPrefix, "--ignore-scripts", tarball]);
+  const globalBinPath = process.platform === "win32"
+    ? resolve(globalPrefix, "livariant.cmd")
+    : resolve(globalPrefix, "bin", "livariant");
+  const globalCli = run(globalBinPath, ["version"], { cwd: installDir });
+  if (!/Livariant framework version: 0\.1\.0-rc\.2/.test(globalCli.stdout) || !/Channel: preview/.test(globalCli.stdout)) {
+    throw new Error(`Globally installed release-tarball CLI returned unexpected version output:\n${globalCli.stdout}`);
+  }
+
+  // Keep a project-local package install smoke as an additional packaging
+  // compatibility check. It is not the recommended first-install journey.
   run("npm", ["init", "-y"], { cwd: installDir });
   run("npm", ["install", "--ignore-scripts", tarball], { cwd: installDir });
 
@@ -109,7 +125,7 @@ try {
     throw new Error("Installed package does not expose the expected Livariant CLI identity");
   }
 
-  console.log("Package smoke test passed: Livariant packed, installed, initialized, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.");
+  console.log("Package smoke test passed: Livariant packed, globally installed from the release tarball, project-locally installed for packaging compatibility, initialized, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.");
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

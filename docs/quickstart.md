@@ -12,8 +12,33 @@ Current executable baseline requirements:
 
 The repository package identity and installed CLI namespace are both `livariant`.
 
-> [!NOTE]
-> Package-manager installation is not part of the currently documented supported Preview path. Use the release artifact supplied through an approved Livariant distribution source rather than inventing a manual installation or update path.
+## 0. Install Livariant tooling
+
+Livariant is not installed inside Claude Code or Codex. Install the verified Preview release tarball as machine/user tooling, then run Livariant from the root of the project you already use with your coding agent.
+
+From the directory containing the verified release tarball:
+
+### Linux / macOS
+
+```bash
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+```
+
+### Windows PowerShell
+
+```powershell
+npm install --global --ignore-scripts .\livariant-0.1.0-rc.2.tgz
+```
+
+Verify the installed CLI:
+
+```bash
+livariant version
+```
+
+Then open the root of the project you want Livariant to manage. The install step does not add Livariant to that project's `package.json` or `node_modules` and does not initialize it automatically.
+
+For release-source verification, SHA-256 checks, PATH guidance, and the complete Claude Code/Codex onboarding flow, read [Install Livariant and add it to a project](installation.md).
 
 ## 1. Inspect before changing anything
 
@@ -72,6 +97,13 @@ For the currently supported Preview handoff surface, select the provider environ
 ```bash
 LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
 LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
+```
+
+On Windows PowerShell, set the environment variable separately, for example:
+
+```powershell
+$env:LIVARIANT_PROVIDER_ENV = "claude-code"
+livariant resume --provider claude-code
 ```
 
 The provider output is an ephemeral projection of canonical Project Brain state. It is not a second source of truth and does not gain authority from provider memory or from `CLAUDE.md` / `AGENTS.md`.
@@ -137,6 +169,7 @@ The preliminary collision review and the decision to use **Livariant** are recor
 
 ## Next reads
 
+- [Installation & first project](installation.md)
 - [Existing Projects](existing-projects.md)
 - [Architecture & Safety](architecture-and-safety.md)
 - [Provider Handoff](provider-handoff.md)
