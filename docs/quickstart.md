@@ -2,7 +2,7 @@
 
 If you are new to Livariant, start with one idea: your project gets its own durable knowledge store, called the **Project Brain**. Important context no longer has to live only in chat history or in one AI tool's memory.
 
-This Quickstart shows the shortest safe path from installation to your first Resume context.
+This Quickstart shows the shortest safe path from installation to first use and then to repeated day-to-day use.
 
 ## Before you start
 
@@ -91,13 +91,54 @@ A healthy initialized project should report the Project Brain as present and the
 
 `doctor` is diagnostic and read-only. It does not silently repair damaged or ambiguous state.
 
-## 4. Create context for a new working session
+## 4. Record project truth safely
+
+The Preview supports repeated-use editing for confirmed goals, confirmed project knowledge, and accepted decisions.
+
+Read the current values first:
+
+```bash
+livariant goals
+livariant knowledge
+livariant decisions
+```
+
+To add a goal, fact, or decision, leave off `--apply` first. Livariant shows the proposed canonical change and makes no write:
+
+```bash
+livariant goals add "Ship the first safe public preview"
+livariant knowledge add "Preview distribution uses GitHub Releases"
+livariant decisions add "Use GitHub Releases for Preview distribution"
+```
+
+After checking the proposed value, apply it explicitly:
+
+```bash
+livariant goals add "Ship the first safe public preview" --apply
+livariant knowledge add "Preview distribution uses GitHub Releases" --apply
+livariant decisions add "Use GitHub Releases for Preview distribution" --apply
+```
+
+If an accepted decision changes later, list decisions to get its ID and supersede it instead of deleting history:
+
+```bash
+livariant decisions
+livariant decisions supersede <decision-id> "Use signed release infrastructure" --reason "Distribution model changed"
+```
+
+The command above is still only a plan. Add `--apply` after reviewing it.
+
+Livariant validates Project Brain health before these writes, protects managed paths, refuses to overwrite a concurrent project-owned edit, and verifies the persisted value before reporting success.
+
+## 5. Create context for a new working session
 
 Provider-neutral output:
 
 ```bash
 livariant resume
 ```
+
+The Resume includes confirmed goals, active decisions, known facts, unresolved unknowns, and available project identity. Superseded decisions stay in history but are not presented as active truth.
 
 For Claude Code or Codex on Linux and macOS:
 
@@ -122,22 +163,21 @@ Resume output is temporary working context. The Project Brain remains the durabl
 
 You do not run `init` again every time you start a new AI session.
 
-A normal start to a work session can be as simple as:
+A normal work cycle can be:
 
-```bash
-livariant status
-livariant resume
+```text
+1. Open the project.
+2. Run status or doctor when you need a health check.
+3. Use resume to bring the current Project Brain into a new AI session.
+4. Work on the project.
+5. When a goal, confirmed fact, or accepted decision should become durable project truth, plan it with goals, knowledge, or decisions.
+6. Review the plan, then repeat the command with --apply.
+7. Use resume again when a later session needs the updated truth.
 ```
 
-If something looks unclear or unhealthy:
+Livariant does not watch every conversation automatically and it does not assume that every sentence from an AI session belongs in the Project Brain. You choose which confirmed project truth becomes durable.
 
-```bash
-livariant doctor
-```
-
-Use Resume context to give a new AI session the current project state. Durable decisions and confirmed knowledge should live in the Project Brain rather than only in one chat transcript.
-
-## 5. Plan an update before applying it
+## 6. Plan an update before applying it
 
 With a release manifest from the trusted Preview distribution path:
 
@@ -168,7 +208,7 @@ If the authority is missing, the update stops before candidate Runtime code can 
 
 Schema-changing releases use the same `update` path and are routed through the supported migration lifecycle.
 
-## 6. Recover an interrupted migration
+## 7. Recover an interrupted migration
 
 Start read-only:
 
@@ -187,7 +227,7 @@ A missing, moved, tampered, or ambiguous checkpoint is not guessed through. Auto
 
 After a verified rollback, Livariant removes displaced Recovery state before deleting the final valid checkpoint. A late cleanup failure must not destroy the restored Project Brain or that checkpoint.
 
-## 7. Keep the safety boundary intact
+## 8. Keep the safety boundary intact
 
 Do not replace `.project-brain/` with files from another Livariant version and do not copy a newer Runtime manually into framework-managed lifecycle storage to simulate an update.
 
