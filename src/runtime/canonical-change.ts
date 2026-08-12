@@ -78,6 +78,11 @@ async function persistDecisionState(path: string, brainPath: string, records: De
   }
 }
 
+export async function listAcceptedDecisions(projectPath: string = process.cwd()): Promise<DecisionRecord[]> {
+  const state = await loadWritableDecisionState(projectPath);
+  return state.records.map((record) => ({ ...record }));
+}
+
 export async function recordAcceptedDecision(
   decision: string,
   projectPath: string = process.cwd(),
