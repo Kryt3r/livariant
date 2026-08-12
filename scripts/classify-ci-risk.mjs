@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const priorities = { A: 1, B: 2, C: 3, D: 4 };
 
@@ -101,7 +103,10 @@ function readPaths(argv) {
     .filter(Boolean);
 }
 
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], "file:").href) {
+const isDirectExecution =
+  process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+
+if (isDirectExecution) {
   const result = classifyPaths(readPaths(process.argv.slice(2)));
   const runExecutable = result.class === "C" || result.class === "D";
   const runFull = result.class === "D";
