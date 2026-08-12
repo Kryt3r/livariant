@@ -10,9 +10,11 @@ You need:
 
 - Node.js 20 or newer;
 - a local project directory;
-- the verified Livariant release tarball for the current Preview candidate once it is published.
+- the verified Livariant `0.1.0-rc.3` release tarball once RC3 is published.
 
 The package and CLI command are both named `livariant`.
+
+The existing immutable `v0.1.0-rc.2` GitHub Release is historical pre-public release evidence and is not the current candidate.
 
 ## 0. Install Livariant
 
@@ -23,13 +25,13 @@ From the directory containing the verified release tarball:
 ### Linux / macOS
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
 ```
 
 ### Windows PowerShell
 
 ```powershell
-npm install --global --ignore-scripts .\livariant-0.1.0-rc.2.tgz
+npm install --global --ignore-scripts .\livariant-0.1.0-rc.3.tgz
 ```
 
 Check the installation:
