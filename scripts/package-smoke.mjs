@@ -74,7 +74,10 @@ try {
   }
 
   runNpm(["install", "--global", "--prefix", globalPrefix, "--ignore-scripts", tarball]);
-  const globalCliPath = resolve(globalPrefix, "node_modules", "livariant", "dist", "src", "cli", "index.js");
+  const globalPackageRoot = process.platform === "win32"
+    ? resolve(globalPrefix, "node_modules", "livariant")
+    : resolve(globalPrefix, "lib", "node_modules", "livariant");
+  const globalCliPath = resolve(globalPackageRoot, "dist", "src", "cli", "index.js");
   const globalCli = run(process.execPath, [globalCliPath, "version"], { cwd: installDir });
   if (!/Livariant framework version: 0\.1\.0-rc\.2/.test(globalCli.stdout) || !/Channel: preview/.test(globalCli.stdout)) {
     throw new Error(`Globally installed release-tarball CLI returned unexpected version output:\n${globalCli.stdout}`);
