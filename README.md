@@ -14,7 +14,7 @@ You make an architectural decision with one agent. A week later a new session su
 
 Livariant is being built so that the project itself, not one AI session, becomes the durable source of continuity.
 
-The current `0.1.0-rc.2` release is the **Foundation Preview**. It already provides the safe project-owned core. The next layer will make that core much more active and natural during day-to-day work.
+The current `0.1.0-rc.3` candidate is the **Foundation Preview** candidate. It provides the safe project-owned core. The next layer will make that core much more active and natural during day-to-day work.
 
 ## The idea in one minute
 
@@ -127,7 +127,7 @@ That direction includes work such as:
 - safer cross-tool continuation between coding agents;
 - richer integrations that sit on top of the existing authority and recovery model.
 
-These capabilities are **direction, not current RC2 claims**. The point of the Foundation Preview is to make sure the durable core is trustworthy before more automation is allowed to act on it.
+These capabilities are **direction, not current RC3 claims**. The point of the Foundation Preview is to make sure the durable core is trustworthy before more automation is allowed to act on it.
 
 ## Why build the foundation first?
 
@@ -152,16 +152,16 @@ Read [Architecture & Safety](docs/architecture-and-safety.md) for the deeper mod
 
 ## Five-minute start
 
-Requirements for the current Preview:
+Requirements for the current Preview candidate:
 
 - Node.js 20 or newer;
 - a local software project;
-- the verified Livariant Preview release tarball from the canonical GitHub Release once published.
+- the verified Livariant Preview release tarball from the canonical GitHub Release once RC3 is published.
 
 Install Livariant as machine or user tooling. It is not installed as a Claude Code or Codex plugin and it is not added to your project's `package.json`.
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
 livariant version
 ```
 
@@ -283,13 +283,15 @@ Read [Privacy & Network Behavior](docs/privacy-and-network.md).
 
 ## Foundation Preview status
 
-`0.1.0-rc.2` is the current Foundation Preview release candidate.
+`0.1.0-rc.3` is the current Foundation Preview candidate.
+
+The existing immutable `v0.1.0-rc.2` GitHub Release is historical pre-public release evidence and is not the current candidate.
 
 The supported baseline is exercised in CI on Ubuntu and Windows. Preview means the supported behavior is evidence-backed, while interfaces and product scope can still evolve before 1.0.
 
 Known data-loss, authority-escalation, migration-integrity, or release-trust bypasses on supported paths are not treated as acceptable Preview limitations.
 
-The larger Active Project Intelligence direction is intentionally not presented as implemented RC2 behavior.
+The larger Active Project Intelligence direction is intentionally not presented as implemented RC3 behavior.
 
 Read [Public Preview Support & Stability](docs/preview-support-and-stability.md) and [Public Preview Scope & Limitations](docs/preview-scope.md).
 
