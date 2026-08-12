@@ -43,9 +43,9 @@ Use **GitHub Discussions -> Show and tell**.
 
 Do not post exploit details in a public Issue or Discussion.
 
-Read [SECURITY.md](SECURITY.md) and use the private vulnerability-reporting path described there once it is enabled for the public repository.
+Read [SECURITY.md](SECURITY.md) and use GitHub Private Vulnerability Reporting on the canonical Livariant repository. It is enabled for the public repository and is the preferred reporting path.
 
-If the private security path is unavailable, do not publish exploit details just to get attention. Follow the fallback guidance in `SECURITY.md`.
+If the private security path is unexpectedly unavailable, do not publish exploit details just to get attention. Follow the fallback guidance in `SECURITY.md`.
 
 ## I want to contribute code
 
