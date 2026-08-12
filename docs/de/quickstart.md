@@ -6,7 +6,7 @@
 
 Wenn du Livariant gerade erst kennenlernst, reicht für den Anfang diese Idee: Dein Projekt bekommt mit dem **Project Brain** einen eigenen, dauerhaften Wissensstand. So musst du wichtigen Kontext nicht nur in Chatverläufen oder im Gedächtnis eines einzelnen KI-Tools aufbewahren.
 
-Dieser Schnellstart zeigt dir den kürzesten sicheren Weg von der Installation bis zum ersten Resume-Kontext.
+Dieser Schnellstart zeigt dir den kürzesten sicheren Weg von der Installation über den ersten Einsatz bis zur wiederholten Nutzung im Alltag.
 
 ## Voraussetzungen
 
@@ -95,13 +95,54 @@ Ein gesund initialisiertes Projekt sollte das Project Brain als vorhanden und de
 
 `doctor` ist diagnostisch und read-only. Der Befehl repariert beschädigten oder unklaren Zustand nicht stillschweigend.
 
-## 4. Kontext für eine neue Arbeitssitzung erzeugen
+## 4. Projektwissen sicher festhalten
+
+Die Preview unterstützt die wiederholte Pflege bestätigter Ziele, bestätigten Projektwissens und akzeptierter Entscheidungen.
+
+Lies die aktuellen Werte zuerst:
+
+```bash
+livariant goals
+livariant knowledge
+livariant decisions
+```
+
+Wenn du ein Ziel, einen bestätigten Fakt oder eine Entscheidung hinzufügen willst, lässt du `--apply` zunächst weg. Livariant zeigt dann nur die geplante kanonische Änderung und schreibt noch nichts:
+
+```bash
+livariant goals add "Die erste sichere Public Preview veröffentlichen"
+livariant knowledge add "Die Preview wird über GitHub Releases verteilt"
+livariant decisions add "GitHub Releases für die Preview-Distribution verwenden"
+```
+
+Wenn der vorgeschlagene Wert stimmt, wendest du ihn ausdrücklich an:
+
+```bash
+livariant goals add "Die erste sichere Public Preview veröffentlichen" --apply
+livariant knowledge add "Die Preview wird über GitHub Releases verteilt" --apply
+livariant decisions add "GitHub Releases für die Preview-Distribution verwenden" --apply
+```
+
+Wenn sich eine akzeptierte Entscheidung später ändert, listest du die Entscheidungen, nimmst die ID und supersedest die alte Entscheidung, statt ihre Geschichte zu löschen:
+
+```bash
+livariant decisions
+livariant decisions supersede <decision-id> "Signierte Release-Infrastruktur verwenden" --reason "Das Distributionsmodell hat sich geändert"
+```
+
+Auch dieser Befehl plant zunächst nur. Erst mit zusätzlichem `--apply` wird die Änderung ausgeführt.
+
+Livariant prüft vor diesen Schreibvorgängen den Zustand des Project Brain, schützt die verwalteten Pfade, überschreibt keine parallel geänderten projekt-eigenen Inhalte und verifiziert den gespeicherten Wert, bevor Erfolg gemeldet wird.
+
+## 5. Kontext für eine neue Arbeitssitzung erzeugen
 
 Provider-neutral:
 
 ```bash
 livariant resume
 ```
+
+Die Resume-Ausgabe enthält bestätigte Ziele, aktive Entscheidungen, bekannte Fakten, offene Unklarheiten und vorhandene Projektidentität. Supersedete Entscheidungen bleiben als Historie erhalten, werden aber nicht als aktive Wahrheit ausgegeben.
 
 Für Claude Code oder Codex unter Linux und macOS:
 
@@ -126,22 +167,21 @@ Die Resume-Ausgabe ist temporärer Arbeitskontext. Das Project Brain bleibt der 
 
 Nach der Initialisierung führst du nicht ständig `init` erneut aus.
 
-Ein normaler Arbeitsbeginn kann so aussehen:
+Ein normaler Arbeitszyklus kann so aussehen:
 
-```bash
-livariant status
-livariant resume
+```text
+1. Projekt öffnen.
+2. Bei Bedarf status oder doctor ausführen.
+3. Mit resume den aktuellen Project-Brain-Zustand in eine neue KI-Sitzung geben.
+4. Am Projekt arbeiten.
+5. Wenn ein Ziel, ein bestätigter Fakt oder eine akzeptierte Entscheidung dauerhaftes Projektwissen werden soll, die Änderung mit goals, knowledge oder decisions planen.
+6. Den Plan prüfen und denselben Befehl mit --apply wiederholen.
+7. In einer späteren Sitzung mit resume wieder den aktualisierten Projektstand verwenden.
 ```
 
-Wenn etwas unklar wirkt:
+Livariant beobachtet nicht automatisch jedes Gespräch und geht nicht davon aus, dass jeder Satz aus einer KI-Sitzung in das Project Brain gehört. Du entscheidest, welche bestätigte Projektwahrheit dauerhaft festgehalten wird.
 
-```bash
-livariant doctor
-```
-
-Du verwendest Resume-Kontext, um einer neuen KI-Sitzung den aktuellen Projektstand zu geben. Dauerhafte Entscheidungen und bestätigtes Projektwissen sollten im Project Brain festgehalten werden, statt nur in einem einzelnen Chat zu bleiben.
-
-## 5. Update zuerst planen
+## 6. Update zuerst planen
 
 Mit einem Release-Manifest aus der vertrauenswürdigen Preview-Quelle:
 
@@ -172,7 +212,7 @@ Fehlt diese Autorisierung, stoppt das Update, bevor Candidate-Runtime-Code ausge
 
 Schema-ändernde Releases werden über denselben `update`-Pfad in den unterstützten Migrations-Lifecycle geführt.
 
-## 6. Unterbrochene Migration wiederherstellen
+## 7. Unterbrochene Migration wiederherstellen
 
 Beginne immer read-only:
 
@@ -191,7 +231,7 @@ Ein fehlender, verschobener, manipulierter oder mehrdeutiger Checkpoint wird nic
 
 Nach einem verifizierten Rollback entfernt Livariant verdrängten Recovery-State, bevor der letzte gültige Checkpoint gelöscht wird. Ein später Fehler bei der Bereinigung darf weder das wiederhergestellte Project Brain noch diesen Checkpoint zerstören.
 
-## 7. Sicherheitsgrenze erhalten
+## 8. Sicherheitsgrenze erhalten
 
 Ersetze `.project-brain/` nicht mit Dateien aus einer anderen Livariant-Version und kopiere keine neuere Runtime manuell in framework-verwalteten Lifecycle-Speicher, um ein Update vorzutäuschen.
 
