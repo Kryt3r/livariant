@@ -23,21 +23,22 @@ Livariant is designed to help projects:
 - keep important project decisions available after an AI session ends;
 - stop explaining the same architecture and goals again and again;
 - switch between supported coding agents without treating one provider's memory as the project record;
-- preserve known facts and unresolved questions in a form the project owns;
+- preserve confirmed facts and unresolved questions in a form the project owns;
+- record goals, knowledge, and accepted decisions through explicit plan-first commands;
 - inspect changes before Livariant writes project-managed state;
 - update or recover Livariant without replacing managed files by hand.
 
-A simple example of the intended model:
+A simple example:
 
 ```text
 Monday
 You decide with Claude Code that authentication will use approach A.
-Once that decision exists in the Project Brain, it belongs to the project rather than the chat session.
+You record that accepted decision through Livariant after reviewing the change plan.
 
 Friday
 You open a new Codex session.
 Livariant reconstructs the relevant project context from the Project Brain.
-Codex does not need the old Claude Code chat to know that approach A is the accepted decision.
+Codex does not need the old Claude Code chat to know that approach A is the active decision.
 ```
 
 Livariant does not make an AI model remember everything. It gives the project a persistent record that supported tools can read when you choose to hand that context to them.
@@ -90,8 +91,10 @@ The current executable Preview lets you:
 3. review the initialization plan;
 4. explicitly create the Project Brain;
 5. inspect its health and lifecycle state;
-6. render Project Brain resume context for supported coding agents;
-7. use the hardened update, migration, and recovery lifecycle.
+6. record confirmed goals, project knowledge, and accepted decisions with plan-first commands;
+7. supersede stale decisions without deleting their history;
+8. render current Project Brain resume context for supported coding agents;
+9. use the hardened update, migration, and recovery lifecycle.
 
 The deeper lifecycle and security documentation is there when you need it.
 
@@ -158,6 +161,21 @@ Then verify the result:
 ```bash
 livariant status
 livariant doctor
+```
+
+You can now record durable project truth. Without `--apply`, the commands only show a plan:
+
+```bash
+livariant goals add "Ship the first safe public preview"
+livariant knowledge add "Preview distribution uses GitHub Releases"
+livariant decisions add "Use GitHub Releases for Preview distribution"
+```
+
+Review the proposed value, then repeat the command with `--apply` when it is correct.
+
+Finally, render the current project context:
+
+```bash
 livariant resume
 ```
 
@@ -169,15 +187,16 @@ Read [Installation & First Project](docs/installation.md) for download verificat
 
 After setup, you normally do not reinitialize the project every time you use an AI tool.
 
-A current Preview session can look like this:
+A current Preview work cycle can look like this:
 
 ```text
 1. Open the project.
-2. Check Livariant state if needed.
-3. Ask Livariant for resume context.
-4. Give the relevant resume output to the coding agent you are using.
-5. Work on the project.
-6. Return to Livariant for status, diagnosis, resume, updates, or recovery when needed.
+2. Check Livariant state when needed.
+3. Use resume to give the current Project Brain context to the coding agent.
+4. Work on the project.
+5. When a goal, confirmed fact, or accepted decision should become durable project truth, plan it with goals, knowledge, or decisions.
+6. Review the plan and repeat it with --apply.
+7. In a later session, use resume again to pick up the updated project truth.
 ```
 
 Useful commands include:
@@ -185,22 +204,37 @@ Useful commands include:
 ```bash
 livariant status
 livariant doctor
+livariant goals
+livariant knowledge
+livariant decisions
 livariant resume
 ```
 
-`status` tells you what Livariant sees. `doctor` diagnoses supported health and lifecycle states without silently repairing them. `resume` renders current Project Brain context for re-entry into the project.
+`status` tells you what Livariant sees. `doctor` diagnoses supported health and lifecycle states without silently repairing them. `goals`, `knowledge`, and `decisions` let you inspect durable project truth and plan supported changes. `resume` renders current Project Brain context for re-entry into the project.
 
-Livariant does not watch every conversation automatically and does not claim that every sentence from an AI session should become project truth.
+Livariant does not watch every conversation automatically and does not claim that every sentence from an AI session should become project truth. You choose what confirmed state belongs in the Project Brain.
 
 ## Current Preview boundary
 
-The Framework design includes guided semantic operations for changing project goals, decisions, and knowledge. Those operations are **not yet exposed by the `0.1.0-rc.2` executable CLI**.
+The `0.1.0-rc.2` executable supports a bounded repeated-use semantic editing surface for confirmed goals, confirmed project knowledge, and accepted decisions.
 
-The current CLI surface is intentionally smaller: `init`, `status`, `doctor`, `resume`, `update`, `recover`, and `version`.
+Supported operations include:
 
-This means RC2 can bootstrap Project Brain state, read it for resume context, diagnose it, and protect its lifecycle, but it does not yet provide the planned first-class commands for safely proposing and applying ongoing knowledge changes such as `goals`, `decisions`, or `knowledge`.
+```text
+livariant goals [list]
+livariant goals add <goal> [--apply]
+livariant knowledge [list]
+livariant knowledge add <fact> [--apply]
+livariant decisions [list]
+livariant decisions add <decision> [--apply]
+livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
+```
 
-We treat that distinction as an explicit Preview limitation rather than pretending the future interface already exists. See [Public Preview Scope & Limitations](docs/preview-scope.md).
+These mutations are plan-first and require explicit `--apply`. Decision supersession keeps historical truth instead of silently deleting the old decision. Writes are restricted to managed Project Brain state, reject unsafe topology and concurrent overwrite, and are verified after persistence.
+
+The boundary is still intentionally narrow. Livariant does not automatically monitor conversations, decide what AI output should become canonical truth, or provide a full natural-language knowledge-management agent. Those richer interfaces can be added later without weakening the current authority and verification model.
+
+See [Public Preview Scope & Limitations](docs/preview-scope.md).
 
 ## Existing projects
 
@@ -279,7 +313,7 @@ Read [Updates, Migrations & Recovery](docs/lifecycle-guide.md).
 
 Livariant requires explicit authorization for project-affecting mutation. Existing project-owned state is protected by default. Ambiguous state leads to diagnosis instead of guessed repair.
 
-The hardened Preview baseline includes executable coverage for path and symlink escape, stale decision truth, interrupted migrations, checkpoint tampering, release-artifact tampering, installed Runtime drift, provider instruction conflicts, unsupported migrations, concurrent project-owned mutation during activation, missing update-trust evidence, hostile trust-root topology, pre-trust Runtime execution, and project attempts to create their own release authority.
+The hardened Preview baseline includes executable coverage for path and symlink escape, stale decision truth, interrupted migrations, checkpoint tampering, release-artifact tampering, installed Runtime drift, provider instruction conflicts, unsupported migrations, concurrent project-owned mutation during activation, concurrent semantic knowledge writes, missing update-trust evidence, hostile trust-root topology, pre-trust Runtime execution, and project attempts to create their own release authority.
 
 The core rule is simple:
 
