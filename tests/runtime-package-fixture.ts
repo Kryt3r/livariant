@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export interface RuntimePackageFixture {
@@ -14,11 +14,11 @@ export interface RuntimePackageFixture {
 function runNpmPack(packageRoot: string, packRoot: string) {
   const npmArgs = ["pack", "--json", "--pack-destination", packRoot];
   const result = process.platform === "win32"
-    ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm", ...npmArgs], {
-        cwd: packageRoot,
-        encoding: "utf8",
-        shell: false,
-      })
+    ? spawnSync(
+        process.execPath,
+        [resolve(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...npmArgs],
+        { cwd: packageRoot, encoding: "utf8", shell: false },
+      )
     : spawnSync("npm", npmArgs, {
         cwd: packageRoot,
         encoding: "utf8",
