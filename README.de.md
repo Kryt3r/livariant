@@ -14,25 +14,25 @@ Du erklärst einem KI-Coding-Tool dein Projekt. Die Zusammenarbeit läuft gut. E
 
 Livariant gibt diesem Wissen einen dauerhaften Platz direkt im Projekt.
 
-Du musst kein KI-Experte sein, um Livariant zu nutzen. Gerade wenn du mit Tools wie Claude Code oder Codex anfängst, soll Livariant dir helfen, dein Projekt verständlich und konsistent zu halten, auch wenn einzelne KI-Sitzungen kommen und gehen.
+Du musst kein KI-Experte sein, um die Idee zu verstehen. Gerade wenn du mit Tools wie Claude Code oder Codex anfängst, soll Livariant dir helfen, dein Projekt verständlich und konsistent zu halten, auch wenn einzelne KI-Sitzungen kommen und gehen.
 
 ## Wobei Livariant hilft
 
-Livariant ist nützlich, wenn du:
+Livariant ist dafür gedacht, Projekten dabei zu helfen:
 
-- wichtige Projektentscheidungen auch nach dem Ende einer KI-Sitzung behalten willst;
-- Architektur und Ziele nicht ständig neu erklären möchtest;
-- zwischen unterstützten Coding-Agents wechseln willst, ohne das Gedächtnis eines einzelnen Providers zum Projektarchiv zu machen;
-- bestätigte Fakten und offene Fragen dauerhaft im Projekt festhalten möchtest;
-- Änderungen prüfen willst, bevor Livariant verwalteten Projektzustand schreibt;
-- Livariant aktualisieren oder wiederherstellen willst, ohne verwaltete Dateien per Hand auszutauschen.
+- wichtige Projektentscheidungen auch nach dem Ende einer KI-Sitzung verfügbar zu halten;
+- Architektur und Ziele nicht ständig neu erklären zu müssen;
+- zwischen unterstützten Coding-Agents zu wechseln, ohne das Gedächtnis eines einzelnen Providers zum Projektarchiv zu machen;
+- bestätigte Fakten und offene Fragen in einem projekt-eigenen Wissensstand zu bewahren;
+- Änderungen zu prüfen, bevor Livariant verwalteten Projektzustand schreibt;
+- Livariant zu aktualisieren oder wiederherzustellen, ohne verwaltete Lifecycle-Dateien per Hand auszutauschen.
 
-Ein einfaches Beispiel:
+Ein einfaches Beispiel für das geplante Modell:
 
 ```text
 Montag
 Du entscheidest mit Claude Code, dass die Anmeldung nach Ansatz A gebaut wird.
-Diese Entscheidung wird im Project Brain festgehalten.
+Sobald diese Entscheidung im Project Brain steht, gehört sie zum Projekt und nicht mehr nur zum Chat.
 
 Freitag
 Du startest eine neue Codex-Sitzung.
@@ -40,7 +40,7 @@ Livariant erzeugt den passenden Projektkontext aus dem Project Brain.
 Codex braucht den alten Claude-Code-Chat nicht, um zu wissen, dass Ansatz A die akzeptierte Entscheidung ist.
 ```
 
-Livariant sorgt nicht dafür, dass ein KI-Modell alles dauerhaft erinnert. Stattdessen bekommt das Projekt einen eigenen, beständigen Wissensstand, den du bei Bedarf an ein KI-Tool weitergeben kannst.
+Livariant sorgt nicht dafür, dass ein KI-Modell alles dauerhaft erinnert. Stattdessen bekommt das Projekt einen eigenen Wissensstand, den unterstützte Tools lesen können, wenn du ihnen diesen Kontext bewusst gibst.
 
 ## Was das Project Brain ist
 
@@ -67,6 +67,7 @@ Chatverläufe, Provider-Memory, temporäre Pläne, `CLAUDE.md`, `AGENTS.md` und 
 - [Wie Livariant funktioniert](#wie-livariant-funktioniert)
 - [Fünf-Minuten-Start](#fünf-minuten-start)
 - [Wie die normale Nutzung aussieht](#wie-die-normale-nutzung-aussieht)
+- [Grenze der aktuellen Preview](#grenze-der-aktuellen-preview)
 - [Bestehende Projekte](#bestehende-projekte)
 - [Claude Code und Codex](#claude-code-und-codex)
 - [Sichere Updates und Wiederherstellung](#sichere-updates-und-wiederherstellung)
@@ -82,13 +83,15 @@ Chatverläufe, Provider-Memory, temporäre Pläne, `CLAUDE.md`, `AGENTS.md` und 
 
 Du musst weder Agent-Architektur noch Provider-APIs oder das komplette Sicherheitsmodell von Livariant verstehen, bevor du loslegst.
 
-Für den Anfang reicht dieses Grundprinzip:
+Die aktuelle ausführbare Preview kann:
 
 1. Livariant als Kommandozeilen-Tool installieren;
-2. das Projekt von Livariant prüfen lassen;
-3. den vorgeschlagenen Initialisierungsplan lesen;
-4. das Project Brain bewusst anlegen;
-5. `livariant resume` verwenden, wenn du für eine neue Arbeitssitzung den dauerhaften Projektkontext brauchst.
+2. dein Projekt prüfen;
+3. einen Initialisierungsplan anzeigen;
+4. das Project Brain nach ausdrücklicher Freigabe anlegen;
+5. Gesundheit und Lifecycle-Zustand prüfen;
+6. Project-Brain-Kontext für unterstützte Coding-Agents erzeugen;
+7. den gehärteten Update-, Migrations- und Recovery-Lifecycle ausführen.
 
 Die tieferen Lifecycle- und Sicherheitsdokumente kannst du lesen, sobald du sie brauchst.
 
@@ -166,7 +169,7 @@ Unter [Installation & erstes Projekt](docs/de/installation.md) findest du Downlo
 
 Nach der Einrichtung musst du das Projekt nicht bei jeder KI-Sitzung neu initialisieren.
 
-Ein typischer Ablauf sieht eher so aus:
+Eine Sitzung mit der aktuellen Preview kann so aussehen:
 
 ```text
 1. Projekt öffnen.
@@ -174,7 +177,7 @@ Ein typischer Ablauf sieht eher so aus:
 3. Resume-Kontext erzeugen lassen.
 4. Den passenden Kontext an den Coding-Agent weitergeben, den du gerade nutzt.
 5. Am Projekt arbeiten.
-6. Dauerhafte Entscheidungen und bestätigtes Wissen im Project Brain halten, statt nur auf Chatverläufe zu vertrauen.
+6. Für Status, Diagnose, Resume, Updates oder Recovery wieder Livariant verwenden.
 ```
 
 Nützliche Befehle sind:
@@ -187,7 +190,17 @@ livariant resume
 
 `status` zeigt, welchen Zustand Livariant erkennt. `doctor` diagnostiziert unterstützte Zustände, ohne sie still zu reparieren. `resume` erzeugt den aktuellen Project-Brain-Kontext für den Wiedereinstieg in das Projekt.
 
-Livariant beobachtet nicht automatisch jedes Gespräch und behauptet nicht, dass jeder Satz aus einer KI-Sitzung dauerhaftes Projektwissen werden sollte. Dauerhafter Projektzustand soll explizit und überprüfbar bleiben.
+Livariant beobachtet nicht automatisch jedes Gespräch und behauptet nicht, dass jeder Satz aus einer KI-Sitzung dauerhaftes Projektwissen werden sollte.
+
+## Grenze der aktuellen Preview
+
+Das Framework-Design sieht geführte semantische Operationen vor, mit denen Ziele, Entscheidungen und Projektwissen sicher verändert werden können. Diese Oberfläche ist in der ausführbaren CLI von `0.1.0-rc.2` **noch nicht vorhanden**.
+
+Die aktuelle CLI ist bewusst kleiner und enthält `init`, `status`, `doctor`, `resume`, `update`, `recover` und `version`.
+
+RC2 kann das Project Brain anlegen, daraus Resume-Kontext lesen, seinen Zustand diagnostizieren und seinen Lifecycle schützen. Die geplanten First-Class-Befehle für laufende Wissensänderungen wie `goals`, `decisions` oder `knowledge` sind jedoch noch nicht implementiert.
+
+Wir behandeln das als explizite Preview-Einschränkung und nicht so, als gäbe es die spätere Bedienoberfläche bereits. Mehr dazu unter [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md).
 
 ## Bestehende Projekte
 
@@ -222,7 +235,7 @@ Mehr dazu unter [Provider-Handoff](docs/de/provider-handoff.md).
 
 ## Sichere Updates und Wiederherstellung
 
-Die meisten Nutzer müssen am ersten Tag nicht das komplette Release-Authority-Modell verstehen. Eine Regel ist aber wichtig: Aktualisiere Livariant nicht, indem du seinen verwalteten Zustand per Hand ersetzt.
+Die meisten Nutzer müssen am ersten Tag nicht das komplette Release-Authority-Modell verstehen. Eine Regel ist aber wichtig: Aktualisiere Livariant nicht, indem du seinen verwalteten Lifecycle-Zustand per Hand ersetzt.
 
 Ein Update wird zuerst geprüft:
 
