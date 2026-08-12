@@ -16,6 +16,34 @@ Für die aktuelle Preview-Baseline brauchst du:
 
 Paket- und CLI-Identität lauten jeweils `livariant`.
 
+## 0. Livariant-Tooling installieren
+
+Livariant wird nicht in Claude Code oder Codex installiert. Installiere den verifizierten Preview-Release-Tarball als Machine-/User-Tooling und führe Livariant anschließend im Root des Projekts aus, das du bereits mit deinem Coding-Agent nutzt.
+
+Im Ordner mit dem verifizierten Release-Tarball:
+
+### Linux / macOS
+
+```bash
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+```
+
+### Windows PowerShell
+
+```powershell
+npm install --global --ignore-scripts .\livariant-0.1.0-rc.2.tgz
+```
+
+Installation prüfen:
+
+```bash
+livariant version
+```
+
+Wechsle danach in den Root des Projekts, das Livariant verwalten soll. Die Installation fügt Livariant nicht zur `package.json` oder zu `node_modules` dieses Projekts hinzu und initialisiert es nicht automatisch.
+
+Für Prüfung der Release-Quelle, SHA-256, PATH-Hinweise und den vollständigen Claude-Code-/Codex-Onboarding-Pfad siehe [Livariant installieren und einem Projekt hinzufügen](installation.md).
+
 ## 1. Erst prüfen, dann verändern
 
 Im Projekt-Root:
@@ -71,14 +99,24 @@ Provider-neutral:
 livariant resume
 ```
 
-Für die aktuell unterstützten Preview-Handoffs:
+Für die aktuell unterstützten Preview-Handoffs unter Linux/macOS:
 
 ```bash
 LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
 LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
 ```
 
+Unter Windows PowerShell zum Beispiel:
+
+```powershell
+$env:LIVARIANT_PROVIDER_ENV = "claude-code"
+livariant resume --provider claude-code
+```
+
 Die Provider-Ausgabe ist eine temporäre Projektion des kanonischen Project-Brain-Zustands. Sie ist keine zweite Quelle der Wahrheit und erhält keine zusätzliche Autorität durch Provider-Memory oder Dateien wie `CLAUDE.md` bzw. `AGENTS.md`.
+
+> [!IMPORTANT]
+> Claude-Code- und Codex-Unterstützung ist in der aktuellen Preview bewusst auf Project-Brain-Resume-Handoff begrenzt. Livariant beansprucht keine vollständige Integration in sämtliche Provider-Funktionen.
 
 ## 5. Update zuerst planen
 
@@ -139,8 +177,9 @@ Der unterstützte Lifecycle prüft Release-Identität, Artefaktintegrität, unab
 
 ## Danach lesen
 
+- [Installation & erstes Projekt](installation.md)
 - [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md)
-- [Englischer Existing Project Guide](../existing-projects.md)
-- [Englische Architecture & Safety](../architecture-and-safety.md)
-- [Englischer Provider Handoff](../provider-handoff.md)
-- [Englischer Preview Scope](../preview-scope.md)
+- [Bestehende Projekte](existing-projects.md)
+- [Architektur & Sicherheit](architecture-and-safety.md)
+- [Provider-Handoff](provider-handoff.md)
+- [Public-Preview-Umfang & Einschränkungen](preview-scope.md)
