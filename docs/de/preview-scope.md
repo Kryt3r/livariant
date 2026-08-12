@@ -38,7 +38,7 @@ Livariant beansprucht nicht, jede Provider-Funktion, jedes Tool, jede Modellausw
 
 ## Semantische Wissenspflege
 
-Die ausführbare CLI von `0.1.0-rc.2` unterstützt eine klar begrenzte Oberfläche für wiederholte Änderungen an dauerhafter Project-Brain-Wahrheit.
+Der aktuelle Kandidat `0.1.0-rc.3` unterstützt eine klar begrenzte Oberfläche für wiederholte Änderungen an dauerhafter Project-Brain-Wahrheit.
 
 Die ausführbare Befehlsoberfläche lautet:
 
@@ -128,7 +128,7 @@ Die aktuelle Runtime implementiert keine Livariant-Telemetrie, keinen automatisc
 
 ## Öffentliche Distribution
 
-Der vorgesehene Preview-Distributionsweg sind GitHub Releases aus dem kanonischen Livariant-Repository mit der erwarteten Source-Identität:
+Das kanonische Repository ist unter `Kryt3r/livariant` öffentlich. Die Preview wird über GitHub Releases aus diesem Repository mit der erwarteten Source-Identität verteilt:
 
 ```text
 github:Kryt3r/livariant
@@ -142,11 +142,11 @@ Das Release-Tooling erzeugt:
 
 CI verifiziert dieses Release-Bundle gegen einen sauberen Consumer.
 
-Das Repository bleibt privat, bis das separate Public-Visibility-Gate ausdrücklich freigegeben wurde. Die öffentliche Dokumentation behandelt Repository-Sichtbarkeit deshalb nicht als Runtime-Sicherheitsannahme und erfindet keinen npm-Registry-Distributionspfad, den es nicht gibt.
+Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz. Es enthält älteren Release-Text und ältere Bundle-Bytes und darf weder überschrieben, neu getaggt noch als aktueller Kandidat dargestellt werden.
 
-Das historische private Release `v0.1.0-rc.1` bleibt Validierungsevidenz aus der Pre-Fix-Baseline. Es darf nicht neu erstellt, überschrieben, neu getaggt oder als aktueller Kandidat dargestellt werden.
+Die aktuelle Repository-Paketidentität ist `0.1.0-rc.3`. RC3 soll das erste saubere öffentliche Foundation-Preview-Release werden. Tag-Erstellung, GitHub-Release-Veröffentlichung und weitere Veröffentlichungsaktionen benötigen weiterhin eine separate ausdrückliche Freigabe.
 
-Die aktuelle Repository-Paketidentität ist `0.1.0-rc.2`. Tag-Erstellung, GitHub-Release-Veröffentlichung, npm-Publishing und Änderungen der Repository-Sichtbarkeit benötigen jeweils eine separate ausdrückliche Freigabe.
+Für die aktuelle Preview wird kein npm-Publishing-Pfad behauptet.
 
 ## Lizenz, Sicherheit, Datenschutz, Beiträge und Support
 
@@ -165,7 +165,7 @@ Livariant ist source-available und wird nicht als OSI-zertifiziertes Open Source
 
 Externe Code-Beiträge bleiben ausgesetzt, bis Contributor-Rechte finalisiert sind, die mit dem source-available und zukünftigen kommerziellen Lizenzmodell vereinbar sind.
 
-Host-seitige Sicherheitsfunktionen, die im aktuellen privaten Zustand noch nicht verfügbar sind, bleiben Punkte für das Public-Gate. Sie werden nicht als aktuelle Abdeckung behauptet, bevor sie tatsächlich aktiviert und verifiziert wurden.
+GitHub Private Vulnerability Reporting, Dependabot Alerts, CodeQL, Secret Scanning, Push Protection, restriktive Actions-Berechtigungen, das main Ruleset und das Release-Tag Ruleset sind für das öffentliche Repository aktiviert.
 
 ## Was Preview bedeutet
 
@@ -181,15 +181,14 @@ Preview-Support ist Maintainer- und Community-Support ohne bezahlten SLA, sofern
 
 Der spätere 1.0-Stabilitäts- und Kompatibilitätsvertrag braucht eine eigene Readiness-Entscheidung.
 
-## Verbleibende Arbeit vor PUBLIC
+## Aktuelles RC3-Release-Gate
 
-Bevor das Repository öffentlich gemacht und die Preview breit angekündigt wird, muss der Release-Prozess noch:
+Bevor RC3 getaggt und veröffentlicht werden darf, muss der Release-Prozess noch:
 
-1. den aktuellen Human-Documentation- und Repository-Acceptance-Pass abschließen;
-2. den finalen Kandidaten nach Abschluss aller paketierten öffentlichen Texte neu bauen und prüfen;
-3. eine ausdrückliche Freigabe für PRIVATE -> PUBLIC erhalten;
-4. anwendbare Host-Schutzmechanismen für den öffentlichen Zustand aktivieren und verifizieren;
-5. Release- und Tag-Schutz sowie den vorgesehenen unveränderlichen Release-Ablauf prüfen;
-6. nur ein ausdrücklich freigegebenes manifestgebundenes Preview-Bundle aus dem exakten kanonischen Kandidaten veröffentlichen;
-7. veröffentlichte Artefaktidentität, Source-Identität und Prüfsummen verifizieren;
-8. den finalen Public-Release-Readiness-Check gegen exakt diesen veröffentlichten Kandidaten durchführen.
+1. die RC3-Dokumentation und die aktuellen Truth-Surfaces vollständig ausrichten;
+2. den exakten RC3-Kandidaten nach Abschluss der paketierten öffentlichen Texte neu bauen und prüfen;
+3. die vorgesehenen Public-Docs-, Build-, Test-, Package-Smoke- und Release-Bundle-Smoke-Checks ausführen;
+4. den RC3-Prep-PR erst nach ausdrücklicher Freigabe reviewen und mergen;
+5. das finale manifestgebundene RC3-Bundle aus dem exakten kanonischen Stand bauen;
+6. vor Tag-Erstellung oder Veröffentlichung des GitHub Release eine ausdrückliche Freigabe erhalten;
+7. nach Veröffentlichung Artefaktidentität, Source-Identität, Manifest und Prüfsummen verifizieren.
