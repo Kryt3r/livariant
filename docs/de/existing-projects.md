@@ -1,10 +1,12 @@
 # Leitfaden für bestehende Projekte
 
-Bestehende Projekte sind ein First-Class-Anwendungsfall. Das Framework ist discovery-first und preservation-first: Es soll zuerst das vorhandene Projekt verstehen, bevor es Framework-eigenen Zustand vorschlägt.
+Du brauchst kein neues Repository, um Livariant zu nutzen. Bestehende Projekte sind ein normaler Anwendungsfall.
+
+Livariant prüft zuerst, was bereits vorhanden ist, und soll diesen Zustand möglichst erhalten. Dein Repository wird nicht einfach umgebaut, nur damit es stärker nach einem Livariant-Projekt aussieht.
 
 ## Sicherer Übernahmeablauf
 
-Vom Projekt-Root aus:
+Im Hauptordner des Projekts:
 
 ```bash
 livariant status
@@ -12,38 +14,57 @@ livariant doctor
 livariant init
 ```
 
-Die Inspektionsphase ist read-only. Prüfe die erkannte Evidenz und die vorgeschlagenen Project-Brain-Dateien, bevor du etwas autorisierst.
+Diese Befehle helfen dir, das Projekt zu verstehen, bevor Livariant verwalteten Zustand anlegt.
 
-Wenn Initialisierung anwendbar ist:
+`livariant init` ohne `--apply` ist nur Planung und verändert nichts. Lies, welche Informationen Livariant erkannt hat und welche Project-Brain-Dateien angelegt würden.
+
+Wenn der Plan korrekt ist:
 
 ```bash
 livariant init --apply
 ```
 
-Die unterstützte Übernahme erstellt Framework-eigenen Project-Brain-State. Sie reorganisiert keinen Sourcecode, schreibt keine Konfiguration um, löst keine widersprüchliche Dokumentation auf, übernimmt keine Secrets und ersetzt keine bestehenden Agent-Instruktionsdateien nur deshalb, um das Repository sauberer aussehen zu lassen.
+Die unterstützte Initialisierung ergänzt das Project Brain. Sie führt nicht automatisch folgende Dinge aus:
+
+- Sourcecode umorganisieren;
+- Konfigurationsdateien umschreiben;
+- widersprüchliche Dokumentation selbstständig auflösen;
+- Secrets in das Project Brain kopieren;
+- vorhandene Agent-Instruktionsdateien ersetzen, nur um das Repository aufzuräumen.
 
 > [!IMPORTANT]
-> Bestehende projekt-eigene Dateien bleiben für ihre jeweiligen Domänen autoritativ, sofern Livariant dafür keinen expliziten Framework-eigenen Vertrag besitzt. Discovery-Capability verleiht keine Mutationsautorität.
+> Bestehende projekt-eigene Dateien bleiben unter Kontrolle des Projekts. Nur weil Livariant eine Datei lesen kann, bekommt es dadurch keine Erlaubnis, sie umzuschreiben.
 
-## Was das Framework beobachten darf
+## Was Livariant bei der Prüfung erkennen kann
 
-Die aktuelle Baseline kann direkte Projektevidenz wie Package-Name, Vorhandensein eines Source-Verzeichnisses, Git-Präsenz und ausgewählte strukturelle Signale verwenden. Sie erfindet bewusst keine Projektziele oder architektonische Absichten aus schwachen Signalen.
+Die aktuelle Baseline kann direkte Projektevidenz verwenden, zum Beispiel:
 
-Fehlerhafte oder widersprüchliche Evidenz schränkt ein, was daraus geschlossen werden darf. Eine fehlerhafte `package.json` kann beispielsweise als nicht lesbare Evidenz erfasst werden, statt ihren Inhalt zu erraten.
+- einen Paketnamen aus gültigen Paketmetadaten;
+- vorhandene Source-Verzeichnisse;
+- ob das Verzeichnis ein Git-Repository ist;
+- ausgewählte strukturelle Hinweise, die für die unterstützte Initialisierung relevant sind.
 
-Das Vorhandensein sensibler Dateien wie `.env` kann als Sicherheitssignal erkannt werden. Secret-Inhalte werden vom unterstützten Initialisierungspfad nicht in Project-Brain-Wissen übernommen.
+Livariant erfindet bewusst keine Projektziele oder Architektur aus schwachen Hinweisen.
 
-## Menschlich verwaltete Provider-Dateien
+Sind Informationen fehlerhaft oder widersprüchlich, schränkt Livariant seine Schlussfolgerungen ein. Eine beschädigte `package.json` kann zum Beispiel als nicht lesbar gemeldet werden, statt ihren Inhalt zu erraten.
 
-Bestehende `CLAUDE.md` und `AGENTS.md` bleiben projekt-eigen. Ihr Vorhandensein wird erkannt, aber die unterstützte Übernahme überschreibt sie nicht und erhebt widersprüchlichen Text aus diesen Dateien nicht zur kanonischen Project-Brain-Wahrheit.
+Livariant darf erkennen, dass eine sensible Datei wie `.env` existiert, weil das für sichere Discovery relevant ist. Der unterstützte Initialisierungspfad kopiert deren geheime Inhalte nicht in das Project Brain.
 
-Provider-Projektionen und provider-natives Memory sind keine konkurrierenden Quellen der Wahrheit. Das Project Brain bleibt die projekt-eigene kanonische Wahrheit für von Livariant verwaltetes Projektwissen.
+## Vorhandene Claude-Code- und Codex-Dateien
 
-## Initialisierung erneut ausführen
+Dateien wie `CLAUDE.md` und `AGENTS.md` bleiben projekt-eigen.
 
-Sobald ein gültiges Project Brain existiert, ist frische Initialisierung nicht mehr die unterstützte Aktion. Ein erneutes `init --apply` darf es nicht überschreiben oder normalisieren.
+Livariant kann erkennen, dass sie existieren, überschreibt sie bei der unterstützten Übernahme aber nicht. Ihr Inhalt wird auch nicht automatisch zur kanonischen Project-Brain-Wahrheit, nur weil ein Provider ihn verwendet.
 
-Ist das Brain beschädigt, unvollständig, gedriftet oder Lifecycle-Recovery erforderlich, zuerst diagnostizieren:
+Provider-Memory und Resume-Projektionen sind nützlicher Arbeitskontext, aber keine konkurrierenden Projektarchive.
+
+## Nicht neu initialisieren, um etwas zu reparieren
+
+Sobald ein gültiges Project Brain existiert, ist eine frische Initialisierung nicht mehr der normale Weg.
+
+Ein erneutes `init --apply` darf ein vorhandenes gültiges Project Brain nicht überschreiben oder normalisieren.
+
+Ist das Project Brain beschädigt, unvollständig, gedriftet oder wartet auf Lifecycle-Recovery, beginne mit der Diagnose:
 
 ```bash
 livariant doctor
@@ -51,9 +72,9 @@ livariant recover
 ```
 
 > [!CAUTION]
-> `.project-brain/` nicht löschen oder manuell ersetzen und anschließend neu initialisieren, um einen Fehler zu reparieren. Das würde Projekthistorie verwerfen oder neu interpretieren und den unterstützten Lifecycle-/Recovery-Pfad umgehen.
+> Lösche oder ersetze `.project-brain/` nicht und führe danach eine neue Initialisierung als Reparatur-Shortcut aus. Dadurch können Projekthistorie verloren gehen und der unterstützte Recovery-Ablauf umgangen werden.
 
-Recovery nur anwenden, wenn Livariant eine gültige unterstützte Strategie meldet:
+Recovery wird nur angewendet, wenn Livariant eine gültige unterstützte Strategie meldet:
 
 ```bash
 livariant recover --apply
@@ -61,6 +82,8 @@ livariant recover --apply
 
 ## Dateisystemgrenzen
 
-Verwaltete Project-Brain-Schreibflächen müssen echte Dateien bzw. Verzeichnisse innerhalb ihrer autorisierten Projektgrenze sein. Symlink-basierte kanonische Brain-Dateien oder Lifecycle-Verzeichnisse werden für Schreiboperationen abgelehnt statt verfolgt.
+Livariant-verwaltete Project-Brain-Dateien und Lifecycle-Verzeichnisse müssen innerhalb der autorisierten Projektgrenze bleiben.
 
-Das ist beabsichtigt: Dateisystem-Schreibfähigkeit darf semantische Autorität niemals über die Project-Brain-Speichergrenze hinaus erweitern.
+Wird eine kanonische Project-Brain-Datei oder ein verwaltetes Lifecycle-Verzeichnis durch einen Symlink ersetzt, der Schreibzugriffe an einen anderen Ort umleiten würde, lehnt Livariant diesen Schreibpfad ab.
+
+Damit kann Dateisystemzugriff die Autorität von Livariant nicht stillschweigend über die Project-Brain-Speichergrenze hinaus erweitern.
