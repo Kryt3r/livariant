@@ -1,24 +1,34 @@
 # Privacy & Network Behavior
 
-Livariant's Public Preview baseline is designed to remain useful as a local-first tool.
+The current Livariant Preview candidate is designed for local project use. This page explains what Livariant itself sends over the network, what stays local, and where external AI providers are a separate concern.
 
-## No telemetry in the current Runtime
+## No Livariant telemetry in the current Runtime
 
-The current Livariant Runtime does not implement analytics, usage telemetry, crash reporting, advertising identifiers, account tracking, or automatic upload of Project Brain contents.
+The current Runtime does not implement:
 
-`status`, `doctor`, `init`, `resume`, and `recover` operate against local project state.
+- analytics or usage telemetry;
+- crash reporting;
+- advertising identifiers;
+- Livariant account tracking;
+- automatic upload of Project Brain contents.
 
-Provider-specific Resume handoff currently renders a local projection from canonical Project Brain state. The Livariant adapter itself does not transmit that context to Claude Code, Codex, or another remote service. What a separately operated provider/client does with user-supplied context is governed by that provider and is outside Livariant's current Runtime behavior.
+`status`, `doctor`, `init`, `resume`, and `recover` operate on local project state.
+
+Provider-specific Resume handoff is also rendered locally by Livariant. The Livariant adapter does not send the generated context to Claude Code, Codex, or another remote service by itself.
+
+If you then give that context to an external AI provider, the provider's own application, account, privacy settings, and terms determine what happens to it. That behavior is separate from Livariant's Runtime.
 
 ## Update behavior
 
-The current supported Preview update command consumes a release manifest and artifact supplied to the CLI as local paths:
+The current supported update flow reads a release manifest and artifact from paths you provide to the CLI.
+
+Planning example:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-Applying the update requires the local artifact and an explicitly selected trusted source identity:
+Applying a reviewed update requires the local artifact and an explicitly selected trusted source identity:
 
 ```bash
 livariant update \
@@ -28,36 +38,39 @@ livariant update \
   --trusted-source <source-id>
 ```
 
-For executable updates, the exact artifact SHA-256 must additionally already have independent machine-local release authorization outside project authority. That authority is not created by the manifest, `--trusted-source`, project files, or Livariant's project-facing CLI/API. If it is absent, the update fails closed before npm installation or candidate Runtime attestation. Livariant intentionally exposes no project-facing `authorize-runtime` command.
+For executable updates, the exact artifact SHA-256 must also already have independent machine-local release authorization outside project authority.
 
-The Runtime does not currently perform an automatic remote update check or silently download a release.
+The manifest, `--trusted-source`, project files, and Livariant's project-facing CLI or API cannot create that authority. If it is missing, the update stops before npm installation or candidate Runtime attestation. Livariant exposes no project-facing `authorize-runtime` command.
 
-Installing an independently authorized and verified local Runtime artifact uses npm in a constrained local-install flow with lifecycle scripts, audit, and funding prompts disabled. The current packed Runtime declares no runtime dependencies, so the supported release artifact does not require dependency resolution to fetch additional Runtime packages.
+The current Runtime does not perform an automatic remote update check and does not silently download releases.
 
-Machine-local Runtime trust and release-authorization records are security state outside project authority. They are not Project Brain data and must not be treated as repository-controlled configuration.
+When Livariant installs an independently authorized and verified local Runtime artifact, npm is used in a constrained local-install flow with lifecycle scripts, audit, and funding prompts disabled. The current packed Runtime has no runtime dependencies, so the supported release artifact does not need dependency resolution to fetch additional Runtime packages.
 
-## Project data
+Machine-local Runtime trust and release-authorization records are security state outside project authority. They are not Project Brain data and should not be treated as repository-controlled configuration.
 
-Project Brain may contain project identity, decisions, goals, knowledge, and unresolved unknowns. Treat it as project data.
+## Treat Project Brain as project data
 
-Livariant must not ingest obvious secret files merely to enrich project knowledge. Existing `.env`-style secrets and unrelated private files are not canonical Project Brain input by default.
+Project Brain can contain project identity, decisions, goals, knowledge, and unresolved questions. Treat those files with the same care you give other project data.
 
-Users remain responsible for deciding what information they intentionally record in Project Brain files and what context they intentionally pass onward to an external AI provider.
+Livariant does not need to ingest obvious secret files just to make the Project Brain richer. `.env`-style secrets and unrelated private files are not canonical Project Brain input by default.
 
-## Future network features
+You remain responsible for deciding what information you deliberately record in Project Brain files and what context you later pass to an external AI provider.
 
-A future automatic update service, hosted registry integration, telemetry feature, remote synchronization service, or cloud account would create new privacy and trust boundaries.
+## Future network features would need a new review
 
-Such behavior must not be silently added under the current statement. Before it becomes a supported public feature, its data flow, default behavior, opt-in/opt-out semantics, retention implications, and security model must be documented and reviewed.
+Features such as automatic update services, hosted registry integration, telemetry, remote synchronization, or a Livariant cloud account would create new privacy and trust boundaries.
 
-## Summary
+Those features are not covered by this statement simply because they might exist in a future version. Before any such feature becomes supported, its data flow, defaults, user controls, retention implications, and security model must be documented and reviewed.
 
-For the current Public Preview baseline:
+## Current privacy summary
 
-- local project operation does not require a Livariant cloud account;
-- no Livariant telemetry is implemented;
-- no automatic remote update check is implemented;
+For the current Preview candidate:
+
+- normal local project operation does not require a Livariant cloud account;
+- Livariant telemetry is not implemented;
+- automatic remote update checks are not implemented;
 - Project Brain is not automatically uploaded by Livariant;
+- provider Resume output is generated locally;
 - executable updates require pre-existing independent machine-local exact-artifact release authority;
-- project input cannot create that authority through Livariant's project-facing CLI/API;
-- external provider behavior remains separate from Livariant's own Runtime behavior.
+- project input cannot create that authority through Livariant's project-facing CLI or API;
+- external AI-provider behavior remains separate from Livariant's own Runtime behavior.
