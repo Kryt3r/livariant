@@ -1,5 +1,5 @@
-import { readFile, readdir } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { access, readFile, readdir } from 'node:fs/promises';
+import { dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
@@ -15,6 +15,9 @@ async function markdownFiles(dir) {
   return files;
 }
 
+const docsRoot = join(root, 'docs');
+const docsDeRoot = join(docsRoot, 'de');
+
 const publicSurfaces = [
   join(root, 'README.md'),
   join(root, 'README.de.md'),
@@ -23,13 +26,9 @@ const publicSurfaces = [
   join(root, 'LICENSING.md'),
   join(root, 'SUPPORT.md'),
   join(root, '.github', 'pull_request_template.md'),
-  ...await markdownFiles(join(root, 'docs')),
+  ...await markdownFiles(docsRoot),
 ];
 
-// Current normative/accepted framework contracts that directly describe
-// the active product identity or command surface. Historical reviews,
-// transition records, and implementation snapshots are intentionally not
-// blanket-scanned because superseded terms can be valid historical truth.
 const currentContractSurfaces = [
   join(root, 'core', 'localization-policy.md'),
   join(root, 'core', 'versioning-and-migrations.md'),
@@ -98,9 +97,40 @@ for (const file of publicSurfaces) {
   }
 }
 
-// Product naming is a current accepted decision record, but it must retain
-// superseded names as historical migration evidence. Validate its current
-// conclusion positively rather than forbidding historical strings.
+// Every user-facing English guide in docs/ must have a same-named German guide in docs/de/.
+const docsEntries = await readdir(docsRoot, { withFileTypes: true });
+for (const entry of docsEntries) {
+  if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+  const germanPeer = join(docsDeRoot, entry.name);
+  try {
+    await access(germanPeer);
+  } catch {
+    failures.push(`docs/${entry.name}: missing-german-peer: expected docs/de/${entry.name}`);
+  }
+}
+
+// Check local Markdown links in public surfaces. External URLs, anchors, mailto links,
+// and repository issue/discussion shortcuts are intentionally ignored.
+const markdownLinkPattern = /\[[^\]]*\]\(([^)]+)\)/g;
+for (const file of publicSurfaces) {
+  const content = await readFile(file, 'utf8');
+  for (const match of content.matchAll(markdownLinkPattern)) {
+    const rawTarget = match[1].trim();
+    if (!rawTarget || rawTarget.startsWith('#') || rawTarget.startsWith('http://') || rawTarget.startsWith('https://') || rawTarget.startsWith('mailto:')) continue;
+
+    const targetWithoutTitle = rawTarget.split(/\s+["']/)[0];
+    const targetWithoutAnchor = targetWithoutTitle.split('#')[0];
+    if (!targetWithoutAnchor) continue;
+
+    const localTarget = resolve(dirname(file), targetWithoutAnchor);
+    try {
+      await access(localTarget);
+    } catch {
+      failures.push(`${relative(root, file)}: broken-local-link: ${rawTarget}`);
+    }
+  }
+}
+
 const namingDecision = await readFile(join(root, 'distribution', 'product-naming-decision.md'), 'utf8');
 const namingRequirements = [
   ['Product: Livariant', 'accepted product identity'],
@@ -126,4 +156,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Public/current truth-surface consistency check passed (${currentSurfaces.length} current documentation/contract surfaces + naming decision + package metadata).`);
+console.log(`Public/current truth-surface consistency check passed (${currentSurfaces.length} current documentation/contract surfaces + EN/DE parity + local link integrity + naming decision + package metadata).`);
