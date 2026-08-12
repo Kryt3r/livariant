@@ -152,7 +152,46 @@ livariant resume
 
 The project now contains the minimal `.project-brain/` state managed by Livariant.
 
-## 7. Continue with Claude Code or Codex
+## 7. Add durable project truth during normal work
+
+Initialization is only the start. When a goal, confirmed fact, or accepted decision should survive the current AI session, record it through Livariant instead of leaving it only in chat history.
+
+You can inspect the current values with:
+
+```bash
+livariant goals
+livariant knowledge
+livariant decisions
+```
+
+Mutation commands are plan-first. For example, these commands only show what would change:
+
+```bash
+livariant goals add "Ship the first safe public preview"
+livariant knowledge add "Preview distribution uses GitHub Releases"
+livariant decisions add "Use GitHub Releases for Preview distribution"
+```
+
+After reviewing the plan, repeat the chosen command with `--apply`:
+
+```bash
+livariant goals add "Ship the first safe public preview" --apply
+livariant knowledge add "Preview distribution uses GitHub Releases" --apply
+livariant decisions add "Use GitHub Releases for Preview distribution" --apply
+```
+
+If an accepted decision changes later, list decisions to get its ID and supersede it. Do not erase the earlier decision from history:
+
+```bash
+livariant decisions
+livariant decisions supersede <decision-id> "Use signed release infrastructure" --reason "Distribution model changed"
+```
+
+That supersession is still only a plan until you add `--apply`.
+
+Livariant checks Project Brain health before semantic writes, protects managed paths, rejects a write if the project-owned source changed concurrently, and verifies the persisted result before reporting success.
+
+## 8. Continue with Claude Code or Codex
 
 The current Preview can render Project Brain context as a Resume handoff for Claude Code or Codex. Livariant is not a native plugin for either provider and does not silently rewrite provider-owned instruction files.
 
@@ -182,7 +221,7 @@ $env:LIVARIANT_PROVIDER_ENV = "codex"
 livariant resume --provider codex
 ```
 
-The Resume output is temporary working context. The Project Brain remains the durable project record.
+The Resume output is temporary working context. The Project Brain remains the durable project record. Confirmed goals, active decisions, and known project facts recorded through Livariant are available to the supported Resume path.
 
 ## What installation does and does not do
 
@@ -202,13 +241,17 @@ inspect with status / doctor / init
 run init --apply deliberately
         |
         v
-use Livariant during normal project work
+record confirmed project truth as work continues
+        |
+        v
+use Resume context across supported AI sessions
 ```
 
 Installing the CLI does not:
 
 - initialize projects automatically;
 - modify `CLAUDE.md`, `AGENTS.md`, or provider memory automatically;
+- watch AI conversations or decide automatically what becomes project truth;
 - give a coding provider project or Runtime authority;
 - migrate an existing Project Brain just because the CLI package changed;
 - authorize future executable Runtime update artifacts.
