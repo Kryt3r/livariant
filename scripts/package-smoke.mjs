@@ -1,16 +1,22 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
 const temp = await mkdtemp(resolve(tmpdir(), "livariant-package-smoke-"));
 
+function npmInvocation(args) {
+  return process.platform === "win32"
+    ? {
+        command: process.execPath,
+        args: [resolve(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...args],
+      }
+    : { command: "npm", args };
+}
+
 function run(command, args, options = {}) {
-  const useWindowsCommandShell = process.platform === "win32" && (command === "npm" || command.toLowerCase().endsWith(".cmd"));
-  const executable = useWindowsCommandShell ? (process.env.ComSpec || "cmd.exe") : command;
-  const executableArgs = useWindowsCommandShell ? ["/d", "/s", "/c", command, ...args] : args;
-  const result = spawnSync(executable, executableArgs, {
+  const result = spawnSync(command, args, {
     cwd: options.cwd ?? root,
     encoding: "utf8",
     env: { ...process.env, ...(options.env ?? {}) },
@@ -27,6 +33,11 @@ function run(command, args, options = {}) {
   return result;
 }
 
+function runNpm(args, options = {}) {
+  const invocation = npmInvocation(args);
+  return run(invocation.command, invocation.args, options);
+}
+
 try {
   const packDir = resolve(temp, "pack");
   const installDir = resolve(temp, "install");
@@ -37,7 +48,7 @@ try {
     mkdir(globalPrefix, { recursive: true }),
   ]));
 
-  const packed = run("npm", ["pack", "--json", "--pack-destination", packDir]);
+  const packed = runNpm(["pack", "--json", "--pack-destination", packDir]);
   const packResult = JSON.parse(packed.stdout);
   const filename = packResult?.[0]?.filename;
   if (typeof filename !== "string") throw new Error("npm pack did not return a package filename");
@@ -62,27 +73,18 @@ try {
     throw new Error("Packed artifact unexpectedly contains test fixtures or compiled tests");
   }
 
-  // The supported first-install Preview path installs the verified release
-  // tarball as machine/user tooling instead of adding Livariant to the
-  // target project's package.json or node_modules.
-  run("npm", ["install", "--global", "--prefix", globalPrefix, "--ignore-scripts", tarball]);
-  const globalBinPath = process.platform === "win32"
-    ? resolve(globalPrefix, "livariant.cmd")
-    : resolve(globalPrefix, "bin", "livariant");
-  const globalCli = run(globalBinPath, ["version"], { cwd: installDir });
+  runNpm(["install", "--global", "--prefix", globalPrefix, "--ignore-scripts", tarball]);
+  const globalCliPath = resolve(globalPrefix, "node_modules", "livariant", "dist", "src", "cli", "index.js");
+  const globalCli = run(process.execPath, [globalCliPath, "version"], { cwd: installDir });
   if (!/Livariant framework version: 0\.1\.0-rc\.2/.test(globalCli.stdout) || !/Channel: preview/.test(globalCli.stdout)) {
     throw new Error(`Globally installed release-tarball CLI returned unexpected version output:\n${globalCli.stdout}`);
   }
 
-  // Keep a project-local package install smoke as an additional packaging
-  // compatibility check. It is not the recommended first-install journey.
-  run("npm", ["init", "-y"], { cwd: installDir });
-  run("npm", ["install", "--ignore-scripts", tarball], { cwd: installDir });
+  runNpm(["init", "-y"], { cwd: installDir });
+  runNpm(["install", "--ignore-scripts", tarball], { cwd: installDir });
 
-  const binPath = process.platform === "win32"
-    ? resolve(installDir, "node_modules", ".bin", "livariant.cmd")
-    : resolve(installDir, "node_modules", ".bin", "livariant");
-  const cli = run(binPath, ["version"], { cwd: installDir });
+  const cliPath = resolve(installDir, "node_modules", "livariant", "dist", "src", "cli", "index.js");
+  const cli = run(process.execPath, [cliPath, "version"], { cwd: installDir });
   if (!/Livariant framework version: 0\.1\.0-rc\.2/.test(cli.stdout)) {
     throw new Error(`Installed CLI returned unexpected version output:\n${cli.stdout}`);
   }
@@ -90,12 +92,12 @@ try {
     throw new Error(`Installed CLI returned unexpected channel output:\n${cli.stdout}`);
   }
 
-  const init = run(binPath, ["init", "--apply"], { cwd: installDir });
+  const init = run(process.execPath, [cliPath, "init", "--apply"], { cwd: installDir });
   if (!/Project Brain initialized:/.test(init.stdout)) {
     throw new Error(`Installed CLI did not initialize Project Brain:\n${init.stdout}`);
   }
 
-  const resume = run(binPath, ["resume", "--provider", "codex"], {
+  const resume = run(process.execPath, [cliPath, "resume", "--provider", "codex"], {
     cwd: installDir,
     env: { LIVARIANT_PROVIDER_ENV: "codex" },
   });
@@ -111,11 +113,11 @@ try {
 
   const emptyManifest = resolve(installDir, "empty-release-manifest.json");
   await writeFile(emptyManifest, "[]\n", "utf8");
-  const update = run(binPath, ["update", "--manifest", emptyManifest], { cwd: installDir });
+  const update = run(process.execPath, [cliPath, "update", "--manifest", emptyManifest], { cwd: installDir });
   if (!/No compatible Livariant update is available/.test(update.stdout)) {
     throw new Error(`Installed CLI did not expose read-only update discovery:\n${update.stdout}`);
   }
-  const recover = run(binPath, ["recover"], { cwd: installDir });
+  const recover = run(process.execPath, [cliPath, "recover"], { cwd: installDir });
   if (!/No interrupted migration requires recovery/.test(recover.stdout)) {
     throw new Error(`Installed CLI did not expose read-only recovery inspection:\n${recover.stdout}`);
   }
