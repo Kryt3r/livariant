@@ -1,0 +1,126 @@
+name: Build RC Bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact 40-character Livariant source commit SHA to package
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-rc-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate requested source SHA
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_sha must be an exact lowercase 40-character Git commit SHA." >&2
+            exit 1
+          fi
+
+      - name: Checkout exact source commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+
+      - name: Verify exact checkout
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          observed="$(git rev-parse HEAD)"
+          test "$observed" = "$SOURCE_SHA"
+          printf '%s\n' "$observed" > RC-SOURCE-COMMIT
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify source candidate before packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:public-docs
+          npm run build
+          npm test
+          npm run test:package
+          npm run test:release-bundle
+
+      - name: Build exact RC2 bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/build-release-bundle.mjs \
+            --source-id github:Kryt3r/livariant \
+            --channel preview \
+            --schema 1 \
+            --compatible-from 0.1.0-rc.1 \
+            --output rc-bundle
+
+      - name: Independently verify bundle identity and digest
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { createHash } = require('node:crypto');
+          const { readFileSync, readdirSync } = require('node:fs');
+          const path = require('node:path');
+
+          const sourceSha = process.env.SOURCE_SHA;
+          const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
+          if (packageJson.name !== 'livariant') throw new Error('Unexpected package name.');
+          if (packageJson.version !== '0.1.0-rc.2') throw new Error(`Unexpected package version: ${packageJson.version}`);
+
+          const dir = 'rc-bundle';
+          const tarballs = readdirSync(dir).filter((name) => name.endsWith('.tgz'));
+          if (tarballs.length !== 1) throw new Error(`Expected exactly one tarball, observed ${tarballs.length}.`);
+
+          const artifact = tarballs[0];
+          const bytes = readFileSync(path.join(dir, artifact));
+          const sha256 = createHash('sha256').update(bytes).digest('hex');
+          const manifest = JSON.parse(readFileSync(path.join(dir, 'release-manifest.json'), 'utf8'));
+          const release = manifest?.[0];
+          if (!release) throw new Error('Missing release descriptor.');
+          if (release.version !== '0.1.0-rc.2') throw new Error('Manifest version mismatch.');
+          if (release.channel !== 'preview') throw new Error('Manifest channel mismatch.');
+          if (release.projectBrainSchema !== 1) throw new Error('Manifest Project Brain schema mismatch.');
+          if (release.sourceId !== 'github:Kryt3r/livariant') throw new Error('Manifest sourceId mismatch.');
+          if (!release.compatibility?.from?.includes('0.1.0-rc.1')) throw new Error('Manifest compatible-from mismatch.');
+          if (release.artifact?.id !== 'runtime-node-cli') throw new Error('Manifest artifact id mismatch.');
+          if (release.artifact?.sha256 !== sha256) throw new Error('Manifest SHA-256 does not match artifact bytes.');
+
+          const sums = readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8');
+          if (sums !== `${sha256}  ${artifact}\n`) throw new Error('SHA256SUMS mismatch.');
+
+          require('node:fs').writeFileSync(
+            path.join(dir, 'RC-BUILD-METADATA.json'),
+            `${JSON.stringify({ sourceSha, version: release.version, channel: release.channel, sourceId: release.sourceId, artifact, sha256 }, null, 2)}\n`,
+          );
+          console.log(JSON.stringify({ sourceSha, artifact, sha256 }, null, 2));
+          NODE
+          cp RC-SOURCE-COMMIT rc-bundle/RC-SOURCE-COMMIT
+
+      - name: Upload verified RC2 bundle artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: livariant-0.1.0-rc.2-bundle-${{ inputs.source_sha }}
+          path: rc-bundle/
+          if-no-files-found: error
+          retention-days: 30
