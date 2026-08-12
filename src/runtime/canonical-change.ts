@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readFile, rename, rm, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
-import { assertPathWithinRoot, assertRegularFile } from "../project-brain/path-safety.js";
 import {
   parseDecisionsMarkdown,
   renderDecisionsMarkdown,
@@ -39,8 +36,7 @@ function normalizedScalar(value: string, label: string): string {
 }
 
 async function loadWritableDecisionState(projectPath: string): Promise<{
-  path: string;
-  brainPath: string;
+  store: ProjectBrainStore;
   content: string;
   records: DecisionRecord[];
 }> {
@@ -54,43 +50,27 @@ async function loadWritableDecisionState(projectPath: string): Promise<{
     throw new Error(`Decision change is blocked until Project Brain diagnosis is resolved: ${doctor.state}.`);
   }
 
-  const path = resolve(inspection.path, "decisions.md");
-  assertPathWithinRoot(inspection.path, path, "Project Brain decisions path");
-  await assertRegularFile(path, "Project Brain decisions");
-  const content = await readFile(path, "utf8");
+  const content = await store.readDecisionsDocument();
   const parsed = parseDecisionsMarkdown(content);
   if (parsed.issues.length > 0) {
     throw new Error(`Decision history is ambiguous: ${parsed.issues.join("; ")}`);
   }
-  return { path, brainPath: inspection.path, content, records: parsed.records };
+  return { store, content, records: parsed.records };
 }
 
 async function persistDecisionState(
-  path: string,
-  brainPath: string,
+  store: ProjectBrainStore,
   expectedOriginal: string,
   records: DecisionRecord[],
   beforePromote?: () => void | Promise<void>,
 ): Promise<void> {
-  const tempPath = resolve(brainPath, `.decisions.tmp-${randomUUID()}.md`);
-  assertPathWithinRoot(brainPath, tempPath, "Project Brain decision candidate path");
   const content = renderDecisionsMarkdown(records);
-  await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" });
-  try {
-    await assertRegularFile(tempPath, "Project Brain decision candidate");
-    const parsed = parseDecisionsMarkdown(await readFile(tempPath, "utf8"));
-    if (parsed.issues.length > 0) throw new Error(`Decision candidate is invalid: ${parsed.issues.join("; ")}`);
-    await beforePromote?.();
-    await assertRegularFile(path, "Project Brain decisions");
-    const current = await readFile(path, "utf8");
-    if (current !== expectedOriginal) {
-      throw new Error("Project Brain decisions changed concurrently; refusing to overwrite newer project-owned state.");
-    }
-    await rename(tempPath, path);
-  } catch (error) {
-    await rm(tempPath, { force: true });
-    throw error;
-  }
+  const parsed = parseDecisionsMarkdown(content);
+  if (parsed.issues.length > 0) throw new Error(`Decision candidate is invalid: ${parsed.issues.join("; ")}`);
+  await store.replaceDecisionsDocument(expectedOriginal, content, { beforePromote });
+
+  const verify = parseDecisionsMarkdown(await store.readDecisionsDocument());
+  if (verify.issues.length > 0) throw new Error(`Decision verification failed after persistence: ${verify.issues.join("; ")}`);
 }
 
 export async function listAcceptedDecisions(projectPath: string = process.cwd()): Promise<DecisionRecord[]> {
@@ -117,7 +97,11 @@ export async function recordAcceptedDecision(
     text: normalized,
     legacy: false,
   };
-  await persistDecisionState(state.path, state.brainPath, state.content, [...state.records, record], options.beforePromote);
+  await persistDecisionState(state.store, state.content, [...state.records, record], options.beforePromote);
+  const persisted = parseDecisionsMarkdown(await state.store.readDecisionsDocument()).records.find((item) => item.id === record.id);
+  if (!persisted || persisted.status !== "active" || persisted.text !== record.text) {
+    throw new Error("Accepted decision verification failed after persistence.");
+  }
   return record;
 }
 
@@ -156,6 +140,16 @@ export async function supersedeAcceptedDecision(
 
   const next = state.records.map((record) => record.id === target.id ? superseded : record);
   next.push(replacement);
-  await persistDecisionState(state.path, state.brainPath, state.content, next, options.beforePromote);
+  await persistDecisionState(state.store, state.content, next, options.beforePromote);
+
+  const verified = parseDecisionsMarkdown(await state.store.readDecisionsDocument()).records;
+  const verifiedSuperseded = verified.find((record) => record.id === superseded.id);
+  const verifiedReplacement = verified.find((record) => record.id === replacement.id);
+  if (
+    !verifiedSuperseded || verifiedSuperseded.status !== "superseded" || verifiedSuperseded.supersededBy !== replacement.id ||
+    !verifiedReplacement || verifiedReplacement.status !== "active" || verifiedReplacement.text !== replacement.text
+  ) {
+    throw new Error("Decision supersession verification failed after persistence.");
+  }
   return { superseded, replacement };
 }
