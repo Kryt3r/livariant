@@ -24,20 +24,21 @@ Livariant ist dafür gedacht, Projekten dabei zu helfen:
 - Architektur und Ziele nicht ständig neu erklären zu müssen;
 - zwischen unterstützten Coding-Agents zu wechseln, ohne das Gedächtnis eines einzelnen Providers zum Projektarchiv zu machen;
 - bestätigte Fakten und offene Fragen in einem projekt-eigenen Wissensstand zu bewahren;
+- Ziele, Wissen und akzeptierte Entscheidungen über explizite plan-first Befehle festzuhalten;
 - Änderungen zu prüfen, bevor Livariant verwalteten Projektzustand schreibt;
 - Livariant zu aktualisieren oder wiederherzustellen, ohne verwaltete Lifecycle-Dateien per Hand auszutauschen.
 
-Ein einfaches Beispiel für das geplante Modell:
+Ein einfaches Beispiel:
 
 ```text
 Montag
 Du entscheidest mit Claude Code, dass die Anmeldung nach Ansatz A gebaut wird.
-Sobald diese Entscheidung im Project Brain steht, gehört sie zum Projekt und nicht mehr nur zum Chat.
+Du hältst diese akzeptierte Entscheidung über Livariant fest, nachdem du den Änderungsplan geprüft hast.
 
 Freitag
 Du startest eine neue Codex-Sitzung.
 Livariant erzeugt den passenden Projektkontext aus dem Project Brain.
-Codex braucht den alten Claude-Code-Chat nicht, um zu wissen, dass Ansatz A die akzeptierte Entscheidung ist.
+Codex braucht den alten Claude-Code-Chat nicht, um zu wissen, dass Ansatz A die aktive Entscheidung ist.
 ```
 
 Livariant sorgt nicht dafür, dass ein KI-Modell alles dauerhaft erinnert. Stattdessen bekommt das Projekt einen eigenen Wissensstand, den unterstützte Tools lesen können, wenn du ihnen diesen Kontext bewusst gibst.
@@ -90,8 +91,10 @@ Die aktuelle ausführbare Preview kann:
 3. einen Initialisierungsplan anzeigen;
 4. das Project Brain nach ausdrücklicher Freigabe anlegen;
 5. Gesundheit und Lifecycle-Zustand prüfen;
-6. Project-Brain-Kontext für unterstützte Coding-Agents erzeugen;
-7. den gehärteten Update-, Migrations- und Recovery-Lifecycle ausführen.
+6. bestätigte Ziele, bestätigtes Projektwissen und akzeptierte Entscheidungen mit plan-first Befehlen festhalten;
+7. veraltete Entscheidungen superseden, ohne ihre Historie zu löschen;
+8. Project-Brain-Kontext für unterstützte Coding-Agents erzeugen;
+9. den gehärteten Update-, Migrations- und Recovery-Lifecycle ausführen.
 
 Die tieferen Lifecycle- und Sicherheitsdokumente kannst du lesen, sobald du sie brauchst.
 
@@ -158,6 +161,21 @@ Danach prüfst du das Ergebnis:
 ```bash
 livariant status
 livariant doctor
+```
+
+Jetzt kannst du dauerhafte Projektwahrheit festhalten. Ohne `--apply` zeigen die Befehle nur einen Plan:
+
+```bash
+livariant goals add "Die erste sichere Public Preview veröffentlichen"
+livariant knowledge add "Die Preview wird über GitHub Releases verteilt"
+livariant decisions add "GitHub Releases für die Preview-Distribution verwenden"
+```
+
+Prüfe den vorgeschlagenen Wert und wiederhole den jeweiligen Befehl mit `--apply`, wenn er stimmt.
+
+Danach kannst du den aktuellen Projektkontext erzeugen:
+
+```bash
 livariant resume
 ```
 
@@ -169,15 +187,16 @@ Unter [Installation & erstes Projekt](docs/de/installation.md) findest du Downlo
 
 Nach der Einrichtung musst du das Projekt nicht bei jeder KI-Sitzung neu initialisieren.
 
-Eine Sitzung mit der aktuellen Preview kann so aussehen:
+Ein normaler Arbeitszyklus mit der aktuellen Preview kann so aussehen:
 
 ```text
 1. Projekt öffnen.
-2. Bei Bedarf den Livariant-Status prüfen.
-3. Resume-Kontext erzeugen lassen.
-4. Den passenden Kontext an den Coding-Agent weitergeben, den du gerade nutzt.
-5. Am Projekt arbeiten.
-6. Für Status, Diagnose, Resume, Updates oder Recovery wieder Livariant verwenden.
+2. Bei Bedarf Livariant-Zustand prüfen.
+3. Mit resume den aktuellen Project-Brain-Kontext an den Coding-Agent geben.
+4. Am Projekt arbeiten.
+5. Wenn ein Ziel, ein bestätigter Fakt oder eine akzeptierte Entscheidung dauerhaftes Projektwissen werden soll, die Änderung mit goals, knowledge oder decisions planen.
+6. Den Plan prüfen und denselben Befehl mit --apply wiederholen.
+7. In einer späteren Sitzung mit resume wieder den aktualisierten Projektstand verwenden.
 ```
 
 Nützliche Befehle sind:
@@ -185,22 +204,37 @@ Nützliche Befehle sind:
 ```bash
 livariant status
 livariant doctor
+livariant goals
+livariant knowledge
+livariant decisions
 livariant resume
 ```
 
-`status` zeigt, welchen Zustand Livariant erkennt. `doctor` diagnostiziert unterstützte Zustände, ohne sie still zu reparieren. `resume` erzeugt den aktuellen Project-Brain-Kontext für den Wiedereinstieg in das Projekt.
+`status` zeigt, welchen Zustand Livariant erkennt. `doctor` diagnostiziert unterstützte Zustände, ohne sie still zu reparieren. `goals`, `knowledge` und `decisions` zeigen dauerhafte Projektwahrheit und planen unterstützte Änderungen. `resume` erzeugt den aktuellen Project-Brain-Kontext für den Wiedereinstieg in das Projekt.
 
-Livariant beobachtet nicht automatisch jedes Gespräch und behauptet nicht, dass jeder Satz aus einer KI-Sitzung dauerhaftes Projektwissen werden sollte.
+Livariant beobachtet nicht automatisch jedes Gespräch und behauptet nicht, dass jeder Satz aus einer KI-Sitzung dauerhaftes Projektwissen werden sollte. Du entscheidest, welcher bestätigte Zustand in das Project Brain gehört.
 
 ## Grenze der aktuellen Preview
 
-Das Framework-Design sieht geführte semantische Operationen vor, mit denen Ziele, Entscheidungen und Projektwissen sicher verändert werden können. Diese Oberfläche ist in der ausführbaren CLI von `0.1.0-rc.2` **noch nicht vorhanden**.
+Die ausführbare CLI von `0.1.0-rc.2` unterstützt eine klar begrenzte Oberfläche für wiederholte semantische Änderungen an bestätigten Zielen, bestätigtem Projektwissen und akzeptierten Entscheidungen.
 
-Die aktuelle CLI ist bewusst kleiner und enthält `init`, `status`, `doctor`, `resume`, `update`, `recover` und `version`.
+Unterstützt werden:
 
-RC2 kann das Project Brain anlegen, daraus Resume-Kontext lesen, seinen Zustand diagnostizieren und seinen Lifecycle schützen. Die geplanten First-Class-Befehle für laufende Wissensänderungen wie `goals`, `decisions` oder `knowledge` sind jedoch noch nicht implementiert.
+```text
+livariant goals [list]
+livariant goals add <goal> [--apply]
+livariant knowledge [list]
+livariant knowledge add <fact> [--apply]
+livariant decisions [list]
+livariant decisions add <decision> [--apply]
+livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
+```
 
-Wir behandeln das als explizite Preview-Einschränkung und nicht so, als gäbe es die spätere Bedienoberfläche bereits. Mehr dazu unter [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md).
+Diese Änderungen sind plan-first und benötigen ein ausdrückliches `--apply`. Beim Superseden bleibt die Historie der alten Entscheidung erhalten. Writes sind auf verwalteten Project-Brain-Zustand begrenzt, lehnen unsichere Topologien und konkurrierendes Überschreiben ab und werden nach dem Speichern verifiziert.
+
+Die Grenze bleibt bewusst eng. Livariant beobachtet Gespräche nicht automatisch, entscheidet nicht selbst, welche KI-Ausgabe kanonische Wahrheit werden soll, und ist kein vollständiger Natural-Language-Wissensagent. Solche reichhaltigeren Oberflächen können später hinzukommen, ohne das aktuelle Authority- und Verifikationsmodell zu schwächen.
+
+Mehr dazu unter [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md).
 
 ## Bestehende Projekte
 
@@ -279,7 +313,7 @@ Mehr dazu unter [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-gui
 
 Livariant verlangt eine explizite Autorisierung für Änderungen an geschütztem Projektzustand. Bestehender projekt-eigener Zustand wird standardmäßig geschützt. Unklare Zustände führen zu Diagnose statt zu geratenen Reparaturen.
 
-Die gehärtete Preview-Baseline enthält ausführbare Tests unter anderem für Path- und Symlink-Escape, veraltete Entscheidungswahrheit, unterbrochene Migrationen, manipulierte Checkpoints, manipulierte Release-Artefakte, Runtime-Drift, Provider-Instruktionskonflikte, nicht unterstützte Migrationen, konkurrierende Projektänderungen während Aktivierung, fehlende Update-Trust-Evidenz, feindliche Trust-Root-Topologien, Pre-Trust-Runtime-Ausführung und Versuche von Projekten, ihre eigene Release-Authority zu erzeugen.
+Die gehärtete Preview-Baseline enthält ausführbare Tests unter anderem für Path- und Symlink-Escape, veraltete Entscheidungswahrheit, unterbrochene Migrationen, manipulierte Checkpoints, manipulierte Release-Artefakte, Runtime-Drift, Provider-Instruktionskonflikte, nicht unterstützte Migrationen, konkurrierende Projektänderungen während Aktivierung, konkurrierende semantische Wissensänderungen, fehlende Update-Trust-Evidenz, feindliche Trust-Root-Topologien, Pre-Trust-Runtime-Ausführung und Versuche von Projekten, ihre eigene Release-Authority zu erzeugen.
 
 Der Kern ist einfach:
 
