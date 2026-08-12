@@ -15,12 +15,12 @@ import {
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
-function runCli(projectPath: string, args: string[]) {
+function runCli(projectPath: string, args: string[], extraEnv: NodeJS.ProcessEnv = {}) {
   return spawnSync(process.execPath, [cliPath, ...args], {
     cwd: projectPath,
     encoding: "utf8",
     shell: false,
-    env: { ...process.env, PBF_RUNTIME_DELEGATION_BYPASS: "1" },
+    env: { ...process.env, PBF_RUNTIME_DELEGATION_BYPASS: "1", ...extraEnv },
   });
 }
 
@@ -70,6 +70,16 @@ test("goal, knowledge, and decision changes are plan-first and require explicit 
     assert.match(resume.stdout, /Ship a safe public preview/);
     assert.match(resume.stdout, /Known facts:/);
     assert.match(resume.stdout, /GitHub Releases/);
+
+    const providerResume = runCli(
+      path,
+      ["resume", "--provider", "claude-code"],
+      { LIVARIANT_PROVIDER_ENV: "claude-code" },
+    );
+    assert.equal(providerResume.status, 0, providerResume.stderr);
+    assert.match(providerResume.stdout, /Ship a safe public preview/);
+    assert.match(providerResume.stdout, /The public preview is distributed through GitHub Releases/);
+    assert.match(providerResume.stdout, /Use GitHub Releases for preview distribution/);
 
     const supersedePlan = runCli(path, ["decisions", "supersede", decisionId, "Use signed release infrastructure", "--reason", "Distribution model changed"]);
     assert.equal(supersedePlan.status, 0, supersedePlan.stderr);
