@@ -24,6 +24,11 @@ function bullets(markdown: string): string[] {
     .map((line) => line.slice(2));
 }
 
+function beforeFirstSubheading(markdown: string): string {
+  const index = markdown.search(/\n##\s/);
+  return index < 0 ? markdown : markdown.slice(0, index);
+}
+
 export async function buildResumeContext(projectPath: string = process.cwd()): Promise<ResumeContext> {
   const project = discoverProject(projectPath);
   const store = new ProjectBrainStore(project.root);
@@ -59,7 +64,7 @@ export async function buildResumeContext(projectPath: string = process.cwd()): P
   return {
     projectRoot: project.root,
     projectIdentity: bullets(projectDoc),
-    confirmedGoals: bullets(goals),
+    confirmedGoals: bullets(beforeFirstSubheading(goals)),
     activeDecisions: parsedDecisions.records.filter((record) => record.status === "active").map((record) => record.text),
     knownFacts: bullets(evidencePart),
     unresolvedUnknowns: bullets(unknownPart),
