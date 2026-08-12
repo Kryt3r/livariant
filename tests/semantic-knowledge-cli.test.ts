@@ -115,7 +115,7 @@ test("goal and knowledge additions preserve unrelated human-authored canonical c
     const goalsPath = resolve(path, ".project-brain", "goals.md");
     const knowledgePath = resolve(path, ".project-brain", "knowledge.md");
 
-    await writeFile(goalsPath, "# Goals\n\nHuman context that must remain.\n\n- Existing goal\n\n## Notes\n\nDo not rewrite this paragraph.\n", "utf8");
+    await writeFile(goalsPath, "# Goals\n\nHuman context that must remain.\n\n- Existing goal\n\n## Notes\n\nDo not rewrite this paragraph.\n\n- This is a note, not a goal\n", "utf8");
     await writeFile(knowledgePath, "# Knowledge\n\n## Verified discovery evidence\n\n- package-name:example\n\nHuman explanation that must remain.\n\n## Known unknowns\n\n- deployment target\n", "utf8");
 
     await addConfirmedGoal("New goal", path, { authorized: true });
@@ -126,7 +126,9 @@ test("goal and knowledge additions preserve unrelated human-authored canonical c
     assert.match(goals, /- Existing goal/);
     assert.match(goals, /- New goal/);
     assert.match(goals, /## Notes\n\nDo not rewrite this paragraph/);
+    assert.match(goals, /- This is a note, not a goal/);
     assert.ok(goals.indexOf("- New goal") < goals.indexOf("## Notes"));
+    assert.deepEqual((await buildResumeContext(path)).confirmedGoals, ["Existing goal", "New goal"]);
 
     const knowledge = await readFile(knowledgePath, "utf8");
     assert.match(knowledge, /package-name:example/);
