@@ -11,6 +11,8 @@ export { buildResumeContext } from "./resume.js";
 export type { ResumeContext } from "./resume.js";
 export { recordAcceptedDecision, supersedeAcceptedDecision } from "./canonical-change.js";
 export type { CanonicalDecisionChangeOptions, SupersedeDecisionInput, SupersedeDecisionResult } from "./canonical-change.js";
+export { addConfirmedGoal, addConfirmedKnowledge } from "./canonical-knowledge-change.js";
+export type { CanonicalKnowledgeChangeOptions, CanonicalKnowledgeChangeResult } from "./canonical-knowledge-change.js";
 export { runDoctor } from "./doctor.js";
 export type { DoctorFinding, DoctorReport, DoctorState } from "./doctor.js";
 export { applyNormalUpdate, checkForUpdate, compareSemver, planNormalUpdate } from "../lifecycle/update.js";
