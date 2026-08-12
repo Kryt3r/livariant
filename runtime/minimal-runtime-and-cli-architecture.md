@@ -217,6 +217,8 @@ The Project Brain implementation exposes semantic storage operations behind `Pro
 
 Runtime operations may decide what semantic content should change, but managed path construction, candidate promotion, symlink checks, and concurrency-safe replacement remain inside the Project Brain storage boundary.
 
+This is an authority boundary as well as an organization boundary. Adding a new semantic Runtime operation must not create a second direct persistence implementation for managed Project Brain documents.
+
 This preserves the accepted rule that semantic Project Brain structure matters more than any one physical file layout and makes schema migration practical without rewriting unrelated Runtime logic.
 
 ## Ownership Must Be Representable
