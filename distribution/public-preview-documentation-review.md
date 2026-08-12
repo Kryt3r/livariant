@@ -10,43 +10,48 @@ updated: 2026-08-12
 
 # Public Preview Documentation & User-Journey Review
 
-This review evaluates whether a new user can understand and safely exercise the final Livariant RC2 candidate without relying on private development history.
+This review evaluates whether a new user can understand and safely exercise the Livariant Foundation Preview RC2 candidate without relying on private development history.
 
 ## Current reviewed state
 
 - Canonical repository: `Kryt3r/livariant`.
 - Repository visibility: private.
-- Final bound RC2 source: `124b6022a469667495b0c0093a0c6f574bb85481`.
-- Post-merge Hardening CI #150: success on that exact source.
 - Package/release identity: `0.1.0-rc.2`.
-- Final focused acceptance recheck of the remaining Runtime release-authority and Recovery findings: **GO**.
+- Foundation Preview release source: `31cf83656676358cf7003f95b5ad32f998b28d1f`.
+- Post-merge Hardening CI #154: success on that exact source.
+- Final focused acceptance recheck of Runtime release-authority and Recovery findings: **GO**.
 - End-to-end Product Utility blocker H-04: **CLOSED** by PR #29 and post-merge CI #133.
 - Public human-documentation and repository acceptance: **CLOSED** by PR #28, CI #149, manual Discussions/Issues host verification, and post-merge CI #150.
+- Foundation Preview positioning: **CLOSED** by PR #31 and post-merge CI #154.
 - Final verified RC2 tarball: `livariant-0.1.0-rc.2.tgz`.
-- Final verified tarball SHA-256: `984d6976df3bfd7c5f5c5683099045e5412c5705db8b9c7a69081435a01645b1`.
-- Build RC Bundle run #4: success, including exact-source checkout, public-doc Truth-Surface verification, 93 executable tests, package/global-install smoke, release-bundle smoke, independent digest/manifest/checksum verification, and digest-keyed cache persistence.
+- Final verified tarball SHA-256: `b91d098fac1a26211600f25dbca8658d810b168fcdeedb7f40e2e576e1347d13`.
+- Build RC Bundle run #5: success, including exact-source checkout, public-doc Truth-Surface verification, 93 executable tests, package/global-install smoke, release-bundle smoke, independent digest/manifest/checksum verification, and digest-keyed cache persistence.
 
-This final identity supersedes earlier RC2 source/digest bindings because the candidate now includes the repeated-use semantic Project Brain editing capability and the completed human documentation/community pass.
+This identity supersedes earlier RC2 source/digest bindings because the packaged README now presents RC2 explicitly as the Foundation Preview and separates current executable capability from planned Active Project Intelligence.
 
 This review does not authorize a tag, GitHub Release, npm publication, or repository visibility change.
 
-## Documentation set
+## Product story and expectation setting
 
-The public/current-facing documentation includes:
+The public README now establishes two distinct layers.
 
-- `README.md` and `README.de.md`;
-- English and German installation / first-project guides;
-- English and German Quickstart;
-- English and German existing-project adoption guidance;
-- English and German Architecture & Safety;
-- English and German Provider Handoff;
-- English and German lifecycle/update/recovery guidance;
-- English and German Preview Scope & Limitations;
-- English and German Privacy & Network Behavior;
-- English and German Preview Support & Stability;
-- English and German License/Warranty/Liability guidance;
-- accepted distribution contracts for installation, upgrade, release integrity, and launch readiness;
-- support/community routing and GitHub contribution surfaces.
+### What exists today
+
+RC2 provides the safe project-owned foundation:
+
+- persistent canonical Project Brain state;
+- explicit semantic editing for goals, knowledge, and decisions;
+- plan-first mutation with explicit `--apply`;
+- decision supersession with retained history;
+- Claude Code and Codex Resume handoff;
+- hardened update, migration, Runtime trust, Release Authority, and Recovery behavior;
+- preservation and verification boundaries around managed state.
+
+### Where Livariant is going
+
+The README identifies **Active Project Intelligence** as the next product layer and clearly marks it as future work. The intended direction includes agent-assisted recognition of durable project truth, semantic change proposals, conflict and drift detection, and a more natural agent workflow built on the current safe core.
+
+No future capability is presented as executable RC2 behavior.
 
 ## Supported end-to-end first-user and repeated-use journey
 
@@ -66,91 +71,76 @@ obtain the canonical GitHub Release tarball
 -> supersede a stale decision without deleting history
 -> resume again and verify the new active truth
 -> inspect update plan without mutation
--> supply matching local artifact + trusted-source evidence
--> require pre-existing independent machine-local authority for the exact artifact digest
--> only then allow supported executable update / candidate Runtime attestation
--> route schema-changing releases through migration
--> inspect interrupted migration recovery
--> explicitly apply validated recovery
+-> require the matching artifact and independent machine-local authority
+-> apply supported update or migration only through the authorized lifecycle
+-> diagnose and explicitly recover interrupted migration state
 ```
 
 Livariant RC2 is not documented as a Claude Code/Codex plugin and is not installed into the target project's `package.json`. The npm registry is not the Public Preview distribution source; npm is used locally as the installer for the verified GitHub Release tarball.
 
-Project-controlled input cannot create the machine-local Release Authority later relied upon for its own Runtime execution. The project-facing `authorize-runtime` command is absent.
-
 ## Documentation gate assessment
 
-### Why / problem statement - GREEN
+### Why / product value - GREEN
 
-The README explains the continuity problem and Livariant's role before introducing deeper architecture. The beginner path explains how persistent project-owned knowledge helps when sessions end or coding agents change.
+The README explains the continuity problem first, shows what the Foundation Preview already solves, and makes the larger Living Software Framework direction visible without blurring current and future capability.
+
+### Beginner clarity - GREEN
+
+A reader new to AI-assisted coding can understand what Project Brain means, why durable project truth matters, how to install Livariant, how repeated use works, and what still requires manual confirmation.
+
+### Current capability vs roadmap - GREEN
+
+The README explicitly separates current RC2 capability from Active Project Intelligence. Planned agent-assisted detection, conflict analysis, and natural workflow features are described as direction, not as shipped functionality.
 
 ### First install / acquisition - GREEN
 
-The English and German installation guidance covers Node.js prerequisites, canonical GitHub Release acquisition, SHA-256 verification, global machine/user tooling installation from the verified `.tgz`, `livariant version`, entry into an existing project root, provider-plugin boundaries, and Windows PowerShell differences where relevant.
-
-The global tarball-install path is executable evidence and passed again in final Build RC Bundle run #4.
+English and German installation guidance covers prerequisites, canonical GitHub Release acquisition, SHA-256 verification, global installation from the verified `.tgz`, `livariant version`, existing-project entry, provider-plugin boundaries, and Windows differences where relevant.
 
 ### Quickstart and repeated use - GREEN
 
-The English and German Quickstarts connect installation to inspection-first initialization, semantic goal/knowledge/decision editing, Resume, provider handoff, update planning/application, independent Release Authority, and Recovery.
+English and German Quickstarts connect installation to inspection-first initialization, semantic goal/knowledge/decision editing, Resume, provider handoff, update planning/application, independent Release Authority, and Recovery.
 
-The repeated-use path is executable, not only documented. Final bundle verification ran 93 tests with 91 pass, 0 fail, and 2 expected platform skips on the Ubuntu bundle-build runner.
+The repeated-use path is executable. Build RC Bundle run #5 executed 93 tests with 91 pass, 0 fail, and 2 expected platform skips on the Ubuntu bundle-build runner.
 
-### Existing-project guide - GREEN
+### Architecture / safety - GREEN
 
-The guide matches preservation-first adoption behavior, including malformed evidence, secrets, native agent files, re-init protection, filesystem boundaries, and safe repeated semantic editing after adoption.
-
-### Architecture / ownership / safety - GREEN
-
-The public guide reflects machine-local Runtime trust, independent exact-artifact Release Authority, the pre-trust execution boundary, semantic write authorization, preservation-first mutation, concurrency protection, and the separation between project data and execution authority.
+Public guidance reflects machine-local Runtime trust, independent exact-artifact Release Authority, the pre-trust execution boundary, semantic write authorization, preservation-first mutation, concurrency protection, and project-data versus execution-authority separation.
 
 ### Provider handoff - GREEN for the supported Preview surface
 
-Provider guidance accurately limits current support to Project Brain Resume handoff for Claude Code and Codex. Adapter capability does not become mutation or Runtime execution authority. Durable goals, knowledge, and decisions flow into later provider Resume context from the canonical Project Brain rather than provider-hidden memory.
-
-### Update / migration / recovery - GREEN
-
-Planning and diagnosis remain read-only by default. Schema-changing compatible releases route through the supported migration contract. Executable update requires pre-existing independent exact-artifact authority outside project control, and Recovery guidance reflects the accepted cleanup ordering.
+Provider guidance accurately limits current support to Project Brain Resume handoff for Claude Code and Codex. Adapter capability does not become mutation or Runtime execution authority.
 
 ### Community / support routing - GREEN
 
-Public routing distinguishes usage questions, ideas, reproducible bugs, documentation problems, security vulnerabilities, and currently gated code contributions. GitHub Discussions categories and required Issue labels were manually verified before the final documentation merge.
+Public routing distinguishes usage questions, ideas, reproducible bugs, documentation problems, security vulnerabilities, and currently gated code contributions. Discussions categories and required Issue labels were manually verified.
 
 ### Human-writing and navigation quality - GREEN
 
-Public EN/DE user docs are checked for language-pair parity and local-link integrity. The agreed public punctuation/style guard is enforced by CI. Beginner explanations no longer require prior familiarity with Livariant's internal vocabulary.
+Public EN/DE user docs are checked for language-pair parity and local-link integrity. The agreed public punctuation/style guard is enforced by CI. README EN/DE was shortened and refocused in PR #31.
 
-### Version and final candidate identity - GREEN
+## Final RC2 release identity
 
 ```text
 Version: 0.1.0-rc.2
-Source: 124b6022a469667495b0c0093a0c6f574bb85481
+Release source: 31cf83656676358cf7003f95b5ad32f998b28d1f
 Artifact: livariant-0.1.0-rc.2.tgz
-SHA-256: 984d6976df3bfd7c5f5c5683099045e5412c5705db8b9c7a69081435a01645b1
+SHA-256: b91d098fac1a26211600f25dbca8658d810b168fcdeedb7f40e2e576e1347d13
 ```
 
-Historical `v0.1.0-rc.1` remains historical pre-fix evidence and must not be presented as the current candidate. Earlier RC2 digests are superseded build evidence, not the final candidate identity.
+Historical `v0.1.0-rc.1` remains historical pre-fix evidence. Earlier RC2 digests are superseded build evidence and must not be presented as the final Foundation Preview release identity.
 
-## Product identity
-
-```text
-Product: Livariant
-Package/runtime: livariant
-CLI: livariant
-Version identity: 0.1.0-rc.2
-Provider environment evidence: LIVARIANT_PROVIDER_ENV
-```
+This review file is a release/readiness Truth Surface and is not part of the npm tarball payload, so updating the bound identity here does not change the verified artifact bytes.
 
 ## Current documentation readiness
 
 **DOCUMENTATION / USER-JOURNEY GATE: GREEN.**
 
-A new user has one explicit, test-backed path from canonical release acquisition through installation, existing-project adoption, repeated Project Brain use, provider Resume handoff, update, and Recovery. No provider-plugin or npm-registry capability is invented.
+A new user has one explicit, test-backed path from canonical release acquisition through installation, existing-project adoption, repeated Project Brain use, provider Resume handoff, update, and Recovery. The README also explains why RC2 is a Foundation Preview and where Livariant is going next.
 
-The final RC2 source/digest identity is known and independently verified. Remaining work consists only of separately authorized tag/release/visibility actions and their post-publication verification.
+Remaining work consists only of separately authorized tag, GitHub Release, visibility, and post-public host verification actions.
 
 No new Runtime/Security Hardening is implied. A further hardening change requires a concrete finding.
 
 ## Core rule
 
-> Public documentation must describe the product that actually exists and give a new user a complete safe path to the supported executable surface without inventing distribution or provider capabilities.
+> Public documentation must describe the product that actually exists, give a new user a complete safe path to the supported executable surface, and clearly distinguish shipped capability from product direction.
