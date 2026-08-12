@@ -1,0 +1,44 @@
+title: ""
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use Ideas for proposed improvements, new workflows, integrations, and product direction that should be discussed before they become implementation work.
+
+        If you are reporting something that is already broken on a supported path, use a Bug report under Issues instead.
+
+  - type: input
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the user problem before describing the feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Livariant to do?
+      description: Explain the idea in your own words. A complete technical design is not required.
+    validations:
+      required: true
+
+  - type: textarea
+    id: value
+    attributes:
+      label: Who would this help?
+      description: Tell us whether this is mainly useful for beginners, experienced AI coding users, teams, maintainers, or another group.
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Risks or tradeoffs you can already see
+      description: Optional. For example, project mutation, provider lock-in, privacy, complexity, security, or maintenance cost.
+
+  - type: checkboxes
+    id: safe
+    attributes:
+      label: Public information check
+      options:
+        - label: I have not included credentials, private project data, or vulnerability exploit details.
+          required: true
