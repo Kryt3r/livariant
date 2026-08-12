@@ -61,7 +61,7 @@ jobs:
           npm run test:package
           npm run test:release-bundle
 
-      - name: Build exact RC2 bundle
+      - name: Build RC bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -69,7 +69,7 @@ jobs:
             --source-id github:Kryt3r/livariant \
             --channel preview \
             --schema 1 \
-            --compatible-from 0.1.0-rc.1 \
+            --compatible-from 0.1.0-rc.1,0.1.0-rc.2 \
             --output rc-bundle
 
       - name: Independently verify bundle identity and digest
@@ -87,7 +87,10 @@ jobs:
           const sourceSha = process.env.SOURCE_SHA;
           const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
           if (packageJson.name !== 'livariant') throw new Error('Unexpected package name.');
-          if (packageJson.version !== '0.1.0-rc.2') throw new Error(`Unexpected package version: ${packageJson.version}`);
+          const expectedVersion = packageJson.version;
+          if (typeof expectedVersion !== 'string' || !/^0\.1\.0-rc\.\d+$/.test(expectedVersion)) {
+            throw new Error(`Unexpected RC package version: ${String(expectedVersion)}`);
+          }
 
           const dir = 'rc-bundle';
           const tarballs = readdirSync(dir).filter((name) => name.endsWith('.tgz'));
@@ -99,11 +102,12 @@ jobs:
           const manifest = JSON.parse(readFileSync(path.join(dir, 'release-manifest.json'), 'utf8'));
           const release = manifest?.[0];
           if (!release) throw new Error('Missing release descriptor.');
-          if (release.version !== '0.1.0-rc.2') throw new Error('Manifest version mismatch.');
+          if (release.version !== expectedVersion) throw new Error('Manifest version mismatch.');
           if (release.channel !== 'preview') throw new Error('Manifest channel mismatch.');
           if (release.projectBrainSchema !== 1) throw new Error('Manifest Project Brain schema mismatch.');
           if (release.sourceId !== 'github:Kryt3r/livariant') throw new Error('Manifest sourceId mismatch.');
-          if (!release.compatibility?.from?.includes('0.1.0-rc.1')) throw new Error('Manifest compatible-from mismatch.');
+          if (!release.compatibility?.from?.includes('0.1.0-rc.1')) throw new Error('Manifest missing rc.1 compatibility.');
+          if (!release.compatibility?.from?.includes('0.1.0-rc.2')) throw new Error('Manifest missing rc.2 compatibility.');
           if (release.artifact?.id !== 'runtime-node-cli') throw new Error('Manifest artifact id mismatch.');
           if (release.artifact?.sha256 !== sha256) throw new Error('Manifest SHA-256 does not match artifact bytes.');
 
@@ -114,24 +118,27 @@ jobs:
             path.join(dir, 'RC-BUILD-METADATA.json'),
             `${JSON.stringify({ sourceSha, version: release.version, channel: release.channel, sourceId: release.sourceId, artifact, sha256 }, null, 2)}\n`,
           );
+          appendFileSync(process.env.GITHUB_OUTPUT, `version=${release.version}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `sha256=${sha256}\n`);
-          console.log(JSON.stringify({ sourceSha, artifact, sha256 }, null, 2));
+          console.log(JSON.stringify({ sourceSha, version: release.version, artifact, sha256 }, null, 2));
           NODE
           cp RC-SOURCE-COMMIT rc-bundle/RC-SOURCE-COMMIT
 
-      - name: Cache verified RC2 bundle bytes
+      - name: Cache verified RC bundle bytes
         uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: rc-bundle/
-          key: livariant-rc2-${{ inputs.source_sha }}-${{ steps.verify.outputs.sha256 }}
+          key: livariant-${{ steps.verify.outputs.version }}-${{ inputs.source_sha }}-${{ steps.verify.outputs.sha256 }}
 
       - name: Record cache identity
         shell: bash
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
+          VERSION: ${{ steps.verify.outputs.version }}
           SHA256: ${{ steps.verify.outputs.sha256 }}
         run: |
           set -euo pipefail
-          echo "Verified RC2 source: $SOURCE_SHA"
-          echo "Verified RC2 artifact SHA-256: $SHA256"
-          echo "Cache key: livariant-rc2-$SOURCE_SHA-$SHA256"
+          echo "Verified RC version: $VERSION"
+          echo "Verified RC source: $SOURCE_SHA"
+          echo "Verified RC artifact SHA-256: $SHA256"
+          echo "Cache key: livariant-$VERSION-$SOURCE_SHA-$SHA256"
