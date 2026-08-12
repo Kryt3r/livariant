@@ -9,7 +9,7 @@ Livariant wird nicht in Claude Code, Codex oder einen anderen Coding-Agent insta
 - Node.js 20 oder neuer;
 - npm aus deiner Node.js-Installation;
 - eine lokale Kopie deines Projekts;
-- die Livariant-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`, sobald der Preview-Kandidat veröffentlicht ist.
+- die Livariant-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`, sobald RC3 veröffentlicht ist.
 
 Das Release-Bundle enthält mindestens:
 
@@ -19,11 +19,13 @@ release-manifest.json
 SHA256SUMS
 ```
 
-Für `0.1.0-rc.2` heißt das Paket:
+Für den aktuellen Kandidaten `0.1.0-rc.3` heißt das Paket:
 
 ```text
-livariant-0.1.0-rc.2.tgz
+livariant-0.1.0-rc.3.tgz
 ```
+
+Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz und nicht das aktuelle Installationsziel.
 
 > [!IMPORTANT]
 > Lade die Release-Dateien nur aus dem kanonischen Livariant-GitHub-Release. Installiere keinen Tarball aus einem unbekannten Repository, Chat-Anhang, Mirror oder einer beliebigen Paketquelle nur deshalb, weil die Datei `livariant` heißt.
@@ -37,7 +39,7 @@ Bevor du ausführbaren Code installierst, vergleichst du den SHA-256 des Tarball
 Im Ordner mit den heruntergeladenen Release-Dateien:
 
 ```bash
-sha256sum livariant-0.1.0-rc.2.tgz
+sha256sum livariant-0.1.0-rc.3.tgz
 cat SHA256SUMS
 ```
 
@@ -46,7 +48,7 @@ Die Hashwerte müssen exakt übereinstimmen.
 ### macOS
 
 ```bash
-shasum -a 256 livariant-0.1.0-rc.2.tgz
+shasum -a 256 livariant-0.1.0-rc.3.tgz
 cat SHA256SUMS
 ```
 
@@ -55,7 +57,7 @@ Die Hashwerte müssen exakt übereinstimmen.
 ### Windows PowerShell
 
 ```powershell
-(Get-FileHash .\livariant-0.1.0-rc.2.tgz -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash .\livariant-0.1.0-rc.3.tgz -Algorithm SHA256).Hash.ToLower()
 Get-Content .\SHA256SUMS
 ```
 
@@ -70,13 +72,13 @@ Im Ordner mit dem geprüften Tarball:
 ### Linux / macOS
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
 ```
 
 ### Windows PowerShell
 
 ```powershell
-npm install --global --ignore-scripts .\livariant-0.1.0-rc.2.tgz
+npm install --global --ignore-scripts .\livariant-0.1.0-rc.3.tgz
 ```
 
 Damit wird der Befehl `livariant` für deinen Rechner oder Benutzer installiert.
@@ -92,7 +94,7 @@ Noch passiert nichts mit deinem Projekt. Livariant wird weder automatisch initia
 livariant version
 ```
 
-Für diesen Preview-Kandidaten muss die Ausgabe Livariant `0.1.0-rc.2` auf dem Channel `preview` erkennen lassen.
+Für diesen Preview-Kandidaten muss die Ausgabe Livariant `0.1.0-rc.3` auf dem Channel `preview` erkennen lassen.
 
 Wenn dein Terminal den Befehl `livariant` nicht findet, öffne zuerst ein neues Terminal. Prüfe danach, ob das globale npm-Bin-Verzeichnis in deinem `PATH` liegt.
 
