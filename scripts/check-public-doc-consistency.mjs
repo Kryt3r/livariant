@@ -21,6 +21,8 @@ const publicSurfaces = [
   join(root, 'CONTRIBUTING.md'),
   join(root, 'SECURITY.md'),
   join(root, 'LICENSING.md'),
+  join(root, 'SUPPORT.md'),
+  join(root, '.github', 'pull_request_template.md'),
   ...await markdownFiles(join(root, 'docs')),
 ];
 
@@ -67,13 +69,31 @@ const rules = [
   },
 ];
 
+const publicWritingRules = [
+  {
+    id: 'typographic-prose-dash',
+    pattern: /[\u2013\u2014]/g,
+    message: 'public documentation must not use en dash or em dash characters as prose punctuation',
+  },
+];
+
 const failures = [];
 for (const file of currentSurfaces) {
   const content = await readFile(file, 'utf8');
   for (const rule of rules) {
     rule.pattern.lastIndex = 0;
     if (rule.pattern.test(content)) {
-      failures.push(`${relative(root, file)}: ${rule.id} — ${rule.message}`);
+      failures.push(`${relative(root, file)}: ${rule.id}: ${rule.message}`);
+    }
+  }
+}
+
+for (const file of publicSurfaces) {
+  const content = await readFile(file, 'utf8');
+  for (const rule of publicWritingRules) {
+    rule.pattern.lastIndex = 0;
+    if (rule.pattern.test(content)) {
+      failures.push(`${relative(root, file)}: ${rule.id}: ${rule.message}`);
     }
   }
 }
@@ -90,13 +110,13 @@ const namingRequirements = [
 ];
 for (const [requiredText, label] of namingRequirements) {
   if (!namingDecision.includes(requiredText)) {
-    failures.push(`distribution/product-naming-decision.md: missing-${label.replaceAll(' ', '-')} — expected current ${label}: ${requiredText}`);
+    failures.push(`distribution/product-naming-decision.md: missing-${label.replaceAll(' ', '-')}: expected current ${label}: ${requiredText}`);
   }
 }
 
 const packageJson = await readFile(join(root, 'package.json'), 'utf8');
 if (/Public Preview preparation/i.test(packageJson)) {
-  failures.push('package.json: preparation-state — package metadata must not describe the product as still being in Public Preview preparation');
+  failures.push('package.json: preparation-state: package metadata must not describe the product as still being in Public Preview preparation');
 }
 
 if (failures.length > 0) {
