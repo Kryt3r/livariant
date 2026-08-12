@@ -186,7 +186,9 @@ For the Preview baseline:
 - canonical writes require a valid, healthy Project Brain;
 - duplicate simple additions fail rather than silently rewriting existing truth;
 - decision supersession preserves historical state;
-- persistence uses framework-managed path checks and atomic replacement;
+- persistence must go through `ProjectBrainStore`; Runtime code must not establish a parallel direct-filesystem write path for managed canonical documents;
+- the storage boundary performs managed-path checks, symlink rejection, atomic replacement, and exact-original concurrency checks before promotion;
+- unrelated human-authored canonical content must be preserved;
 - post-write verification is required before success is reported.
 
 Future guided natural-language editing can add richer impact analysis over the same Runtime boundary. It must not weaken these authority and verification rules.
@@ -211,19 +213,9 @@ This allows future interfaces such as an installer, GUI, IDE integration, Codex 
 
 Executable code must not scatter assumptions about the physical Project Brain file layout throughout the Runtime.
 
-The Project Brain implementation should expose semantic storage operations behind a storage boundary, for example conceptually:
+The Project Brain implementation exposes semantic storage operations behind `ProjectBrainStore`, including reading and controlled replacement of canonical goals, decisions, and knowledge documents.
 
-```text
-ProjectBrainStore
-  readProjectIdentity()
-  readGoals()
-  readDecisions()
-  readFrameworkMetadata()
-  writeAcceptedBootstrap(...)
-  applyAuthorizedSemanticChange(...)
-```
-
-The concrete Markdown/YAML/file representation remains behind that boundary.
+Runtime operations may decide what semantic content should change, but managed path construction, candidate promotion, symlink checks, and concurrency-safe replacement remain inside the Project Brain storage boundary.
 
 This preserves the accepted rule that semantic Project Brain structure matters more than any one physical file layout and makes schema migration practical without rewriting unrelated Runtime logic.
 
