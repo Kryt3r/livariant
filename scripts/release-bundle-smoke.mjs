@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 const root = process.cwd();
 const temp = await mkdtemp(resolve(tmpdir(), "livariant-release-bundle-"));
@@ -10,11 +10,17 @@ const bundle = resolve(temp, "bundle");
 const consumer = resolve(temp, "consumer");
 const sourceId = "github:Kryt3r/livariant";
 
+function npmInvocation(args) {
+  return process.platform === "win32"
+    ? {
+        command: process.execPath,
+        args: [resolve(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...args],
+      }
+    : { command: "npm", args };
+}
+
 function run(command, args, options = {}) {
-  const useWindowsCommandShell = process.platform === "win32" && (command === "npm" || command.toLowerCase().endsWith(".cmd"));
-  const executable = useWindowsCommandShell ? (process.env.ComSpec || "cmd.exe") : command;
-  const executableArgs = useWindowsCommandShell ? ["/d", "/s", "/c", command, ...args] : args;
-  const result = spawnSync(executable, executableArgs, {
+  const result = spawnSync(command, args, {
     cwd: options.cwd ?? root,
     encoding: "utf8",
     shell: false,
@@ -29,6 +35,11 @@ function run(command, args, options = {}) {
     ].filter(Boolean).join("\n"));
   }
   return result;
+}
+
+function runNpm(args, options = {}) {
+  const invocation = npmInvocation(args);
+  return run(invocation.command, invocation.args, options);
 }
 
 try {
@@ -60,12 +71,10 @@ try {
   const sums = await readFile(resolve(bundle, "SHA256SUMS"), "utf8");
   if (sums !== `${observedSha}  ${summary.artifact}\n`) throw new Error("SHA256SUMS does not match the packed artifact.");
 
-  run("npm", ["init", "-y"], { cwd: consumer });
-  run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", artifactPath], { cwd: consumer });
-  const bin = process.platform === "win32"
-    ? resolve(consumer, "node_modules", ".bin", "livariant.cmd")
-    : resolve(consumer, "node_modules", ".bin", "livariant");
-  const versionResult = run(bin, ["version", "--json"], { cwd: consumer });
+  runNpm(["init", "-y"], { cwd: consumer });
+  runNpm(["install", "--ignore-scripts", "--no-audit", "--no-fund", artifactPath], { cwd: consumer });
+  const cliPath = resolve(consumer, "node_modules", "livariant", "dist", "src", "cli", "index.js");
+  const versionResult = run(process.execPath, [cliPath, "version", "--json"], { cwd: consumer });
   let version;
   try {
     version = JSON.parse(versionResult.stdout);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { basename, join, resolve } from "node:path";
 import test from "node:test";
@@ -32,6 +32,22 @@ function releaseInputs(path: string, sha256: string): { identity: ReleaseIdentit
     },
   };
 }
+
+test("npm packaging helpers never route through cmd.exe or ComSpec", async () => {
+  const paths = [
+    "scripts/package-smoke.mjs",
+    "scripts/build-release-bundle.mjs",
+    "scripts/release-bundle-smoke.mjs",
+    "tests/runtime-package-fixture.ts",
+    "tests/pretrust-runtime-authorization.test.ts",
+  ];
+
+  for (const path of paths) {
+    const source = await readFile(resolve(process.cwd(), path), "utf8");
+    assert.doesNotMatch(source, /ComSpec|cmd\.exe/i, `${path} must not invoke npm through the Windows command shell`);
+    assert.match(source, /npm-cli\.js/, `${path} must use the shell-free npm CLI entry point on Windows`);
+  }
+});
 
 test("runtime installation preserves literal Windows metacharacters in project and artifact paths", { skip: process.platform !== "win32" }, async () => {
   const fixture = await createRuntimePackageFixture(version);
@@ -67,9 +83,6 @@ test("runtime installation treats valid Windows cmd metacharacters as literal pa
   const previousTrustRoot = process.env.LIVARIANT_TRUST_ROOT;
   process.env.LIVARIANT_TRUST_ROOT = trustRoot;
 
-  // `|` and `"` are not legal Windows filename characters, so they cannot occur
-  // in the filesystem paths passed to this installation API. These cases cover
-  // cmd metacharacters that are legal in Windows path components.
   const cases = ["a&b", "a^b", "a%b", "a(b)", "a!b"];
 
   try {

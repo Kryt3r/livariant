@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 const root = process.cwd();
 const args = process.argv.slice(2);
@@ -16,11 +16,11 @@ function option(name) {
 
 function runNpm(args) {
   const result = process.platform === "win32"
-    ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm", ...args], {
-        cwd: root,
-        encoding: "utf8",
-        shell: false,
-      })
+    ? spawnSync(
+        process.execPath,
+        [resolve(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...args],
+        { cwd: root, encoding: "utf8", shell: false },
+      )
     : spawnSync("npm", args, {
         cwd: root,
         encoding: "utf8",
