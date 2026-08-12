@@ -8,6 +8,7 @@ import { runDoctor } from "./doctor.js";
 
 export interface CanonicalKnowledgeChangeOptions {
   authorized: boolean;
+  beforePromote?: () => void | Promise<void>;
 }
 
 export interface CanonicalKnowledgeChangeResult {
@@ -51,12 +52,25 @@ async function loadWritableBrainFile(projectPath: string, filename: "goals.md" |
   return { path, brainPath: inspection.path, content: await readFile(path, "utf8") };
 }
 
-async function persistBrainFile(path: string, brainPath: string, filename: string, content: string): Promise<void> {
+async function persistBrainFile(
+  path: string,
+  brainPath: string,
+  filename: string,
+  expectedOriginal: string,
+  content: string,
+  beforePromote?: () => void | Promise<void>,
+): Promise<void> {
   const tempPath = resolve(brainPath, `.${filename}.tmp-${randomUUID()}`);
   assertPathWithinRoot(brainPath, tempPath, `Project Brain ${filename} candidate path`);
   await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" });
   try {
     await assertRegularFile(tempPath, `Project Brain ${filename} candidate`);
+    await beforePromote?.();
+    await assertRegularFile(path, `Project Brain ${filename}`);
+    const current = await readFile(path, "utf8");
+    if (current !== expectedOriginal) {
+      throw new Error(`Project Brain ${filename} changed concurrently; refusing to overwrite newer project-owned state.`);
+    }
     await rename(tempPath, path);
   } catch (error) {
     await rm(tempPath, { force: true });
@@ -65,38 +79,38 @@ async function persistBrainFile(path: string, brainPath: string, filename: strin
 }
 
 function renderGoals(current: string, goal: string): string {
-  const existing = bullets(current);
-  if (existing.includes(goal)) throw new Error("An identical confirmed goal already exists.");
-  const next = [...existing, goal];
-  return `# Goals\n\nConfirmed project goals.\n\n${next.map((item) => `- ${item}`).join("\n")}\n`;
+  if (bullets(current).includes(goal)) throw new Error("An identical confirmed goal already exists.");
+
+  const placeholder = "No confirmed project goals have been recorded yet.";
+  if (current.includes(placeholder)) {
+    return current.replace(placeholder, `Confirmed project goals.\n\n- ${goal}`);
+  }
+
+  return `${current.trimEnd()}\n\n- ${goal}\n`;
 }
 
 function renderKnowledge(current: string, knowledge: string): string {
-  const marker = "## Known unknowns";
-  const confirmedHeading = "## Confirmed project knowledge";
-  const markerIndex = current.indexOf(marker);
-  const beforeUnknowns = markerIndex >= 0 ? current.slice(0, markerIndex).trimEnd() : current.trimEnd();
-  const unknowns = markerIndex >= 0 ? current.slice(markerIndex).trimStart() : "";
+  if (bullets(current).includes(knowledge)) throw new Error("Identical confirmed project knowledge already exists.");
 
-  let prefix = beforeUnknowns;
-  let confirmed: string[] = [];
-  const headingIndex = beforeUnknowns.indexOf(confirmedHeading);
-  if (headingIndex >= 0) {
-    const beforeConfirmed = beforeUnknowns.slice(0, headingIndex).trimEnd();
-    const confirmedSection = beforeUnknowns.slice(headingIndex + confirmedHeading.length);
-    confirmed = bullets(confirmedSection);
-    prefix = beforeConfirmed;
+  const unknownHeading = "## Known unknowns";
+  const confirmedHeading = "## Confirmed project knowledge";
+  const confirmedIndex = current.indexOf(confirmedHeading);
+
+  if (confirmedIndex < 0) {
+    const unknownIndex = current.indexOf(unknownHeading);
+    const section = `${confirmedHeading}\n\n- ${knowledge}\n\n`;
+    if (unknownIndex < 0) return `${current.trimEnd()}\n\n${section.trimEnd()}\n`;
+    return `${current.slice(0, unknownIndex).trimEnd()}\n\n${section}${current.slice(unknownIndex)}`;
   }
 
-  if (confirmed.includes(knowledge)) throw new Error("Identical confirmed project knowledge already exists.");
-  confirmed.push(knowledge);
-
-  const sections = [
-    prefix,
-    `${confirmedHeading}\n\n${confirmed.map((item) => `- ${item}`).join("\n")}`,
-    unknowns,
-  ].filter((section) => section.length > 0);
-  return `${sections.join("\n\n")}\n`;
+  const afterHeading = confirmedIndex + confirmedHeading.length;
+  const nextHeadingOffset = current.slice(afterHeading).search(/\n##\s/);
+  const insertionIndex = nextHeadingOffset < 0 ? current.length : afterHeading + nextHeadingOffset;
+  const before = current.slice(0, insertionIndex).trimEnd();
+  const after = current.slice(insertionIndex).trimStart();
+  return after.length > 0
+    ? `${before}\n- ${knowledge}\n\n${after}`
+    : `${before}\n- ${knowledge}\n`;
 }
 
 export async function addConfirmedGoal(
@@ -107,7 +121,8 @@ export async function addConfirmedGoal(
   if (!options.authorized) throw new Error("Recording a confirmed goal requires explicit authorization.");
   const normalized = normalizedScalar(goal, "Confirmed goal");
   const state = await loadWritableBrainFile(projectPath, "goals.md");
-  await persistBrainFile(state.path, state.brainPath, "goals", renderGoals(state.content, normalized));
+  const candidate = renderGoals(state.content, normalized);
+  await persistBrainFile(state.path, state.brainPath, "goals", state.content, candidate, options.beforePromote);
 
   const verify = await readFile(state.path, "utf8");
   if (!bullets(verify).includes(normalized)) throw new Error("Confirmed goal verification failed after persistence.");
@@ -122,7 +137,8 @@ export async function addConfirmedKnowledge(
   if (!options.authorized) throw new Error("Recording confirmed project knowledge requires explicit authorization.");
   const normalized = normalizedScalar(knowledge, "Confirmed project knowledge");
   const state = await loadWritableBrainFile(projectPath, "knowledge.md");
-  await persistBrainFile(state.path, state.brainPath, "knowledge", renderKnowledge(state.content, normalized));
+  const candidate = renderKnowledge(state.content, normalized);
+  await persistBrainFile(state.path, state.brainPath, "knowledge", state.content, candidate, options.beforePromote);
 
   const verify = await readFile(state.path, "utf8");
   if (!bullets(verify).includes(normalized)) throw new Error("Confirmed project knowledge verification failed after persistence.");
