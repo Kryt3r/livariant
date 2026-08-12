@@ -152,7 +152,46 @@ livariant resume
 
 Das Projekt enthält jetzt den minimalen `.project-brain/`-Zustand, den Livariant verwaltet.
 
-## 7. Mit Claude Code oder Codex weiterarbeiten
+## 7. Dauerhafte Projektwahrheit im Alltag festhalten
+
+Die Initialisierung ist nur der Anfang. Wenn ein Ziel, ein bestätigter Fakt oder eine akzeptierte Entscheidung die aktuelle KI-Sitzung überdauern soll, hältst du das über Livariant fest, statt es nur im Chatverlauf zu lassen.
+
+Die aktuellen Werte kannst du so ansehen:
+
+```bash
+livariant goals
+livariant knowledge
+livariant decisions
+```
+
+Mutierende Befehle sind plan-first. Diese Beispiele zeigen zunächst nur, was geändert würde:
+
+```bash
+livariant goals add "Erste sichere Public Preview veröffentlichen"
+livariant knowledge add "Die Preview wird über GitHub Releases verteilt"
+livariant decisions add "GitHub Releases für die Preview verwenden"
+```
+
+Wenn der Plan stimmt, wiederholst du den gewünschten Befehl mit `--apply`:
+
+```bash
+livariant goals add "Erste sichere Public Preview veröffentlichen" --apply
+livariant knowledge add "Die Preview wird über GitHub Releases verteilt" --apply
+livariant decisions add "GitHub Releases für die Preview verwenden" --apply
+```
+
+Ändert sich eine akzeptierte Entscheidung später, lässt du dir zuerst die Decision-ID anzeigen und löst die alte Entscheidung gezielt ab. Die frühere Entscheidung wird nicht aus der Historie gelöscht:
+
+```bash
+livariant decisions
+livariant decisions supersede <decision-id> "Signierte Release-Infrastruktur verwenden" --reason "Distributionsmodell geändert"
+```
+
+Auch dieser Supersede-Befehl ist zunächst nur ein Plan. Erst mit `--apply` wird die Änderung geschrieben.
+
+Livariant prüft vor semantischen Änderungen den Project-Brain-Zustand, schützt verwaltete Pfade, lehnt eine Änderung ab, wenn sich der projekt-eigene Ausgangszustand zwischenzeitlich verändert hat, und verifiziert den gespeicherten Wert vor einer Erfolgsmeldung.
+
+## 8. Mit Claude Code oder Codex weiterarbeiten
 
 Die aktuelle Preview kann Project-Brain-Kontext für Claude Code oder Codex als Resume-Handoff ausgeben. Livariant ist dabei kein natives Plugin und schreibt keine provider-eigenen Instruktionsdateien stillschweigend um.
 
@@ -182,7 +221,7 @@ $env:LIVARIANT_PROVIDER_ENV = "codex"
 livariant resume --provider codex
 ```
 
-Die Resume-Ausgabe ist temporärer Kontext für die aktuelle Arbeitssitzung. Das Project Brain bleibt der dauerhafte Projektstand.
+Die Resume-Ausgabe ist temporärer Kontext für die aktuelle Arbeitssitzung. Das Project Brain bleibt der dauerhafte Projektstand. Bestätigte Ziele, aktive Entscheidungen und bekanntes Projektwissen, die über Livariant festgehalten wurden, stehen dem unterstützten Resume-Pfad zur Verfügung.
 
 ## Was die Installation tut und was nicht
 
@@ -202,13 +241,17 @@ mit status / doctor / init prüfen
 init --apply bewusst ausführen
         |
         v
-Livariant im normalen Projektalltag verwenden
+bestätigte Projektwahrheit im Arbeitsverlauf festhalten
+        |
+        v
+Resume-Kontext über unterstützte KI-Sitzungen hinweg verwenden
 ```
 
 Die CLI-Installation:
 
 - initialisiert kein Projekt automatisch;
 - verändert nicht automatisch `CLAUDE.md`, `AGENTS.md` oder Provider-Memory;
+- beobachtet keine KI-Gespräche und entscheidet nicht automatisch, was Projektwahrheit wird;
 - gibt einem Coding-Provider keine Projekt- oder Runtime-Autorität;
 - migriert ein vorhandenes Project Brain nicht allein deshalb, weil das CLI-Paket aktualisiert wurde;
 - autorisiert keine zukünftigen ausführbaren Runtime-Update-Artefakte.
