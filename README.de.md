@@ -6,48 +6,19 @@
 
 # Livariant
 
-**Ein Living Software Framework, das KI-gestützten Softwareprojekten hilft, Wissen, Entscheidungen und Richtung über Sitzungen und Tools hinweg zu behalten.**
+**Ein Living Software Framework für KI-gestützte Entwicklung, das dem Projekt ein eigenes dauerhaftes Gedächtnis, Entscheidungen, Richtung und Sicherheitsgrenzen gibt.**
 
-Wenn du KI zum Programmieren nutzt, kennst du vielleicht genau das Problem, für das Livariant gedacht ist.
+KI beim Programmieren verliert viel von ihrem Nutzen, wenn das Projekt nur im aktuellen Chat existiert.
 
-Du erklärst einem KI-Coding-Tool dein Projekt. Die Zusammenarbeit läuft gut. Einige Tage später startest du eine neue Sitzung, wechselst das Tool oder kehrst nach einer längeren Pause zurück. Wichtiger Kontext fehlt. Alte Entscheidungen tauchen wieder auf. Du erklärst dieselben Dinge erneut. Ein Agent versteht das Projekt anders als der nächste. Irgendwann steckt ein Teil der Projektgeschichte nur noch in Chatverläufen oder in deinem Kopf.
+Du triffst mit einem Agenten eine Architekturentscheidung. Eine Woche später schlägt eine neue Sitzung wieder den alten Weg vor. Du erklärst denselben Kontext zum fünften Mal. Claude Code kennt eine Version deines Projekts, Codex eine andere, und wichtige Entscheidungen verschwinden langsam in verteilten Chatverläufen.
 
-Livariant gibt diesem Wissen einen dauerhaften Platz direkt im Projekt.
+Livariant wird dafür gebaut, dass das Projekt selbst zur dauerhaften Quelle für Kontinuität wird und nicht eine einzelne KI-Sitzung.
 
-Du musst kein KI-Experte sein, um die Idee zu verstehen. Gerade wenn du mit Tools wie Claude Code oder Codex anfängst, soll Livariant dir helfen, dein Projekt verständlich und konsistent zu halten, auch wenn einzelne KI-Sitzungen kommen und gehen.
+Die aktuelle Version `0.1.0-rc.2` ist die **Foundation Preview**. Sie stellt bereits den sicheren, projekt-eigenen Kern bereit. Die nächste Schicht soll diesen Kern im normalen Arbeitsalltag deutlich aktiver und intuitiver machen.
 
-## Wobei Livariant hilft
+## Die Idee in einer Minute
 
-Livariant ist dafür gedacht, Projekten dabei zu helfen:
-
-- wichtige Projektentscheidungen auch nach dem Ende einer KI-Sitzung verfügbar zu halten;
-- Architektur und Ziele nicht ständig neu erklären zu müssen;
-- zwischen unterstützten Coding-Agents zu wechseln, ohne das Gedächtnis eines einzelnen Providers zum Projektarchiv zu machen;
-- bestätigte Fakten und offene Fragen in einem projekt-eigenen Wissensstand zu bewahren;
-- Ziele, Wissen und akzeptierte Entscheidungen über explizite plan-first Befehle festzuhalten;
-- Änderungen zu prüfen, bevor Livariant verwalteten Projektzustand schreibt;
-- Livariant zu aktualisieren oder wiederherzustellen, ohne verwaltete Lifecycle-Dateien per Hand auszutauschen.
-
-Ein einfaches Beispiel:
-
-```text
-Montag
-Du entscheidest mit Claude Code, dass die Anmeldung nach Ansatz A gebaut wird.
-Du hältst diese akzeptierte Entscheidung über Livariant fest, nachdem du den Änderungsplan geprüft hast.
-
-Freitag
-Du startest eine neue Codex-Sitzung.
-Livariant erzeugt den passenden Projektkontext aus dem Project Brain.
-Codex braucht den alten Claude-Code-Chat nicht, um zu wissen, dass Ansatz A die aktive Entscheidung ist.
-```
-
-Livariant sorgt nicht dafür, dass ein KI-Modell alles dauerhaft erinnert. Stattdessen bekommt das Projekt einen eigenen Wissensstand, den unterstützte Tools lesen können, wenn du ihnen diesen Kontext bewusst gibst.
-
-## Was das Project Brain ist
-
-Livariant nennt seinen projekt-eigenen Wissensspeicher **Project Brain**.
-
-Einfach gesagt ist das eine kleine Gruppe von Dateien im Projekt. Darin stehen zum Beispiel Projektidentität, Ziele, akzeptierte Entscheidungen, bestätigtes Wissen und Livariant-Metadaten.
+Heute gibt Livariant deinem Projekt ein **Project Brain**:
 
 ```text
 .project-brain/
@@ -58,145 +29,37 @@ Einfach gesagt ist das eine kleine Gruppe von Dateien im Projekt. Darin stehen z
   metadata.json
 ```
 
-Das Project Brain gehört deinem Projekt. Es gehört nicht Claude Code, Codex, einem bestimmten Modell oder einem versteckten Livariant-Cloud-Dienst.
+Darin liegen bestätigte Ziele, Wissen, Entscheidungen, Projektidentität und Lifecycle-Zustand in einer Form, die dem Projekt gehört.
 
-Chatverläufe, Provider-Memory, temporäre Pläne, `CLAUDE.md`, `AGENTS.md` und andere provider-spezifische Dateien können weiterhin hilfreich sein. Livariant behandelt sie aber nicht als konkurrierende Hauptquelle für den Projektzustand.
+So kann eine spätere KI-Sitzung den aktuellen Projektstand rekonstruieren, ohne von einem alten Chat oder dem Gedächtnis eines einzelnen Providers abhängig zu sein.
 
-## Inhaltsverzeichnis
-
-- [Für wen Livariant gedacht ist](#für-wen-livariant-gedacht-ist)
-- [Wie Livariant funktioniert](#wie-livariant-funktioniert)
-- [Fünf-Minuten-Start](#fünf-minuten-start)
-- [Wie die normale Nutzung aussieht](#wie-die-normale-nutzung-aussieht)
-- [Grenze der aktuellen Preview](#grenze-der-aktuellen-preview)
-- [Bestehende Projekte](#bestehende-projekte)
-- [Claude Code und Codex](#claude-code-und-codex)
-- [Sichere Updates und Wiederherstellung](#sichere-updates-und-wiederherstellung)
-- [Sicherheitsmodell](#sicherheitsmodell)
-- [Lokaler Datenschutz](#lokaler-datenschutz)
-- [Preview-Status](#preview-status)
-- [Dokumentation](#dokumentation)
-- [Lizenz, Sicherheit und Beiträge](#lizenz-sicherheit-und-beiträge)
-
-## Für wen Livariant gedacht ist
-
-### Wenn du gerade mit KI-gestütztem Programmieren anfängst
-
-Du musst weder Agent-Architektur noch Provider-APIs oder das komplette Sicherheitsmodell von Livariant verstehen, bevor du loslegst.
-
-Die aktuelle ausführbare Preview kann:
-
-1. Livariant als Kommandozeilen-Tool installieren;
-2. dein Projekt prüfen;
-3. einen Initialisierungsplan anzeigen;
-4. das Project Brain nach ausdrücklicher Freigabe anlegen;
-5. Gesundheit und Lifecycle-Zustand prüfen;
-6. bestätigte Ziele, bestätigtes Projektwissen und akzeptierte Entscheidungen mit plan-first Befehlen festhalten;
-7. veraltete Entscheidungen superseden, ohne ihre Historie zu löschen;
-8. Project-Brain-Kontext für unterstützte Coding-Agents erzeugen;
-9. den gehärteten Update-, Migrations- und Recovery-Lifecycle ausführen.
-
-Die tieferen Lifecycle- und Sicherheitsdokumente kannst du lesen, sobald du sie brauchst.
-
-### Wenn du bereits Claude Code oder Codex nutzt
-
-Livariant gibt diesen Sitzungen einen gemeinsamen projekt-eigenen Kontext, ohne so zu tun, als wären die nativen Erinnerungen verschiedener Provider austauschbar. Die aktuelle Preview unterstützt einen klar begrenzten Resume-Handoff für Claude Code und Codex.
-
-### Wenn du ein langfristiges oder komplexes Projekt pflegst
-
-Livariant bringt zusätzlich feste Regeln für Initialisierung, Updates, Migration, Integritätsprüfung und Wiederherstellung mit. Bestehender Projektzustand soll geschützt bleiben. Unklare Situationen sollen sichtbar werden, statt automatisch erraten zu werden.
-
-## Wie Livariant funktioniert
-
-Livariant trennt Projektwissen vom Gedächtnis eines einzelnen KI-Tools. Außerdem trennt es technische Fähigkeit von der Erlaubnis, geschützten Zustand zu verändern.
-
-Der normale Ablauf lautet:
+Ein einfaches Beispiel:
 
 ```text
-Prüfen -> Planen -> Autorisieren -> Ändern -> Verifizieren
-                                      |
-                                      +-> bei Abbruch gezielt wiederherstellen
+Montag
+Du entscheidest mit Claude Code, dass die Anmeldung nach Ansatz A gebaut wird.
+Du hältst die akzeptierte Entscheidung über Livariant fest, nachdem du den Plan geprüft hast.
+
+Freitag
+Du startest eine neue Codex-Sitzung.
+Livariant rekonstruiert den aktuellen Projektkontext aus dem Project Brain.
+Codex kann sehen, dass Ansatz A die aktive Entscheidung ist, ohne den alten Claude-Code-Chat zu brauchen.
 ```
 
-Das ist wichtig, weil ein Tool nicht automatisch jede Änderung ausführen sollte, nur weil es technisch dazu in der Lage ist.
+Der wichtige Punkt ist nicht nur, Text abzulegen. Livariant behandelt Projektwahrheit als verwalteten Zustand. Änderungen werden geplant, bevor sie angewendet werden. Alte Entscheidungen können als Historie erhalten bleiben, wenn sie ersetzt werden. Unklare oder unsichere Zustände werden nicht still geraten.
 
-> [!IMPORTANT]
-> **Fähigkeit ist nicht Autorität.** Livariant trennt Prüfung, Planung, Autorisierung, Änderung, Verifikation und Wiederherstellung bewusst voneinander.
+## Was heute bereits funktioniert
 
-Das tiefere Modell erklärt [Architektur & Sicherheit](docs/de/architecture-and-safety.md).
-
-## Fünf-Minuten-Start
-
-Voraussetzungen für den aktuellen Preview-Kandidaten:
-
-- Node.js 20 oder neuer;
-- ein lokales Projektverzeichnis;
-- der verifizierte Livariant-Preview-Release-Tarball aus dem kanonischen GitHub Release, sobald dieser veröffentlicht ist.
-
-Livariant wird nicht in Claude Code oder Codex installiert. Installiere den Release-Tarball zuerst als Tool für deinen Rechner oder Benutzeraccount:
-
-```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
-livariant version
-```
-
-Wechsle danach in den Projektordner, den du bereits mit deinem Coding-Tool nutzt, und prüfe den Zustand:
-
-```bash
-livariant status
-livariant doctor
-livariant init
-```
-
-`livariant init` ohne `--apply` initialisiert das Projekt nicht. Du bekommst zuerst den Plan zu sehen.
-
-Wenn der Plan korrekt ist:
-
-```bash
-livariant init --apply
-```
-
-Danach prüfst du das Ergebnis:
-
-```bash
-livariant status
-livariant doctor
-```
-
-Jetzt kannst du dauerhafte Projektwahrheit festhalten. Ohne `--apply` zeigen die Befehle nur einen Plan:
-
-```bash
-livariant goals add "Die erste sichere Public Preview veröffentlichen"
-livariant knowledge add "Die Preview wird über GitHub Releases verteilt"
-livariant decisions add "GitHub Releases für die Preview-Distribution verwenden"
-```
-
-Prüfe den vorgeschlagenen Wert und wiederhole den jeweiligen Befehl mit `--apply`, wenn er stimmt.
-
-Danach kannst du den aktuellen Projektkontext erzeugen:
-
-```bash
-livariant resume
-```
-
-Die CLI-Installation trägt Livariant nicht in die `package.json` deines Projekts ein und initialisiert das Projekt nicht automatisch.
-
-Unter [Installation & erstes Projekt](docs/de/installation.md) findest du Download-Prüfung, Windows-Befehle, PATH-Hilfe und den vollständigen Einstieg. Der [Fünf-Minuten-Schnellstart](docs/de/quickstart.md) ist die kürzere Arbeitsreferenz.
-
-## Wie die normale Nutzung aussieht
-
-Nach der Einrichtung musst du das Projekt nicht bei jeder KI-Sitzung neu initialisieren.
-
-Ein normaler Arbeitszyklus mit der aktuellen Preview kann so aussehen:
+Die Foundation Preview unterstützt schon einen echten wiederholten Arbeitsablauf:
 
 ```text
-1. Projekt öffnen.
-2. Bei Bedarf Livariant-Zustand prüfen.
-3. Mit resume den aktuellen Project-Brain-Kontext an den Coding-Agent geben.
-4. Am Projekt arbeiten.
-5. Wenn ein Ziel, ein bestätigter Fakt oder eine akzeptierte Entscheidung dauerhaftes Projektwissen werden soll, die Änderung mit goals, knowledge oder decisions planen.
-6. Den Plan prüfen und denselben Befehl mit --apply wiederholen.
-7. In einer späteren Sitzung mit resume wieder den aktualisierten Projektstand verwenden.
+Projekt prüfen
+-> Project Brain bewusst initialisieren
+-> Ziele, Wissen und Entscheidungen festhalten
+-> aktuellen Kontext in einer späteren Sitzung wieder aufnehmen
+-> veraltete Entscheidungen ersetzen, ohne Historie zu löschen
+-> Probleme diagnostizieren
+-> Updates und Recovery über kontrollierte Lifecycle-Pfade ausführen
 ```
 
 Nützliche Befehle sind:
@@ -204,21 +67,160 @@ Nützliche Befehle sind:
 ```bash
 livariant status
 livariant doctor
+livariant init
 livariant goals
 livariant knowledge
 livariant decisions
 livariant resume
+livariant update
+livariant recover
 ```
 
-`status` zeigt, welchen Zustand Livariant erkennt. `doctor` diagnostiziert unterstützte Zustände, ohne sie still zu reparieren. `goals`, `knowledge` und `decisions` zeigen dauerhafte Projektwahrheit und planen unterstützte Änderungen. `resume` erzeugt den aktuellen Project-Brain-Kontext für den Wiedereinstieg in das Projekt.
+Ändernde Operationen sind plan-first. Zum Beispiel:
 
-Livariant beobachtet nicht automatisch jedes Gespräch und behauptet nicht, dass jeder Satz aus einer KI-Sitzung dauerhaftes Projektwissen werden sollte. Du entscheidest, welcher bestätigte Zustand in das Project Brain gehört.
+```bash
+livariant decisions add "Passkeys für die Anmeldung verwenden"
+```
 
-## Grenze der aktuellen Preview
+zeigt zuerst die geplante Änderung. Geschrieben wird erst, wenn du denselben Befehl ausdrücklich mit `--apply` wiederholst.
 
-Die ausführbare CLI von `0.1.0-rc.2` unterstützt eine klar begrenzte Oberfläche für wiederholte semantische Änderungen an bestätigten Zielen, bestätigtem Projektwissen und akzeptierten Entscheidungen.
+Die aktuelle Preview enthält außerdem:
 
-Unterstützt werden:
+- projekt-eigenen kanonischen Zustand statt Provider-Memory als Hauptquelle;
+- Resume-Handoff für Claude Code und Codex;
+- preservation-first Übernahme bestehender Projekte;
+- Entscheidungsverlauf und Supersession;
+- Schutz vor konkurrierenden Writes und unsicheren Pfaden bei verwaltetem Wissen;
+- gehärtete Grenzen für Update, Migration, Recovery, Runtime-Trust und Release-Authority;
+- lokalen Betrieb ohne Livariant-Telemetrie, automatischen Project-Brain-Upload oder verpflichtendes Livariant-Cloud-Konto.
+
+## Wohin Livariant geht
+
+Die Foundation Preview ist bewusst der sichere Kern und nicht das Ende des Produkts.
+
+Die nächste große Schicht ist **Active Project Intelligence**.
+
+Das Ziel ist, Livariant während normaler Arbeit mit einem KI-Coding-Agenten nützlich zu machen, ohne dass du jedes wichtige Projektereignis manuell in einen CLI-Befehl übersetzen musst.
+
+Ein zukünftiger Livariant-unterstützter Ablauf soll eher so aussehen:
+
+```text
+Du: "Wir ersetzen Passwort-Login durch Passkeys."
+
+Agent + Livariant:
+- erkennt, dass daraus dauerhafte Projektwahrheit entstehen könnte;
+- prüft bestehende Ziele, Entscheidungen, Wissen und Begriffe;
+- erkennt Konflikte oder betroffene Annahmen;
+- erstellt einen semantischen Änderungsvorschlag;
+- zeigt, was sich ändern würde und warum;
+- wartet auf deine Zustimmung;
+- übernimmt die bestätigte Project-Brain-Änderung über Livariant;
+- verifiziert anschließend den neuen Zustand.
+```
+
+Zu dieser Richtung gehören unter anderem:
+
+- semantische Änderungsvorschläge aus normaler Agent-Arbeit;
+- Konflikt- und Drift-Erkennung gegenüber bestehender Projektwahrheit;
+- agentenunterstützte Pflege des Project Brain statt manueller Buchhaltung;
+- Verwaltung von Projektbegriffen und provisorischen Arbeitsnamen;
+- sicherere Fortsetzung zwischen unterschiedlichen Coding-Agents;
+- reichhaltigere Integrationen auf Basis des bestehenden Authority- und Recovery-Modells.
+
+Diese Punkte sind **Produkt-Richtung und keine aktuellen RC2-Funktionsversprechen**. Der Sinn der Foundation Preview ist gerade, zuerst einen vertrauenswürdigen dauerhaften Kern zu haben, bevor mehr Automatisierung darauf handeln darf.
+
+## Warum zuerst das Fundament?
+
+Ein KI-Agent kann heute schon Dateien bearbeiten. Mehr Automatisierung hinzuzufügen ist leicht.
+
+Mehr Automatisierung hinzuzufügen, **ohne Projektwahrheit zu verlieren, menschliche Arbeit zu überschreiben, projektkontrolliertem ausführbarem Code zu vertrauen oder beschädigten Zustand zu erraten**, ist deutlich schwieriger.
+
+Livariant trennt deshalb:
+
+```text
+Prüfen -> Planen -> Autorisieren -> Ändern -> Verifizieren
+                                      |
+                                      +-> bei Abbruch gezielt wiederherstellen
+```
+
+> [!IMPORTANT]
+> **Fähigkeit ist nicht Autorität.**
+
+Je aktiver Livariant später wird, desto wichtiger wird genau diese Regel.
+
+Das tiefere Modell erklärt [Architektur & Sicherheit](docs/de/architecture-and-safety.md).
+
+## Fünf-Minuten-Start
+
+Voraussetzungen für die aktuelle Preview:
+
+- Node.js 20 oder neuer;
+- ein lokales Softwareprojekt;
+- der verifizierte Livariant-Preview-Release-Tarball aus dem kanonischen GitHub Release, sobald dieser veröffentlicht ist.
+
+Installiere Livariant als Tool für deinen Rechner oder Benutzeraccount. Livariant wird nicht als Claude-Code- oder Codex-Plugin installiert und nicht in die `package.json` deines Projekts eingetragen.
+
+```bash
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+livariant version
+```
+
+Öffne den Projektordner und prüfe zuerst den Zustand:
+
+```bash
+livariant status
+livariant doctor
+livariant init
+```
+
+`livariant init` ist standardmäßig read-only. Wenn der Plan korrekt ist:
+
+```bash
+livariant init --apply
+```
+
+Danach kannst du dauerhafte Projektwahrheit festhalten. Ohne `--apply` wird jeweils nur ein Plan erstellt:
+
+```bash
+livariant goals add "Die erste Public Preview veröffentlichen"
+livariant knowledge add "Die Preview wird über GitHub Releases verteilt"
+livariant decisions add "GitHub Releases für die Preview-Distribution verwenden"
+```
+
+Nach Prüfung wiederholst du den passenden Befehl mit `--apply`.
+
+Um später den aktuellen Projektkontext wieder aufzunehmen:
+
+```bash
+livariant resume
+```
+
+Für Claude Code oder Codex gezielt:
+
+```bash
+LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
+LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
+```
+
+Unter [Installation & erstes Projekt](docs/de/installation.md) findest du den vollständigen Einstieg. Der [Fünf-Minuten-Schnellstart](docs/de/quickstart.md) ist die kürzere Arbeitsreferenz.
+
+## Wie die normale Nutzung aussieht
+
+Die aktuelle Foundation Preview beobachtet nicht automatisch jedes Gespräch. Du entscheidest, welcher bestätigte Zustand in das Project Brain gehört.
+
+Ein normaler Zyklus ist:
+
+```text
+1. Projekt öffnen.
+2. Bei Bedarf den aktuellen Project-Brain-Kontext wieder aufnehmen.
+3. Normal mit dem Coding-Agent arbeiten.
+4. Ein bestätigtes Ziel, einen Fakt oder eine akzeptierte Entscheidung als dauerhafte Projektwahrheit festhalten.
+5. Livariants Plan prüfen.
+6. Änderung ausdrücklich anwenden.
+7. In einer späteren Sitzung oder bei einem anderen unterstützten Provider den aktualisierten Stand wieder aufnehmen.
+```
+
+Unterstützte semantische Operationen sind:
 
 ```text
 livariant goals [list]
@@ -230,17 +232,13 @@ livariant decisions add <decision> [--apply]
 livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
 ```
 
-Diese Änderungen sind plan-first und benötigen ein ausdrückliches `--apply`. Beim Superseden bleibt die Historie der alten Entscheidung erhalten. Writes sind auf verwalteten Project-Brain-Zustand begrenzt, lehnen unsichere Topologien und konkurrierendes Überschreiben ab und werden nach dem Speichern verifiziert.
-
-Die Grenze bleibt bewusst eng. Livariant beobachtet Gespräche nicht automatisch, entscheidet nicht selbst, welche KI-Ausgabe kanonische Wahrheit werden soll, und ist kein vollständiger Natural-Language-Wissensagent. Solche reichhaltigeren Oberflächen können später hinzukommen, ohne das aktuelle Authority- und Verifikationsmodell zu schwächen.
-
-Mehr dazu unter [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md).
+Beim Superseden bleibt die alte Entscheidung als Historie erhalten, statt still gelöscht zu werden.
 
 ## Bestehende Projekte
 
-Du musst kein neues Repository anlegen, um Livariant zu verwenden.
+Livariant verlangt weder ein neues Repository noch ein bevorzugtes Projekt-Template.
 
-Bei einem bestehenden Projekt beginnst du mit:
+Starte direkt im bestehenden Projekt:
 
 ```bash
 livariant status
@@ -248,106 +246,56 @@ livariant doctor
 livariant init
 ```
 
-Lies das Ergebnis, bevor du die Initialisierung anwendest. Livariant soll das vorhandene Projekt übernehmen, nicht es in eine bevorzugte Vorlage zwingen. Bestehende projekt-eigene Dateien sind standardmäßig geschützt. Unklarer Zustand führt zu Diagnose statt zu geratenem Umschreiben.
+Bestehende projekt-eigene Dateien sind standardmäßig geschützt. Unklarer Zustand führt zu Diagnose statt zu geratenem Umschreiben.
 
 Mehr dazu im [Leitfaden für bestehende Projekte](docs/de/existing-projects.md).
 
-## Claude Code und Codex
+## Updates und Wiederherstellung
 
-Die aktuelle Preview unterstützt einen Project-Brain-Resume-Handoff für Claude Code und Codex über getrennte Adapter.
+Der Livariant-Lifecycle ist bewusst strenger als das manuelle Kopieren oder Ersetzen verwalteter Dateien.
 
-Beispiele für Linux oder macOS:
-
-```bash
-LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
-LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
-```
-
-Livariant ist dabei kein natives Claude-Code- oder Codex-Plugin. Es erzeugt provider-spezifischen Resume-Kontext aus dem Project Brain. Es verwaltet nicht automatisch jede Provider-Funktion, Modelleinstellung, Authentifizierung, Tool-Ausführung oder native Instruktionsdatei.
-
-Mehr dazu unter [Provider-Handoff](docs/de/provider-handoff.md).
-
-## Sichere Updates und Wiederherstellung
-
-Die meisten Nutzer müssen am ersten Tag nicht das komplette Release-Authority-Modell verstehen. Eine Regel ist aber wichtig: Aktualisiere Livariant nicht, indem du seinen verwalteten Lifecycle-Zustand per Hand ersetzt.
-
-Ein Update wird zuerst geprüft:
+Zuerst prüfen:
 
 ```bash
 livariant update --manifest ./release-manifest.json
-```
-
-Nach Prüfung des Plans verwendet ein unterstütztes ausführbares Update das passende Artefakt und explizite Trust-Evidenz:
-
-```bash
-livariant update \
-  --manifest ./release-manifest.json \
-  --apply \
-  --artifact ./livariant-runtime.tgz \
-  --trusted-source <source-id>
-```
-
-Für ausführbare Updates muss der exakte SHA-256 des Artefakts zusätzlich bereits durch eine unabhängige, rechnerlokale Release-Policy außerhalb der Projektautorität freigegeben sein. Projektdateien, Manifest, `--trusted-source` und die projektseitige Livariant-CLI oder API können diese Autorität nicht selbst erzeugen. Fehlt sie, bricht das Update geschlossen ab, bevor Candidate-Runtime-Code ausgeführt werden kann. Einen projektseitigen `authorize-runtime`-Befehl gibt es nicht.
-
-> [!WARNING]
-> Aktualisiere Livariant nicht, indem du `.project-brain/`, framework-verwaltete Lifecycle-Dateien, Schema- oder Versionsmetadaten, verwaltete Runtime-Dateien oder Trust- und Release-Authorization-Records per Hand ersetzt oder bearbeitest.
-
-Wird ein Update oder eine Migration unterbrochen, diagnostiziere zuerst den Zustand:
-
-```bash
-livariant doctor
 livariant recover
 ```
 
-Wiederherstellung wird nur angewendet, wenn Livariant eine gültige unterstützte Strategie meldet:
+Anwenden erst nach Prüfung und nur, wenn Livariant einen unterstützten Pfad meldet.
 
-```bash
-livariant recover --apply
-```
-
-Schema-ändernde Releases verwenden automatisch den unterstützten Update- und Migrationsablauf. Einen normalen manuellen `migrate`-Shortcut gibt es nicht.
+Für ausführbare Updates ist zusätzlich eine unabhängige rechnerlokale Autorität für das exakte Release-Artefakt nötig, bevor Candidate-Runtime-Code ausgeführt werden darf. Projektkontrollierte Dateien können diese Autorität nicht selbst für sich erzeugen.
 
 Mehr dazu unter [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-guide.md).
 
-## Sicherheitsmodell
+## Datenschutz
 
-Livariant verlangt eine explizite Autorisierung für Änderungen an geschütztem Projektzustand. Bestehender projekt-eigener Zustand wird standardmäßig geschützt. Unklare Zustände führen zu Diagnose statt zu geratenen Reparaturen.
-
-Die gehärtete Preview-Baseline enthält ausführbare Tests unter anderem für Path- und Symlink-Escape, veraltete Entscheidungswahrheit, unterbrochene Migrationen, manipulierte Checkpoints, manipulierte Release-Artefakte, Runtime-Drift, Provider-Instruktionskonflikte, nicht unterstützte Migrationen, konkurrierende Projektänderungen während Aktivierung, konkurrierende semantische Wissensänderungen, fehlende Update-Trust-Evidenz, feindliche Trust-Root-Topologien, Pre-Trust-Runtime-Ausführung und Versuche von Projekten, ihre eigene Release-Authority zu erzeugen.
-
-Der Kern ist einfach:
-
-> **Fähigkeit ist nicht Autorität.**
-
-## Lokaler Datenschutz
-
-Die aktuelle Preview-Runtime ist für lokale Projektarbeit ausgelegt:
+Die aktuelle Runtime ist für lokale Projektarbeit ausgelegt:
 
 - keine Livariant-Analytics oder Nutzungs-Telemetrie;
 - kein automatischer Upload des Project Brain;
 - kein Livariant-Cloud-Konto für lokale Nutzung erforderlich;
 - kein automatischer Remote-Update-Check;
-- provider-spezifischer Resume-Kontext wird lokal von Livariant erzeugt.
+- Resume-Ausgabe wird lokal erzeugt.
 
-Wenn du Resume-Kontext bewusst an einen externen KI-Provider weitergibst, gelten für dessen Umgang damit die Bedingungen und Einstellungen dieses Providers.
+Wenn du Resume-Kontext an einen externen KI-Provider weitergibst, gelten dessen eigene Bedingungen und Einstellungen.
 
 Mehr dazu unter [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md).
 
-## Preview-Status
+## Foundation-Preview-Status
 
-`0.1.0-rc.2` ist der aktuelle Kandidat für die Public Preview. Dieses Repository befindet sich weiterhin in der Vorbereitung vor der öffentlichen Freigabe, bis Veröffentlichung und Sichtbarkeitswechsel separat autorisiert und durchgeführt wurden.
+`0.1.0-rc.2` ist der aktuelle Kandidat für die Foundation Preview.
 
-Die unterstützte Baseline wird in CI auf Ubuntu und Windows mit Node.js 24 geprüft. Das Paket deklariert Node.js `>=20`, aber der Preview-Nachweis bleibt auf die Umgebungen begrenzt, die tatsächlich von der Release-Pipeline getestet werden.
+Die unterstützte Baseline wird in CI auf Ubuntu und Windows geprüft. Preview bedeutet, dass das unterstützte Verhalten durch Evidenz abgesichert ist, während sich Oberflächen und Produktumfang vor 1.0 noch weiterentwickeln können.
 
-Preview bedeutet, dass unterstütztes Verhalten durch Tests und Evidenz abgesichert ist. Es bedeutet nicht, dass jedes CLI-Detail oder jeder interne Vertrag bereits bis 1.0 eingefroren ist.
+Bekannte Datenverlust-, Autoritätseskalations-, Migrationsintegritäts- oder Release-Trust-Bypässe auf unterstützten Pfaden gelten nicht als akzeptable Preview-Einschränkungen.
 
-Bekannte Datenverlust-, Autoritätseskalations-, Migrationsintegritäts- oder Release-Trust-Bypässe auf einem unterstützten Pfad gelten nicht als akzeptable Preview-Einschränkungen.
+Die größere Active-Project-Intelligence-Richtung wird bewusst nicht als bereits implementiertes RC2-Verhalten dargestellt.
 
 Mehr dazu unter [Public-Preview-Support & Stabilität](docs/de/preview-support-and-stability.md) und [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md).
 
 ## Dokumentation
 
-Wenn du neu bei Livariant bist, nutze am besten diese Reihenfolge:
+Starte hier:
 
 1. [Installation & erstes Projekt](docs/de/installation.md)
 2. [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
@@ -359,42 +307,25 @@ Für tiefere Details:
 
 - [Architektur & Sicherheit](docs/de/architecture-and-safety.md)
 - [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md)
-- [Public-Preview-Support & Stabilität](docs/de/preview-support-and-stability.md)
 - [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md)
+- [Public-Preview-Support & Stabilität](docs/de/preview-support-and-stability.md)
 - [Lizenz, Gewährleistung & Haftung](docs/de/license-and-warranty.md)
 
-Englische Nutzerdokumentation:
-
-- [English project overview](README.md)
-- [Installation & First Project](docs/installation.md)
-- [Five-Minute Quickstart](docs/quickstart.md)
-- [Existing Project Guide](docs/existing-projects.md)
-- [Provider Handoff](docs/provider-handoff.md)
-- [Updates, Migrations & Recovery](docs/lifecycle-guide.md)
-- [Architecture & Safety](docs/architecture-and-safety.md)
-- [Privacy & Network Behavior](docs/privacy-and-network.md)
-- [Public Preview Support & Stability](docs/preview-support-and-stability.md)
-- [Public Preview Scope & Limitations](docs/preview-scope.md)
-- [License, Warranty & Liability](docs/license-and-warranty.md)
-
-Englisch bleibt die kanonische Vertragssprache für tiefe Framework- oder interne Verträge, wenn es dafür keine deutsche Entsprechung gibt. Die oben aufgeführten nutzerorientierten Dokumente sind auf Deutsch gespiegelt.
+Die englische Dokumentation beginnt unter [README.md](README.md).
 
 ## Lizenz, Sicherheit und Beiträge
 
 Livariant ist source-available und kein OSI-zertifiziertes Open-Source-Projekt. Die Standardlizenz ist die [PolyForm Perimeter License 1.0.1](LICENSE).
 
-Die Lizenz erlaubt eine breite Nutzung, auch bei der Entwicklung kommerzieller Software. Sie schränkt die Nutzung von Livariant ein, wenn damit ein konkurrierender Ersatz für Livariant selbst angeboten werden soll. Separate kommerzielle Bedingungen können angeboten werden, wenn individuell ausgehandelte Rechte benötigt werden.
-
 Veröffentliche vermutete Sicherheitslücken nicht als öffentliches Issue. Folge stattdessen [SECURITY.md](SECURITY.md).
 
-Externe Code-Beiträge sind derzeit ausgesetzt, bis Contributor-Rechte mit dem source-available und zukünftigen kommerziellen Lizenzmodell sauber geregelt sind. Bugreports, Dokumentationsfeedback, Fragen und Design-Diskussionen sind über die Community-Wege willkommen, die für die Preview eingerichtet werden.
+Externe Code-Beiträge sind derzeit ausgesetzt, bis Contributor-Rechte mit dem source-available und zukünftigen kommerziellen Lizenzmodell sauber geregelt sind. Bugreports, Dokumentationsfeedback, Fragen und Design-Diskussionen sind über die Community-Wege des Repositorys willkommen.
 
 - [Lizenzierung](LICENSING.md)
 - [Security Policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
-- [Lizenz, Gewährleistung & Haftung](docs/de/license-and-warranty.md)
 - [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 
 ---
 
-**Livariant folgt einer einfachen Idee:** Das Projekt selbst soll das Wissen besitzen, das nötig ist, um seine Arbeit fortzusetzen, auch wenn sich die KI-Sitzung ändert.
+**Livariant beginnt mit einer einfachen Regel: Das Projekt selbst soll die Wahrheit besitzen, die nötig ist, um seine Arbeit fortzusetzen. Der nächste Schritt ist, diese Wahrheit während der Entwicklung aktiv nutzbar zu machen.**
