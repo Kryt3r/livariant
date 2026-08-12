@@ -9,6 +9,8 @@ const temp = await mkdtemp(resolve(tmpdir(), "livariant-release-bundle-"));
 const bundle = resolve(temp, "bundle");
 const consumer = resolve(temp, "consumer");
 const sourceId = "github:Kryt3r/livariant";
+const packageJson = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+const expectedVersion = packageJson.version;
 
 function npmInvocation(args) {
   return process.platform === "win32"
@@ -49,19 +51,22 @@ try {
     "--source-id", sourceId,
     "--channel", "preview",
     "--schema", "1",
-    "--compatible-from", "0.1.0-rc.1",
+    "--compatible-from", "0.1.0-rc.1,0.1.0-rc.2",
     "--output", bundle,
   ]);
   const summary = JSON.parse(built.stdout);
   if (summary.package !== "livariant") throw new Error("Release bundle did not pack the Livariant package identity.");
+  if (summary.version !== expectedVersion) throw new Error("Release bundle package version mismatch.");
   if (summary.sourceId !== sourceId) throw new Error("Release bundle source identity mismatch.");
 
   const manifest = JSON.parse(await readFile(resolve(bundle, "release-manifest.json"), "utf8"));
   const release = manifest?.[0];
   if (!release) throw new Error("Release manifest contains no release descriptor.");
   if (release.sourceId !== sourceId) throw new Error("Manifest sourceId is not the requested canonical source identity.");
-  if (release.version !== "0.1.0-rc.2" || release.channel !== "preview") throw new Error("Manifest release identity mismatch.");
-  if (release.projectBrainSchema !== 1 || !release.compatibility?.from?.includes("0.1.0-rc.1")) throw new Error("Manifest compatibility metadata mismatch.");
+  if (release.version !== expectedVersion || release.channel !== "preview") throw new Error("Manifest release identity mismatch.");
+  if (release.projectBrainSchema !== 1 || !release.compatibility?.from?.includes("0.1.0-rc.1") || !release.compatibility?.from?.includes("0.1.0-rc.2")) {
+    throw new Error("Manifest compatibility metadata mismatch.");
+  }
 
   const artifactPath = resolve(bundle, summary.artifact);
   const observedSha = createHash("sha256").update(await readFile(artifactPath)).digest("hex");
@@ -81,11 +86,11 @@ try {
   } catch {
     throw new Error(`Release-bundle consumer returned invalid machine-readable version identity:\n${versionResult.stdout}\n${versionResult.stderr}`);
   }
-  if (version.frameworkVersion !== "0.1.0-rc.2" || version.runtime !== "node" || version.channel !== "preview") {
+  if (version.frameworkVersion !== expectedVersion || version.runtime !== "node" || version.channel !== "preview") {
     throw new Error(`Release-bundle consumer identity mismatch: ${JSON.stringify(version)}`);
   }
 
-  console.log("Release bundle smoke passed: exact packed bytes are manifest-bound, checksum-bound, installable, and executable under the canonical Livariant CLI identity.");
+  console.log(`Release bundle smoke passed for Livariant ${expectedVersion}: exact packed bytes are manifest-bound, checksum-bound, installable, and executable under the canonical Livariant CLI identity.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
