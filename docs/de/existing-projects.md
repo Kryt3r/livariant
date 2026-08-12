@@ -35,6 +35,39 @@ Die unterstützte Initialisierung ergänzt das Project Brain. Sie führt nicht a
 > [!IMPORTANT]
 > Bestehende projekt-eigene Dateien bleiben unter Kontrolle des Projekts. Nur weil Livariant eine Datei lesen kann, bekommt es dadurch keine Erlaubnis, sie umzuschreiben.
 
+## Nach der Übernahme: nur bestätigte Projektwahrheit festhalten
+
+Die Initialisierung bedeutet nicht, dass Livariant das Projekt ab jetzt überwacht oder selbst entscheidet, was in das Project Brain gehört. Du legst fest, was dauerhafte Projektwahrheit wird.
+
+Den aktuellen semantischen Zustand kannst du so ansehen:
+
+```bash
+livariant goals
+livariant knowledge
+livariant decisions
+```
+
+Wenn etwas bestätigt ist und spätere KI-Sitzungen überdauern soll, planst du die Änderung zuerst:
+
+```bash
+livariant goals add "Während der Migration rückwärtskompatibel bleiben"
+livariant knowledge add "Die bestehende API wird vom Mobile-Client verwendet"
+livariant decisions add "Für die Preview die aktuelle API-Struktur beibehalten"
+```
+
+Diese Befehle schreiben nichts, bis du den ausgewählten Befehl mit `--apply` wiederholst.
+
+Gerade bei bestehenden Projekten ist diese Trennung wichtig. Livariant soll Vermutungen aus der Repository-Prüfung nicht automatisch in Projektwahrheit verwandeln. Discovery hilft bei der sicheren Übernahme; semantische Änderungen am Project Brain bleiben explizit und autorisiert.
+
+Ändert sich eine akzeptierte Entscheidung später, löst du sie gezielt ab, statt ihre Historie zu löschen:
+
+```bash
+livariant decisions
+livariant decisions supersede <decision-id> "Neue API-Struktur übernehmen" --reason "Migration abgeschlossen"
+```
+
+Prüfe die geplante Ablösung zuerst und füge `--apply` erst hinzu, wenn sie korrekt ist.
+
 ## Was Livariant bei der Prüfung erkennen kann
 
 Die aktuelle Baseline kann direkte Projektevidenz verwenden, zum Beispiel:
@@ -57,6 +90,8 @@ Dateien wie `CLAUDE.md` und `AGENTS.md` bleiben projekt-eigen.
 Livariant kann erkennen, dass sie existieren, überschreibt sie bei der unterstützten Übernahme aber nicht. Ihr Inhalt wird auch nicht automatisch zur kanonischen Project-Brain-Wahrheit, nur weil ein Provider ihn verwendet.
 
 Provider-Memory und Resume-Projektionen sind nützlicher Arbeitskontext, aber keine konkurrierenden Projektarchive.
+
+Nachdem du bestätigte Ziele, Wissen oder Entscheidungen ausdrücklich über Livariant festgehalten hast, wird ein neues `livariant resume` aus dem aktuellen Project Brain erzeugt und nicht aus veraltetem Provider-Memory.
 
 ## Nicht neu initialisieren, um etwas zu reparieren
 
