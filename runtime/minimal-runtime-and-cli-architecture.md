@@ -219,6 +219,8 @@ Runtime operations may decide what semantic content should change, but managed p
 
 This is an authority boundary as well as an organization boundary. Adding a new semantic Runtime operation must not create a second direct persistence implementation for managed Project Brain documents.
 
+The H-04 focused review found an early implementation of semantic editing that wrote managed documents directly from Runtime code. That path was rejected before merge and replaced with `ProjectBrainStore` operations. The review also added regression coverage for symlink rejection and concurrent project-owned edits.
+
 This preserves the accepted rule that semantic Project Brain structure matters more than any one physical file layout and makes schema migration practical without rewriting unrelated Runtime logic.
 
 ## Ownership Must Be Representable
