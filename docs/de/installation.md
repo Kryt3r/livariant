@@ -1,15 +1,15 @@
 # Livariant installieren und einem Projekt hinzufügen
 
-Livariant wird als **lokales Tooling auf dem Rechner** installiert und anschließend im Root des Projekts verwendet, das du damit verwalten möchtest. Es wird nicht *in* Claude Code, Codex oder einen anderen Coding-Agenten installiert. Der unterstützte Preview-Installationsweg fügt Livariant außerdem nicht als Abhängigkeit zur `package.json` deines Projekts hinzu.
+Livariant wird einmal als lokales Kommandozeilen-Tool auf deinem Rechner installiert. Danach verwendest du es direkt im Hauptordner des Projekts, das du mit KI weiterentwickelst.
 
-Der aktuelle Public-Preview-Distributionsweg ist ein Livariant-Release-Tarball aus dem kanonischen GitHub Release zusammen mit Release-Manifest und Prüfsummen.
+Livariant wird nicht in Claude Code, Codex oder einen anderen Coding-Agent installiert. Es wird im aktuellen Preview-Weg auch nicht als Abhängigkeit in die `package.json` deines Projekts eingetragen.
 
 ## Was du brauchst
 
 - Node.js 20 oder neuer;
 - npm aus deiner Node.js-Installation;
-- eine lokale Kopie des Projekts, das du mit Livariant verwenden möchtest;
-- die Livariant-Preview-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`, sobald dieses Release veröffentlicht ist.
+- eine lokale Kopie deines Projekts;
+- die Livariant-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`, sobald der Preview-Kandidat veröffentlicht ist.
 
 Das Release-Bundle enthält mindestens:
 
@@ -19,18 +19,18 @@ release-manifest.json
 SHA256SUMS
 ```
 
-Für `0.1.0-rc.2` lautet der Paketname:
+Für `0.1.0-rc.2` heißt das Paket:
 
 ```text
 livariant-0.1.0-rc.2.tgz
 ```
 
 > [!IMPORTANT]
-> Beziehe die Release-Dateien aus dem kanonischen Livariant-GitHub-Release. Installiere keinen Tarball aus einem unbekannten Projekt, Chat-Anhang, Mirror oder beliebigen Package-Quelle nur deshalb, weil die Datei `livariant` heißt.
+> Lade die Release-Dateien nur aus dem kanonischen Livariant-GitHub-Release. Installiere keinen Tarball aus einem unbekannten Repository, Chat-Anhang, Mirror oder einer beliebigen Paketquelle nur deshalb, weil die Datei `livariant` heißt.
 
-## 1. Heruntergeladenen Tarball prüfen
+## 1. Download prüfen
 
-Vergleiche vor der Installation von ausführbarem Tooling den SHA-256 des Tarballs mit dem Wert in `SHA256SUMS` und `release-manifest.json`.
+Bevor du ausführbaren Code installierst, vergleichst du den SHA-256 des Tarballs mit den Werten in `SHA256SUMS` und `release-manifest.json`.
 
 ### Linux
 
@@ -41,7 +41,7 @@ sha256sum livariant-0.1.0-rc.2.tgz
 cat SHA256SUMS
 ```
 
-Die Digests müssen exakt übereinstimmen.
+Die Hashwerte müssen exakt übereinstimmen.
 
 ### macOS
 
@@ -50,7 +50,7 @@ shasum -a 256 livariant-0.1.0-rc.2.tgz
 cat SHA256SUMS
 ```
 
-Die Digests müssen exakt übereinstimmen.
+Die Hashwerte müssen exakt übereinstimmen.
 
 ### Windows PowerShell
 
@@ -59,13 +59,13 @@ Die Digests müssen exakt übereinstimmen.
 Get-Content .\SHA256SUMS
 ```
 
-Die Digests müssen exakt übereinstimmen.
+Die Hashwerte müssen exakt übereinstimmen.
 
-Wenn sie nicht übereinstimmen: **Abbrechen und den Tarball nicht installieren.**
+Wenn sie nicht übereinstimmen, installiere den Tarball nicht.
 
-## 2. Livariant-CLI aus dem geprüften Release-Tarball installieren
+## 2. Livariant installieren
 
-Im Ordner mit dem Tarball:
+Im Ordner mit dem geprüften Tarball:
 
 ### Linux / macOS
 
@@ -79,12 +79,14 @@ npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
 npm install --global --ignore-scripts .\livariant-0.1.0-rc.2.tgz
 ```
 
-Damit wird der Befehl `livariant` als Machine-/User-Tooling installiert. Dadurch wird **kein** Projekt initialisiert und Livariant wird nicht zur `package.json` oder zu `node_modules` des Zielprojekts hinzugefügt.
+Damit wird der Befehl `livariant` für deinen Rechner oder Benutzer installiert.
+
+Noch passiert nichts mit deinem Projekt. Livariant wird weder automatisch initialisiert noch in `package.json` oder `node_modules` des Zielprojekts eingetragen.
 
 > [!NOTE]
-> Wenn dein globaler npm-Prefix nicht beschreibbar ist, verwende bzw. konfiguriere eine benutzerbeschreibbare Node-/npm-Installation oder einen passenden Prefix. Umgehe ein Berechtigungsproblem nicht dadurch, Livariant-Dateien manuell in das Projekt oder in verwaltete Runtime-/Trust-Pfade zu kopieren.
+> Falls npm nicht in sein globales Installationsverzeichnis schreiben darf, richte einen benutzerbeschreibbaren npm-Prefix oder eine passende Node.js-Installation ein. Kopiere Livariant nicht als Workaround manuell in das Projekt oder in verwaltete Runtime- und Trust-Verzeichnisse.
 
-## 3. Installierte CLI prüfen
+## 3. Installation prüfen
 
 ```bash
 livariant version
@@ -92,15 +94,15 @@ livariant version
 
 Für diesen Preview-Kandidaten muss die Ausgabe Livariant `0.1.0-rc.2` auf dem Channel `preview` erkennen lassen.
 
-Wenn deine Shell `livariant` nicht findet, öffne ein neues Terminal und prüfe, ob das globale npm-Bin-Verzeichnis in deinem `PATH` liegt.
+Wenn dein Terminal den Befehl `livariant` nicht findet, öffne zuerst ein neues Terminal. Prüfe danach, ob das globale npm-Bin-Verzeichnis in deinem `PATH` liegt.
 
-## 4. Das bestehende Claude-Code-, Codex- oder andere Projekt öffnen
+## 4. Dein Projekt öffnen
 
-Livariant arbeitet mit dem **Projektverzeichnis**, nicht mit einem Provider-Account oder einer Editor-Installation.
+Livariant arbeitet mit dem Projektordner auf deinem Rechner. Es verbindet sich für die grundlegende Nutzung nicht mit deinem Claude-, OpenAI- oder Editor-Account.
 
-Existiert das Projekt bereits lokal, öffne ein Terminal in seinem Root-Verzeichnis. Liegt es nur in einem Git-Hosting, klone es zuerst über deinen normalen Git-Workflow und wechsle anschließend in den Projekt-Root.
+Wenn dein Projekt bereits lokal existiert, öffne ein Terminal in seinem Hauptordner.
 
-Beispiel:
+Beispiel unter Linux oder macOS:
 
 ```bash
 cd /pfad/zu/deinem-projekt
@@ -112,11 +114,13 @@ Unter Windows PowerShell:
 Set-Location C:\pfad\zu\deinem-projekt
 ```
 
-Wenn du Claude Code oder Codex bereits in diesem Verzeichnis nutzt, ist das derselbe Projekt-Root. Für diese Provider gibt es in der aktuellen Preview keinen separaten Livariant-Plugin-Installationsschritt.
+Liegt dein Projekt bisher nur auf GitHub oder einem anderen Git-Host, klone es zuerst wie gewohnt und wechsle danach in den Projektordner.
 
-## 5. Projekt vor der Initialisierung prüfen
+Wenn du Claude Code oder Codex dort bereits verwendest, ist das genau derselbe Ordner. Für diese Tools gibt es in der aktuellen Preview keinen zusätzlichen Livariant-Plugin-Schritt.
 
-Im Projekt-Root:
+## 5. Projekt zuerst prüfen
+
+Im Projektordner:
 
 ```bash
 livariant status
@@ -124,19 +128,21 @@ livariant doctor
 livariant init
 ```
 
-Damit prüfst du den aktuellen Zustand vor der Übernahme. `livariant init` ohne `--apply` ist nur Planung und verändert nichts.
+Diese Befehle helfen dir, den aktuellen Zustand zu verstehen, bevor Livariant verwalteten Projektzustand anlegt.
 
-Gerade bei bestehenden Projekten solltest du den Plan prüfen. Livariant ist preservation-first: Die unterstützte Initialisierung soll das Project Brain ergänzen, ohne vorhandene projekt-eigene Dateien in eine bevorzugte Struktur umzuschreiben.
+`livariant init` ohne `--apply` zeigt nur den geplanten Initialisierungsschritt. Der Befehl verändert das Projekt noch nicht.
 
-## 6. Bewusst initialisieren
+Gerade bei einem bestehenden Projekt solltest du diesen Plan lesen. Livariant soll das vorhandene Projekt übernehmen, nicht es in eine bevorzugte Vorlage umbauen.
 
-Wenn der Plan korrekt ist:
+## 6. Project Brain bewusst anlegen
+
+Wenn der Plan korrekt aussieht:
 
 ```bash
 livariant init --apply
 ```
 
-Danach prüfen:
+Danach prüfst du das Ergebnis:
 
 ```bash
 livariant status
@@ -144,67 +150,74 @@ livariant doctor
 livariant resume
 ```
 
-Damit enthält dein Projekt den minimalen von Livariant verwalteten `.project-brain/`-Zustand.
+Das Projekt enthält jetzt den minimalen `.project-brain/`-Zustand, den Livariant verwaltet.
 
-## 7. Aktuellen Claude-Code- oder Codex-Resume-Handoff nutzen
+## 7. Mit Claude Code oder Codex weiterarbeiten
 
-Die Preview-Integration ist bewusst begrenzt: Livariant kann kanonischen Project-Brain-Kontext für den ausgewählten Provider projizieren, ist aber noch kein natives Claude-Code-/Codex-Plugin und schreibt nicht stillschweigend provider-eigene Instruction-Dateien um.
+Die aktuelle Preview kann Project-Brain-Kontext für Claude Code oder Codex als Resume-Handoff ausgeben. Livariant ist dabei kein natives Plugin und schreibt keine provider-eigenen Instruktionsdateien stillschweigend um.
 
-### Claude Code — Linux / macOS
+### Claude Code unter Linux / macOS
 
 ```bash
 LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
 ```
 
-### Claude Code — Windows PowerShell
+### Claude Code unter Windows PowerShell
 
 ```powershell
 $env:LIVARIANT_PROVIDER_ENV = "claude-code"
 livariant resume --provider claude-code
 ```
 
-### Codex — Linux / macOS
+### Codex unter Linux / macOS
 
 ```bash
 LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
 ```
 
-### Codex — Windows PowerShell
+### Codex unter Windows PowerShell
 
 ```powershell
 $env:LIVARIANT_PROVIDER_ENV = "codex"
 livariant resume --provider codex
 ```
 
-Die erzeugte Resume-Ausgabe ist ein temporärer Provider-Handoff. Das Project Brain bleibt kanonisch.
+Die Resume-Ausgabe ist temporärer Kontext für die aktuelle Arbeitssitzung. Das Project Brain bleibt der dauerhafte Projektstand.
 
-## Was die Installation tut — und was nicht
+## Was die Installation tut und was nicht
 
 ```text
-verifizierter GitHub-Release-Tarball
-        ↓
-Livariant-CLI als Machine-/User-Tooling installieren
-        ↓
-bestehenden Projekt-Root öffnen
-        ↓
+geprüften GitHub-Release-Tarball herunterladen
+        |
+        v
+Livariant-CLI installieren
+        |
+        v
+Projektordner öffnen
+        |
+        v
 mit status / doctor / init prüfen
-        ↓
-explizit init --apply ausführen
-        ↓
-Livariant normal nutzen und bei Bedarf Provider-Resume erzeugen
+        |
+        v
+init --apply bewusst ausführen
+        |
+        v
+Livariant im normalen Projektalltag verwenden
 ```
 
 Die CLI-Installation:
 
-- initialisiert keine Projekte automatisch;
+- initialisiert kein Projekt automatisch;
 - verändert nicht automatisch `CLAUDE.md`, `AGENTS.md` oder Provider-Memory;
-- erteilt keinem Coding-Provider Mutation- oder Runtime-Ausführungsautorität;
-- migriert ein vorhandenes Project Brain nicht allein dadurch, dass das CLI-Paket aktualisiert wurde;
+- gibt einem Coding-Provider keine Projekt- oder Runtime-Autorität;
+- migriert ein vorhandenes Project Brain nicht allein deshalb, weil das CLI-Paket aktualisiert wurde;
 - autorisiert keine zukünftigen ausführbaren Runtime-Update-Artefakte.
 
-## Spätere Updates sind ein anderer Vorgang
+## Spätere Updates sind ein eigener Vorgang
 
-Die Installation eines neueren Livariant-CLI-Pakets ist nicht dasselbe wie die Migration eines vorhandenen Project Brain oder die Autorisierung einer neuen Runtime. Bestehende Projekte müssen den unterstützten `update`-/Migration-/Recovery-Lifecycle aus [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md) verwenden.
+Ein neueres Livariant-CLI-Paket zu installieren ist nicht dasselbe wie ein vorhandenes Project Brain zu migrieren oder eine neue Runtime zu autorisieren.
+
+Für bestehende Projekte verwendest du den unterstützten `update`-, Migrations- und Recovery-Ablauf aus [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md).
 
 Ersetze `.project-brain/`, verwalteten Runtime-State, Runtime-Trust-Evidenz oder Release-Authorization-Evidenz nicht manuell.
 
@@ -212,6 +225,6 @@ Ersetze `.project-brain/`, verwalteten Runtime-State, Runtime-Trust-Evidenz oder
 
 - [Fünf-Minuten-Schnellstart](quickstart.md)
 - [Bestehende Projekte](existing-projects.md)
-- [Provider Handoff](provider-handoff.md)
+- [Provider-Handoff](provider-handoff.md)
 - [Architektur & Sicherheit](architecture-and-safety.md)
 - [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md)
