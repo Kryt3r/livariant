@@ -79,6 +79,14 @@ export async function assertReleaseAuthorized(projectPath: string, identity: Rel
     throw error;
   }
   if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("Machine-local Livariant release authorization is unsafe.");
-  const observed = parseRecord(JSON.parse(await readFile(path, "utf8")) as unknown);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
+  } catch {
+    throw new Error("Machine-local Livariant release authorization is malformed or unreadable.");
+  }
+
+  const observed = parseRecord(parsed);
   if (observed.artifactSha256 !== digest) throw new Error("Runtime artifact does not match its machine-local authorization.");
 }

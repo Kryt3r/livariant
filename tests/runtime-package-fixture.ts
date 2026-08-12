@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,13 +43,28 @@ export async function provisionArtifactAuthorizationForTest(artifactSha256: stri
   const root = resolve(userInfo().homedir, ".livariant", "trust", "release-authorizations");
   await mkdir(root, { recursive: true });
   const path = resolve(root, `${digest}.json`);
-  const payload = {
+  const temporaryPath = resolve(root, `.${digest}.${process.pid}.${randomUUID()}.tmp`);
+  const payload = `${JSON.stringify({
     schema: 1,
     packageName: "livariant",
     kind: "artifact-digest-authorization",
     artifactSha256: digest,
-  };
-  await writeFile(path, `${JSON.stringify(payload, null, 2)}\n`, { encoding: "utf8", flag: "w" });
+  }, null, 2)}\n`;
+
+  await writeFile(temporaryPath, payload, { encoding: "utf8", flag: "wx" });
+  try {
+    await rename(temporaryPath, path);
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? (error as NodeJS.ErrnoException).code : undefined;
+    if (code !== "EEXIST" && code !== "EPERM" && code !== "EACCES") throw error;
+
+    const existing = await readFile(path, "utf8");
+    if (existing !== payload) {
+      throw new Error("Existing test release authorization does not match the expected complete payload.");
+    }
+  } finally {
+    await rm(temporaryPath, { force: true });
+  }
 }
 
 export async function createRuntimePackageFixture(version: string, options: { authorize?: boolean } = {}): Promise<RuntimePackageFixture> {
