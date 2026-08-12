@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { addConfirmedGoal, addConfirmedKnowledge, buildResumeContext, initializeProject } from "../src/runtime/index.js";
+import {
+  addConfirmedGoal,
+  addConfirmedKnowledge,
+  buildResumeContext,
+  initializeProject,
+  recordAcceptedDecision,
+} from "../src/runtime/index.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -91,5 +97,62 @@ test("duplicate goal and knowledge changes fail instead of silently rewriting ca
 
     await assert.rejects(addConfirmedGoal("Keep project state coherent", path, { authorized: true }), /identical confirmed goal/i);
     await assert.rejects(addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true }), /identical confirmed project knowledge/i);
+  });
+});
+
+test("goal and knowledge additions preserve unrelated human-authored canonical content", async () => {
+  await withProject(async (path) => {
+    const goalsPath = resolve(path, ".project-brain", "goals.md");
+    const knowledgePath = resolve(path, ".project-brain", "knowledge.md");
+
+    await writeFile(goalsPath, "# Goals\n\nHuman context that must remain.\n\n- Existing goal\n\n## Notes\n\nDo not rewrite this paragraph.\n", "utf8");
+    await writeFile(knowledgePath, "# Knowledge\n\n## Verified discovery evidence\n\n- package-name:example\n\nHuman explanation that must remain.\n\n## Known unknowns\n\n- deployment target\n", "utf8");
+
+    await addConfirmedGoal("New goal", path, { authorized: true });
+    await addConfirmedKnowledge("New confirmed fact", path, { authorized: true });
+
+    const goals = await readFile(goalsPath, "utf8");
+    assert.match(goals, /Human context that must remain/);
+    assert.match(goals, /- Existing goal/);
+    assert.match(goals, /- New goal/);
+    assert.match(goals, /## Notes\n\nDo not rewrite this paragraph/);
+    assert.ok(goals.indexOf("- New goal") < goals.indexOf("## Notes"));
+
+    const knowledge = await readFile(knowledgePath, "utf8");
+    assert.match(knowledge, /package-name:example/);
+    assert.match(knowledge, /Human explanation that must remain/);
+    assert.match(knowledge, /## Confirmed project knowledge\n\n- New confirmed fact/);
+    assert.match(knowledge, /## Known unknowns\n\n- deployment target/);
+  });
+});
+
+test("semantic writes reject concurrent project-owned changes instead of overwriting them", async () => {
+  await withProject(async (path) => {
+    const goalsPath = resolve(path, ".project-brain", "goals.md");
+    const decisionsPath = resolve(path, ".project-brain", "decisions.md");
+
+    await assert.rejects(
+      addConfirmedGoal("New goal", path, {
+        authorized: true,
+        beforePromote: async () => {
+          await writeFile(goalsPath, "# Goals\n\n- Human concurrent goal\n", "utf8");
+        },
+      }),
+      /changed concurrently/i,
+    );
+    assert.match(await readFile(goalsPath, "utf8"), /Human concurrent goal/);
+    assert.doesNotMatch(await readFile(goalsPath, "utf8"), /New goal/);
+
+    await assert.rejects(
+      recordAcceptedDecision("Runtime decision", path, {
+        authorized: true,
+        beforePromote: async () => {
+          await writeFile(decisionsPath, "# Decisions\n\n- Human concurrent decision\n", "utf8");
+        },
+      }),
+      /changed concurrently/i,
+    );
+    assert.match(await readFile(decisionsPath, "utf8"), /Human concurrent decision/);
+    assert.doesNotMatch(await readFile(decisionsPath, "utf8"), /Runtime decision/);
   });
 });
