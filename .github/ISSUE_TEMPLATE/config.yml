@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage questions
+    url: https://github.com/Kryt3r/livariant/discussions/categories/q-a
+    about: Ask how to install, understand, or use Livariant.
+  - name: Ideas and feature suggestions
+    url: https://github.com/Kryt3r/livariant/discussions/categories/ideas
+    about: Discuss ideas before they become implementation work.
+  - name: Security vulnerability
+    url: https://github.com/Kryt3r/livariant/security/policy
+    about: Do not post vulnerability details in a public issue. Read the security policy first.

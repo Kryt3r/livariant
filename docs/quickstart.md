@@ -1,20 +1,22 @@
 # Livariant Five-Minute Quickstart
 
-Livariant gives an AI-assisted software project a persistent, project-owned source of truth called the **Project Brain**. It is designed to keep project identity, confirmed goals, accepted decisions, known facts, unresolved unknowns, lifecycle state, and provider handoff context coherent across sessions and supported coding agents.
+If you are new to Livariant, start with one idea: your project gets its own durable knowledge store, called the **Project Brain**. Important context no longer has to live only in chat history or in one AI tool's memory.
+
+This Quickstart shows the shortest safe path from installation to first use and then to repeated day-to-day use.
 
 ## Before you start
 
-Current executable baseline requirements:
+You need:
 
-- Node.js 20 or newer,
-- a local project directory,
-- the Livariant release artifact for the current Public Preview baseline.
+- Node.js 20 or newer;
+- a local project directory;
+- the verified Livariant release tarball for the current Preview candidate once it is published.
 
-The repository package identity and installed CLI namespace are both `livariant`.
+The package and CLI command are both named `livariant`.
 
-## 0. Install Livariant tooling
+## 0. Install Livariant
 
-Livariant is not installed inside Claude Code or Codex. Install the verified Preview release tarball as machine/user tooling, then run Livariant from the root of the project you already use with your coding agent.
+Livariant is not installed inside Claude Code or Codex. You install the CLI once on your computer and then use it from your project directory.
 
 From the directory containing the verified release tarball:
 
@@ -30,17 +32,19 @@ npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
 npm install --global --ignore-scripts .\livariant-0.1.0-rc.2.tgz
 ```
 
-Verify the installed CLI:
+Check the installation:
 
 ```bash
 livariant version
 ```
 
-Then open the root of the project you want Livariant to manage. The install step does not add Livariant to that project's `package.json` or `node_modules` and does not initialize it automatically.
+Then open the root directory of the project you want to use with Livariant.
 
-For release-source verification, SHA-256 checks, PATH guidance, and the complete Claude Code/Codex onboarding flow, read [Install Livariant and add it to a project](installation.md).
+The install step does not add Livariant to your project's `package.json` or `node_modules`, and it does not initialize the project automatically.
 
-## 1. Inspect before changing anything
+For download verification, SHA-256 checks, PATH help, and Windows details, read [Install Livariant and add it to a project](installation.md).
+
+## 1. Inspect the project first
 
 From the project root:
 
@@ -50,19 +54,20 @@ livariant doctor
 livariant init
 ```
 
-`livariant init` without `--apply` is inspection-only. It reports what Livariant found, whether initialization is applicable, which existing project files would be modified, and which Project Brain files would be created.
+`livariant init` without `--apply` does not change anything. It shows what Livariant found and which Project Brain files it would create.
 
-For an existing project, this discovery step is important: Livariant is designed to adopt the project that already exists rather than normalize it into a preferred template.
+> [!IMPORTANT]
+> Read this plan carefully for an existing project. Livariant is designed to adopt the project that already exists instead of reshaping it into a preferred template.
 
-## 2. Initialize deliberately
+## 2. Create the Project Brain
 
-If the plan is correct:
+If the plan looks correct:
 
 ```bash
 livariant init --apply
 ```
 
-Initialization creates the minimal Project Brain under `.project-brain/`:
+This creates the minimal Project Brain:
 
 ```text
 .project-brain/
@@ -73,55 +78,116 @@ Initialization creates the minimal Project Brain under `.project-brain/`:
   metadata.json
 ```
 
-Existing project-owned files are not rewritten as part of supported initialization.
+Supported initialization does not simply rewrite existing project-owned files.
 
-## 3. Check the resulting state
+## 3. Check the result
 
 ```bash
 livariant status
 livariant doctor
 ```
 
-A healthy initialized project should report the Project Brain as present and the lifecycle as initialized. `doctor` is diagnostic and read-only: it does not silently repair drift, damaged state, or unsupported manual changes.
+A healthy initialized project should report the Project Brain as present and the lifecycle as initialized.
 
-## 4. Resume project context
+`doctor` is diagnostic and read-only. It does not silently repair damaged or ambiguous state.
 
-Provider-neutral human-readable resume:
+## 4. Record project truth safely
+
+The Preview supports repeated-use editing for confirmed goals, confirmed project knowledge, and accepted decisions.
+
+Read the current values first:
+
+```bash
+livariant goals
+livariant knowledge
+livariant decisions
+```
+
+To add a goal, fact, or decision, leave off `--apply` first. Livariant shows the proposed canonical change and makes no write:
+
+```bash
+livariant goals add "Ship the first safe public preview"
+livariant knowledge add "Preview distribution uses GitHub Releases"
+livariant decisions add "Use GitHub Releases for Preview distribution"
+```
+
+After checking the proposed value, apply it explicitly:
+
+```bash
+livariant goals add "Ship the first safe public preview" --apply
+livariant knowledge add "Preview distribution uses GitHub Releases" --apply
+livariant decisions add "Use GitHub Releases for Preview distribution" --apply
+```
+
+If an accepted decision changes later, list decisions to get its ID and supersede it instead of deleting history:
+
+```bash
+livariant decisions
+livariant decisions supersede <decision-id> "Use signed release infrastructure" --reason "Distribution model changed"
+```
+
+The command above is still only a plan. Add `--apply` after reviewing it.
+
+Livariant validates Project Brain health before these writes, protects managed paths, refuses to overwrite a concurrent project-owned edit, and verifies the persisted value before reporting success.
+
+## 5. Create context for a new working session
+
+Provider-neutral output:
 
 ```bash
 livariant resume
 ```
 
-For the currently supported Preview handoff surface, select the provider environment explicitly:
+The Resume includes confirmed goals, active decisions, known facts, unresolved unknowns, and available project identity. Superseded decisions stay in history but are not presented as active truth.
+
+For Claude Code or Codex on Linux and macOS:
 
 ```bash
 LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
 LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
 ```
 
-On Windows PowerShell, set the environment variable separately, for example:
+On Windows PowerShell, for example:
 
 ```powershell
 $env:LIVARIANT_PROVIDER_ENV = "claude-code"
 livariant resume --provider claude-code
 ```
 
-The provider output is an ephemeral projection of canonical Project Brain state. It is not a second source of truth and does not gain authority from provider memory or from `CLAUDE.md` / `AGENTS.md`.
+Resume output is temporary working context. The Project Brain remains the durable project record.
 
 > [!IMPORTANT]
-> Claude Code and Codex support in the current Preview is intentionally limited to Project Brain Resume handoff. Livariant does not claim full integration with every provider feature, model, authentication surface, tool invocation, or native instruction mechanism.
+> Current Claude Code and Codex support is deliberately limited to Project Brain Resume handoff. Livariant is not a complete native plugin for either provider.
 
-## 5. Inspect an update before applying it
+## What normal use looks like after setup
 
-Given a release manifest obtained through the chosen trusted Preview distribution path:
+You do not run `init` again every time you start a new AI session.
+
+A normal work cycle can be:
+
+```text
+1. Open the project.
+2. Run status or doctor when you need a health check.
+3. Use resume to bring the current Project Brain into a new AI session.
+4. Work on the project.
+5. When a goal, confirmed fact, or accepted decision should become durable project truth, plan it with goals, knowledge, or decisions.
+6. Review the plan, then repeat the command with --apply.
+7. Use resume again when a later session needs the updated truth.
+```
+
+Livariant does not watch every conversation automatically and it does not assume that every sentence from an AI session belongs in the Project Brain. You choose which confirmed project truth becomes durable.
+
+## 6. Plan an update before applying it
+
+With a release manifest from the trusted Preview distribution path:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-This is planning-only. It reports source and target versions, channel, source ID, artifact identity and SHA-256, project impact, and whether a Project Brain migration/checkpoint is required.
+This only plans the update. Livariant reports the source and target version, channel, source ID, artifact identity, SHA-256, and any Project Brain or migration impact.
 
-To apply the reviewed plan, provide the matching artifact and explicitly name the source ID you trust:
+After you review the plan:
 
 ```bash
 livariant update \
@@ -131,47 +197,47 @@ livariant update \
   --trusted-source <source-id>
 ```
 
-The manifest cannot silently make its own `sourceId` trusted. `--trusted-source` is separate evidence of the trust context selected for this operation. Artifact bytes still must match the digest bound by the release manifest.
+A manifest cannot make its own `sourceId` trusted. `--trusted-source` is separate trust evidence. The artifact bytes must also match the digest recorded in the manifest.
 
-Executable updates have one additional prerequisite: the exact artifact digest must already be authorized by independent machine-local release policy outside the project. Project files, the manifest, `--trusted-source`, and the Livariant project CLI cannot create that authority. If it is missing, update fails closed before candidate Runtime code can execute. There is intentionally no project-facing `authorize-runtime` command.
+Executable updates require one more condition. The exact artifact digest must already be authorized by independent machine-local release policy outside the project. Project files, the manifest, `--trusted-source`, and the project-facing Livariant CLI cannot create that authority.
 
-If the target changes Project Brain schema, `livariant update` routes through the supported migration lifecycle automatically. Do not manually edit schema/version metadata and do not run a separate ad-hoc migration.
+If the authority is missing, the update stops before candidate Runtime code can execute. There is no project-facing `authorize-runtime` command.
 
 > [!WARNING]
-> Do not update Livariant by manually replacing `.project-brain/`, copying framework-managed lifecycle files, editing schema/version metadata, dropping a newer Runtime into managed storage, or fabricating Runtime trust/release-authorization records. Manual replacement bypasses compatibility, authority, integrity, checkpoint, activation, and recovery guarantees.
+> Do not manually replace `.project-brain/`, lifecycle state, `metadata.json`, managed Runtime files, or Runtime trust and release-authorization records to simulate an update or migration.
 
-## 6. Recover an interrupted migration
+Schema-changing releases use the same `update` path and are routed through the supported migration lifecycle.
 
-Inspect first:
+## 7. Recover an interrupted migration
+
+Start read-only:
 
 ```bash
 livariant doctor
 livariant recover
 ```
 
-If Livariant reports a valid checkpoint and a supported rollback strategy, authorize it separately:
+If Livariant reports a valid checkpoint and a supported rollback strategy:
 
 ```bash
 livariant recover --apply
 ```
 
-A missing, moved, tampered, or ambiguous checkpoint is not guessed through. Automatic recovery remains blocked and diagnosis stays visible. After a verified rollback is committed, Livariant removes displaced recovery state before deleting the final valid checkpoint; a late cleanup failure must not destroy the restored Project Brain or that checkpoint.
+A missing, moved, tampered, or ambiguous checkpoint is not guessed through. Automatic recovery remains blocked in that case.
 
-## 7. Keep the safety boundary intact
+After a verified rollback, Livariant removes displaced Recovery state before deleting the final valid checkpoint. A late cleanup failure must not destroy the restored Project Brain or that checkpoint.
 
-Do **not** manually replace `.project-brain/` files with files from another Livariant version. Do **not** manually copy a newer runtime into framework-managed lifecycle storage in order to simulate an update.
+## 8. Keep the safety boundary intact
 
-The supported lifecycle verifies release identity, artifact integrity, independent release authority, migration checkpoints, installed runtime integrity, activation state, and recovery evidence before protected state becomes active.
+Do not replace `.project-brain/` with files from another Livariant version and do not copy a newer Runtime manually into framework-managed lifecycle storage to simulate an update.
 
-## Product identity note
-
-The preliminary collision review and the decision to use **Livariant** are recorded in [`../distribution/product-naming-decision.md`](../distribution/product-naming-decision.md). The decision is a product/engineering decision, not a formal trademark-clearance opinion.
+The supported lifecycle checks release identity, artifact integrity, independent release authority, migration checkpoints, installed Runtime integrity, activation state, and recovery evidence before protected state becomes active.
 
 ## Next reads
 
 - [Installation & first project](installation.md)
 - [Existing Projects](existing-projects.md)
-- [Architecture & Safety](architecture-and-safety.md)
 - [Provider Handoff](provider-handoff.md)
 - [Updates, Migrations & Recovery](lifecycle-guide.md)
+- [Architecture & Safety](architecture-and-safety.md)
 - [Preview Scope & Limitations](preview-scope.md)

@@ -1,55 +1,61 @@
 # Livariant Security Policy
 
-Livariant treats project ownership, mutation authority, release integrity, migration safety, and recovery evidence as security-relevant boundaries.
+Livariant treats project ownership, mutation authority, release integrity, migration safety, and recovery evidence as security boundaries.
 
-## Supported security-reporting path
+## Reporting a suspected vulnerability
 
-Do **not** disclose a suspected vulnerability through a public issue before the maintainer has had a reasonable opportunity to assess it.
+**Do not post vulnerability or exploit details in a public Issue or Discussion.**
 
-For the Public Preview, the intended private reporting path is GitHub Private Vulnerability Reporting / Security Advisories on the canonical Livariant repository.
+For the Public Preview, the intended reporting path is GitHub Private Vulnerability Reporting / Security Advisories on the canonical Livariant repository.
 
-**Operational release gate:** the canonical public Livariant repository must have a working private vulnerability-reporting path enabled before the first Public Preview release is published. Until that host-side configuration is verified, this document does not claim that private reporting is already available.
+That host-side feature must be enabled and verified before the public Preview is launched. Until that check has actually passed, this policy does not pretend that private reporting is already available.
 
-If private vulnerability reporting is unavailable on the repository you are viewing, do not post exploit details publicly. Contact the repository maintainer through an available private GitHub channel and reference this policy.
+If the private reporting option is unavailable on the repository you are viewing, do not publish exploit details just to get attention. Contact the maintainer through an available private GitHub channel and reference this policy.
 
-## What to include
+## What a useful report contains
 
-A useful report should include, when known:
+When known, include:
 
-- affected Livariant version / release channel;
+- affected Livariant version and release channel;
 - operating system and Node.js version;
 - affected command or lifecycle path;
-- whether a Project Brain already existed;
+- whether the project already had a Project Brain;
 - minimal reproduction steps;
-- expected versus observed behavior;
-- whether project-owned data, authority boundaries, release trust, migration state, or recovery evidence may be affected;
-- any proof-of-concept that can be shared safely.
+- expected and observed behavior;
+- whether project data, authority boundaries, release trust, migration state, or recovery evidence may be affected;
+- a proof of concept when it can be shared safely.
 
 Do not include unrelated secrets, credentials, private project contents, or personal data.
 
-## Security-sensitive classes
+## Examples of security-sensitive problems
 
-Examples include:
+Security reports may include problems such as:
 
 - path traversal or symlink escape outside managed boundaries;
-- mutation without explicit authority;
-- release/source/integrity verification bypass;
+- project mutation without required authority;
+- release source or integrity verification bypass;
 - execution of an untrusted or drifted Runtime;
 - migration replay or checkpoint-integrity bypass;
 - recovery that can overwrite valid project-owned state;
-- provider/native-instruction behavior that silently becomes canonical truth;
+- provider or native-instruction behavior that silently becomes canonical project truth;
 - secret ingestion or unintended disclosure during discovery or Resume.
 
-## Response expectations for Preview
+This list is not exhaustive.
 
-Public Preview is not a paid support SLA. Security reports are triaged according to severity and reproducibility. Acknowledgement and remediation timing may vary.
+## Preview response expectations
 
-A confirmed Critical or Major issue affecting a supported lifecycle path is a release blocker for subsequent Preview releases until it is fixed, safely bounded, or the affected path is explicitly withdrawn from support.
+Public Preview security handling is maintainer-supported and does not include a paid response-time SLA unless separately agreed.
+
+Reports are triaged according to severity, impact, and reproducibility. Acknowledgement and remediation time may vary.
+
+A confirmed Critical or Major issue on a supported lifecycle path blocks subsequent Preview release work until it is fixed, safely bounded, or the affected path is explicitly withdrawn from support.
 
 ## Safe research
 
-Good-faith testing should stay within systems and projects you own or are authorized to test. Avoid destructive testing against third-party infrastructure, denial of service, credential theft, privacy violations, or access to data you are not authorized to access.
+Test only systems and projects you own or are authorized to test.
 
-## Disclosure
+Avoid destructive testing against third-party infrastructure, denial of service, credential theft, privacy violations, and access to data you are not authorized to view.
 
-Please allow time for validation and remediation before public disclosure. Coordinated disclosure details can be agreed for a confirmed issue.
+## Coordinated disclosure
+
+Please allow reasonable time for validation and remediation before public disclosure. Disclosure timing can be coordinated for a confirmed issue.

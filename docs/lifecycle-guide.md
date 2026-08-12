@@ -1,31 +1,22 @@
 # Updates, Migrations & Recovery
 
-Livariant exposes the hardened lifecycle through the installed `livariant` CLI. The safe path is plan-first: inspection and planning are read-only; mutation requires explicit `--apply` authorization.
+Livariant handles updates, schema migrations, and recovery through the installed `livariant` CLI. The normal rule is simple: inspect first, then authorize a change explicitly.
 
 ## Plan an update
 
-Use a release manifest obtained through the chosen trusted Preview distribution path:
+Use the release manifest that belongs to the Livariant release you obtained from the canonical GitHub repository:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-The plan reports:
+The plan shows the source and target versions, release channel, source ID, artifact identity and SHA-256, project impact, and whether a migration or checkpoint is required.
 
-- source and target versions,
-- update channel,
-- release source ID,
-- artifact identity and SHA-256,
-- whether migration is required,
-- project impact,
-- checkpoint requirement,
-- authorization requirement.
-
-No update is applied without `--apply`.
+Nothing is applied without `--apply`.
 
 ## Apply a reviewed update
 
-Provide the exact artifact identified by the plan and explicitly identify the release source you trust:
+After reviewing the plan, provide the matching artifact and explicitly name the release source you trust:
 
 ```bash
 livariant update \
@@ -35,121 +26,126 @@ livariant update \
   --trusted-source <source-id>
 ```
 
-The release manifest does **not** self-authorize its own source ID. The explicitly supplied trusted-source set is evaluated separately, and the artifact still has to match the manifest-bound release identity and SHA-256.
+The manifest cannot make its own source trusted. `--trusted-source` is evaluated separately, and the artifact bytes still have to match the release identity and SHA-256 recorded in the manifest.
 
-In addition, the exact artifact digest must already be authorized by an **independent machine-local release authority** outside the selected project. Project input, release manifests, `--trusted-source`, and the Livariant project CLI cannot create or mutate that authority. If the exact digest is not already present in that independent machine-local policy, update fails closed before candidate Runtime code is installed or executed.
+Executable updates have one more requirement. The exact artifact digest must already be authorized by an independent machine-local release policy outside the project. Project files, the release manifest, `--trusted-source`, and the project-facing Livariant CLI cannot create or change that authority.
 
-There is intentionally no project-facing `authorize-runtime` command. Preview distribution must provision release authority through a separate trusted release/install process rather than letting a repository promote its own bytes to trusted execution authority.
+If the exact digest is not authorized, Livariant stops before candidate Runtime code is installed or executed.
 
-The safe normal-update order is:
+There is no project-facing `authorize-runtime` command. A project cannot promote its own bytes into execution authority.
+
+The supported update order is:
 
 ```text
 resolve target release
-→ verify release identity and trusted-source relationship
+→ verify release identity and trusted source
 → verify artifact SHA-256
 → check compatibility and channel
 → require explicit --apply authorization
-→ require pre-existing independent machine-local artifact authority
-→ install target Runtime without lifecycle scripts
-→ write and verify bound release evidence
-→ measure installed Runtime tree
+→ require pre-existing machine-local artifact authority
+→ install the target Runtime without lifecycle scripts
+→ write and verify release evidence
+→ measure the installed Runtime tree
 → establish and recheck machine-local Runtime trust
-→ only then execute candidate Runtime attestation
-→ recheck preservation/lifecycle conditions
+→ execute candidate Runtime attestation
+→ recheck lifecycle and preservation conditions
 → commit the canonical Project Brain framework pin
 ```
 
-The Project Brain pin is the final activation decision. Merely placing a newer Runtime on disk does not make it active.
+The Project Brain pin is the final activation decision. A newer Runtime being present on disk does not make it active.
 
-## Framework update is not Project Brain migration
+## A framework update is not automatically a Project Brain migration
 
-A release can update Livariant tooling without changing the Project Brain schema. A schema-changing release is a migration and uses a stronger lifecycle path.
+A release can update Livariant tooling without changing the Project Brain schema. If the schema changes, Livariant treats the operation as a migration and uses the stronger migration lifecycle.
 
-The user still runs the same command:
+The user still starts with the same command:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-If the selected compatible release changes Project Brain schema, Livariant reports the migration in the plan and routes an authorized `--apply` through the explicit migration contract. There is intentionally no normal-path command that encourages users to bypass update compatibility by manually invoking a transformation.
+If the selected release changes the Project Brain schema, the migration appears in the plan and an authorized `--apply` is routed through the supported migration path automatically.
 
-Do not treat `npm install`, copying a tarball, replacing `.project-brain/`, or manually changing `metadata.json` as a supported project migration.
+Do not treat `npm install`, copying a tarball, replacing `.project-brain/`, or manually editing `metadata.json` as a project migration.
 
-## Migration path
+## Supported migration path
 
 The current executable Preview baseline proves one explicit schema migration path: Project Brain schema `1 → 2`.
 
-The migration flow includes:
+The migration flow is:
 
 ```text
 compatibility check
-→ explicit migration identity
+→ migration identity
 → authorization
 → integrity-bound checkpoint
 → durable migration journal
-→ non-replay-safe step evidence
+→ evidence for non-replay-safe work
 → mutation
 → validation
 → target activation
 ```
 
-Unsupported or incomplete migration paths fail closed. Livariant must not guess a transformation merely because source and target schemas differ.
+Unsupported or incomplete migration paths stop safely. Livariant does not guess how one schema should be transformed into another.
 
-## Interrupted migration
+## If a migration is interrupted
 
-An interruption after a non-replay-safe mutation is not equivalent to “nothing happened.” Durable lifecycle evidence records the ambiguous/in-progress state.
+An interruption after non-replay-safe work does not mean that nothing happened. Livariant keeps durable lifecycle evidence so the project does not appear fresh or healthy when the operation is actually incomplete.
 
 While recovery is unresolved:
 
-- normal update planning/application is blocked,
-- blind migration replay is blocked,
-- `livariant status` narrows to recovery-required,
-- `livariant doctor` remains diagnostic rather than repairing automatically.
+- normal update application is blocked;
+- blind migration replay is blocked;
+- `livariant status` reports recovery-required state;
+- `livariant doctor` remains diagnostic and read-only.
 
-## Inspect recovery
+## Inspect recovery first
 
-Start read-only:
+Run:
 
 ```bash
 livariant doctor
 livariant recover
 ```
 
-`livariant recover` reports the interrupted operation, migration identity, source/target release and schema, checkpoint validity, and the supported recovery strategy when one is available.
+`livariant recover` reports the interrupted operation, migration identity, source and target release/schema information, checkpoint validity, and a supported recovery strategy when one exists.
 
-If the checkpoint is missing, moved, tampered, or otherwise ambiguous, automatic recovery remains unavailable.
+If the checkpoint is missing, moved, modified, or otherwise ambiguous, automatic recovery remains unavailable.
 
 ## Apply recovery
 
-When `livariant recover` reports a valid checkpoint and `rollback` strategy:
+When Livariant reports a valid checkpoint and a supported `rollback` strategy:
 
 ```bash
 livariant recover --apply
 ```
 
-Recovery is a separate, explicitly authorized lifecycle operation. Before rollback, Livariant validates:
+Recovery is a separate authorized operation. Before rollback, Livariant verifies the migration journal, checkpoint location and identity, source release/schema metadata, and the digests of canonical Project Brain checkpoint files.
 
-- the migration journal,
-- checkpoint location and expected identity,
-- source release/schema metadata,
-- digests of canonical Project Brain checkpoint files.
+The restored Project Brain is committed before cleanup. Displaced recovery state is removed before the final valid checkpoint is deleted. If late cleanup fails, the restored Brain and valid checkpoint remain available instead of being destroyed.
 
-Recovery commits the verified restored Project Brain before cleanup. The displaced pre-recovery tree is removed first, and the last valid recovery checkpoint is deleted only as the final irreversible cleanup step. A late displaced-tree cleanup failure must not undo the restored Project Brain or destroy that checkpoint.
+Livariant never invents a recovery state when the evidence is incomplete.
 
-A missing, moved, tampered, or ambiguous checkpoint does not trigger a guessed restore.
+## Retry behavior
 
-## Retry semantics
+A target Runtime installed during an interrupted attempt may be reused only when all bound release evidence still matches: version, channel, source ID, artifact ID, artifact digest, package identity, installed package-tree integrity, and machine-local Runtime trust.
 
-A target Runtime installed during an interrupted attempt may be reused only when its bound release evidence matches exactly: version, channel, source ID, artifact ID, artifact digest, package identity, and installed package-tree integrity, and the installed tree still matches machine-local Runtime trust.
+A different artifact cannot take over an existing installation simply by claiming the same version number.
 
-A different artifact cannot take over an existing installation merely by claiming the same version.
+## Do not repair lifecycle state by hand
 
-## Manual replacement warning
+> [!CAUTION]
+> Do not manually replace Project Brain files, Livariant-managed lifecycle state, Runtime trust records, or release-authorization records to finish or repair an update.
 
-> **Do not manually replace Project Brain, Livariant-managed lifecycle state, Runtime trust records, or release-authorization records to complete, repair, or shortcut an update.**
+Manual replacement bypasses compatibility checks, authority, checkpoints, replay safety, integrity verification, and activation rules. If state is unclear, inspect the actual state with:
 
-Doing so bypasses compatibility, authority, checkpoints, replay safety, integrity verification, and activation semantics. If a lifecycle operation is interrupted or state is unclear, diagnose the actual state first with `livariant doctor` and `livariant recover`.
+```bash
+livariant doctor
+livariant recover
+```
 
-## Current Preview distribution boundary
+## Public Preview distribution
 
-The CLI lifecycle surface is executable. Public Preview distribution still needs one finalized public source from which users obtain the Livariant package, release manifest, matching runtime artifact, and the independent machine-local release-authority evidence required for executable updates. Until that distribution/install path is published, examples use local manifest/artifact paths and describe the authority prerequisite rather than inventing a registry, signer, or download endpoint that does not yet exist.
+The Public Preview distribution path is the canonical `Kryt3r/livariant` GitHub Release. The release bundle provides the Livariant package, `release-manifest.json`, and `SHA256SUMS` for the exact candidate.
+
+Initial CLI installation is described in [Installation & First Project](installation.md). Executable project updates remain subject to the independent machine-local release-authority requirement described above. Publishing a release does not let project-controlled input create that authority.

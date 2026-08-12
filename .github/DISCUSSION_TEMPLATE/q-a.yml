@@ -1,0 +1,47 @@
+title: ""
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use Q&A for help understanding or using Livariant. Beginners are welcome.
+
+        For reproducible bugs, use GitHub Issues. Do not post vulnerability details here; follow `SECURITY.md` instead.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: What are you trying to do?
+      options:
+        - Understand what Livariant is for
+        - Install Livariant
+        - Add Livariant to an existing project
+        - Use Project Brain or Resume
+        - Use Livariant with Claude Code
+        - Use Livariant with Codex
+        - Understand updates, migration, or recovery
+        - Understand architecture or security behavior
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Explain what you are trying to understand or accomplish. You do not need to know the correct Livariant terminology.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried or read?
+      description: Optional. Mention commands or documentation that were useful or confusing.
+
+  - type: checkboxes
+    id: safe
+    attributes:
+      label: Public information check
+      options:
+        - label: I have not included credentials, private project data, or vulnerability exploit details.
+          required: true

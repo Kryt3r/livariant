@@ -1,59 +1,78 @@
 # Contributing to Livariant
 
-Livariant is in Public Preview. Community participation is welcome when it preserves the framework's accepted ownership, authority, lifecycle, and compatibility boundaries.
+Livariant is preparing its Public Preview. Questions, bug reports, documentation feedback, and design discussion are welcome. External code contributions are currently handled differently, as explained below.
 
-## Current contribution gate
+## Current code-contribution gate
 
 **External code contributions are not yet accepted for incorporation into Livariant.**
 
-The project is finalizing contributor terms that must remain compatible with Livariant's source-available licensing model and its ability to offer separate commercial licenses in the future. Until those terms are published, please do not open a pull request containing code intended for incorporation.
+The project is still finalizing contributor terms that must work with Livariant's source-available license and possible separate commercial licensing in the future. Until those terms are published, please do not open a pull request containing code intended for incorporation.
 
-Bug reports, reproducible issue reports, documentation feedback, design discussion, and other non-code participation are still welcome.
+This is a temporary licensing and ownership safeguard. It does not mean community code contributions will never be accepted.
 
-This is a temporary ownership/licensing safeguard, not a statement that community code contributions will never be accepted.
+## What you can contribute now
 
-## Before contributing feedback
+You are welcome to:
 
-Please read:
+- report a reproducible bug;
+- report a documentation problem;
+- ask a usage question;
+- suggest or discuss a product idea;
+- share how you are using Livariant;
+- challenge an architecture or design decision with concrete reasoning and evidence.
+
+Use [SUPPORT.md](SUPPORT.md) to choose the right GitHub channel.
+
+Do not post security vulnerability details publicly. Follow [SECURITY.md](SECURITY.md).
+
+## Before submitting feedback
+
+For most users, start with:
 
 - `README.md`;
-- `LICENSING.md`;
+- `SUPPORT.md`;
+- `docs/preview-scope.md`.
+
+For deeper technical discussion, these documents are also useful:
+
 - `docs/architecture-and-safety.md`;
-- `docs/preview-scope.md`;
+- `LICENSING.md`;
 - `core/charter.md`.
 
-The framework is intentionally past its Foundation-expansion phase. New ideas should be classified as a Preview blocker, a bounded Preview limitation, or post-Preview work rather than silently expanding architecture.
+New ideas should identify whether they address a current supported-path problem, a bounded Preview limitation, or future work. A feature request should not silently redefine current product behavior just by being proposed.
 
 ## License
 
 Livariant is source-available under the **PolyForm Perimeter License 1.0.1** by default. It is not offered as OSI-approved Open Source.
 
-See `LICENSE` for the authoritative terms and `LICENSING.md` for the project's practical licensing explanation and commercial-licensing boundary.
+`LICENSE` contains the authoritative terms. `LICENSING.md` explains the project's intended licensing model in more practical language.
 
 Do not submit code, documentation, assets, or other material that you do not have the right to share.
 
 ## Future code contributions
 
-Before external code contributions are opened, Livariant will publish contributor terms that define the rights granted with accepted contributions and their relationship to the default source-available license and possible separate commercial licensing.
+Before external code contributions are opened, Livariant will publish contributor terms that define what rights accompany an accepted contribution and how those rights relate to the default source-available license and possible separate commercial licensing.
 
-No assumption should be made that merely opening a pull request grants Livariant additional relicensing or commercial-licensing rights beyond whatever contributor terms are explicitly in force at that time.
+Do not assume that merely opening a pull request grants Livariant extra relicensing or commercial rights beyond whatever contributor terms are explicitly in force at that time.
 
-## Future pull requests
+## What future pull requests should contain
 
-When code contributions are opened, focused changes with a clear reason and bounded effects will be preferred. A useful pull request should state:
+Once code contributions are opened, focused changes with a clear reason and bounded effects will be preferred.
+
+A useful pull request should explain:
 
 - the problem being solved;
 - the protected behavior or contract involved;
 - what changes;
-- what intentionally does not change;
-- tests or executable evidence added/updated;
+- what intentionally stays unchanged;
+- tests or executable evidence added or updated;
 - compatibility, migration, authority, privacy, licensing, or security implications when relevant.
 
-For changes touching existing projects or lifecycle behavior, preservation and recovery behavior should be explicit rather than assumed.
+Changes that affect existing projects or lifecycle behavior should explain preservation and recovery behavior rather than leaving those effects implicit.
 
-## Required quality bar
+## Verification bar for future code contributions
 
-For future code contributions, the baseline verification commands are:
+The baseline verification commands are:
 
 ```bash
 npm ci
@@ -62,27 +81,27 @@ npm test
 npm run test:package
 ```
 
-Changes that alter a supported public path should include executable evidence at the same boundary users rely on. Library-only tests are not enough when the change affects the installed CLI or packaged distribution path.
+Changes to a supported public workflow should include evidence at the same boundary users rely on. Library-only tests are not sufficient when a change affects the installed CLI or packaged distribution path.
 
 ## Compatibility and migrations
 
 Do not propose silently reinterpreting an existing Project Brain schema, release channel, provider capability, or accepted lifecycle state.
 
-A breaking Project Brain change requires an explicit supported migration path or an explicit unsupported-state classification. A framework update must not use migration as permission to rewrite unrelated project-owned state.
+A breaking Project Brain change needs either an explicit supported migration path or an explicit unsupported-state classification. Migration is not permission to rewrite unrelated project-owned state.
 
 > [!IMPORTANT]
-> Capability is not authority. A contribution that adds a technical capability must not silently expand what Livariant is authorized to inspect, mutate, migrate, repair, or publish.
-
-## Security issues
-
-Do not open a public issue containing exploitable vulnerability details. Follow `SECURITY.md`.
+> Capability is not authority. Adding a technical capability must not silently expand what Livariant is allowed to inspect, mutate, migrate, repair, or publish.
 
 ## AI-assisted participation
 
-AI tools may be used to help prepare reports, documentation feedback, or future contributions, but the participant remains responsible for reviewing the submitted material, ensuring they have the right to submit it, and verifying that claims are accurate.
+Using an AI tool to help prepare a report, documentation suggestion, or future contribution is fine. The person submitting the material remains responsible for reviewing it, checking that they have the right to submit it, and verifying that factual claims are accurate.
 
-Provider-generated text, hidden session state, or native agent instruction files do not outrank canonical repository contracts merely because an AI tool produced them.
+Generated text, hidden provider memory, and native agent instruction files do not outrank canonical repository contracts simply because an AI tool produced them.
 
 ## Conduct
 
-Be specific, technical, and respectful. Critique designs and evidence rather than people. Deliberate disagreement is acceptable; harassment, threats, discriminatory abuse, or deliberate disruption are not.
+Beginners and experienced developers should both be able to participate without being talked down to.
+
+Be specific and respectful. Critique designs, behavior, and evidence rather than people. Technical disagreement is welcome when it stays constructive.
+
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the community rules.

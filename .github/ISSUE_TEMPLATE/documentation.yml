@@ -1,0 +1,59 @@
+name: Documentation problem
+description: Report unclear, incorrect, missing, or inconsistent documentation
+title: "[Docs] "
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for public documentation problems. This includes unclear beginner guidance, incorrect commands, broken links, missing explanations, and English/German inconsistencies.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked that this problem still exists in the current documentation.
+          required: true
+        - label: This report does not contain secrets, credentials, or private project data.
+          required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Documentation location
+      description: Link the page or name the file and section.
+      placeholder: docs/installation.md, section "Verify the downloaded tarball"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong?
+      options:
+        - The instructions are incorrect
+        - The explanation is unclear
+        - A beginner explanation is missing
+        - A link is broken or points to the wrong place
+        - English and German documentation disagree
+        - A command or example is outdated
+        - Something important is missing
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Describe the problem
+      description: Explain what confused you or what appears to be wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: improvement
+    attributes:
+      label: What would make it clearer?
+      description: Optional. You do not need to write replacement documentation.
