@@ -1,124 +1,132 @@
 # Architektur & Sicherheit
 
-Das Framework trennt dauerhafte Projektwahrheit, wiederverwendbare Framework-Regeln, umgebungsspezifische Übersetzung und Runtime-Autorität, damit bequeme Werkzeuge nicht stillschweigend zu Projekteigentümern werden.
+Livariant trennt Projektwissen, wiederverwendbare Framework-Regeln, provider-spezifische Übersetzung und Runtime-Autorität. Das Ziel ist einfach: Ein nützliches Tool soll nicht stillschweigend zum Eigentümer des Projekts werden.
 
-## Logische Ebenen
+Diese Seite erklärt das tiefere Modell hinter diesem Prinzip. Für die ersten Schritte mit Livariant musst du nicht jeden Abschnitt im Detail verstehen.
 
-Die akzeptierte Architektur besteht aus fünf primären Ebenen:
+## Die wichtigsten Ebenen
 
-1. **Core** — universelle Framework-Governance und Sicherheitsregeln.
-2. **Patterns** — wiederverwendbare Architektur- und Produktmuster.
-3. **Profiles** — domänenspezifische Leitlinien und Einschränkungen.
-4. **Adapters** — umgebungsspezifische Capability-Erkennung und Übersetzung.
-5. **Project Brain** — projekt-eigenes kanonisches Wissen und Lifecycle-Identität für ein konkretes Projekt.
+Livariant hat fünf zentrale logische Ebenen:
+
+1. **Core**: allgemeine Governance- und Sicherheitsregeln des Frameworks.
+2. **Patterns**: wiederverwendbare Architektur- und Produktmuster.
+3. **Profiles**: domänenspezifische Leitlinien und Einschränkungen.
+4. **Adapters**: Erkennung und Übersetzung umgebungsspezifischer Fähigkeiten.
+5. **Project Brain**: projekt-eigenes Wissen und Lifecycle-Identität für ein konkretes Projekt.
 
 Die ausführbare Runtime koordiniert diese Ebenen. Ein Adapter wird nicht allein deshalb autoritativ, weil er technisch eine Aktion ausführen kann.
 
-## Das Project Brain ist kanonisch
+## Das Project Brain ist der dauerhafte Projektstand
 
-Das Project Brain ist die dauerhafte Quelle der Wahrheit für Projektkontext. Resume-Ausgaben, Provider-Projektionen, temporäre Pläne, Tool-Beobachtungen und verstecktes Provider-Memory sind abgeleitete oder externe Evidenz — keine konkurrierenden kanonischen Speicher.
+Das Project Brain enthält den Projektkontext, den Livariant als kanonisch behandelt. Resume-Ausgaben, Provider-Projektionen, temporäre Pläne, Tool-Beobachtungen und verstecktes Provider-Memory können hilfreich sein, sind aber keine konkurrierenden kanonischen Speicher.
 
-Eine providerspezifische Resume-Projektion kann für Claude Code und Codex unterschiedlich aussehen und dennoch denselben kanonischen Zustand repräsentieren.
+Zum Beispiel können Claude Code und Codex unterschiedlich formatierte Resume-Ausgaben bekommen und trotzdem denselben Project-Brain-Zustand beschreiben.
 
 ## Vorhandensein ist nicht Aktualität
 
-Kanonische Wahrheit garantiert nicht, dass jedes projekt-eigene Artefakt diese Wahrheit weiterhin korrekt widerspiegelt.
+Eine Datei kann zum Projekt gehören und trotzdem veraltete Informationen enthalten.
 
-README, Quickstart, Architekturzusammenfassung, Provider-Instruktionsdatei, Beispiel oder Release-Guide können Aussagen enthalten, die beim Schreiben korrekt waren, aber nach späteren Produkt-, Policy-, CLI-, Provider-, Lifecycle-, Lizenz- oder Architekturentscheidungen veraltet sind.
+README, Quickstart, Architekturzusammenfassung, Provider-Instruktionsdatei, Beispiel oder Release-Guide können beim Schreiben korrekt gewesen sein und nach einer späteren Produkt-, Policy-, CLI-, Provider-, Lifecycle-, Lizenz- oder Architekturentscheidung veralten.
 
-Livariant bezeichnet dies als **Knowledge Drift**.
+Livariant nennt das **Knowledge Drift**.
 
 > [!IMPORTANT]
 > **Vorhandensein ist nicht Aktualität.** Dass eine Aussage in einer legitimen projekt-eigenen Datei steht, beweist nicht, dass sie noch aktuell ist.
 
-Das Framework unterscheidet:
+Livariant unterscheidet vier Arten von Information:
 
-- **kanonische aktuelle Wahrheit** — autoritatives aktuelles Wissen für seine Domäne;
-- **abhängige aktuelle Wahrheit** — aktuelle Oberflächen, die mit kanonischer Wahrheit konsistent bleiben müssen;
-- **historische Wahrheit** — Aufzeichnungen, die frühere Zustände oder Entscheidungen absichtlich bewahren;
-- **ephemere Projektionen** — temporärer Kontext, der aus kanonischer Wahrheit abgeleitet wird.
+- **kanonische aktuelle Wahrheit**: das autoritative aktuelle Wissen für seine Domäne;
+- **abhängige aktuelle Wahrheit**: aktuelle Inhalte, die mit der kanonischen Wahrheit übereinstimmen müssen;
+- **historische Wahrheit**: Aufzeichnungen, die bewusst einen früheren Zustand oder eine frühere Entscheidung bewahren;
+- **ephemere Projektionen**: temporärer Kontext, der aus kanonischer Wahrheit erzeugt wird.
 
-Wenn sich kanonische Wahrheit ändert, sollten betroffene abhängige aktuelle Oberflächen identifiziert und geprüft werden. Historische Aufzeichnungen sollten in der Regel historisch bleiben und nicht nur deshalb umgeschrieben werden, um alte Begriffe zu entfernen.
+Wenn sich die kanonische Wahrheit ändert, sollten abhängige aktuelle Inhalte identifiziert und geprüft werden. Historische Aufzeichnungen bleiben normalerweise historisch, statt nur zur Entfernung alter Begriffe umgeschrieben zu werden.
 
-Auch Erkennung erzeugt keine Autorität: Das Identifizieren eines veralteten Dokuments autorisiert Livariant nicht, es umzuschreiben.
+Das Erkennen veralteter Inhalte erzeugt keine Berechtigung, sie zu verändern. Erkennung und Autorität bleiben getrennt.
 
 Der kanonische semantische Vertrag steht in [`core/knowledge-drift-and-truth-surfaces.md`](../../core/knowledge-drift-and-truth-surfaces.md).
 
 ## Fähigkeit ist nicht Autorität
 
-Eine wiederkehrende Framework-Regel lautet:
+Ein Grundsatz zieht sich durch Livariant:
 
 > Die technische Fähigkeit, etwas zu verändern, bedeutet nicht, dass die Runtime dazu autorisiert ist.
 
-Unterstützte Mutationen benötigen deshalb explizite Autorität an der Runtime-Grenze. Das gilt für Initialisierung, kanonische Entscheidungsänderungen, Framework-Updates, Migrationen und Recovery.
+Unterstützte Änderungen benötigen explizite Autorität an der Runtime-Grenze. Das gilt für Initialisierung, kanonische Entscheidungsänderungen, Framework-Updates, Migrationen und Wiederherstellung.
 
-Dasselbe Prinzip gilt für ausführbares Release-Vertrauen: Projektinput darf ein Release beschreiben oder ein Update anfordern, aber seine eigenen Bytes nicht selbst zu Execution Authority erklären.
+Dasselbe gilt für ausführbares Release-Vertrauen. Projektinput darf ein Release beschreiben oder ein Update anfordern, aber seine eigenen Bytes nicht selbst zur Ausführungsautorität machen.
 
 ## Bestehende Projekte sind standardmäßig geschützt
 
-Das Mutationsmodell ist preservation-first:
+Livariant verwendet ein preservation-first Mutationsmodell:
 
 ```text
 prüfen
-→ Absicht und Umfang erklären
-→ Auswirkung/Risiko bestimmen
-→ bei Bedarf wiederherstellbare Ausgangsbasis schaffen
-→ autorisieren
-→ kleinstmögliche ausreichende Mutation durchführen
-→ verifizieren
+-> Absicht und Umfang erklären
+-> Auswirkung und Risiko bestimmen
+-> bei Bedarf eine wiederherstellbare Ausgangsbasis schaffen
+-> autorisieren
+-> die kleinste ausreichende Änderung durchführen
+-> verifizieren
 ```
 
-Bestehende projekt-eigene Dateien werden nicht normalisiert, nur weil das Framework eine andere Struktur bevorzugen würde.
+Bestehende projekt-eigene Dateien werden nicht normalisiert, nur weil Livariant eine andere Struktur bevorzugen würde.
 
-## Bei Mehrdeutigkeit fail-closed
+## Unklarer Zustand wird nicht erraten
 
-Beispiele für Zustände, die das Verhalten einschränken statt automatische Reparatur auszulösen:
+Kann Livariant nicht nachweisen, dass ein Zustand sicher und unterstützt ist, wird das Verhalten eingeschränkt, statt den Fehler automatisch zu übergehen.
 
-- beschädigtes oder unvollständiges Project Brain,
-- ungültige Lifecycle-Journals,
-- ungelöste unterbrochene Migrationen,
-- symlink-basierte verwaltete Schreibflächen,
-- nicht unterstützte Migrationspfade,
-- unerwartete Release-Quellen oder Artefaktidentitäten,
-- fehlende unabhängige machine-local Artefakt-Autorität,
-- Integritätsdrift der installierten Runtime,
+Beispiele sind:
+
+- beschädigtes oder unvollständiges Project Brain;
+- ungültige Lifecycle-Journals;
+- ungelöste unterbrochene Migrationen;
+- Symlinks auf verwalteten Schreibflächen;
+- nicht unterstützte Migrationspfade;
+- unerwartete Release-Quellen oder Artefaktidentitäten;
+- fehlende unabhängige rechnerlokale Artefakt-Autorität;
+- Integritätsdrift der installierten Runtime;
 - mehrdeutige oder veraltete Kompatibilitätsevidenz.
 
-`doctor` ist absichtlich diagnostisch und read-only.
+`doctor` ist absichtlich diagnostisch und read-only. Der Befehl meldet das Problem, statt es still zu reparieren.
 
 ## Update-Vertrauen und Aktivierung
 
-Ein verifiziertes Release-Artefakt ist nicht automatisch autorisiert, kompatibel, installiert, für Ausführung vertrauenswürdig oder aktiv.
+Ein gültiges Release-Artefakt ist nicht automatisch autorisiert, kompatibel, installiert, für Ausführung vertrauenswürdig oder aktiv.
 
-Der implementierte Lifecycle hält diese Konzepte getrennt:
+Livariant prüft diese Punkte getrennt:
 
 ```text
 Release-Identität
-→ Artefakt-/Quellintegrität
-→ Kompatibilität
-→ explizite --apply-Autorisierung
-→ bereits vorhandene unabhängige machine-local Artefakt-Autorität
-→ Runtime-Installation ohne Lifecycle-Skripte
-→ Verifikation der Release-Evidenz
-→ Messung des installierten Package-Trees
-→ Aufbau und erneute Prüfung des machine-local Runtime-Trusts
-→ Candidate-Runtime-Attestation/-Ausführung
-→ Lifecycle-Validierung
-→ kanonischer Project-Brain-Release-Pin
+-> Artefakt- und Quellintegrität
+-> Kompatibilität
+-> explizite --apply-Autorisierung
+-> bereits vorhandene unabhängige rechnerlokale Artefakt-Autorität
+-> Runtime-Installation ohne Lifecycle-Skripte
+-> Verifikation der Release-Evidenz
+-> Messung des installierten Package-Trees
+-> Aufbau und erneute Prüfung des rechnerlokalen Runtime-Trusts
+-> Candidate-Runtime-Attestation und Ausführung
+-> Lifecycle-Validierung
+-> kanonischer Project-Brain-Release-Pin
 ```
 
 Projektkontrollierter Input kann den unabhängigen Release-Authority-Record weder über die Livariant-CLI noch über die produktive API erzeugen. Einen projektseitigen `authorize-runtime`-Befehl gibt es absichtlich nicht.
 
 Der Framework-Pin im Project Brain ist die kanonische Aktivierungsentscheidung. Eine vorbereitete Runtime auf der Festplatte kann sich nicht selbst aktivieren.
 
-## Migration und Recovery
+## Migration und Wiederherstellung
 
-Schema-ändernde Updates verwenden dauerhafte Migrationsevidenz und Checkpoint-Integrität. Unterbrochene nicht replay-sichere Arbeit darf nicht einfach erneut ausgeführt werden, nur weil derselbe Befehl wiederholt wurde.
+Schema-ändernde Updates verwenden dauerhafte Migrationsevidenz und auf Integrität geprüfte Checkpoints. Unterbrochene Arbeit, die nicht sicher wiederholt werden kann, darf nicht einfach erneut ausgeführt werden, nur weil derselbe Befehl noch einmal gestartet wurde.
 
-Recovery ist eine separat autorisierte Lifecycle-Operation. Checkpoints werden vor Restore an Pfad und Inhaltsintegrität gebunden geprüft. Sobald ein Rollback das wiederhergestellte Project Brain erzeugt und validiert hat, darf Cleanup diesen festgeschriebenen Restore nicht rückgängig machen: displaced State wird entfernt, bevor der letzte gültige Checkpoint gelöscht wird; ein später Cleanup-Fehler bewahrt sowohl das wiederhergestellte Brain als auch den Checkpoint.
+Wiederherstellung ist eine separat autorisierte Lifecycle-Operation. Vor einem Restore prüft Livariant sowohl die Pfadbindung als auch die Inhaltsintegrität des Checkpoints.
+
+Hat ein Rollback das wiederhergestellte Project Brain erzeugt und validiert, darf die anschließende Bereinigung diesen erfolgreichen Restore nicht wieder zerstören. Verdrängter Zustand wird entfernt, bevor der letzte gültige Checkpoint gelöscht wird. Scheitert die späte Bereinigung, bleiben das wiederhergestellte Project Brain und der Checkpoint erhalten.
 
 ## Provider-Grenze
 
-Die aktuelle Preview-Adapteroberfläche unterstützt Project-Brain-Resume-Handoff für Claude Code und Codex. Adapter melden Umgebungsevidenz und Kompatibilität für diese Capability; sie verleihen sich selbst keine Projekt-Autorität und verändern keine nativen Provider-Instruktionsdateien.
+Die aktuelle Preview unterstützt Project-Brain-Resume-Handoff für Claude Code und Codex.
 
-Zukünftige Adapter-Capabilities benötigen eigene Conformance- und adversariale Evidenz, bevor sie als unterstützt gelten.
+Adapter können Umgebungsevidenz und Kompatibilität für diese Fähigkeit melden. Sie verleihen sich selbst keine Projekt-Autorität und schreiben native Provider-Instruktionsdateien nicht stillschweigend um.
+
+Zukünftige Adapter-Fähigkeiten benötigen eigene Conformance- und adversariale Evidenz, bevor sie als unterstützt gelten.
