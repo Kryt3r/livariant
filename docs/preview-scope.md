@@ -9,6 +9,9 @@ It is not a marketing feature list. Its purpose is to make the supported surface
 The hardened baseline has executable evidence for:
 
 - fresh and existing projects;
+- repeated-use semantic editing of confirmed goals, confirmed project knowledge, and accepted decisions;
+- plan-first mutation with explicit `--apply`;
+- decision supersession with preserved history;
 - Claude Code and Codex Project Brain Resume handoff;
 - stale-context protection;
 - normal updates;
@@ -33,25 +36,46 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider expli
 
 Livariant does not claim to manage every provider feature, tool, model-selection option, authentication mechanism, or native instruction system.
 
-## Knowledge editing is not yet part of the executable CLI
+## Semantic knowledge editing
 
-The broader Framework design includes guided semantic operations for changing project goals, decisions, and knowledge. Those operations are not yet exposed by the `0.1.0-rc.2` CLI.
+The `0.1.0-rc.2` executable supports a bounded repeated-use editing surface for durable Project Brain truth.
 
-The current executable command surface is:
+The executable command surface is:
 
 ```text
 init
 status
 doctor
 resume
+goals
+knowledge
+decisions
 update
 recover
 version
 ```
 
-This means the Preview can bootstrap Project Brain state, inspect and diagnose it, render Resume context, and manage the supported lifecycle. It does not yet provide first-class commands such as `goals`, `decisions`, or `knowledge` for proposing and applying ongoing semantic knowledge changes.
+The supported editing operations are:
 
-Do not assume that future natural-language or provider-native knowledge-editing behavior already exists in RC2. The Framework contracts describe that direction, but the executable support claim remains limited to the commands above.
+```text
+livariant goals [list]
+livariant goals add <goal> [--apply]
+
+livariant knowledge [list]
+livariant knowledge add <fact> [--apply]
+
+livariant decisions [list]
+livariant decisions add <decision> [--apply]
+livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
+```
+
+Mutation is plan-first. Without `--apply`, Livariant shows the proposed canonical change and makes no write. Applying a supported change requires a valid, healthy Project Brain. Managed writes stay behind the Project Brain storage boundary, reject unsafe managed-file topology, use atomic replacement with exact-original optimistic concurrency checks, and verify persisted state before success is reported.
+
+Simple duplicate additions fail instead of silently normalizing existing truth. Decision supersession preserves the old decision as historical truth and creates a new active decision identity.
+
+`livariant resume` includes confirmed goals, active decisions, known facts, unresolved unknowns, and available project identity. Claude Code and Codex Resume projections use that canonical state as well.
+
+This does not mean Livariant automatically watches conversations or decides which AI output should become project truth. The user still chooses which confirmed project state to record. Richer natural-language or provider-native editing may be added later, but it must preserve the same authority and verification boundaries.
 
 ## Update and migration support
 
