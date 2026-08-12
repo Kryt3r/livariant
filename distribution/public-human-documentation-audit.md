@@ -1,10 +1,10 @@
 # Public Human Documentation and Repository Acceptance Audit
 
-Status: **OPEN**
+Status: **IN PROGRESS, final host checks remain**
 
 Scope: final pre-public acceptance of Livariant's public-facing documentation, beginner usability, writing style, GitHub community surface, and repository presentation.
 
-This audit is intentionally separate from Runtime and Security acceptance. The current RC2 implementation may be technically release-ready while the public repository still needs work before unfamiliar users can understand and use it confidently.
+This audit is separate from Runtime and Security acceptance. A technically safe release candidate is not enough if unfamiliar users cannot understand the product, complete the core workflow, or find the correct support channel.
 
 ## Acceptance goal
 
@@ -17,9 +17,10 @@ A first-time visitor should be able to answer these questions without prior Liva
 5. What does Livariant change in my project, and what does it deliberately not change?
 6. How do I install it safely?
 7. How do I add it to an existing project?
-8. What does a normal day-to-day workflow look like?
-9. How do provider handoff, updates, migration, and recovery work at the level I need to use them safely?
-10. Where do I ask a question, report a bug, suggest an idea, or report a security problem?
+8. How do I record goals, confirmed facts, and accepted decisions after initialization?
+9. What does a normal repeated work cycle look like?
+10. How do provider handoff, updates, migration, and recovery work at the level needed for safe use?
+11. Where do I ask a question, report a bug, suggest an idea, or report a security problem?
 
 The documentation must work for three audiences:
 
@@ -27,220 +28,229 @@ The documentation must work for three audiences:
 - a developer who already uses coding agents but has never used Livariant;
 - an experienced developer or reviewer who needs precise architecture, lifecycle, and security details.
 
-## Initial findings
+## Current acceptance result
 
-### H-01: README starts too far inside the architecture
+### AI-assisted coding beginner
 
-**Status: OPEN**
+**Status: PASS for documented product workflow**
 
-The current README opens with terms such as persistent project-owned source of truth, Project Brain, provider changes, capability, authority, mutation, and verification before a beginner has been shown a simple real-world problem.
+The public entry path now explains the problem before internal architecture. It describes session loss, repeated explanations, provider changes, and project-owned knowledge in ordinary language before introducing deeper authority concepts.
 
-Required change:
+The beginner path now covers:
 
-- lead with a concrete AI-development problem in ordinary language;
-- explain the practical benefit before introducing internal terminology;
-- add a short example showing what happens across sessions or provider changes;
-- introduce Project Brain only after the reader understands why persistent project knowledge matters;
-- retain the precise authority model, but move deeper security detail below the first-use explanation.
+- what Livariant is useful for;
+- what the Project Brain is;
+- installing the CLI;
+- opening an existing or new project;
+- inspection and plan-first initialization;
+- explicit `init --apply`;
+- reading goals, knowledge, and decisions;
+- planning and applying durable semantic changes;
+- superseding an accepted decision without deleting history;
+- using Resume context in later sessions;
+- where to go for help.
 
-### H-02: Beginner path is not yet explicit enough
+The former end-to-end Product Utility gap was a real blocker: the executable RC2 originally lacked the repeated-use semantic editing surface described by the product model. PR #29 implemented `goals`, `knowledge`, and `decisions`, including plan-first mutation, explicit `--apply`, decision supersession history, ProjectBrainStore persistence, concurrency checks, post-write verification, and Resume/provider projection coverage. PR #29 merged as `c613662e9572f9a78cf98d11483be292b2cbb52f`. Post-merge Hardening CI #133 passed on Ubuntu and Windows.
 
-**Status: OPEN**
+### Existing Claude Code or Codex user
 
-The existing installation and Quickstart guides are operationally detailed, but they still assume familiarity with concepts such as coding agents, provider handoff, canonical state, source IDs, Runtime authority, and release manifests.
+**Status: PASS for the current Preview support claim**
 
-Required change:
+The documentation now makes the integration boundary explicit:
 
-- add a beginner-friendly explanation of coding agents and sessions where needed;
-- explain what Livariant does during ordinary use before advanced lifecycle operations;
-- clearly distinguish the beginner path from advanced update/security administration;
-- add a simple "Is Livariant useful for me?" section with concrete use cases.
+- Livariant is not installed as a Claude Code or Codex plugin;
+- the CLI is installed separately and run from the project directory;
+- confirmed project truth is recorded through Livariant rather than copied from hidden provider memory;
+- provider-specific Resume context is generated from the current Project Brain;
+- Claude Code and Codex support is limited to the documented Resume handoff;
+- provider selection does not grant Project Brain mutation authority.
 
-### H-03: Day-to-day usage is under-explained
+The Provider Handoff guides include the complete flow from a decision in one session, through explicit Project Brain recording, to Resume context in a later provider session.
 
-**Status: OPEN**
+### Experienced developer or security reviewer
 
-Installation, initialization, update, and recovery are documented, but the public journey needs a clearer explanation of normal repeated use after setup.
+**Status: PASS for public documentation depth**
 
-Required change:
+The public path links to deeper architecture, privacy, lifecycle, release authority, migration, recovery, licensing, and support documents. The technical detail was preserved rather than removed from the repository.
 
-- show what the user does at the start of a new AI session;
-- show when `livariant resume` is useful;
-- explain how decisions and knowledge become durable project state;
-- explain what Livariant does not automatically infer or rewrite;
-- provide one small end-to-end example from project setup through a later resumed session.
+The current user-facing documentation explains the important boundaries without making a beginner read the full security model before first use. Deep contract material remains available for reviewers who need it.
 
-### H-04: Human writing pass required across public text
+## Finding status
 
-**Status: OPEN**
+### H-01: README started too far inside the architecture
 
-The current public text is precise but often reads like contract or generated technical prose rather than documentation written for ordinary developers.
+**Status: CLOSED**
 
-House style for the public pass:
+README EN/DE now leads with the user problem and practical value, then introduces Project Brain and the authority model.
 
-- prefer direct, natural sentences;
-- avoid repeated formulaic contrasts and symmetrical multi-part phrasing unless technically necessary;
-- avoid marketing filler;
-- explain specialist terms at first use;
-- prefer concrete examples over abstract noun chains;
-- preserve exact security and lifecycle semantics;
-- do not use typographic em dash or en dash characters as prose punctuation. Use normal sentence structure, commas, colons, parentheses, or an ASCII hyphen where appropriate;
-- do not mechanically remove punctuation from code, filenames, command flags, standards, quotations, or externally defined names where it is semantically required.
+### H-02: Beginner path was not explicit enough
 
-A repository check should eventually enforce the public-text punctuation rule so it does not drift back.
+**Status: CLOSED**
 
-### H-05: German text contains avoidable English-heavy jargon
+Installation, Quickstart, Existing Project, and README paths now explain the first-use journey in normal language.
 
-**Status: OPEN**
+### H-03: Day-to-day usage was under-explained
 
-The German README currently mixes terms such as Living Software Framework, Coding-Agents, Provider-Memory, First-Class, discovery-first, preservation-first, Machine-/User-Tooling, read-only, plan-first, mutation-first, Resume Handoff, Authority, Candidate Runtime, Attestation, and Lifecycle into introductory prose.
+**Status: CLOSED**
 
-Some product or technical terms need to remain stable, but the beginner-facing German path should explain them in natural German before using shorthand.
+README, Quickstart, Installation, Existing Project, Provider Handoff, and Preview Scope now explain repeated use with `goals`, `knowledge`, `decisions`, `resume`, plan-first review, and explicit `--apply`.
 
-Required change:
+### H-04: Human writing pass required
 
-- retain product names and commands;
-- translate or explain general concepts where that improves comprehension;
-- avoid forced pseudo-German technical compounds when a normal sentence is clearer;
-- keep EN/DE semantics aligned rather than translating word-for-word.
+**Status: CLOSED for the current user-facing set**
 
-### H-06: Public status wording needs a publication-state pass
+Public EN/DE user documentation received a human-writing pass. The public documentation CI rejects en dash and em dash punctuation in the covered public Markdown surfaces, checks relative Markdown links, and verifies the intended EN/DE guide parity.
 
-**Status: OPEN**
+This audit label predates the separate Product Utility blocker that was also referred to as H-04 during the later implementation review. The Product Utility blocker is closed by PR #29 as described above.
 
-Several documents currently say that Livariant "is in Public Preview" while the canonical repository remains private and the Public Preview has not yet been published.
+### H-05: German text contained avoidable English-heavy jargon
 
-Required change:
+**Status: CLOSED for the current beginner path**
 
-- before publication, distinguish RC preparation from an already-live Public Preview;
-- at publication, switch only the intended current-facing surfaces to live Public Preview wording;
-- do not leave contradictory private/pre-public and already-public statements in the same user journey.
+Technical product terms remain where useful, but the German beginner path explains them in natural sentences instead of assuming expert vocabulary.
 
-### H-07: GitHub issue intake is not configured
+### H-06: Public status wording needed a publication-state pass
 
-**Status: OPEN**
+**Status: CLOSED for pre-public state**
 
-The repository `.github` directory currently contains workflows only. There are no issue forms or issue-template routing files.
+Current-facing documents distinguish the release candidate and private pre-public preparation from an already-live Public Preview. A final live-public wording check is still required after the repository and release are actually published.
 
-Required public setup:
+### H-07: GitHub issue intake was not configured
 
-- bug report issue form;
-- documentation problem issue form;
-- feature / improvement request issue form or route to Discussions, depending on final community policy;
-- `.github/ISSUE_TEMPLATE/config.yml` with clear security and support routing;
-- wording that prevents vulnerability details from being submitted through public issue forms.
+**Status: CLOSED in repository files**
 
-### H-08: Pull request community surface is incomplete
+PR #28 includes:
 
-**Status: OPEN**
+- Bug report Issue Form;
+- Documentation problem Issue Form;
+- `.github/ISSUE_TEMPLATE/config.yml`;
+- explicit routing for usage questions, ideas, and security reports;
+- blank issue creation disabled.
 
-There is no pull request template. External code contributions are currently gated, so the repository must not invite code PRs accidentally.
+Feature and design ideas are intentionally routed to Discussions instead of creating a second competing feature-request queue in Issues.
 
-Required change:
+### H-08: Pull request community surface was incomplete
 
-- add a PR template that matches the current contribution gate, or deliberately disable/redirect public code contribution expectations;
-- keep contributor-rights/licensing language consistent with `CONTRIBUTING.md`;
-- when code contributions open later, update the template and contribution terms together.
+**Status: CLOSED in repository files**
 
-### H-09: Discussions needs a defined purpose and launch setup
+A pull request template is present and matches the current contribution gate. External code incorporation remains gated until contributor-rights terms are finalized.
 
-**Status: OPEN**
+### H-09: Discussions needed a defined purpose and launch setup
 
-Discussions is not useful merely because the tab exists. It needs a clear division of responsibility relative to Issues.
+**Status: PARTIALLY CLOSED, host verification remains**
 
-Proposed categories:
+Repository files define the intended split:
 
-- Announcements;
-- Q&A;
-- Ideas;
-- Show and tell;
-- General.
+- Announcements: maintainer communication;
+- Q&A: usage questions;
+- Ideas: feature and design discussion;
+- Show and tell: projects and workflows;
+- General: community discussion that does not fit the other categories.
 
-Required launch work:
+Q&A and Ideas Discussion forms are prepared under `.github/DISCUSSION_TEMPLATE/`. `SUPPORT.md` explains the routing boundary between Discussions, Issues, and private security reporting.
 
-- enable Discussions only when the welcome/category setup is ready;
-- add a concise welcome post;
-- state what belongs in Discussions versus Issues versus Security reporting;
-- seed at least the essential pinned guidance so the space does not open empty and ambiguous.
+The repository has Discussions enabled. The current GitHub integration cannot read Discussion category configuration for this private repository, so the actual category names/slugs and launch-state presentation must still be verified directly in GitHub before PR #28 leaves Draft.
 
-### H-10: Repository metadata and visible tabs need final public review
+### H-10: Repository metadata and visible tabs needed final review
 
-**Status: OPEN**
+**Status: MOSTLY CLOSED**
 
-Required review:
+Verified host state:
 
-- repository description;
-- topics;
-- homepage link if one is intentionally available;
+- repository remains PRIVATE;
 - Issues enabled;
-- Discussions enabled only after setup;
-- Projects/Wiki visibility based on actual use;
-- Security tab and private vulnerability reporting after public visibility allows the intended host-side configuration;
-- branch/ruleset behavior after visibility change.
+- Discussions enabled;
+- Projects disabled;
+- Wiki disabled;
+- Pages disabled;
+- Downloads disabled;
+- squash merge enabled;
+- merge commits disabled;
+- rebase merges disabled;
+- merged branches are deleted automatically;
+- repository description is set;
+- topics cover AI, AI agents, coding agents, context management, developer experience, developer tools, framework, project context, software architecture, software development, and TypeScript.
 
-### H-11: Support routing needs one obvious front door
+Host protections that depend on the public repository state remain part of the separate PUBLIC gate.
 
-**Status: OPEN**
+### H-11: Support routing needed one obvious front door
 
-A user should never have to guess whether a question belongs in an Issue, Discussion, or security report.
+**Status: CLOSED in repository files**
 
-Required change:
-
-Create one short public support map, linked from README and community templates:
+`SUPPORT.md` routes:
 
 - usage question -> Discussions Q&A;
-- idea / design suggestion -> Discussions Ideas;
-- reproducible product bug -> Issue;
-- documentation error -> Issue;
+- feature or design idea -> Discussions Ideas;
+- reproducible product bug -> Bug report Issue Form;
+- documentation problem -> Documentation problem Issue Form;
 - suspected vulnerability -> private security reporting;
-- code contribution -> currently not accepted unless the contribution gate changes.
+- project or workflow sharing -> Discussions Show and tell;
+- code contribution -> currently gated.
 
-### H-12: Full public documentation inventory and navigation acceptance remains open
+### H-12: Full public documentation inventory and navigation acceptance
 
-**Status: OPEN**
+**Status: CLOSED for current user-facing EN/DE guides**
 
-The repository contains extensive documentation beyond the user-facing `docs/` set, including Core, Project Brain, Runtime, adapter, distribution, and initialization contracts. This depth is valuable, but public navigation must distinguish:
+The CI-enforced public set verifies intended EN/DE guide parity and relative-link integrity. README navigation separates beginner use, operational guides, and deeper architecture/security material.
 
-- start here / user documentation;
-- operational guides;
-- advanced architecture and security;
-- internal design contracts and reference material.
+The repository still contains extensive design contracts under Core, Project Brain, Runtime, adapters, initialization, and distribution. These are deeper technical references and are not presented as the required beginner reading path.
 
-The final audit must verify:
+### H-13: Default repository labels are still generic
 
-- no current-facing broken links;
-- no stale product naming or removed commands;
-- EN/DE parity for the intended user-facing set;
-- no internal-only instructions presented as normal user steps;
-- no accidental contradiction between high-level docs and executable behavior;
-- clear navigation back to the main user path from deep reference material.
+**Status: OPEN, non-code host setup**
 
-## Current positives
+The current repository still uses the default GitHub label set. The prepared Issue Forms work because `bug` and `documentation` already exist, but the final public triage policy should decide whether additional labels are useful before launch.
 
-The current repository already has strong foundations that should be preserved:
+Do not add labels merely to make the repository look busy. Add only labels with a clear triage purpose.
 
-- complete EN/DE installation and Quickstart paths;
-- explicit existing-project adoption guidance;
-- provider handoff documentation;
-- detailed architecture and safety documentation;
-- lifecycle, migration, and recovery guidance;
-- privacy and network behavior documentation;
-- `SECURITY.md`, `CONTRIBUTING.md`, licensing, and third-party notices;
-- executable CI checks for current truth-surface consistency and package behavior.
+## Community intake acceptance
 
-The goal of this pass is not to simplify away the architecture. It is to add a clear human entry path and make the existing depth easier to navigate.
+### Bugs
 
-## Planned implementation order
+**PASS**
 
-1. complete the public documentation inventory and classify every public Markdown surface by audience and purpose;
-2. rewrite README EN/DE entry sections for beginner comprehension and concrete value;
-3. add a beginner-oriented "How Livariant helps" and normal-workflow explanation;
-4. perform the human-writing and punctuation pass across current-facing EN/DE user documentation;
-5. add support/community routing documentation;
-6. add Issue Forms, issue config, and PR/community templates;
-7. configure repository metadata and Discussions host settings once the repository is authorized for the relevant public-state change;
-8. run a three-persona acceptance review: AI beginner, experienced coding-agent user, and advanced technical/security reviewer;
-9. rebuild the final RC2 tarball after all packaged public-text changes are complete and record the new final digest.
+The Bug report form asks for version, OS, Node.js version, affected command/workflow, expected behavior, actual behavior, minimal reproduction, and safe additional context. It explicitly blocks security vulnerability details and secrets from the public issue path.
+
+### Documentation problems
+
+**PASS**
+
+The Documentation problem form covers incorrect instructions, unclear explanations, missing beginner guidance, broken links, EN/DE disagreement, outdated commands, and missing information.
+
+### Questions and ideas
+
+**PASS in repository routing, pending host category verification**
+
+`config.yml` and `SUPPORT.md` route questions to Q&A and ideas to Ideas. The referenced Discussion category slugs must be verified in the GitHub host UI before launch.
+
+### Security
+
+**PASS for documented routing, pending public host capability verification**
+
+Public Issue/Discussion paths tell users not to disclose vulnerability details there. `SECURITY.md` remains the authoritative reporting surface. Private vulnerability reporting and other public-state host protections are verified only after the relevant PUBLIC-state capability exists.
+
+## Writing and documentation regression gates
+
+The public documentation CI now checks:
+
+- required public Truth Surfaces;
+- EN/DE user-guide parity;
+- relative Markdown-link integrity;
+- prohibited en dash and em dash punctuation in the covered public Markdown set.
+
+Hardening CI also now uses per-ref concurrency with `cancel-in-progress: true`. A newer PR head cancels stale runs for the same ref instead of consuming Actions time on obsolete commits.
+
+## Remaining work before this audit can close
+
+1. confirm the latest full Hardening CI on the final PR #28 head;
+2. verify the actual GitHub Discussion categories and their slugs, especially `q-a` and `ideas`;
+3. decide whether the default label set is sufficient or whether a small purpose-driven triage set should be added;
+4. verify the final Issues/Discussions presentation in the GitHub UI;
+5. mark PR #28 Ready only after those checks pass;
+6. merge PR #28 and verify post-merge Hardening CI;
+7. rebuild the RC2 tarball after all packaged public text is stable;
+8. record the new final source and SHA-256 binding;
+9. perform the separately authorized publication and PUBLIC-state host checks only after explicit approval.
 
 ## Publication boundary
 
@@ -250,4 +260,4 @@ This audit does not authorize:
 - creation or publication of a GitHub Release;
 - npm publication;
 - PRIVATE to PUBLIC visibility change;
-- new Runtime/Security hardening without a concrete finding.
+- unrelated Runtime or Security hardening without a concrete finding.
