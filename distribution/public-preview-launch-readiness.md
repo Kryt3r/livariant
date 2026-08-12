@@ -1,35 +1,42 @@
 # Public Preview Launch Readiness
 
-Status: **All current pre-release product, security, documentation, onboarding, privacy, community, and current-truth gates are closed. The Foundation Preview RC2 release bytes are bound; publication and visibility actions still require explicit authorization.**
+Status: **The repository is public and the public-host security baseline is active. RC3 is the current Foundation Preview candidate and still requires exact candidate verification, PR approval, merge approval, and separate tag/release authorization before publication.**
 
 This document tracks Public Preview launch readiness against the current canonical repository state. It is a current-facing Truth Surface, not a historical preparation record.
 
 > [!IMPORTANT]
-> Repository visibility remains private until explicitly authorized. Green CI, acceptance GO, or a verified RC2 bundle does not authorize tags, releases, npm publishing, or visibility changes by itself.
+> Repository visibility is already public. Green CI, a reviewed RC3 preparation branch, or a verified bundle does not authorize merge, tag creation, GitHub Release publication, or npm publishing by itself.
 
 ## Current verified state
 
 - Canonical repository: `Kryt3r/livariant`.
-- Repository visibility: private.
-- Package/release identity: `0.1.0-rc.2`.
-- Foundation Preview positioning merged by PR #31.
-- Foundation Preview source used to build the exact release artifact: `31cf83656676358cf7003f95b5ad32f998b28d1f`.
-- Post-merge Hardening CI #154: success on that exact source.
-- Final focused acceptance recheck of the Runtime Release-Authority and Recovery findings: **GO**.
-- End-to-end Product Utility blocker H-04: **CLOSED** by PR #29 and post-merge Hardening CI #133.
-- Public human-documentation and repository acceptance: **CLOSED** by PR #28, Hardening CI #149, manual GitHub Discussions/Issues host verification, and post-merge Hardening CI #150.
-- Foundation Preview README positioning: **CLOSED** by PR #31 and post-merge Hardening CI #154.
-- Final verified artifact: `livariant-0.1.0-rc.2.tgz`.
-- Final verified SHA-256: `b91d098fac1a26211600f25dbca8658d810b168fcdeedb7f40e2e576e1347d13`.
-- Build RC Bundle run #5: success from the exact Foundation Preview source, including source validation, exact checkout, public/current Truth-Surface verification, build, 93 executable tests, package smoke, release-bundle smoke, independent digest/manifest/checksum verification, and digest-keyed Actions-cache persistence.
-- Final cache identity: `livariant-rc2-31cf83656676358cf7003f95b5ad32f998b28d1f-b91d098fac1a26211600f25dbca8658d810b168fcdeedb7f40e2e576e1347d13`.
-- Historical private release `v0.1.0-rc.1` remains immutable pre-fix evidence and is not the current candidate.
+- Repository visibility: public.
+- Canonical main before the RC3 preparation PR: `c36c39ea0029187885a1a80e5d5b7fb06fb20d19`.
+- Current candidate package/release identity: `0.1.0-rc.3`.
+- RC3 preparation branch: `release/0.1.0-rc.3-prep`.
+- Historical `v0.1.0-rc.1`: immutable pre-fix evidence and not the current candidate.
+- Historical `v0.1.0-rc.2`: immutable pre-public release evidence with stale release text and older bundle bytes. It must not be overwritten or presented as the current candidate.
+- PR #33 structurally removed the remaining CodeQL shell-command findings from Packaging/Test helper paths by using shell-free Node/npm CLI execution.
+- Post-merge Hardening CI #159: success after PR #33.
+- All five related CodeQL alerts are closed.
+- Private Vulnerability Reporting: enabled.
+- Dependabot Alerts: enabled.
+- CodeQL: enabled.
+- Secret Scanning: enabled.
+- Push Protection: enabled.
+- Actions permissions: restricted, with external fork PR workflows requiring approval.
+- Main ruleset: active.
+- Release-tag ruleset: active.
+- Squash merge only: active.
+- Automatic branch deletion after merge: active.
+- Release immutability: active.
+- GitHub Discussions, Welcome discussion, categories, Issues, and Issue Forms: configured for public use.
 
-The current digest supersedes earlier RC2 bundle digests because the packaged README now presents RC2 explicitly as the Foundation Preview and distinguishes current capability from the planned Active Project Intelligence layer. The release bytes are therefore bound to the exact source above.
+RC3 exists because the immutable public `v0.1.0-rc.2` release cannot be corrected in place. Its release text still describes a private pre-public state, and its release tarball is not the later verified Foundation Preview bundle. RC3 therefore receives a new release identity instead of rewriting historical evidence.
 
 ## Foundation Preview product position
 
-RC2 is intentionally the safe foundation, not the complete future Livariant experience.
+RC3 is intentionally the safe foundation, not the complete future Livariant experience.
 
 Current executable capability includes:
 
@@ -41,54 +48,62 @@ Current executable capability includes:
 - hardened initialization, update, migration, Runtime trust, Release Authority, and Recovery paths;
 - preservation, concurrency, path, symlink, and post-write verification protections.
 
-The next product layer is **Active Project Intelligence**. It is future work and is not claimed as RC2 behavior. Its intended direction includes agent-assisted recognition of durable project truth, semantic change proposals, conflict and drift detection, and a more natural workflow on top of the existing safe mutation core.
+The next product layer is **Active Project Intelligence**. It is future work and is not claimed as RC3 behavior. Its intended direction includes agent-assisted recognition of durable project truth, semantic change proposals, conflict and drift detection, terminology management, and a more natural workflow on top of the existing safe mutation core.
 
 ## Gate summary
 
 | Gate | Area | Current state |
 | --- | --- | --- |
-| A | Product-facing README and presentation | **CLOSED** |
+| A | Product-facing README and presentation | **RC3 ALIGNMENT IN PROGRESS** |
 | B | License and ownership decision | **CLOSED** |
 | C | Repository hygiene and publication contents | **CLOSED** |
-| D | GitHub branch/change protection | **CONFIGURED - re-verify after visibility change** |
-| E | Security reporting and GitHub security features | **PUBLIC-STATE ACTIVATION REQUIRED after visibility change** |
-| F | Release protection and supply-chain policy | **CLOSED FOR PRE-RELEASE** |
-| G | Distribution and first-install user journey | **CLOSED** |
+| D | GitHub branch/change protection | **ACTIVE** |
+| E | Security reporting and GitHub security features | **ACTIVE** |
+| F | Release protection and supply-chain policy | **ACTIVE FOR PREVIEW** |
+| G | Distribution and first-install user journey | **RC3 ALIGNMENT IN PROGRESS** |
 | H | Privacy and network-behavior review | **CLOSED FOR CURRENT RUNTIME** |
-| I | Contribution, support, and community surface | **CLOSED FOR PREVIEW** |
-| J | Documentation/current-truth consistency | **CLOSED subject to this binding update passing CI** |
-| K | Public-host configuration and visibility | **BLOCKED ONLY ON EXPLICIT VISIBILITY AUTHORIZATION** |
-| L | Candidate-specific release/publication review | **PRE-TAG IDENTITY CLOSED; published-bytes verification follows release authorization** |
+| I | Contribution, support, and community surface | **ACTIVE FOR PREVIEW** |
+| J | Documentation/current-truth consistency | **RC3 ALIGNMENT IN PROGRESS** |
+| K | Public-host configuration and visibility | **CLOSED** |
+| L | Candidate-specific release/publication review | **OPEN FOR RC3** |
 | M | End-to-end Product Utility | **CLOSED** |
-| N | Foundation Preview positioning | **CLOSED** |
+| N | Foundation Preview positioning | **CLOSED, RC3 TEXT ALIGNMENT IN PROGRESS** |
 
-## Final RC2 release identity
+## Current RC3 identity
 
 ```text
-Version: 0.1.0-rc.2
-Release source: 31cf83656676358cf7003f95b5ad32f998b28d1f
-Artifact: livariant-0.1.0-rc.2.tgz
-SHA-256: b91d098fac1a26211600f25dbca8658d810b168fcdeedb7f40e2e576e1347d13
+Version: 0.1.0-rc.3
 Source ID: github:Kryt3r/livariant
 Channel: preview
-Project Brain schema: 1
-Compatible from: 0.1.0-rc.1
 Artifact identity: runtime-node-cli
 ```
 
-Build RC Bundle run #5 independently verified that the manifest SHA-256 and `SHA256SUMS` match the concrete tarball bytes and that the packed artifact is installable and executable under the canonical `livariant` CLI identity.
+The final RC3 release source SHA, tarball SHA-256, manifest digest binding, and published asset checksums are intentionally not recorded yet. They only become release facts after the exact candidate is finalized and the release bundle has been built and verified.
 
-This Truth-Surface update is not part of the npm tarball payload. The release artifact remains bound to source `31cf83656676358cf7003f95b5ad32f998b28d1f` and digest `b91d098fac1a26211600f25dbca8658d810b168fcdeedb7f40e2e576e1347d13`.
+## RC3 verification sequence
 
-## Publication / host actions still requiring authorization
+Before the RC3 preparation PR is ready for merge review, the branch must pass:
 
-The remaining work is publication sequencing, not an unclosed product or technical gate:
+1. `npm run test:public-docs`;
+2. `npm run build`;
+3. `npm test`;
+4. `npm run test:package`;
+5. `npm run test:release-bundle`.
 
-1. create `v0.1.0-rc.2` only after explicit tag authorization;
-2. assemble and publish the GitHub Release only after explicit release authorization;
-3. verify released tarball bytes hash exactly to `b91d098fac1a26211600f25dbca8658d810b168fcdeedb7f40e2e576e1347d13` and that manifest / `SHA256SUMS` match;
-4. change PRIVATE -> PUBLIC only after explicit visibility authorization;
-5. after visibility change, re-verify branch/ruleset enforcement, security-reporting path, and applicable public-state security features;
-6. verify the unauthenticated public user journey and canonical source identity after publication.
+After those checks pass, the RC3 preparation branch may be proposed in a PR against `main`.
+
+The PR must not be merged without explicit approval.
+
+## Publication actions still requiring authorization
+
+After the RC3 preparation PR is approved and merged, publication remains a separate controlled sequence:
+
+1. establish the exact canonical RC3 release source;
+2. build the final RC3 bundle from that exact source;
+3. independently verify tarball SHA-256, manifest binding, `SHA256SUMS`, package installation, and executable identity;
+4. receive explicit authorization before creating `v0.1.0-rc.3`;
+5. receive explicit authorization before publishing the GitHub Release;
+6. verify the published assets match the approved local bundle exactly;
+7. verify source identity, checksums, release immutability, and the unauthenticated public installation path.
 
 No npm publication is authorized.
