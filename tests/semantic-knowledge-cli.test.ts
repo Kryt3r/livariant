@@ -168,3 +168,18 @@ test("semantic writes reject concurrent project-owned changes instead of overwri
     assert.doesNotMatch(await readFile(decisionsPath, "utf8"), /Runtime decision/);
   });
 });
+
+test("semantic write surfaces reject symlinked managed files", async () => {
+  if (process.platform === "win32") return;
+  const { symlink } = await import("node:fs/promises");
+  await withProject(async (path) => {
+    const outside = resolve(path, "outside.txt");
+    const goalsPath = resolve(path, ".project-brain", "goals.md");
+    await writeFile(outside, "outside must remain unchanged\n", "utf8");
+    await rm(goalsPath);
+    await symlink(outside, goalsPath);
+
+    await assert.rejects(addConfirmedGoal("Unsafe goal", path, { authorized: true }), /symbolic link|regular file|valid Project Brain/i);
+    assert.equal(await readFile(outside, "utf8"), "outside must remain unchanged\n");
+  });
+});
