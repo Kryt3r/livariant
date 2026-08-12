@@ -13,6 +13,7 @@ import { runDoctor } from "./doctor.js";
 
 export interface CanonicalDecisionChangeOptions {
   authorized: boolean;
+  beforePromote?: () => void | Promise<void>;
 }
 
 export interface SupersedeDecisionInput {
@@ -40,6 +41,7 @@ function normalizedScalar(value: string, label: string): string {
 async function loadWritableDecisionState(projectPath: string): Promise<{
   path: string;
   brainPath: string;
+  content: string;
   records: DecisionRecord[];
 }> {
   const project = discoverProject(projectPath);
@@ -55,14 +57,21 @@ async function loadWritableDecisionState(projectPath: string): Promise<{
   const path = resolve(inspection.path, "decisions.md");
   assertPathWithinRoot(inspection.path, path, "Project Brain decisions path");
   await assertRegularFile(path, "Project Brain decisions");
-  const parsed = parseDecisionsMarkdown(await readFile(path, "utf8"));
+  const content = await readFile(path, "utf8");
+  const parsed = parseDecisionsMarkdown(content);
   if (parsed.issues.length > 0) {
     throw new Error(`Decision history is ambiguous: ${parsed.issues.join("; ")}`);
   }
-  return { path, brainPath: inspection.path, records: parsed.records };
+  return { path, brainPath: inspection.path, content, records: parsed.records };
 }
 
-async function persistDecisionState(path: string, brainPath: string, records: DecisionRecord[]): Promise<void> {
+async function persistDecisionState(
+  path: string,
+  brainPath: string,
+  expectedOriginal: string,
+  records: DecisionRecord[],
+  beforePromote?: () => void | Promise<void>,
+): Promise<void> {
   const tempPath = resolve(brainPath, `.decisions.tmp-${randomUUID()}.md`);
   assertPathWithinRoot(brainPath, tempPath, "Project Brain decision candidate path");
   const content = renderDecisionsMarkdown(records);
@@ -71,6 +80,12 @@ async function persistDecisionState(path: string, brainPath: string, records: De
     await assertRegularFile(tempPath, "Project Brain decision candidate");
     const parsed = parseDecisionsMarkdown(await readFile(tempPath, "utf8"));
     if (parsed.issues.length > 0) throw new Error(`Decision candidate is invalid: ${parsed.issues.join("; ")}`);
+    await beforePromote?.();
+    await assertRegularFile(path, "Project Brain decisions");
+    const current = await readFile(path, "utf8");
+    if (current !== expectedOriginal) {
+      throw new Error("Project Brain decisions changed concurrently; refusing to overwrite newer project-owned state.");
+    }
     await rename(tempPath, path);
   } catch (error) {
     await rm(tempPath, { force: true });
@@ -102,7 +117,7 @@ export async function recordAcceptedDecision(
     text: normalized,
     legacy: false,
   };
-  await persistDecisionState(state.path, state.brainPath, [...state.records, record]);
+  await persistDecisionState(state.path, state.brainPath, state.content, [...state.records, record], options.beforePromote);
   return record;
 }
 
@@ -141,6 +156,6 @@ export async function supersedeAcceptedDecision(
 
   const next = state.records.map((record) => record.id === target.id ? superseded : record);
   next.push(replacement);
-  await persistDecisionState(state.path, state.brainPath, next);
+  await persistDecisionState(state.path, state.brainPath, state.content, next, options.beforePromote);
   return { superseded, replacement };
 }
