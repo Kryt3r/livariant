@@ -14,11 +14,11 @@ You explain your project to an AI coding tool. The work goes well. A few days la
 
 Livariant gives that knowledge a durable place inside the project itself.
 
-You do not need to be an AI expert to use Livariant. If you are starting with tools such as Claude Code or Codex, Livariant is meant to help you keep the project understandable as those AI sessions come and go.
+You do not need to be an AI expert to understand the idea. If you are starting with tools such as Claude Code or Codex, Livariant is meant to help you keep the project understandable as those AI sessions come and go.
 
 ## What Livariant helps with
 
-Livariant is useful when you want to:
+Livariant is designed to help projects:
 
 - keep important project decisions available after an AI session ends;
 - stop explaining the same architecture and goals again and again;
@@ -27,12 +27,12 @@ Livariant is useful when you want to:
 - inspect changes before Livariant writes project-managed state;
 - update or recover Livariant without replacing managed files by hand.
 
-A simple example:
+A simple example of the intended model:
 
 ```text
 Monday
 You decide with Claude Code that authentication will use approach A.
-That decision is recorded in the Project Brain.
+Once that decision exists in the Project Brain, it belongs to the project rather than the chat session.
 
 Friday
 You open a new Codex session.
@@ -40,7 +40,7 @@ Livariant reconstructs the relevant project context from the Project Brain.
 Codex does not need the old Claude Code chat to know that approach A is the accepted decision.
 ```
 
-Livariant does not make an AI model remember everything. It gives the project a persistent record that AI tools can use when you choose to hand that context to them.
+Livariant does not make an AI model remember everything. It gives the project a persistent record that supported tools can read when you choose to hand that context to them.
 
 ## What the Project Brain is
 
@@ -67,6 +67,7 @@ Chat history, provider memory, temporary plans, `CLAUDE.md`, `AGENTS.md`, and ot
 - [How Livariant works](#how-livariant-works)
 - [Five-minute start](#five-minute-start)
 - [What normal use looks like](#what-normal-use-looks-like)
+- [Current Preview boundary](#current-preview-boundary)
 - [Existing projects](#existing-projects)
 - [Claude Code and Codex](#claude-code-and-codex)
 - [Safe updates and recovery](#safe-updates-and-recovery)
@@ -82,13 +83,15 @@ Chat history, provider memory, temporary plans, `CLAUDE.md`, `AGENTS.md`, and ot
 
 You do not need to understand agent architecture, provider APIs, or Livariant's security model before you begin.
 
-The basic idea is enough:
+The current executable Preview lets you:
 
 1. install the Livariant command-line tool;
 2. let it inspect your project;
 3. review the initialization plan;
 4. explicitly create the Project Brain;
-5. use `livariant resume` when you want durable project context for a new working session.
+5. inspect its health and lifecycle state;
+6. render Project Brain resume context for supported coding agents;
+7. use the hardened update, migration, and recovery lifecycle.
 
 The deeper lifecycle and security documentation is there when you need it.
 
@@ -166,7 +169,7 @@ Read [Installation & First Project](docs/installation.md) for download verificat
 
 After setup, you normally do not reinitialize the project every time you use an AI tool.
 
-A typical session looks more like this:
+A current Preview session can look like this:
 
 ```text
 1. Open the project.
@@ -174,7 +177,7 @@ A typical session looks more like this:
 3. Ask Livariant for resume context.
 4. Give the relevant resume output to the coding agent you are using.
 5. Work on the project.
-6. Keep durable project decisions and knowledge in canonical Project Brain state rather than relying on chat history alone.
+6. Return to Livariant for status, diagnosis, resume, updates, or recovery when needed.
 ```
 
 Useful commands include:
@@ -187,7 +190,17 @@ livariant resume
 
 `status` tells you what Livariant sees. `doctor` diagnoses supported health and lifecycle states without silently repairing them. `resume` renders current Project Brain context for re-entry into the project.
 
-Livariant does not watch every conversation automatically and does not claim that every sentence from an AI session should become project truth. Durable project state is meant to stay explicit and reviewable.
+Livariant does not watch every conversation automatically and does not claim that every sentence from an AI session should become project truth.
+
+## Current Preview boundary
+
+The Framework design includes guided semantic operations for changing project goals, decisions, and knowledge. Those operations are **not yet exposed by the `0.1.0-rc.2` executable CLI**.
+
+The current CLI surface is intentionally smaller: `init`, `status`, `doctor`, `resume`, `update`, `recover`, and `version`.
+
+This means RC2 can bootstrap Project Brain state, read it for resume context, diagnose it, and protect its lifecycle, but it does not yet provide the planned first-class commands for safely proposing and applying ongoing knowledge changes such as `goals`, `decisions`, or `knowledge`.
+
+We treat that distinction as an explicit Preview limitation rather than pretending the future interface already exists. See [Public Preview Scope & Limitations](docs/preview-scope.md).
 
 ## Existing projects
 
@@ -222,7 +235,7 @@ Read [Provider Handoff](docs/provider-handoff.md).
 
 ## Safe updates and recovery
 
-Most users do not need to understand Livariant's complete release-authority model on their first day. You do need to know one rule: do not update Livariant by manually replacing its managed state.
+Most users do not need to understand Livariant's complete release-authority model on their first day. You do need to know one rule: do not update Livariant by manually replacing its managed lifecycle state.
 
 Inspect an update first:
 
