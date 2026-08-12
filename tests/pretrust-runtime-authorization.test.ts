@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { initializeProject } from "../src/runtime/index.js";
@@ -24,7 +24,11 @@ function run(projectPath: string, args: string[]) {
 function npmPack(packageRoot: string, packRoot: string): string {
   const args = ["pack", "--json", "--pack-destination", packRoot];
   const result = process.platform === "win32"
-    ? spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", "npm", ...args], { cwd: packageRoot, encoding: "utf8", shell: false })
+    ? spawnSync(
+        process.execPath,
+        [resolve(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js"), ...args],
+        { cwd: packageRoot, encoding: "utf8", shell: false },
+      )
     : spawnSync("npm", args, { cwd: packageRoot, encoding: "utf8", shell: false });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const parsed = JSON.parse(result.stdout) as Array<{ filename: string }>;
@@ -89,7 +93,6 @@ test("project-supplied Runtime cannot create its own machine release authority b
     assert.notEqual(stillBlocked.status, 0);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
 
-    // This simulates independent machine provisioning. Product/runtime code has no API or CLI that performs this write.
     await provisionArtifactAuthorizationForTest(sha256);
 
     const applied = run(projectPath, ["update", "--manifest", manifestPath, "--apply", "--artifact", artifactPath, "--trusted-source", sourceId]);
