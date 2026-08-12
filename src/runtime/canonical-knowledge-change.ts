@@ -86,7 +86,12 @@ function renderGoals(current: string, goal: string): string {
     return current.replace(placeholder, `Confirmed project goals.\n\n- ${goal}`);
   }
 
-  return `${current.trimEnd()}\n\n- ${goal}\n`;
+  const firstSubheading = current.search(/\n##\s/);
+  if (firstSubheading < 0) return `${current.trimEnd()}\n\n- ${goal}\n`;
+
+  const before = current.slice(0, firstSubheading).trimEnd();
+  const after = current.slice(firstSubheading).trimStart();
+  return `${before}\n\n- ${goal}\n\n${after}`;
 }
 
 function renderKnowledge(current: string, knowledge: string): string {
