@@ -14,9 +14,11 @@ Du brauchst:
 
 - Node.js 20 oder neuer;
 - ein lokales Projektverzeichnis;
-- den geprüften Livariant-Release-Tarball des aktuellen Preview-Kandidaten, sobald dieser veröffentlicht ist.
+- den geprüften Livariant-Release-Tarball für `0.1.0-rc.3`, sobald RC3 veröffentlicht ist.
 
 Paket und CLI-Befehl heißen `livariant`.
+
+Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz und nicht der aktuelle Kandidat.
 
 ## 0. Livariant installieren
 
@@ -27,13 +29,13 @@ Im Ordner mit dem geprüften Release-Tarball:
 ### Linux / macOS
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.2.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
 ```
 
 ### Windows PowerShell
 
 ```powershell
-npm install --global --ignore-scripts .\livariant-0.1.0-rc.2.tgz
+npm install --global --ignore-scripts .\livariant-0.1.0-rc.3.tgz
 ```
 
 Danach prüfst du die Installation:
