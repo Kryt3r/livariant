@@ -153,7 +153,7 @@ function boundedText(value: unknown, label: string, maxBytes: number): string {
 function strictKeys(value: Record<string, unknown>, allowed: readonly string[]): void {
   const allow = new Set(allowed);
   for (const key of Object.keys(value)) {
-    if (!allow.has(key)) throw new Error(`Candidate schema contains an unsupported field: ${key}.`);
+    if (!allow.has(key)) throw new Error("Candidate schema contains an unsupported field.");
   }
   for (const key of allowed) {
     if (!(key in value)) throw new Error(`Candidate schema is missing required field: ${key}.`);
@@ -282,7 +282,7 @@ function hashMaterial(hash: ReturnType<typeof createHash>, label: string, value:
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, item]) => item !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right));
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
     frameHashField(hash, `${label}:type`, Buffer.from("object"));
     frameHashField(hash, `${label}:length`, Buffer.from(String(entries.length)));
     for (const [key, item] of entries) {
@@ -390,12 +390,12 @@ export async function buildSemanticProposal(
         }];
   } else {
     const matches = records.filter((record) => record.id === candidate.targetDecisionId);
-    if (matches.length !== 1 || matches[0].status !== "active") {
+    if (matches.length !== 1 || matches[0].status !== "active" || matches[0].legacy) {
       return blocked(project.root, [{
         category: "insufficient-evidence",
         code: "supersede-target-not-active",
         effect: "blocking",
-        message: "Decision supersession requires exactly one active target decision on the bound baseline.",
+        message: "Decision supersession requires exactly one structured active target decision on the bound baseline.",
       }], baseline);
     }
     target = matches[0];
@@ -450,7 +450,7 @@ export async function buildSemanticProposal(
 
   const material = {
     schemaVersion: SEMANTIC_PROPOSAL_SCHEMA_VERSION,
-    proposalVersion: 1,
+    proposalVersion: 1 as const,
     projectLocator: project.root,
     stableProjectIdentity: null,
     baseline,
@@ -460,7 +460,7 @@ export async function buildSemanticProposal(
     intendedScope,
     intentionallyUnchanged: INTENTIONALLY_UNCHANGED,
     actionability: ACTIONABILITY,
-    changesMade: 0,
+    changesMade: 0 as const,
   };
   const digest = proposalDigest(material);
   const proposal: SemanticProposal = {
