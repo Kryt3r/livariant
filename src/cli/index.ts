@@ -27,7 +27,9 @@ async function delegateDriftToActiveRuntime(): Promise<boolean> {
 async function entry(): Promise<void> {
   const command = process.argv[2];
   if (command !== "drift") {
+    const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
+    if (showsHelp) console.log("  drift --input <observation.json> [--json]");
     return;
   }
   if (await delegateDriftToActiveRuntime()) return;
