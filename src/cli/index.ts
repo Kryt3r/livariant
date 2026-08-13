@@ -2,7 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 
-async function delegateDriftToActiveRuntime(): Promise<boolean> {
+async function delegateToActiveRuntime(): Promise<boolean> {
   if (process.env.PBF_RUNTIME_DELEGATION_BYPASS === "1") return false;
   const [{ readActiveRuntimePointer }, { getStatus, getVersionInfo }] = await Promise.all([
     import("../distribution/runtime-installation.js"),
@@ -26,15 +26,23 @@ async function delegateDriftToActiveRuntime(): Promise<boolean> {
 
 async function entry(): Promise<void> {
   const command = process.argv[2];
-  if (command !== "drift") {
+  if (command !== "drift" && command !== "provider-context") {
     const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
-    if (showsHelp) console.log("  drift --input <observation.json> [--json]");
+    if (showsHelp) {
+      console.log("  drift --input <observation.json> [--json]");
+      console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
+    }
     return;
   }
-  if (await delegateDriftToActiveRuntime()) return;
-  const { handleDriftCommand } = await import("./drift-command.js");
-  await handleDriftCommand(process.argv.slice(3));
+  if (await delegateToActiveRuntime()) return;
+  if (command === "drift") {
+    const { handleDriftCommand } = await import("./drift-command.js");
+    await handleDriftCommand(process.argv.slice(3));
+    return;
+  }
+  const { handleProviderContextCommand } = await import("./provider-context-command.js");
+  await handleProviderContextCommand(process.argv.slice(3));
 }
 
 entry().catch((error: unknown) => {
