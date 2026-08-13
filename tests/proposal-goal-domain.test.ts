@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -15,6 +15,8 @@ test("goal proposal detects exact confirmed duplicate without writing", async ()
   try {
     await initializeProject(path, { authorized: true });
     await addConfirmedGoal("Ship offline snapshots", path, { authorized: true });
+    const goalsPath = resolve(path, ".project-brain", "goals.md");
+    const before = await readFile(goalsPath);
     const candidate = parseSemanticProposalCandidate({
       schemaVersion: 1,
       domain: "project-goal",
@@ -31,6 +33,7 @@ test("goal proposal detects exact confirmed duplicate without writing", async ()
     assert.equal(result.proposal.actionability.reviewOnly, true);
     assert.equal(result.proposal.actionability.applySupported, false);
     assert.equal(result.proposal.changesMade, 0);
+    assert.deepEqual(await readFile(goalsPath), before);
   } finally {
     await rm(path, { recursive: true, force: true });
   }
