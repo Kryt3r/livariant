@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import {
   addConfirmedGoal,
   addConfirmedKnowledge,
+  buildProjectContextSnapshot,
   buildResumeContext,
   getStatus,
   getVersionInfo,
@@ -135,6 +136,56 @@ async function printResume(args: string[]): Promise<void> {
   console.log("");
   console.log("Unresolved unknowns:");
   console.log(context.unresolvedUnknowns.length ? context.unresolvedUnknowns.map((item) => `- ${item}`).join("\n") : "- none");
+}
+
+function renderContextItems(items: Array<{ value: string; authorityClass: string }>, empty: string): string {
+  return items.length ? items.map((item) => `- [${item.authorityClass}] ${item.value}`).join("\n") : `- ${empty}`;
+}
+
+async function printContext(args: string[]): Promise<void> {
+  const snapshot = await buildProjectContextSnapshot();
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(snapshot));
+    if (snapshot.safetyState === "blocked") process.exitCode = 3;
+    return;
+  }
+
+  console.log("Project context snapshot");
+  console.log("");
+  console.log(`Safety state: ${snapshot.safetyState}`);
+  console.log(`Project: ${snapshot.projectLocator}`);
+  console.log(`Stable project identity: ${snapshot.stableProjectIdentity ?? "not established"}`);
+
+  if (snapshot.safetyState === "blocked") {
+    console.log("");
+    console.log("Blocking findings:");
+    for (const finding of snapshot.findings) console.log(`- [${finding.severity}] ${finding.code}: ${finding.message}`);
+    console.log("");
+    console.log("Changes made: 0");
+    process.exitCode = 3;
+    return;
+  }
+
+  console.log(`Baseline: ${snapshot.baseline.algorithm}:${snapshot.baseline.digest}`);
+  console.log(`Baseline schema: ${snapshot.baseline.schemaVersion}`);
+  console.log("Projection: derived, not mutation authorization");
+  console.log("");
+  console.log("Identity:");
+  console.log(renderContextItems(snapshot.context.projectIdentity, "none confirmed"));
+  console.log("");
+  console.log("Confirmed goals:");
+  console.log(renderContextItems(snapshot.context.confirmedGoals, "none confirmed"));
+  console.log("");
+  console.log("Active decisions:");
+  console.log(renderContextItems(snapshot.context.activeDecisions, "none confirmed"));
+  console.log("");
+  console.log("Known facts:");
+  console.log(renderContextItems(snapshot.context.knownFacts, "none confirmed"));
+  console.log("");
+  console.log("Unresolved unknowns:");
+  console.log(renderContextItems(snapshot.context.unresolvedUnknowns, "none"));
+  console.log("");
+  console.log("Changes made: 0");
 }
 
 function printInitializationPlan(plan: Awaited<ReturnType<typeof inspectInitialization>>): void {
@@ -303,6 +354,7 @@ async function main(): Promise<void> {
     case "status": await printStatus(); return;
     case "doctor": await printDoctor(); return;
     case "resume": await printResume(args); return;
+    case "context": await printContext(args); return;
     case "init": await handleInit(args); return;
     case "goals": await handleGoals(args); return;
     case "knowledge": await handleKnowledge(args); return;
@@ -319,6 +371,7 @@ async function main(): Promise<void> {
       console.log("  status");
       console.log("  doctor");
       console.log("  resume [--provider claude-code|codex]");
+      console.log("  context [--json]");
       console.log("  init [--apply]");
       console.log("  goals [list] | goals add <goal> [--apply]");
       console.log("  knowledge [list] | knowledge add <fact> [--apply]");
