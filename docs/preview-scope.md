@@ -1,12 +1,20 @@
 # Public Preview Scope & Limitations
 
-This page explains what the current Livariant Preview candidate supports and where the boundaries are.
+This page separates the **published Foundation Preview release** from newer repository development so users can see exactly what is released and what is only present in post-RC3 source.
 
-It is not a marketing feature list. Its purpose is to make the supported surface clear enough that users know what they can rely on and what they should not assume.
+It is not a marketing feature list. Its purpose is to state the supported surface and its boundaries without turning planned or unreleased work into a release claim.
 
-## Supported executable baseline
+## Published Foundation Preview
 
-The hardened baseline has executable evidence for:
+The current public release is the immutable pre-release:
+
+```text
+v0.1.0-rc.3
+```
+
+RC3 is the first clean public Foundation Preview release. It remains historical release evidence and is not rewritten when later development adds capabilities to `main`.
+
+The hardened RC3 foundation has executable evidence for:
 
 - fresh and existing projects;
 - repeated-use semantic editing of confirmed goals, confirmed project knowledge, and accepted decisions;
@@ -24,23 +32,7 @@ The hardened baseline has executable evidence for:
 - drift diagnosis;
 - clean packaged installation.
 
-The package, Runtime, and installed CLI command all use the name `livariant`.
-
-The current CI support claim is deliberately limited to the environments exercised by the release pipeline: Ubuntu and Windows with Node.js 24. The package itself declares Node.js `>=20`.
-
-## Provider support is intentionally narrow
-
-The current Preview supports Claude Code and Codex for Project Brain Resume handoff.
-
-Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider explicitly tells Livariant which supported Resume environment you are targeting. It does not grant execution or mutation authority.
-
-Livariant does not claim to manage every provider feature, tool, model-selection option, authentication mechanism, or native instruction system.
-
-## Semantic knowledge editing
-
-The current `0.1.0-rc.3` candidate supports a bounded repeated-use editing surface for durable Project Brain truth.
-
-The executable command surface is:
+The released RC3 command surface is:
 
 ```text
 init
@@ -55,7 +47,59 @@ recover
 version
 ```
 
-The supported editing operations are:
+The package, Runtime, and installed CLI command all use the name `livariant`.
+
+The release support claim is deliberately limited to the environments exercised by the hardened release pipeline: Ubuntu and Windows with Node.js 24. The package declares Node.js `>=20`.
+
+## Post-RC3 repository development
+
+Development after RC3 adds the first bounded Active Project Intelligence read surface: the **Project Context Snapshot**.
+
+The repository implementation exposes:
+
+```text
+livariant context
+livariant context --json
+```
+
+and the Runtime API `buildProjectContextSnapshot()`.
+
+This post-RC3 capability is not retroactively part of the immutable RC3 release. It becomes a distributed release capability only through a later separately approved release.
+
+The snapshot is read-only. It exposes confirmed Project Brain context, unresolved unknowns, explicit authority classes, a deterministic material Project Brain baseline, and an explicit `clear` or `blocked` safety state. It also states structurally that the snapshot is derived output rather than mutation authorization.
+
+Blocked machine-facing output is distinguishable from clean success with a non-zero CLI status. Concurrent managed Project Brain changes during snapshot construction fail closed instead of producing a mixed clean snapshot.
+
+The snapshot exposes a current project locator but does not invent a stable durable project identity. `stableProjectIdentity` remains `null` in this first contract.
+
+See [Project Context Snapshot](project-context-snapshot.md).
+
+The Project Context Snapshot does **not** add:
+
+- Semantic Change Proposal apply;
+- automatic drift resolution;
+- terminology persistence or lifecycle mutation;
+- provider transport or automatic context injection;
+- a durable stable project identity;
+- a new mutation or authorization path.
+
+Those surfaces remain later work unless and until separately implemented and verified.
+
+## Provider support is intentionally narrow
+
+The published Preview supports Claude Code and Codex for Project Brain Resume handoff.
+
+Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider tells Livariant which supported Resume environment you are targeting. It does not grant execution or mutation authority.
+
+Livariant does not claim to manage every provider feature, model-selection option, authentication mechanism, native instruction system, or provider memory surface.
+
+The post-RC3 Project Context Snapshot is provider-neutral structured output. It does not automatically inject itself into Claude Code, Codex, or another provider.
+
+## Semantic knowledge editing
+
+The Foundation Preview supports bounded repeated-use editing of durable Project Brain truth.
+
+Supported editing operations are:
 
 ```text
 livariant goals [list]
@@ -69,13 +113,15 @@ livariant decisions add <decision> [--apply]
 livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
 ```
 
-Mutation is plan-first. Without `--apply`, Livariant shows the proposed canonical change and makes no write. Applying a supported change requires a valid, healthy Project Brain. Managed writes stay behind the Project Brain storage boundary, reject unsafe managed-file topology, use atomic replacement with exact-original optimistic concurrency checks, and verify persisted state before success is reported.
+Mutation is plan-first. Without `--apply`, Livariant shows the proposed canonical change and makes no write.
+
+Applying a supported change requires a valid, healthy Project Brain. Managed writes stay behind the Project Brain storage boundary, reject unsafe managed-file topology, use atomic replacement with exact-original optimistic concurrency checks, and verify persisted state before success is reported.
 
 Simple duplicate additions fail instead of silently normalizing existing truth. Decision supersession preserves the old decision as historical truth and creates a new active decision identity.
 
 `livariant resume` includes confirmed goals, active decisions, known facts, unresolved unknowns, and available project identity. Claude Code and Codex Resume projections use that canonical state as well.
 
-This does not mean Livariant automatically watches conversations or decides which AI output should become project truth. The user still chooses which confirmed project state to record. Richer natural-language or provider-native editing may be added later, but it must preserve the same authority and verification boundaries.
+Livariant does not automatically watch conversations or decide which AI output should become durable project truth. The user still chooses which confirmed project state to record.
 
 ## Update and migration support
 
@@ -87,9 +133,9 @@ Applying a reviewed update also requires:
 - the matching local Runtime artifact;
 - at least one explicit `--trusted-source` value.
 
-The release manifest cannot make its own source trusted. The artifact bytes must still match the identity and SHA-256 bound by the selected release descriptor.
+The release manifest cannot make its own source trusted. Artifact bytes must match the identity and SHA-256 bound by the selected release descriptor.
 
-Executable updates have another requirement. The exact artifact SHA-256 must already be authorized by independent machine-local release policy outside project authority.
+Executable updates have an additional requirement: the exact artifact SHA-256 must already be authorized by independent machine-local release policy outside project authority.
 
 Project files, the release manifest, `--trusted-source`, and the project-facing Livariant CLI or API cannot create or modify that authority. Production release-authorization logic is read-only and only asserts authority that already exists. There is intentionally no project-facing `authorize-runtime` command.
 
@@ -128,7 +174,7 @@ The current Runtime implements no Livariant telemetry, automatic Project Brain u
 
 ## Public distribution
 
-The canonical repository is public at `Kryt3r/livariant`. The Preview distribution path uses GitHub Releases from that repository with the expected source identity:
+The canonical repository is public at `Kryt3r/livariant`. Preview releases are distributed through GitHub Releases from that repository with the expected source identity:
 
 ```text
 github:Kryt3r/livariant
@@ -142,9 +188,9 @@ Release tooling produces:
 
 CI verifies the release bundle against a clean consumer.
 
-The existing immutable `v0.1.0-rc.2` GitHub Release is historical pre-public release evidence. It contains older release text and older bundle bytes and must not be overwritten, retagged, or presented as the current candidate.
+`v0.1.0-rc.1` and `v0.1.0-rc.2` remain historical release evidence. RC2 contains pre-public text and older bundle bytes and must not be overwritten, retagged, or presented as current.
 
-The current repository package identity is `0.1.0-rc.3`. RC3 is intended to be the first clean public Foundation Preview release. Tag creation, GitHub Release publication, and any other publication action still require separate explicit approval.
+`v0.1.0-rc.3` is the current published Foundation Preview release. Later repository changes do not modify its tag, release text, or artifacts.
 
 No npm publication path is claimed for the current Preview.
 
@@ -180,15 +226,3 @@ Public Preview means:
 Preview support is maintainer and community support without a paid SLA unless separately agreed.
 
 The eventual 1.0 stability and compatibility contract requires its own later readiness decision.
-
-## Current RC3 release gate
-
-Before RC3 may be tagged and published, the release process still needs to:
-
-1. finish the RC3 documentation and current-truth alignment;
-2. rebuild and verify the exact RC3 candidate after the packaged public text is stable;
-3. run the required public-doc, build, test, package-smoke, and release-bundle-smoke checks;
-4. review and merge the RC3 preparation PR only after explicit approval;
-5. build the final manifest-bound RC3 bundle from the exact canonical source;
-6. receive explicit approval before creating the tag or publishing the GitHub Release;
-7. verify published artifact identity, source identity, manifest, and checksums after publication.
