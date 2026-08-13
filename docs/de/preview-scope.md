@@ -101,6 +101,27 @@ Die Goal-Duplikatprüfung verwendet nur den bestätigten Goal-Bereich. Ein gleic
 
 Siehe [Semantic Proposal Core](semantic-proposal-core.md).
 
+### Konflikt- und Drift-Bewertung
+
+Das Repository stellt zusätzlich eine explizite read-only Bewertungsoberfläche bereit:
+
+```text
+livariant drift --input <observation.json>
+livariant drift --input <observation.json> --json
+```
+
+sowie die Runtime-API `buildConflictDriftAssessment()`.
+
+Schema-Version 1 akzeptiert genau eine ausdrückliche Beobachtung in den Domänen `project-decision`, `project-goal` oder `project-knowledge`. Unterstützte Evidenzklassen sind `dependent-current`, `historical` und `provider-observation`.
+
+Die aktuelle vertrauenswürdige Diagnosemenge umfasst `consistent`, `confirmed-drift`, `historical-match`, `authority-ambiguous` und `insufficient-evidence`. Abweichender Text allein gilt niemals als Beweis für Drift oder Widerspruch. Eine starke Decision-Beziehung setzt eine exakte strukturierte Entscheidungsidentität voraus, wenn die Diagnose von dieser Identität abhängt.
+
+Die Bewertung ist ausschließlich abgeleitete Review-Evidenz. Sie weist `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Sie ist an dieselbe kohärente materiale Project-Brain-Baseline gebunden wie die übrigen Active-Project-Intelligence-Read-Surfaces. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
+
+Dieser Slice scannt das Repository nicht automatisch und wendet keine Änderung an oder autorisiert sie.
+
+Siehe [Konflikt- und Drift-Bewertung](conflict-drift-assessment.md).
+
 Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
 
 Die aktuellen Post-RC3-Oberflächen ergänzen **nicht**:
@@ -125,7 +146,7 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Pro
 
 Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
 
-Der Post-RC3 Project Context Snapshot und der Semantic Proposal Core sind provider-neutrale strukturierte Ausgaben. Sie injizieren sich nicht automatisch in Claude Code, Codex oder einen anderen Provider.
+Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core und die Konflikt- und Drift-Bewertung sind provider-neutrale strukturierte Ausgaben. Sie injizieren sich nicht automatisch in Claude Code, Codex oder einen anderen Provider.
 
 ## Semantische Wissenspflege
 

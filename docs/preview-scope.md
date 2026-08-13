@@ -101,6 +101,27 @@ Goal duplicate detection uses only the confirmed-goal region. A matching bullet 
 
 See [Semantic Proposal Core](semantic-proposal-core.md).
 
+### Conflict and Drift Assessment
+
+The repository additionally exposes an explicit read-only assessment surface:
+
+```text
+livariant drift --input <observation.json>
+livariant drift --input <observation.json> --json
+```
+
+and the Runtime API `buildConflictDriftAssessment()`.
+
+Schema version 1 accepts one explicit observation in the `project-decision`, `project-goal`, or `project-knowledge` domain. Supported evidence classes are `dependent-current`, `historical`, and `provider-observation`.
+
+The current trusted diagnosis subset is `consistent`, `confirmed-drift`, `historical-match`, `authority-ambiguous`, and `insufficient-evidence`. Different text alone is never treated as proof of drift or contradiction. A strong decision relationship requires an exact structured decision identity where the diagnosis depends on that identity.
+
+Assessment output is derived review evidence only. It exposes `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`. It is bound to the same coherent material Project Brain baseline used by the other Active Project Intelligence read surfaces. Concurrent managed-state changes fail closed.
+
+This slice does not scan the repository automatically and does not apply or authorize any change.
+
+See [Conflict and Drift Assessment](conflict-drift-assessment.md).
+
 These post-RC3 capabilities are not retroactively part of the immutable RC3 release. They become distributed release capabilities only through a later separately approved release.
 
 The current post-RC3 repository surfaces do **not** add:
@@ -125,7 +146,7 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider tells
 
 Livariant does not claim to manage every provider feature, model-selection option, authentication mechanism, native instruction system, or provider memory surface.
 
-The post-RC3 Project Context Snapshot and Semantic Proposal Core are provider-neutral structured output. They do not automatically inject themselves into Claude Code, Codex, or another provider.
+The post-RC3 Project Context Snapshot, Semantic Proposal Core, and Conflict and Drift Assessment are provider-neutral structured output. They do not automatically inject themselves into Claude Code, Codex, or another provider.
 
 ## Semantic knowledge editing
 
