@@ -1,6 +1,5 @@
 import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
-import { parseDecisionsMarkdown } from "../project-brain/decisions.js";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { runDoctor, type DoctorFinding } from "./doctor.js";
 import {
@@ -10,6 +9,7 @@ import {
   type ProjectContextBaseline,
   type ProjectContextManagedInputName,
 } from "./project-context-material.js";
+import { readProjectBrainSemanticRegions } from "./project-brain-semantics.js";
 
 export type { ProjectContextBaseline } from "./project-context-material.js";
 
@@ -67,19 +67,6 @@ export interface ProjectContextSnapshotBuildOptions {
   beforeRevalidate?: () => void | Promise<void>;
 }
 
-function bullets(markdown: string): string[] {
-  return markdown
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "))
-    .map((line) => line.slice(2));
-}
-
-function beforeFirstSubheading(markdown: string): string {
-  const index = markdown.search(/\n##\s/);
-  return index < 0 ? markdown : markdown.slice(0, index);
-}
-
 function base(projectLocator: string): SnapshotBase {
   return {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -108,28 +95,20 @@ function blocked(projectLocator: string, findings: DoctorFinding[], baseline: Pr
 }
 
 function parseContext(inputs: ReadonlyMap<ManagedInputName, Buffer>): ProjectContextSnapshotContext {
-  const projectDoc = inputs.get("project.md")!.toString("utf8");
-  const goals = inputs.get("goals.md")!.toString("utf8");
-  const decisions = inputs.get("decisions.md")!.toString("utf8");
-  const knowledge = inputs.get("knowledge.md")!.toString("utf8");
-  const parsedDecisions = parseDecisionsMarkdown(decisions);
-  if (parsedDecisions.issues.length > 0) {
-    throw new Error(`ambiguous decision history: ${parsedDecisions.issues.join("; ")}`);
+  const semantic = readProjectBrainSemanticRegions(inputs);
+  if (semantic.decisionIssues.length > 0) {
+    throw new Error(`ambiguous decision history: ${semantic.decisionIssues.join("; ")}`);
   }
 
-  const marker = "## Known unknowns";
-  const markerIndex = knowledge.indexOf(marker);
-  const evidencePart = markerIndex >= 0 ? knowledge.slice(0, markerIndex) : knowledge;
-  const unknownPart = markerIndex >= 0 ? knowledge.slice(markerIndex) : "";
   const canonical = (values: string[]): ProjectContextItem[] => values.map((value) => ({ value, authorityClass: "canonical-project" }));
   const unknown = (values: string[]): ProjectContextItem[] => values.map((value) => ({ value, authorityClass: "unresolved-project" }));
 
   return {
-    projectIdentity: canonical(bullets(projectDoc)),
-    confirmedGoals: canonical(bullets(beforeFirstSubheading(goals))),
-    activeDecisions: canonical(parsedDecisions.records.filter((record) => record.status === "active").map((record) => record.text)),
-    knownFacts: canonical(bullets(evidencePart)),
-    unresolvedUnknowns: unknown(bullets(unknownPart)),
+    projectIdentity: canonical(semantic.projectIdentity),
+    confirmedGoals: canonical(semantic.confirmedGoals),
+    activeDecisions: canonical(semantic.decisionRecords.filter((record) => record.status === "active").map((record) => record.text)),
+    knownFacts: canonical(semantic.knownFacts),
+    unresolvedUnknowns: unknown(semantic.unresolvedUnknowns),
   };
 }
 
