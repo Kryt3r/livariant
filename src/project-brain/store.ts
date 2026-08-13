@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
+import { parseDecisionsMarkdown } from "./decisions.js";
 import { assertPathWithinRoot, assertRegularFile } from "./path-safety.js";
 import type {
   BootstrapKnowledge,
@@ -80,6 +81,16 @@ export class ProjectBrainStore {
           reason: error instanceof Error ? error.message : `Managed Project Brain file '${file}' is unsafe`,
         };
       }
+    }
+
+    const decisions = parseDecisionsMarkdown(await readFile(resolve(brainPath, "decisions.md"), "utf8"));
+    if (decisions.issues.length > 0) {
+      return {
+        health: "unsupported-or-ambiguous",
+        path: brainPath,
+        missingFiles: [],
+        reason: "structured Project Brain decision history is ambiguous",
+      };
     }
 
     if (entries.has(".lifecycle")) {
