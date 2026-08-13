@@ -1,12 +1,20 @@
 # Public-Preview-Umfang & Einschränkungen
 
-Diese Seite erklärt, was der aktuelle Livariant-Preview-Kandidat unterstützt und wo die Grenzen liegen.
+Diese Seite trennt das **veröffentlichte Foundation-Preview-Release** von neuerer Repository-Entwicklung. So ist klar erkennbar, was tatsächlich veröffentlicht ist und was nur im Post-RC3-Quellstand vorhanden ist.
 
-Sie ist keine Marketingliste. Sie soll so klar sein, dass Nutzer erkennen können, worauf sie sich verlassen dürfen und was sie nicht einfach voraussetzen sollten.
+Sie ist keine Marketingliste. Ihr Zweck ist, die unterstützte Oberfläche und ihre Grenzen zu beschreiben, ohne geplante oder unveröffentlichte Funktionen zu Release-Behauptungen zu machen.
 
-## Unterstützte ausführbare Baseline
+## Veröffentlichtes Foundation Preview
 
-Die gehärtete Baseline besitzt ausführbare Evidenz für:
+Das aktuelle öffentliche Release ist das unveränderliche Pre-Release:
+
+```text
+v0.1.0-rc.3
+```
+
+RC3 ist das erste saubere öffentliche Foundation-Preview-Release. Es bleibt historische Release-Evidenz und wird durch spätere Entwicklung auf `main` nicht umgeschrieben.
+
+Die gehärtete RC3-Foundation besitzt ausführbare Evidenz für:
 
 - neue und bestehende Projekte;
 - wiederholte semantische Pflege bestätigter Ziele, bestätigten Projektwissens und akzeptierter Entscheidungen;
@@ -24,23 +32,7 @@ Die gehärtete Baseline besitzt ausführbare Evidenz für:
 - Drift-Diagnose;
 - saubere Paketinstallation.
 
-Paket, Runtime und installierter CLI-Befehl heißen `livariant`.
-
-Die aktuelle CI-Supportaussage ist bewusst auf die Umgebungen begrenzt, die von der Release-Pipeline tatsächlich getestet werden: Ubuntu und Windows mit Node.js 24. Das Paket selbst deklariert Node.js `>=20`.
-
-## Provider-Support ist bewusst begrenzt
-
-Die aktuelle Preview unterstützt Claude Code und Codex für Project-Brain-Resume-Handoff.
-
-Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Provider explizit auswählst, teilst du Livariant mit, welche unterstützte Resume-Umgebung du gerade ansprechen möchtest. Dadurch entsteht keine Ausführungs- oder Mutationsautorität.
-
-Livariant beansprucht nicht, jede Provider-Funktion, jedes Tool, jede Modellauswahl, Authentifizierungsmethode oder native Instruktionsdatei zu verwalten.
-
-## Semantische Wissenspflege
-
-Der aktuelle Kandidat `0.1.0-rc.3` unterstützt eine klar begrenzte Oberfläche für wiederholte Änderungen an dauerhafter Project-Brain-Wahrheit.
-
-Die ausführbare Befehlsoberfläche lautet:
+Die veröffentlichte RC3-Befehlsoberfläche lautet:
 
 ```text
 init
@@ -54,6 +46,58 @@ update
 recover
 version
 ```
+
+Paket, Runtime und installierter CLI-Befehl heißen `livariant`.
+
+Die Release-Supportaussage ist bewusst auf die Umgebungen begrenzt, die von der gehärteten Release-Pipeline tatsächlich getestet werden: Ubuntu und Windows mit Node.js 24. Das Paket deklariert Node.js `>=20`.
+
+## Post-RC3-Repository-Entwicklung
+
+Die Entwicklung nach RC3 ergänzt die erste klar begrenzte read-only Oberfläche von Active Project Intelligence: den **Project Context Snapshot**.
+
+Die Repository-Implementierung stellt bereit:
+
+```text
+livariant context
+livariant context --json
+```
+
+sowie die Runtime-API `buildProjectContextSnapshot()`.
+
+Diese Post-RC3-Funktion wird nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie wird erst durch ein späteres, separat freigegebenes Release zu einer verteilten Release-Funktion.
+
+Der Snapshot ist read-only. Er liefert bestätigten Project-Brain-Kontext, offene Unklarheiten, explizite Authority-Klassen, eine deterministische materiale Project-Brain-Baseline und einen ausdrücklichen Safety-State `clear` oder `blocked`. Zusätzlich weist er strukturell aus, dass der Snapshot abgeleitete Ausgabe und keine Mutation-Autorisierung ist.
+
+Blockierte maschinenlesbare Ausgabe ist durch einen von null verschiedenen CLI-Status von sauberem Erfolg unterscheidbar. Parallele Änderungen am verwalteten Project Brain während der Snapshot-Erzeugung brechen geschlossen ab, statt einen gemischten sauberen Snapshot auszugeben.
+
+Der Snapshot zeigt einen aktuellen Projekt-Locator, erfindet aber keine stabile dauerhafte Projektidentität. `stableProjectIdentity` bleibt in diesem ersten Vertrag `null`.
+
+Siehe [Project Context Snapshot](project-context-snapshot.md).
+
+Der Project Context Snapshot ergänzt **nicht**:
+
+- Semantic Change Proposal Apply;
+- automatische Drift-Auflösung;
+- Terminologie-Persistenz oder Lifecycle-Mutation;
+- Provider-Transport oder automatische Kontextinjektion;
+- eine dauerhafte stabile Projektidentität;
+- einen neuen Mutations- oder Autorisierungspfad.
+
+Diese Oberflächen bleiben spätere Arbeit, solange sie nicht separat implementiert und verifiziert wurden.
+
+## Provider-Support ist bewusst begrenzt
+
+Die veröffentlichte Preview unterstützt Claude Code und Codex für Project-Brain-Resume-Handoff.
+
+Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Provider auswählst, teilst du Livariant mit, welche unterstützte Resume-Umgebung du ansprichst. Dadurch entsteht keine Ausführungs- oder Mutationsautorität.
+
+Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
+
+Der Post-RC3 Project Context Snapshot ist provider-neutrale strukturierte Ausgabe. Er injiziert sich nicht automatisch in Claude Code, Codex oder einen anderen Provider.
+
+## Semantische Wissenspflege
+
+Die Foundation Preview unterstützt klar begrenzte wiederholte Änderungen an dauerhafter Project-Brain-Wahrheit.
 
 Unterstützt werden:
 
@@ -69,17 +113,19 @@ livariant decisions add <decision> [--apply]
 livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
 ```
 
-Mutation ist plan-first. Ohne `--apply` zeigt Livariant die geplante kanonische Änderung und schreibt nichts. Eine unterstützte Änderung darf nur bei einem gültigen und gesunden Project Brain angewendet werden. Verwaltete Writes bleiben hinter der Project-Brain-Storage-Grenze, lehnen unsichere Managed-File-Topologien ab, verwenden atomare Ersetzung mit Exact-Original-Concurrency-Prüfung und verifizieren den gespeicherten Zustand, bevor Erfolg gemeldet wird.
+Mutation ist plan-first. Ohne `--apply` zeigt Livariant die geplante kanonische Änderung und schreibt nichts.
+
+Eine unterstützte Änderung darf nur bei einem gültigen und gesunden Project Brain angewendet werden. Verwaltete Writes bleiben hinter der Project-Brain-Storage-Grenze, lehnen unsichere Managed-File-Topologien ab, verwenden atomare Ersetzung mit Exact-Original-Concurrency-Prüfung und verifizieren den gespeicherten Zustand, bevor Erfolg gemeldet wird.
 
 Einfache Duplikate werden abgelehnt, statt bestehenden Projektstand still umzuschreiben. Beim Superseden einer Entscheidung bleibt die alte Entscheidung als Historie erhalten und eine neue aktive Entscheidungsidentität wird angelegt.
 
 `livariant resume` enthält bestätigte Ziele, aktive Entscheidungen, bekannte Fakten, offene Unklarheiten und vorhandene Projektidentität. Die Resume-Projektionen für Claude Code und Codex verwenden denselben kanonischen Zustand.
 
-Das bedeutet nicht, dass Livariant Gespräche automatisch beobachtet oder selbst entscheidet, welche KI-Ausgabe Projektwahrheit werden soll. Der Nutzer entscheidet weiterhin, welcher bestätigte Projektzustand dauerhaft festgehalten wird. Reichhaltigere Natural-Language- oder provider-native Wissenspflege kann später hinzukommen, darf diese Authority- und Verifikationsgrenzen aber nicht schwächen.
+Livariant beobachtet Gespräche nicht automatisch und entscheidet nicht selbst, welche KI-Ausgabe dauerhafte Projektwahrheit werden soll. Der Nutzer entscheidet weiterhin, welcher bestätigte Projektzustand festgehalten wird.
 
 ## Update- und Migrationssupport
 
-`livariant update --manifest <path>` plant standardmäßig nur ein Update.
+`livariant update --manifest <path>` plant standardmäßig nur ein Update, solange `--apply` fehlt.
 
 Zum Anwenden eines geprüften Updates brauchst du zusätzlich:
 
@@ -87,9 +133,9 @@ Zum Anwenden eines geprüften Updates brauchst du zusätzlich:
 - das passende lokale Runtime-Artefakt;
 - mindestens einen expliziten `--trusted-source`-Wert.
 
-Das Release-Manifest kann seine eigene Quelle nicht selbst vertrauenswürdig machen. Die Artefaktbytes müssen weiterhin zu Identität und SHA-256 des ausgewählten Release-Descriptors passen.
+Das Release-Manifest kann seine eigene Quelle nicht selbst vertrauenswürdig machen. Die Artefaktbytes müssen zu Identität und SHA-256 des ausgewählten Release-Descriptors passen.
 
-Für ausführbare Updates gibt es eine weitere Voraussetzung. Der exakte Artefakt-SHA-256 muss bereits durch eine unabhängige rechnerlokale Release-Policy außerhalb der Projektautorität autorisiert sein.
+Für ausführbare Updates gilt eine weitere Voraussetzung: Der exakte Artefakt-SHA-256 muss bereits durch eine unabhängige rechnerlokale Release-Policy außerhalb der Projektautorität autorisiert sein.
 
 Projektdateien, Release-Manifest, `--trusted-source` und die projektseitige Livariant-CLI oder API können diese Autorität weder erzeugen noch verändern. Produktive Release-Authorization-Logik ist read-only und prüft nur Authority, die bereits existiert. Einen projektseitigen `authorize-runtime`-Befehl gibt es absichtlich nicht.
 
@@ -128,7 +174,7 @@ Die aktuelle Runtime implementiert keine Livariant-Telemetrie, keinen automatisc
 
 ## Öffentliche Distribution
 
-Das kanonische Repository ist unter `Kryt3r/livariant` öffentlich. Die Preview wird über GitHub Releases aus diesem Repository mit der erwarteten Source-Identität verteilt:
+Das kanonische Repository ist unter `Kryt3r/livariant` öffentlich. Preview-Releases werden über GitHub Releases aus diesem Repository mit der erwarteten Source-Identität verteilt:
 
 ```text
 github:Kryt3r/livariant
@@ -142,9 +188,9 @@ Das Release-Tooling erzeugt:
 
 CI verifiziert dieses Release-Bundle gegen einen sauberen Consumer.
 
-Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz. Es enthält älteren Release-Text und ältere Bundle-Bytes und darf weder überschrieben, neu getaggt noch als aktueller Kandidat dargestellt werden.
+`v0.1.0-rc.1` und `v0.1.0-rc.2` bleiben historische Release-Evidenz. RC2 enthält Pre-Public-Text und ältere Bundle-Bytes und darf weder überschrieben, neu getaggt noch als aktueller Stand dargestellt werden.
 
-Die aktuelle Repository-Paketidentität ist `0.1.0-rc.3`. RC3 soll das erste saubere öffentliche Foundation-Preview-Release werden. Tag-Erstellung, GitHub-Release-Veröffentlichung und weitere Veröffentlichungsaktionen benötigen weiterhin eine separate ausdrückliche Freigabe.
+`v0.1.0-rc.3` ist das aktuell veröffentlichte Foundation-Preview-Release. Spätere Repository-Änderungen verändern weder Tag noch Release-Text oder Artefakte dieses Releases.
 
 Für die aktuelle Preview wird kein npm-Publishing-Pfad behauptet.
 
@@ -180,15 +226,3 @@ Public Preview bedeutet:
 Preview-Support ist Maintainer- und Community-Support ohne bezahlten SLA, sofern nichts anderes separat vereinbart wurde.
 
 Der spätere 1.0-Stabilitäts- und Kompatibilitätsvertrag braucht eine eigene Readiness-Entscheidung.
-
-## Aktuelles RC3-Release-Gate
-
-Bevor RC3 getaggt und veröffentlicht werden darf, muss der Release-Prozess noch:
-
-1. die RC3-Dokumentation und die aktuellen Truth-Surfaces vollständig ausrichten;
-2. den exakten RC3-Kandidaten nach Abschluss der paketierten öffentlichen Texte neu bauen und prüfen;
-3. die vorgesehenen Public-Docs-, Build-, Test-, Package-Smoke- und Release-Bundle-Smoke-Checks ausführen;
-4. den RC3-Prep-PR erst nach ausdrücklicher Freigabe reviewen und mergen;
-5. das finale manifestgebundene RC3-Bundle aus dem exakten kanonischen Stand bauen;
-6. vor Tag-Erstellung oder Veröffentlichung des GitHub Release eine ausdrückliche Freigabe erhalten;
-7. nach Veröffentlichung Artefaktidentität, Source-Identität, Manifest und Prüfsummen verifizieren.
