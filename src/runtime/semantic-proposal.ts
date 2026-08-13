@@ -88,19 +88,14 @@ export interface SemanticProposalActionability {
   authorizationEligible: false;
 }
 
-export type SemanticProposalEvidence =
-  | {
-      activeDecisions: SemanticProposalEvidenceDecision[];
-      targetDecision?: SemanticProposalEvidenceDecision;
-    }
-  | {
-      confirmedGoals: SemanticProposalEvidenceScalar[];
-      nonCanonicalMatches: SemanticProposalEvidenceScalar[];
-    }
-  | {
-      knownFacts: SemanticProposalEvidenceScalar[];
-      unresolvedUnknownMatches: SemanticProposalEvidenceScalar[];
-    };
+export interface SemanticProposalEvidence {
+  activeDecisions?: SemanticProposalEvidenceDecision[];
+  targetDecision?: SemanticProposalEvidenceDecision;
+  confirmedGoals?: SemanticProposalEvidenceScalar[];
+  nonCanonicalMatches?: SemanticProposalEvidenceScalar[];
+  knownFacts?: SemanticProposalEvidenceScalar[];
+  unresolvedUnknownMatches?: SemanticProposalEvidenceScalar[];
+}
 
 export interface SemanticProposal {
   schemaVersion: 1;
@@ -578,7 +573,8 @@ export async function buildSemanticProposal(
   let analysis;
   if (candidate.domain === "project-decision") {
     const decision = decisionAnalysis(candidate, semantic.decisionRecords);
-    if ("blockedFinding" in decision) return blocked(project.root, [decision.blockedFinding], baseline);
+    const blockedFinding = decision.blockedFinding as SemanticProposalFinding | undefined;
+    if (blockedFinding) return blocked(project.root, [blockedFinding], baseline);
     analysis = decision;
   } else if (candidate.domain === "project-goal") {
     analysis = goalAnalysis(candidate, semantic.confirmedGoals, semantic.nonCanonicalGoalBullets);
