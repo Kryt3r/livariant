@@ -2,40 +2,24 @@ name: Build RC Bundle
 
 on:
   workflow_dispatch:
-    inputs:
-      source_sha:
-        description: Exact 40-character Livariant source commit SHA to package
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 jobs:
   build-rc-bundle:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Validate requested source SHA
-        shell: bash
-        env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: |
-          set -euo pipefail
-          if [[ ! "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "source_sha must be an exact lowercase 40-character Git commit SHA." >&2
-            exit 1
-          fi
-
-      - name: Checkout exact source commit
+      - name: Checkout canonical main commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ inputs.source_sha }}
           persist-credentials: false
 
       - name: Verify exact checkout
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           observed="$(git rev-parse HEAD)"
@@ -76,7 +60,7 @@ jobs:
         id: verify
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           node <<'NODE'
@@ -124,16 +108,18 @@ jobs:
           NODE
           cp RC-SOURCE-COMMIT rc-bundle/RC-SOURCE-COMMIT
 
-      - name: Cache verified RC bundle bytes
-        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+      - name: Upload verified RC bundle artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
+          name: livariant-${{ steps.verify.outputs.version }}-${{ github.sha }}-${{ steps.verify.outputs.sha256 }}
           path: rc-bundle/
-          key: livariant-${{ steps.verify.outputs.version }}-${{ inputs.source_sha }}-${{ steps.verify.outputs.sha256 }}
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Record cache identity
+      - name: Record artifact identity
         shell: bash
         env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_SHA: ${{ github.sha }}
           VERSION: ${{ steps.verify.outputs.version }}
           SHA256: ${{ steps.verify.outputs.sha256 }}
         run: |
@@ -141,4 +127,4 @@ jobs:
           echo "Verified RC version: $VERSION"
           echo "Verified RC source: $SOURCE_SHA"
           echo "Verified RC artifact SHA-256: $SHA256"
-          echo "Cache key: livariant-$VERSION-$SOURCE_SHA-$SHA256"
+          echo "Artifact name: livariant-$VERSION-$SOURCE_SHA-$SHA256"
