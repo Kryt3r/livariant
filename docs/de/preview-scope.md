@@ -85,11 +85,19 @@ livariant propose --input <candidate.json> --json
 
 sowie die Runtime-API `buildSemanticProposal()`.
 
-Die erste unterstützte Proposal-Domäne ist `project-decision` mit den Kandidatenarten `add` und `supersede`. Candidate-JSON ist externe, nicht vertrauenswürdige Eingabe. Das Feld `origin` ist lediglich eine nicht verifizierte Herkunftsbehauptung und niemals Zustimmung oder Mutationsautorität.
+Schema-Version 1 unterstützt aktuell:
 
-Jedes Proposal dieses ersten Schemas bleibt dauerhaft nur für Review bestimmt. Es weist `reviewOnly: true`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Die Proposal-Identität ist deterministisch und an dieselbe materiale Project-Brain-Baseline-Semantik gebunden wie der Project Context Snapshot. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
+- `project-decision` mit `add` und `supersede`;
+- `project-goal` mit `add`;
+- `project-knowledge` mit `add`.
 
-Exakte Duplikate aktiver Entscheidungen können erkannt werden. Abweichender Entscheidungstext wird von diesem ersten Slice nicht als semantisch vereinbar behauptet. Ein Supersede-Kandidat muss genau eine strukturierte aktive Decision-ID benennen.
+Candidate-JSON ist externe, nicht vertrauenswürdige Eingabe. Das Feld `origin` ist lediglich eine nicht verifizierte Herkunftsbehauptung und niemals Zustimmung oder Mutationsautorität.
+
+Jedes aktuelle Proposal bleibt dauerhaft nur für Review bestimmt. Es weist `reviewOnly: true`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Die Proposal-Identität ist deterministisch und an dieselbe materiale Project-Brain-Baseline-Semantik gebunden wie der Project Context Snapshot. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
+
+Exakte Duplikate aktiver Entscheidungen, bestätigter Ziele und bestätigten Projektwissens können erkannt werden. Abweichender Text wird von dieser begrenzten Implementierung nicht als semantisch vereinbar oder konfliktfrei behauptet. Decision-Supersede-Kandidaten müssen genau eine strukturierte aktive Decision-ID benennen. Goal- und Knowledge-Proposals unterstützen in diesem Slice nur `add`.
+
+Die Goal-Duplikatprüfung verwendet nur den bestätigten Goal-Bereich. Ein gleicher Bullet-Text außerhalb dieses Bereichs wird separat ausgewiesen und nicht zu bestätigter Goal-Authority hochgestuft. Die Knowledge-Duplikatprüfung verwendet ausschließlich bestätigtes Projektwissen. Ein gleicher Eintrag unter `Known unknowns` wird als Scope-Konflikt mit ungelöstem Zustand ausgewiesen und nicht als bestätigter Fakt behandelt.
 
 Siehe [Semantic Proposal Core](semantic-proposal-core.md).
 
@@ -103,7 +111,9 @@ Die aktuellen Post-RC3-Oberflächen ergänzen **nicht**:
 - Provider-Transport oder automatische Kontextinjektion;
 - eine dauerhafte stabile Projektidentität;
 - LLM-basierten semantischen Vergleich;
-- breitere Proposal-Domänen.
+- autonome Kandidatenfindung;
+- Goal- oder Knowledge-Ersetzung, -Löschung oder -Supersession;
+- zusätzliche Proposal-Domänen außerhalb des ausdrücklich dokumentierten Schema-Version-1-Sets.
 
 Diese Oberflächen bleiben spätere Arbeit, solange sie nicht separat implementiert und verifiziert wurden.
 

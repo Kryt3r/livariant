@@ -85,11 +85,19 @@ livariant propose --input <candidate.json> --json
 
 and the Runtime API `buildSemanticProposal()`.
 
-The first supported proposal domain is `project-decision` with `add` and `supersede` candidates. Candidate JSON is external untrusted input. Its `origin` field is only an unverified origin claim, never approval or mutation authority.
+Schema version 1 currently supports:
 
-Every proposal in this first schema is permanently review-only. It exposes `reviewOnly: true`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`. Proposal identity is deterministic and bound to the same material Project Brain baseline semantics used by Project Context Snapshot. Concurrent managed-state changes fail closed.
+- `project-decision` with `add` and `supersede`;
+- `project-goal` with `add`;
+- `project-knowledge` with `add`.
 
-Exact active decision duplicates can be identified. Different decision text is not declared semantically compatible by this first slice. A supersede candidate must name exactly one structured active decision ID.
+Candidate JSON is external untrusted input. Its `origin` field is only an unverified origin claim, never approval or mutation authority.
+
+Every current proposal is permanently review-only. It exposes `reviewOnly: true`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`. Proposal identity is deterministic and bound to the same material Project Brain baseline semantics used by Project Context Snapshot. Concurrent managed-state changes fail closed.
+
+Exact active decision, confirmed-goal, and confirmed-knowledge duplicates can be identified. Different text is not declared semantically compatible or conflict-free by this bounded implementation. Decision supersede candidates must name exactly one structured active decision ID. Goal and knowledge proposals are add-only in this slice.
+
+Goal duplicate detection uses only the confirmed-goal region. A matching bullet outside that region is surfaced separately rather than promoted to confirmed goal authority. Knowledge duplicate detection uses confirmed project knowledge only. A matching `Known unknowns` entry is surfaced as an unresolved-state scope conflict rather than treated as a confirmed fact.
 
 See [Semantic Proposal Core](semantic-proposal-core.md).
 
@@ -103,7 +111,9 @@ The current post-RC3 repository surfaces do **not** add:
 - provider transport or automatic context injection;
 - a durable stable project identity;
 - LLM-based semantic comparison;
-- broader proposal domains.
+- autonomous candidate discovery;
+- goal or knowledge replacement, deletion, or supersession;
+- additional proposal domains beyond the explicitly documented schema-version-1 set.
 
 Those surfaces remain later work unless and until separately implemented and verified.
 
