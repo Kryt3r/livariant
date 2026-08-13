@@ -520,6 +520,13 @@ function knowledgeAnalysis(candidate: AddKnowledgeProposalCandidate, knownFacts:
   };
 }
 
+type ReadyProposalAnalysis = {
+  evidence: SemanticProposalEvidence;
+  findings: SemanticProposalFinding[];
+  intendedScope: SemanticProposal["intendedScope"];
+  intentionallyUnchanged: readonly string[];
+};
+
 export async function buildSemanticProposal(
   candidate: SemanticProposalCandidate,
   projectPath: string = process.cwd(),
@@ -570,12 +577,12 @@ export async function buildSemanticProposal(
     }]);
   }
 
-  let analysis;
+  let analysis: ReadyProposalAnalysis;
   if (candidate.domain === "project-decision") {
     const decision = decisionAnalysis(candidate, semantic.decisionRecords);
     const blockedFinding = decision.blockedFinding as SemanticProposalFinding | undefined;
     if (blockedFinding) return blocked(project.root, [blockedFinding], baseline);
-    analysis = decision;
+    analysis = decision as ReadyProposalAnalysis;
   } else if (candidate.domain === "project-goal") {
     analysis = goalAnalysis(candidate, semantic.confirmedGoals, semantic.nonCanonicalGoalBullets);
   } else {
