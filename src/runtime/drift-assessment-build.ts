@@ -1,6 +1,6 @@
 import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
-import { runDoctor } from "./doctor.js";
+import { runDoctor, type DoctorFinding } from "./doctor.js";
 import {
   buildProjectContextBaseline,
   projectContextManagedInputsEqual,
@@ -26,7 +26,11 @@ function localFinding(code: string, message: string): DriftFinding {
   return { category: "insufficient-evidence", code, effect: "review-required", message };
 }
 
-function blocked(projectLocator: string, findings: DriftAssessmentResult extends infer _ ? any[] : never, baseline: ProjectContextBaseline | null = null): DriftAssessmentResult {
+function blocked(
+  projectLocator: string,
+  findings: Array<DriftFinding | DoctorFinding>,
+  baseline: ProjectContextBaseline | null = null,
+): DriftAssessmentResult {
   return {
     state: "blocked",
     projectLocator,
