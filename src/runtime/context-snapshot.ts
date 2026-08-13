@@ -5,7 +5,6 @@ import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { parseDecisionsMarkdown } from "../project-brain/decisions.js";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
-import { getStatus } from "./index.js";
 import { runDoctor, type DoctorFinding } from "./doctor.js";
 
 const SNAPSHOT_SCHEMA_VERSION = 1;
@@ -184,11 +183,8 @@ export async function buildProjectContextSnapshot(
     return blocked(project.root, doctor.findings);
   }
 
-  const statusBefore = await getStatus(project.root);
   const doctorBefore = await runDoctor(project.root);
-  if (statusBefore.lifecycle !== "initialized" || doctorBefore.state !== "healthy") {
-    return blocked(project.root, doctorBefore.findings);
-  }
+  if (doctorBefore.state !== "healthy") return blocked(project.root, doctorBefore.findings);
 
   let captured: Map<ManagedInputName, Buffer>;
   let context: ProjectContextSnapshotContext;
@@ -219,11 +215,8 @@ export async function buildProjectContextSnapshot(
     return blocked(project.root, [{ code: "snapshot-concurrent-change", severity: "error", message: "Project Brain changed while the context snapshot was being built. Retry from a fresh baseline." }], baseline);
   }
 
-  const statusAfter = await getStatus(project.root);
   const doctorAfter = await runDoctor(project.root);
-  if (statusAfter.lifecycle !== "initialized" || doctorAfter.state !== "healthy") {
-    return blocked(project.root, doctorAfter.findings, baseline);
-  }
+  if (doctorAfter.state !== "healthy") return blocked(project.root, doctorAfter.findings, baseline);
 
   return {
     ...base(project.root),
