@@ -1,6 +1,7 @@
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProjectContextSnapshot, type ProjectContextSnapshotBuildOptions } from "./context-snapshot.js";
 import { providerContextPacketId } from "./provider-context-hash.js";
+import { validateProviderContextTask } from "./provider-context-task.js";
 import type { ProviderContextBase, ProviderContextPacket, ProviderContextProjection, ProviderContextProvider } from "./provider-context-types.js";
 
 export interface ProviderContextBuildOptions extends ProjectContextSnapshotBuildOptions {}
@@ -24,7 +25,7 @@ export async function buildProviderContext(
   options: ProviderContextBuildOptions = {},
 ): Promise<ProviderContextPacket> {
   if (provider !== "claude-code" && provider !== "codex") throw new Error("Unsupported provider context target.");
-  if (!task.trim()) throw new Error("Provider context task must not be empty.");
+  validateProviderContextTask(task);
 
   const snapshot = await buildProjectContextSnapshot(projectPath, options);
   const base: ProviderContextBase = {
