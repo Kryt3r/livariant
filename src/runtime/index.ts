@@ -9,6 +9,17 @@ export { initializeProject, inspectInitialization } from "./initialization.js";
 export type { InitializationPlan, InitializeResult, InitializeOptions } from "./initialization.js";
 export { buildResumeContext } from "./resume.js";
 export type { ResumeContext } from "./resume.js";
+export { buildProjectContextSnapshot } from "./context-snapshot.js";
+export type {
+  BlockedProjectContextSnapshot,
+  ClearProjectContextSnapshot,
+  ProjectContextBaseline,
+  ProjectContextItem,
+  ProjectContextProjectionMetadata,
+  ProjectContextSnapshot,
+  ProjectContextSnapshotBuildOptions,
+  ProjectContextSnapshotContext,
+} from "./context-snapshot.js";
 export { listAcceptedDecisions, recordAcceptedDecision, supersedeAcceptedDecision } from "./canonical-change.js";
 export type { CanonicalDecisionChangeOptions, SupersedeDecisionInput, SupersedeDecisionResult } from "./canonical-change.js";
 export { addConfirmedGoal, addConfirmedKnowledge } from "./canonical-knowledge-change.js";
