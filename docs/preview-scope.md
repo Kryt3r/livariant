@@ -53,7 +53,9 @@ The release support claim is deliberately limited to the environments exercised 
 
 ## Post-RC3 repository development
 
-Development after RC3 adds the first bounded Active Project Intelligence read surface: the **Project Context Snapshot**.
+Development after RC3 adds bounded Active Project Intelligence read surfaces that remain unreleased until a later separately approved release.
+
+### Project Context Snapshot
 
 The repository implementation exposes:
 
@@ -64,8 +66,6 @@ livariant context --json
 
 and the Runtime API `buildProjectContextSnapshot()`.
 
-This post-RC3 capability is not retroactively part of the immutable RC3 release. It becomes a distributed release capability only through a later separately approved release.
-
 The snapshot is read-only. It exposes confirmed Project Brain context, unresolved unknowns, explicit authority classes, a deterministic material Project Brain baseline, and an explicit `clear` or `blocked` safety state. It also states structurally that the snapshot is derived output rather than mutation authorization.
 
 Blocked machine-facing output is distinguishable from clean success with a non-zero CLI status. Concurrent managed Project Brain changes during snapshot construction fail closed instead of producing a mixed clean snapshot.
@@ -74,14 +74,36 @@ The snapshot exposes a current project locator but does not invent a stable dura
 
 See [Project Context Snapshot](project-context-snapshot.md).
 
-The Project Context Snapshot does **not** add:
+### Semantic Proposal Core
 
-- Semantic Change Proposal apply;
-- automatic drift resolution;
+The repository also exposes the bounded read-only proposal surface:
+
+```text
+livariant propose --input <candidate.json>
+livariant propose --input <candidate.json> --json
+```
+
+and the Runtime API `buildSemanticProposal()`.
+
+The first supported proposal domain is `project-decision` with `add` and `supersede` candidates. Candidate JSON is external untrusted input. Its `origin` field is only an unverified origin claim, never approval or mutation authority.
+
+Every proposal in this first schema is permanently review-only. It exposes `reviewOnly: true`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`. Proposal identity is deterministic and bound to the same material Project Brain baseline semantics used by Project Context Snapshot. Concurrent managed-state changes fail closed.
+
+Exact active decision duplicates can be identified. Different decision text is not declared semantically compatible by this first slice. A supersede candidate must name exactly one structured active decision ID.
+
+See [Semantic Proposal Core](semantic-proposal-core.md).
+
+These post-RC3 capabilities are not retroactively part of the immutable RC3 release. They become distributed release capabilities only through a later separately approved release.
+
+The current post-RC3 repository surfaces do **not** add:
+
+- proposal application or mutation authorization;
+- automatic drift scanning or resolution;
 - terminology persistence or lifecycle mutation;
 - provider transport or automatic context injection;
 - a durable stable project identity;
-- a new mutation or authorization path.
+- LLM-based semantic comparison;
+- broader proposal domains.
 
 Those surfaces remain later work unless and until separately implemented and verified.
 
@@ -93,7 +115,7 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider tells
 
 Livariant does not claim to manage every provider feature, model-selection option, authentication mechanism, native instruction system, or provider memory surface.
 
-The post-RC3 Project Context Snapshot is provider-neutral structured output. It does not automatically inject itself into Claude Code, Codex, or another provider.
+The post-RC3 Project Context Snapshot and Semantic Proposal Core are provider-neutral structured output. They do not automatically inject themselves into Claude Code, Codex, or another provider.
 
 ## Semantic knowledge editing
 

@@ -53,7 +53,9 @@ Die Release-Supportaussage ist bewusst auf die Umgebungen begrenzt, die von der 
 
 ## Post-RC3-Repository-Entwicklung
 
-Die Entwicklung nach RC3 ergänzt die erste klar begrenzte read-only Oberfläche von Active Project Intelligence: den **Project Context Snapshot**.
+Die Entwicklung nach RC3 ergänzt klar begrenzte read-only Oberflächen von Active Project Intelligence. Sie bleiben unveröffentlicht, bis ein späteres Release separat freigegeben wird.
+
+### Project Context Snapshot
 
 Die Repository-Implementierung stellt bereit:
 
@@ -64,8 +66,6 @@ livariant context --json
 
 sowie die Runtime-API `buildProjectContextSnapshot()`.
 
-Diese Post-RC3-Funktion wird nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie wird erst durch ein späteres, separat freigegebenes Release zu einer verteilten Release-Funktion.
-
 Der Snapshot ist read-only. Er liefert bestätigten Project-Brain-Kontext, offene Unklarheiten, explizite Authority-Klassen, eine deterministische materiale Project-Brain-Baseline und einen ausdrücklichen Safety-State `clear` oder `blocked`. Zusätzlich weist er strukturell aus, dass der Snapshot abgeleitete Ausgabe und keine Mutation-Autorisierung ist.
 
 Blockierte maschinenlesbare Ausgabe ist durch einen von null verschiedenen CLI-Status von sauberem Erfolg unterscheidbar. Parallele Änderungen am verwalteten Project Brain während der Snapshot-Erzeugung brechen geschlossen ab, statt einen gemischten sauberen Snapshot auszugeben.
@@ -74,14 +74,36 @@ Der Snapshot zeigt einen aktuellen Projekt-Locator, erfindet aber keine stabile 
 
 Siehe [Project Context Snapshot](project-context-snapshot.md).
 
-Der Project Context Snapshot ergänzt **nicht**:
+### Semantic Proposal Core
 
-- Semantic Change Proposal Apply;
-- automatische Drift-Auflösung;
+Das Repository stellt zusätzlich die begrenzte read-only Proposal-Oberfläche bereit:
+
+```text
+livariant propose --input <candidate.json>
+livariant propose --input <candidate.json> --json
+```
+
+sowie die Runtime-API `buildSemanticProposal()`.
+
+Die erste unterstützte Proposal-Domäne ist `project-decision` mit den Kandidatenarten `add` und `supersede`. Candidate-JSON ist externe, nicht vertrauenswürdige Eingabe. Das Feld `origin` ist lediglich eine nicht verifizierte Herkunftsbehauptung und niemals Zustimmung oder Mutationsautorität.
+
+Jedes Proposal dieses ersten Schemas bleibt dauerhaft nur für Review bestimmt. Es weist `reviewOnly: true`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Die Proposal-Identität ist deterministisch und an dieselbe materiale Project-Brain-Baseline-Semantik gebunden wie der Project Context Snapshot. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
+
+Exakte Duplikate aktiver Entscheidungen können erkannt werden. Abweichender Entscheidungstext wird von diesem ersten Slice nicht als semantisch vereinbar behauptet. Ein Supersede-Kandidat muss genau eine strukturierte aktive Decision-ID benennen.
+
+Siehe [Semantic Proposal Core](semantic-proposal-core.md).
+
+Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
+
+Die aktuellen Post-RC3-Oberflächen ergänzen **nicht**:
+
+- Proposal Apply oder Mutationsautorität;
+- automatisches Drift-Scanning oder automatische Drift-Auflösung;
 - Terminologie-Persistenz oder Lifecycle-Mutation;
 - Provider-Transport oder automatische Kontextinjektion;
 - eine dauerhafte stabile Projektidentität;
-- einen neuen Mutations- oder Autorisierungspfad.
+- LLM-basierten semantischen Vergleich;
+- breitere Proposal-Domänen.
 
 Diese Oberflächen bleiben spätere Arbeit, solange sie nicht separat implementiert und verifiziert wurden.
 
@@ -93,7 +115,7 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Pro
 
 Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
 
-Der Post-RC3 Project Context Snapshot ist provider-neutrale strukturierte Ausgabe. Er injiziert sich nicht automatisch in Claude Code, Codex oder einen anderen Provider.
+Der Post-RC3 Project Context Snapshot und der Semantic Proposal Core sind provider-neutrale strukturierte Ausgaben. Sie injizieren sich nicht automatisch in Claude Code, Codex oder einen anderen Provider.
 
 ## Semantische Wissenspflege
 

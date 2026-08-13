@@ -6,14 +6,17 @@ import {
   addConfirmedKnowledge,
   buildProjectContextSnapshot,
   buildResumeContext,
+  buildSemanticProposal,
   getStatus,
   getVersionInfo,
   initializeProject,
   inspectInitialization,
   listAcceptedDecisions,
+  readSemanticProposalCandidateFile,
   recordAcceptedDecision,
   runDoctor,
   supersedeAcceptedDecision,
+  type SemanticProposalFinding,
 } from "../runtime/index.js";
 import { getPreviewResumeAdapter } from "../adapters/provider-resume-adapter.js";
 import type { ResumeProviderId } from "../adapters/resume-provider.js";
@@ -188,6 +191,105 @@ async function printContext(args: string[]): Promise<void> {
   console.log("Changes made: 0");
 }
 
+function renderUntrustedText(value: string): string {
+  let result = "";
+  for (const char of value) {
+    const code = char.codePointAt(0)!;
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) {
+      result += `\\u${code.toString(16).padStart(4, "0")}`;
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
+function proposalInputPath(args: string[]): string {
+  const inputIndexes = args.map((value, index) => value === "--input" ? index : -1).filter((index) => index >= 0);
+  if (inputIndexes.length !== 1) throw new Error("Propose requires exactly one --input <candidate.json> argument.");
+  const inputIndex = inputIndexes[0];
+  const path = args[inputIndex + 1];
+  if (!path || path.startsWith("--")) throw new Error("--input requires a candidate JSON path.");
+  const allowedIndexes = new Set([inputIndex, inputIndex + 1]);
+  args.forEach((value, index) => {
+    if (value === "--json") allowedIndexes.add(index);
+  });
+  if (allowedIndexes.size !== args.length || args.filter((value) => value === "--json").length > 1) {
+    throw new Error("Propose supports only --input <candidate.json> and optional --json.");
+  }
+  return path;
+}
+
+function renderProposalFinding(finding: SemanticProposalFinding | { code: string; severity: string; message: string }): string {
+  if ("category" in finding) return `- [${finding.category}/${finding.effect}] ${finding.code}: ${finding.message}`;
+  return `- [${finding.severity}] ${finding.code}: ${finding.message}`;
+}
+
+async function printProposal(args: string[]): Promise<void> {
+  const json = args.includes("--json");
+  const inputPath = proposalInputPath(args);
+  let candidate;
+  try {
+    candidate = await readSemanticProposalCandidateFile(inputPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Candidate input is invalid.";
+    if (json) console.log(JSON.stringify({ state: "invalid-candidate", error: { code: "candidate-invalid", message }, changesMade: 0 }));
+    else {
+      console.log("Semantic proposal candidate invalid");
+      console.log(`Reason: ${message}`);
+      console.log("Changes made: 0");
+    }
+    process.exitCode = 2;
+    return;
+  }
+
+  const result = await buildSemanticProposal(candidate);
+  if (json) {
+    console.log(JSON.stringify(result));
+    if (result.state === "blocked") process.exitCode = 3;
+    return;
+  }
+
+  console.log("Semantic proposal");
+  console.log("");
+  if (result.state === "blocked") {
+    console.log("State: blocked");
+    console.log(`Project: ${result.projectLocator}`);
+    if (result.baseline) console.log(`Baseline: ${result.baseline.algorithm}:${result.baseline.digest}`);
+    console.log("");
+    console.log("Findings:");
+    for (const finding of result.findings) console.log(renderProposalFinding(finding));
+    console.log("");
+    console.log("Review only: true");
+    console.log("Apply supported: false");
+    console.log("Authorization eligible: false");
+    console.log("Changes made: 0");
+    process.exitCode = 3;
+    return;
+  }
+
+  const proposal = result.proposal;
+  console.log("State: proposal");
+  console.log(`Proposal ID: ${proposal.proposalId}`);
+  console.log(`Project: ${proposal.projectLocator}`);
+  console.log(`Baseline: ${proposal.baseline.algorithm}:${proposal.baseline.digest}`);
+  console.log(`Domain: ${proposal.candidate.domain}`);
+  console.log(`Change kind: ${proposal.candidate.changeKind}`);
+  if (proposal.candidate.changeKind === "supersede") console.log(`Target decision: ${renderUntrustedText(proposal.candidate.targetDecisionId)}`);
+  console.log(`Proposed statement: ${renderUntrustedText(proposal.candidate.proposedStatement)}`);
+  console.log(`Rationale: ${renderUntrustedText(proposal.candidate.rationale)}`);
+  console.log(`Origin claim: ${proposal.candidate.originClaim} (verified: false)`);
+  console.log("");
+  console.log("Findings:");
+  for (const finding of proposal.findings) console.log(renderProposalFinding(finding));
+  console.log("");
+  console.log("Review only: true");
+  console.log("Mutation authorization: false");
+  console.log("Apply supported: false");
+  console.log("Authorization eligible: false");
+  console.log("Changes made: 0");
+}
+
 function printInitializationPlan(plan: Awaited<ReturnType<typeof inspectInitialization>>): void {
   console.log("Initialization assessment");
   console.log("");
@@ -355,6 +457,7 @@ async function main(): Promise<void> {
     case "doctor": await printDoctor(); return;
     case "resume": await printResume(args); return;
     case "context": await printContext(args); return;
+    case "propose": await printProposal(args); return;
     case "init": await handleInit(args); return;
     case "goals": await handleGoals(args); return;
     case "knowledge": await handleKnowledge(args); return;
@@ -372,6 +475,7 @@ async function main(): Promise<void> {
       console.log("  doctor");
       console.log("  resume [--provider claude-code|codex]");
       console.log("  context [--json]");
+      console.log("  propose --input <candidate.json> [--json]");
       console.log("  init [--apply]");
       console.log("  goals [list] | goals add <goal> [--apply]");
       console.log("  knowledge [list] | knowledge add <fact> [--apply]");
