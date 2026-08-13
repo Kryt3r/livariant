@@ -20,6 +20,29 @@ export type {
   ProjectContextSnapshotBuildOptions,
   ProjectContextSnapshotContext,
 } from "./context-snapshot.js";
+export {
+  buildSemanticProposal,
+  parseSemanticProposalCandidate,
+  readSemanticProposalCandidateFile,
+  SEMANTIC_PROPOSAL_CANDIDATE_FILE_MAX_BYTES,
+  SEMANTIC_PROPOSAL_RATIONALE_MAX_BYTES,
+  SEMANTIC_PROPOSAL_SCHEMA_VERSION,
+  SEMANTIC_PROPOSAL_STATEMENT_MAX_BYTES,
+} from "./semantic-proposal.js";
+export type {
+  AddDecisionProposalCandidate,
+  BlockedSemanticProposalResult,
+  ReadySemanticProposalResult,
+  SemanticProposal,
+  SemanticProposalActionability,
+  SemanticProposalBuildOptions,
+  SemanticProposalCandidate,
+  SemanticProposalEvidenceDecision,
+  SemanticProposalFinding,
+  SemanticProposalOriginClaim,
+  SemanticProposalResult,
+  SupersedeDecisionProposalCandidate,
+} from "./semantic-proposal.js";
 export { listAcceptedDecisions, recordAcceptedDecision, supersedeAcceptedDecision } from "./canonical-change.js";
 export type { CanonicalDecisionChangeOptions, SupersedeDecisionInput, SupersedeDecisionResult } from "./canonical-change.js";
 export { addConfirmedGoal, addConfirmedKnowledge } from "./canonical-knowledge-change.js";
