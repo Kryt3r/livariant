@@ -19,6 +19,10 @@ const NOOP_FINDING_CODES = new Set([
   "exact-confirmed-knowledge-duplicate",
 ]);
 
+export interface SemanticMaintenanceOptions {
+  afterApplyBeforeRefresh?: () => void | Promise<void>;
+}
+
 export interface SemanticMaintenanceReviewRequiredResult {
   state: "review-required";
   semanticProposal: SemanticProposal;
@@ -117,6 +121,7 @@ export async function maintainSemanticProjectState(
   candidate: SemanticProposalCandidate,
   authorizationId?: string,
   projectPath: string = process.cwd(),
+  options: SemanticMaintenanceOptions = {},
 ): Promise<SemanticMaintenanceResult> {
   const reviewed = await buildSemanticProposal(candidate, projectPath);
   if (reviewed.state !== "proposal") {
@@ -176,6 +181,7 @@ export async function maintainSemanticProjectState(
     );
   }
 
+  await options.afterApplyBeforeRefresh?.();
   const context = await buildProjectContextSnapshot(projectPath);
   if (context.safetyState !== "clear") {
     return {
