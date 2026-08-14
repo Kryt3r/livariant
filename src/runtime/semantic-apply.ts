@@ -312,10 +312,15 @@ export async function applyActionableProposal(
     const authorizedPreState = await captureAuthorizedPreState(proposal, project.root);
 
     await executeAuthorizedMutation(proposal, project.root, options);
-    await options.afterPromoteBeforeVerify?.();
 
+    const writerPostState = await captureCoherentManagedState(project.root);
+    assertExactManagedDelta(proposal, authorizedPreState, writerPostState);
+
+    await options.afterPromoteBeforeVerify?.();
     const verifiedPostState = await captureCoherentManagedState(project.root);
-    assertExactManagedDelta(proposal, authorizedPreState, verifiedPostState);
+    if (!projectContextManagedInputsEqual(writerPostState, verifiedPostState)) {
+      throw new Error("Managed Project Brain state changed after the authorized writer returned and before Semantic Apply verification.");
+    }
     assertSemanticPostconditionFromInputs(proposal, verifiedPostState);
 
     await options.beforeComplete?.();
