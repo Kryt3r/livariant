@@ -2,6 +2,7 @@ import { cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { ProjectBrainStore } from "../project-brain/store.js";
+import { generateStableProjectIdentity, isStableProjectIdentity } from "../project-brain/identity.js";
 import { assertPathWithinRoot, assertRegularFile } from "../project-brain/path-safety.js";
 import { type LocalReleaseArtifact, type ReleaseIdentity } from "../distribution/release-integrity.js";
 import {
@@ -362,9 +363,10 @@ export async function applyMigrationUpdate(projectPath: string, plan: MigrationP
     const existingHistory = Array.isArray(existingLifecycle.migrationHistory)
       ? existingLifecycle.migrationHistory.filter((item): item is string => typeof item === "string")
       : [];
+    const migratedProjectId = generateStableProjectIdentity();
     const migrated = {
       ...current,
-      projectBrain: { ...current.projectBrain, schemaVersion: 2 },
+      projectBrain: { ...current.projectBrain, schemaVersion: 2, projectId: migratedProjectId },
       lifecycle: {
         ...existingLifecycle,
         migrationHistory: [...existingHistory.filter((item) => item !== plan.migration.id), plan.migration.id],
@@ -390,13 +392,19 @@ export async function applyMigrationUpdate(projectPath: string, plan: MigrationP
     const postInspection = await store.inspect();
     if (postInspection.health !== "valid") throw new Error("Migration postcondition failed: Project Brain is not structurally valid.");
     const after = await store.readMetadata();
-    if (after.projectBrain.schemaVersion !== 2) throw new Error("Migration postcondition failed: schema 2 not active.");
+    if (after.projectBrain.schemaVersion !== 2 || !isStableProjectIdentity(after.projectBrain.projectId)) {
+      throw new Error("Migration postcondition failed: schema 2 stable project identity is not active.");
+    }
 
     await activateInstalledRuntime(projectPath, installed);
     pointerChanged = true;
     await store.updateFrameworkLifecycle(plan.targetVersion, plan.channel);
     const activated = await store.readMetadata();
-    if (activated.framework.version !== plan.targetVersion || activated.projectBrain.schemaVersion !== plan.targetSchema) {
+    if (
+      activated.framework.version !== plan.targetVersion ||
+      activated.projectBrain.schemaVersion !== plan.targetSchema ||
+      activated.projectBrain.projectId !== migratedProjectId
+    ) {
       throw new Error("Migration activation postcondition failed.");
     }
 
