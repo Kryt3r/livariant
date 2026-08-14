@@ -34,7 +34,12 @@ export async function handleMaintenanceCommand(args: string[]): Promise<void> {
       console.log(`Authorization: ${result.apply.authorizationId}`);
       console.log(`Proposal: ${result.apply.actionableProposalId}`);
       console.log("Semantic changes made: 1");
-      console.log("Refreshed context: blocked; inspect Doctor/context findings before continuing.");
+      if (result.refreshError) {
+        console.log(`Refresh error: ${result.refreshError}`);
+        console.log("Refreshed context: unavailable; inspect project health before continuing.");
+      } else {
+        console.log("Refreshed context: blocked; inspect Doctor/context findings before continuing.");
+      }
     } else {
       console.log("Semantic maintenance completed");
       console.log(`Authorization: ${result.apply.authorizationId}`);
