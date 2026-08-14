@@ -135,6 +135,28 @@ test("wrong authorization id blocks both high-level API and CLI without semantic
   });
 });
 
+test("matching active authorization with stale baseline does not overclaim a zero-write outcome", async () => {
+  await withProject(async (path) => {
+    const proposal = await prepared(path);
+    await seedAuthorized(path, proposal);
+    const input = resolve(path, "actionable.json");
+    await writeFile(input, `${JSON.stringify(proposal)}\n`, "utf8");
+    await writeFile(resolve(path, ".project-brain", "goals.md"), "# Goals\n\n## Confirmed goals\n\n- Concurrent baseline change\n\n## Deferred goals\n\n- None recorded\n", "utf8");
+
+    const result = runCli(path, ["apply", "--authorization", AUTH_ID, "--input", input, "--json"]);
+    assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
+    const output = JSON.parse(result.stdout.trim()) as {
+      recoveryRequired: boolean;
+      mutationOutcome: string;
+      semanticChangesMade: number | string;
+    };
+    assert.equal(output.recoveryRequired, true);
+    assert.equal(output.mutationOutcome, "unknown-recovery-required");
+    assert.equal(output.semanticChangesMade, "unknown");
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "knowledge.md"), "utf8"), /Apply accepts Authority, not claims/);
+  });
+});
+
 test("tampered Actionable Proposal bytes fail strict digest parsing before Authority consumption", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);

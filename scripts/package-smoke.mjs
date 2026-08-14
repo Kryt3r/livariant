@@ -24,9 +24,10 @@ function run(command, args, options = {}) {
     env: { ...process.env, ...(options.env ?? {}) },
     shell: false,
   });
-  if (result.error || result.status !== 0) {
+  const expectedStatus = options.expectedStatus ?? 0;
+  if (result.error || result.status !== expectedStatus) {
     throw new Error([
-      `${command} ${args.join(" ")} failed with exit ${String(result.status)}`,
+      `${command} ${args.join(" ")} failed with exit ${String(result.status)} (expected ${expectedStatus})`,
       result.error?.message,
       result.stdout,
       result.stderr,
@@ -61,7 +62,9 @@ try {
     "package.json",
     "dist/src/cli/index.js",
     "dist/src/cli/lifecycle.js",
+    "dist/src/cli/maintenance-command.js",
     "dist/src/runtime/index.js",
+    "dist/src/runtime/semantic-maintenance.js",
     "dist/src/lifecycle/update.js",
     "dist/src/lifecycle/recovery.js",
     "dist/src/distribution/release-integrity.js",
@@ -102,6 +105,33 @@ try {
     throw new Error(`Installed CLI did not initialize Project Brain:\n${init.stdout}`);
   }
 
+  const maintenanceCandidate = resolve(installDir, "maintenance-candidate.json");
+  await writeFile(maintenanceCandidate, `${JSON.stringify({
+    schemaVersion: 1,
+    domain: "project-goal",
+    changeKind: "add",
+    proposedStatement: "Installed package maintenance smoke",
+    rationale: "Verify packaged WP-010 orchestration without mutation",
+    origin: "explicit-user",
+  }, null, 2)}\n`, "utf8");
+  const maintain = run(process.execPath, [cliPath, "maintain", "--input", maintenanceCandidate, "--json"], {
+    cwd: installDir,
+    expectedStatus: 3,
+  });
+  let maintainOutput;
+  try {
+    maintainOutput = JSON.parse(maintain.stdout.trim());
+  } catch {
+    throw new Error(`Installed maintain CLI did not return valid JSON:\n${maintain.stdout}`);
+  }
+  if (maintainOutput.state !== "authorization-required" || maintainOutput.semanticChangesMade !== 0 || maintainOutput.authorizationRequired !== true) {
+    throw new Error(`Installed maintain CLI returned unexpected non-mutating orchestration state:\n${maintain.stdout}`);
+  }
+  const goalsAfterMaintain = await readFile(resolve(installDir, ".project-brain", "goals.md"), "utf8");
+  if (goalsAfterMaintain.includes("Installed package maintenance smoke")) {
+    throw new Error("Installed maintain CLI mutated Project Brain before separate authorization");
+  }
+
   const resume = run(process.execPath, [cliPath, "resume", "--provider", "codex"], {
     cwd: installDir,
     env: { LIVARIANT_PROVIDER_ENV: "codex" },
@@ -132,7 +162,7 @@ try {
     throw new Error("Installed package does not expose the expected Livariant package and CLI identity");
   }
 
-  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed, globally installed from the release tarball, project-locally installed for packaging compatibility, initialized, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.`);
+  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed, globally installed from the release tarball, project-locally installed for packaging compatibility, initialized, verified non-mutating installed semantic maintenance orchestration, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

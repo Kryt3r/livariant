@@ -34,7 +34,7 @@ Semantic Apply does not add a new semantic domain or a generic arbitrary file-wr
 
 Semantic Apply does not create or infer mutation authority.
 
-A fresh apply requires the existing WP-008 dual-evidence authority to match the exact:
+A fresh apply requires the existing WP-008 dual-evidence Authority to match the exact:
 
 - authorization ID;
 - Actionable Proposal identity and digest;
@@ -44,7 +44,7 @@ A fresh apply requires the existing WP-008 dual-evidence authority to match the 
 - project-local authorization lifecycle evidence;
 - independent machine-local authorization receipt.
 
-Project-local bytes alone, a provider claim, copied packet, stable project ID, review-only proposal, matching text, or prior conversational approval cannot authorize apply.
+Project-local bytes alone, provider claims, copied packets, stable project identity, review-only proposal output, matching text, or prior conversational approval cannot authorize apply.
 
 ## Fresh apply sequence
 
@@ -56,16 +56,20 @@ strictly parse Actionable Proposal
 -> verify exact dual-evidence authorized state
 -> consume Authority: authorized -> applying
 -> revalidate the exact pre-mutation proposal/baseline
+-> retain the current invocation's managed pre-state in volatile memory
 -> prepare the existing supported semantic writer
 -> revalidate again immediately before atomic promotion
 -> promote only the exact authorized semantic mutation
--> re-read and structurally verify the canonical semantic result
+-> prove every unaffected managed Project Brain input stayed byte-identical
+-> re-read and structurally verify the exact authorized semantic target
+-> capture the complete verified managed post-state in volatile memory
+-> immediately before terminal completion prove the complete managed state is still byte-identical
 -> complete Authority: applying -> completed
 ```
 
 Authority becomes non-replayable before semantic mutation begins.
 
-A successful normal invocation reports one semantic change and terminal completion.
+The volatile pre/post bytes exist only for the current trusted process. WP-009 does not persist them as a new recovery checkpoint, journal, Authority source, or machine-local trust object.
 
 ## Existing semantic writers remain authoritative for mutation mechanics
 
@@ -80,24 +84,24 @@ The existing boundaries therefore remain active, including:
 - preservation of unrelated human-authored content;
 - duplicate rejection;
 - structured decision history and supersession semantics;
-- post-write verification.
+- writer-level post-write verification.
 
 The Actionable Proposal controls what mutation may be attempted. Current canonical Project Brain state still controls whether that exact attempt remains valid.
 
-## Verification before completion
+## Verification before `completed`
 
-`completed` is permitted only after Livariant re-reads canonical Project Brain state and proves the supported semantic result.
+Normal same-process completion requires more than the desired semantic statement merely being present.
 
-Current verification includes:
+Livariant verifies:
 
+- every unaffected managed Project Brain input remains byte-identical to the exact current-invocation pre-state;
 - decision add: exactly one active structured decision with the authorized statement;
 - decision supersede: the exact authorized target is superseded and points to one active exact replacement;
 - goal add: exactly one matching confirmed goal exists in the confirmed-goal region;
-- knowledge add: exactly one matching confirmed fact exists in confirmed project knowledge.
+- knowledge add: exactly one matching confirmed fact exists in confirmed project knowledge;
+- the complete managed Project Brain state remains byte-identical from the verified post-state capture through the final Authority-completion boundary.
 
-A semantic postcondition is sufficient for the normal in-process verification step only because it follows the existing atomic writer and the immediately preceding exact-baseline revalidation in the same trusted execution flow.
-
-It is **not** automatically sufficient evidence for crash-time post-state recovery after that execution context has been lost.
+If any of those checks fail after Authority consumption, Semantic Apply fails closed under the existing `failed-recovery-required` rules instead of reporting successful completion.
 
 ## Failure and replay resistance
 
@@ -111,7 +115,7 @@ applying -> failed-recovery-required
 
 A completed or failed authorization is terminal and cannot be replayed as a new mutation token.
 
-Concurrent consumers share the WP-008 machine-local transition lock, so two copies of the same logical Project Brain on one machine cannot both consume the same authorization concurrently.
+Concurrent consumers share the WP-008 machine-local transition lock, so two consumers sharing the same logical Project Brain identity cannot both consume the same authorization concurrently.
 
 ## Interrupted pre-mutation reconciliation
 
@@ -129,23 +133,21 @@ project-local: applying
 machine-local: applying
 ```
 
-Semantic Apply may continue these states only when the current Project Brain still reproduces the **exact original Actionable Proposal baseline**. In that case the original pre-mutation state proves that the semantic write did not commit.
+Semantic Apply may continue these states only when the current Project Brain still reproduces the **exact original Actionable Proposal pre-mutation baseline**. In that case the exact pre-state proves that the semantic write did not commit.
 
 The only forward actions are:
 
-- align project-local `authorized -> applying` when machine-local evidence is already `applying`;
+- align project-local `authorized -> applying` when matching machine-local evidence is already `applying`;
 - continue from matching `applying/applying`;
 - execute the exact authorized semantic mutation once.
 
-Machine-local Authority is never reset to `authorized`.
-
-An active or interrupted machine transition lock blocks reconciliation.
+Machine-local Authority is never reset to `authorized`. An active or interrupted machine transition lock blocks reconciliation.
 
 ## Post-mutation crash proof boundary
 
-The Actionable Proposal baseline is one aggregate digest over the managed Project Brain inputs. It proves the exact authorized pre-mutation state, but after mutation it does not reveal the old bytes for each individual managed surface.
+The same-process exact-delta proof is intentionally volatile. After a process boundary it is no longer available as durable recovery evidence.
 
-Therefore an apparently correct semantic postcondition such as “the requested goal exists” does **not** prove after a process crash that unrelated managed Project Brain surfaces remained unchanged.
+The Actionable Proposal baseline proves the exact authorized pre-mutation managed state, but it does not preserve old per-surface bytes after mutation. Therefore an apparently correct semantic postcondition such as “the requested goal exists” does **not** prove after a crash that unrelated managed Project Brain surfaces remained unchanged.
 
 Current Semantic Apply deliberately fails closed for changed-baseline interrupted states instead of inferring success from desired text.
 
@@ -158,7 +160,7 @@ machine-local: completed
 
 is not automatically promoted to project-local `completed` after a process boundary merely because the requested statement is present.
 
-Automatic post-crash completion would require separately accepted trusted durable exact-delta evidence. WP-009 does not silently introduce a new checkpoint, recovery journal, machine-local trust object, or second authority substrate to create such evidence.
+Automatic post-crash completion would require separately accepted trusted durable exact-delta evidence. WP-009 does not silently introduce such a trust substrate.
 
 ## Forward-only failure reconciliation
 
@@ -199,9 +201,29 @@ mutationAuthorizationConsumed: true
 semanticChangesMade: 1
 ```
 
-Blocked attempts report zero semantic changes for that invocation.
+Failures that are proven to occur before a valid Actionable Proposal can reach Authority consumption may report:
 
-The command does not present an unresolved recovery state as successful completion.
+```text
+recoveryRequired: false
+mutationOutcome: not-applied
+semanticChangesMade: 0
+```
+
+Once the exact authorization may already be in an active or recovery-required lifecycle, the CLI does **not** overclaim a zero-write outcome. It reports the uncertainty explicitly, for example:
+
+```text
+recoveryRequired: true
+mutationOutcome: unknown-recovery-required
+semanticChangesMade: unknown
+```
+
+The command does not present an unresolved recovery state as successful completion and does not use a `0` mutation claim as a substitute for missing evidence.
+
+## Composition through `maintain`
+
+Post-RC3 repository development also contains the separate provider-neutral Semantic Maintenance composition surface documented in [Agent-Assisted Semantic Maintenance](semantic-maintenance.md).
+
+`maintain` does not create Authority. Without an explicit authorization ID it can only reconstruct review/actionable state and return `review-required` or `authorization-required`. With an explicit authorization ID it delegates the mutation to this existing Semantic Apply path, so all WP-008/WP-009 replay, recovery, exact-delta, and terminal-state rules remain authoritative.
 
 ## Non-goals
 
