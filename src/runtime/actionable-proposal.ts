@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
 import { isStableProjectIdentity } from "../project-brain/identity.js";
-import { frameHashField, type ProjectContextBaseline } from "./project-context-material.js";
+import {
+  PROJECT_CONTEXT_BASELINE_DOMAIN,
+  frameHashField,
+  type ProjectContextBaseline,
+} from "./project-context-material.js";
 import {
   buildSemanticProposal,
   parseSemanticProposalCandidate,
@@ -15,7 +19,6 @@ import type { DoctorFinding } from "./doctor.js";
 export const ACTIONABLE_PROPOSAL_SCHEMA_VERSION = 1;
 export const ACTIONABLE_PROPOSAL_FILE_MAX_BYTES = 128 * 1024;
 const ACTIONABLE_PROPOSAL_DIGEST_DOMAIN = "livariant:actionable-proposal:v1";
-const PROJECT_CONTEXT_BASELINE_DOMAIN = "livariant:project-context-baseline:v1";
 const ORIGIN_CLAIMS = new Set<SemanticProposalOriginClaim>([
   "explicit-user",
   "provider-observation",
@@ -280,7 +283,7 @@ function parseScope(value: unknown): ActionableProposalScope {
     domain: value.domain,
     changeKind: value.changeKind,
     proposedStatement: value.proposedStatement,
-    targetDecisionId: typeof value.targetDecisionId === "string" ? value.targetDecisionId : undefined,
+    ...(typeof value.targetDecisionId === "string" ? { targetDecisionId: value.targetDecisionId } : {}),
   };
 }
 
