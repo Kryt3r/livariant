@@ -38,6 +38,8 @@ expliziter Candidate
 
 Er führt weder eine zweite Proposal-Engine noch eine neue Authority-Quelle, einen zweiten semantischen Writer oder einen neuen Recovery-Mechanismus ein.
 
+Semantic-Proposal-Review und Actionable-Proposal-Rekonstruktion müssen aus derselben kohärenten materialen Project-Brain-Baseline stammen. Ändert sich verwalteter Project-Brain-Zustand zwischen diesen Stufen, blockiert der Composer vor Authority-Consumption und verlangt einen frischen Retry, statt ein Mixed-Time-Actionable-Ergebnis zurückzugeben.
+
 ## Ergebniszustände
 
 ### `review-required`
@@ -81,9 +83,11 @@ Der zurückgegebene Context wird nach der Mutation neu aus dem kanonischen Proje
 
 ### `completed-context-blocked`
 
-Semantic Apply ist erfolgreich abgeschlossen und Authority ist bereits terminal `completed`, aber die anschließende frische Project-Context-Rekonstruktion ist blockiert.
+Semantic Apply ist erfolgreich abgeschlossen und Authority ist bereits terminal `completed`, aber die anschließende frische Project-Context-Rekonstruktion ist blockiert oder schlägt fehl, bevor ein strukturierter Snapshot zurückgegeben werden kann.
 
 Dieser Zustand ist bewusst von `completed` und von einem Pre-Apply-`blocked` getrennt. Er meldet eine abgeschlossene semantische Mutation, verweigert aber den Claim eines sauberen aktualisierten Context. Die abgeschlossene Authority ist nicht replaybar.
+
+Wenn die Context-Rekonstruktion einen strukturierten blockierten Snapshot liefert, enthält `context` diesen Snapshot. Wenn der Refresh selbst nach abgeschlossener Mutation wirft, ist `context` `null` und `refreshError` enthält die begrenzte Fehlerbeschreibung. In beiden Fällen bleibt `semanticChangesMade` `1`, weil ein Refresh-Fehler abgeschlossene Mutationshistorie nicht umschreiben darf.
 
 ## Authorization-Grenze
 
