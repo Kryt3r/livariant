@@ -5,7 +5,7 @@ import { parseProviderReturnArgs } from "../src/cli/provider-return-args.js";
 test("provider-return args require one context and input path", () => {
   assert.deepEqual(
     parseProviderReturnArgs(["--context", "context.json", "--input", "return.json", "--json"]),
-    { contextPath: "context.json", inputPath: "return.json", json: true },
+    { contextPath: "context.json", inputPath: "return.json", authorizationId: undefined, json: true },
   );
   assert.deepEqual(
     parseProviderReturnArgs(["--context", "context.json", "--input", "return.json", "--authorization", "auth_123"]),
