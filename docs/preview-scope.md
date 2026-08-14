@@ -122,6 +122,26 @@ This slice does not scan the repository automatically and does not apply or auth
 
 See [Conflict and Drift Assessment](conflict-drift-assessment.md).
 
+### Provider Context Foundation
+
+The repository also exposes a provider-targeted read-only projection surface:
+
+```text
+livariant provider-context --provider claude-code --task <task.txt>
+livariant provider-context --provider codex --task <task.txt>
+livariant provider-context --provider <provider> --task <task.txt> --json
+```
+
+and the Runtime API `buildProviderContext()`.
+
+Provider Context combines the same coherent current Project Brain evidence with one explicit external task. Task material is bounded to 64 KiB, remains `session-ephemeral`, and cannot assert canonical project truth, approval, safety state, or mutation authority.
+
+The packet preserves the Project Brain safety floor, exposes `stableProjectIdentity: null`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`, and fails closed on concurrent managed-state change. Provider selection changes the projection target only; copied or provider-returned packets are not trusted canonical input on later use.
+
+This slice does not automatically inject context into Claude Code or Codex and adds no provider transport or persistent provider write.
+
+See [Provider Context Foundation](provider-context-foundation.md).
+
 These post-RC3 capabilities are not retroactively part of the immutable RC3 release. They become distributed release capabilities only through a later separately approved release.
 
 The current post-RC3 repository surfaces do **not** add:
@@ -146,7 +166,7 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider tells
 
 Livariant does not claim to manage every provider feature, model-selection option, authentication mechanism, native instruction system, or provider memory surface.
 
-The post-RC3 Project Context Snapshot, Semantic Proposal Core, and Conflict and Drift Assessment are provider-neutral structured output. They do not automatically inject themselves into Claude Code, Codex, or another provider.
+The post-RC3 Project Context Snapshot, Semantic Proposal Core, and Conflict and Drift Assessment are provider-neutral structured output. Provider Context is a provider-targeted projection for Claude Code and Codex. None of these surfaces automatically injects itself into a provider or grants provider-side mutation authority.
 
 ## Semantic knowledge editing
 
