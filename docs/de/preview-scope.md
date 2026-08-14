@@ -122,6 +122,26 @@ Dieser Slice scannt das Repository nicht automatisch und wendet keine Änderung 
 
 Siehe [Konflikt- und Drift-Bewertung](conflict-drift-assessment.md).
 
+### Provider Context Foundation
+
+Das Repository stellt zusätzlich eine providerbezogene read-only Projektionsoberfläche bereit:
+
+```text
+livariant provider-context --provider claude-code --task <task.txt>
+livariant provider-context --provider codex --task <task.txt>
+livariant provider-context --provider <provider> --task <task.txt> --json
+```
+
+sowie die Runtime-API `buildProviderContext()`.
+
+Provider Context verbindet dieselbe kohärente aktuelle Project-Brain-Evidence mit genau einer ausdrücklich angegebenen externen Aufgabe. Task-Material ist auf 64 KiB begrenzt, bleibt `session-ephemeral` und kann weder kanonische Projektwahrheit noch Zustimmung, Safety-State oder Mutationsautorität behaupten.
+
+Das Paket erhält den Safety-Floor des Project Brain, weist `stableProjectIdentity: null`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus und bricht bei parallelen Änderungen am verwalteten Zustand geschlossen ab. Die Provider-Auswahl ändert nur das Projektionsziel; kopierte oder vom Provider zurückgegebene Pakete gelten bei späterer Verwendung nicht als vertrauenswürdige kanonische Eingabe.
+
+Dieser Slice injiziert Kontext nicht automatisch in Claude Code oder Codex und ergänzt weder Provider-Transport noch persistente Provider-Writes.
+
+Siehe [Provider Context Foundation](provider-context-foundation.md).
+
 Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
 
 Die aktuellen Post-RC3-Oberflächen ergänzen **nicht**:
@@ -146,7 +166,7 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Pro
 
 Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
 
-Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core und die Konflikt- und Drift-Bewertung sind provider-neutrale strukturierte Ausgaben. Sie injizieren sich nicht automatisch in Claude Code, Codex oder einen anderen Provider.
+Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core und die Konflikt- und Drift-Bewertung sind provider-neutrale strukturierte Ausgaben. Provider Context ist eine providerbezogene Projektion für Claude Code und Codex. Keine dieser Oberflächen injiziert sich automatisch in einen Provider oder verleiht providerseitige Mutationsautorität.
 
 ## Semantische Wissenspflege
 
