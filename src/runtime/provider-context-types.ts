@@ -33,7 +33,7 @@ export interface ProviderContextBase {
   frameworkVersion: string;
   provider: ProviderContextProvider;
   projectLocator: string;
-  stableProjectIdentity: null;
+  stableProjectIdentity: string | null;
   projection: ProviderContextProjection;
   mutationAuthorization: false;
   applySupported: false;
