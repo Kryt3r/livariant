@@ -26,7 +26,7 @@ async function delegateToActiveRuntime(): Promise<boolean> {
 
 async function entry(): Promise<void> {
   const command = process.argv[2];
-  if (command !== "drift" && command !== "provider-context" && command !== "prepare" && command !== "authorize") {
+  if (command !== "drift" && command !== "provider-context" && command !== "prepare" && command !== "authorize" && command !== "apply") {
     const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
     if (showsHelp) {
@@ -34,6 +34,7 @@ async function entry(): Promise<void> {
       console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
       console.log("  prepare --input <candidate.json> [--json]");
       console.log("  authorize --input <actionable-proposal.json> [--json]");
+      console.log("  apply --authorization <authorization-id> --input <actionable-proposal.json> [--json]");
     }
     return;
   }
@@ -53,8 +54,13 @@ async function entry(): Promise<void> {
     await handlePrepareCommand(process.argv.slice(3));
     return;
   }
-  const { handleAuthorizeCommand } = await import("./authorize-command.js");
-  await handleAuthorizeCommand(process.argv.slice(3));
+  if (command === "authorize") {
+    const { handleAuthorizeCommand } = await import("./authorize-command.js");
+    await handleAuthorizeCommand(process.argv.slice(3));
+    return;
+  }
+  const { handleApplyCommand } = await import("./apply-command.js");
+  await handleApplyCommand(process.argv.slice(3));
 }
 
 entry().catch((error: unknown) => {
