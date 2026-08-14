@@ -130,7 +130,7 @@ and the Runtime API `buildProviderContext()`.
 
 Provider Context combines the coherent current Project Brain evidence with one bounded explicit external task. Task material remains `session-ephemeral` and cannot assert canonical truth, stable project identity, approval, safety state, or mutation authority.
 
-Provider selection changes projection target only. Copied or provider-returned packets are not trusted canonical input later. The feature does not automatically inject context into Claude Code or Codex and adds no provider transport or persistent provider write.
+Provider selection changes projection target only. Copied or provider-returned packets are not trusted canonical input later. Provider Context itself does not automatically inject context into Claude Code or Codex and adds no persistent provider write; the separate post-RC3 Local MCP Agent Bridge described below supplies one bounded local stdio transport over these existing Core primitives.
 
 See [Provider Context Foundation](provider-context-foundation.md).
 
@@ -243,6 +243,27 @@ This surface adds no trusted issuance ledger, packet authentication, automatic p
 
 See [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md).
 
+### Local MCP Agent Bridge
+
+Current post-RC3 source adds a bounded local stdio MCP-compatible bridge:
+
+```text
+livariant mcp
+```
+
+The bridge implements the stable MCP `2025-11-25` JSON-RPC lifecycle and exposes exactly two tools:
+
+- `livariant_provider_context` delegates to the existing Provider Context builder for one explicit provider/task pair;
+- `livariant_provider_return` delegates to the existing Provider Return intake for one supplied context/return pair.
+
+MCP input is external untrusted input. The stdio transport is newline-delimited UTF-8, byte-bounded, and rejects malformed framing rather than treating partial EOF input as a complete message.
+
+The MCP return tool has no authorization or authorization-ID field. It invokes Provider Return intake without an authorization selector, so matching existing Authority is not searched for or consumed and canonical semantic mutation is not reachable through this WP-012 surface. Candidate evidence can still reach the existing `authorization-required`, review, stale, mismatch, blocked, or no-candidate states, but approval remains a separate existing Livariant operation outside MCP.
+
+WP-012 is local stdio only. It adds no HTTP/TCP listener, remote MCP hosting, cloud dependency, provider process control, automatic session injection, provider-specific Authority, new semantic domain, free-form candidate extraction, batch mutation, or arbitrary repository write.
+
+See [Local MCP Agent Bridge](mcp-agent-bridge.md).
+
 These post-RC3 capabilities are not retroactively part of the immutable RC3 release. They become distributed release capabilities only through a later separately approved release.
 
 The current post-RC3 repository surfaces still do **not** add:
@@ -252,7 +273,7 @@ The current post-RC3 repository surfaces still do **not** add:
 - project fork, split, merge, or project-ID replacement semantics;
 - automatic drift scanning or automatic drift repair;
 - terminology persistence or canonical rename workflows;
-- provider transport or automatic context injection;
+- remote/network provider transport or automatic context injection into provider sessions;
 - LLM-based semantic equivalence;
 - autonomous candidate discovery;
 - goal or knowledge replacement, deletion, or supersession;
@@ -267,7 +288,7 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider ident
 
 Livariant does not claim to manage every provider feature, model-selection option, authentication mechanism, native instruction system, or provider memory surface.
 
-The post-RC3 Context, Proposal, Drift, Stable Identity, Authorization, Semantic Apply, Semantic Maintenance, and Provider Roundtrip surfaces are provider-neutral foundations or local user-controlled operations. Provider Context is a provider-targeted read projection. Provider Roundtrip accepts provider-returned bytes only as untrusted evidence. None treats provider output or provider-side approval claims as Livariant mutation authority.
+The post-RC3 Context, Proposal, Drift, Stable Identity, Authorization, Semantic Apply, Semantic Maintenance, Provider Roundtrip, and Local MCP Agent Bridge surfaces are provider-neutral foundations or local user-controlled operations. Provider Context is a provider-targeted read projection. Provider Roundtrip and MCP return input accept provider/client bytes only as untrusted evidence. None treats provider output or provider-side approval claims as Livariant mutation authority.
 
 ## Semantic knowledge editing
 

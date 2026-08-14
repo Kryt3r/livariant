@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/tests/*.test.js",
-    "test:package": "node scripts/package-smoke.mjs",
+    "test:package": "node scripts/package-smoke.mjs && node scripts/mcp-package-smoke.mjs",
     "test:release-bundle": "node scripts/release-bundle-smoke.mjs",
     "test:public-docs": "node scripts/check-public-doc-consistency.mjs",
     "release:bundle": "node scripts/build-release-bundle.mjs",

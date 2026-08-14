@@ -26,7 +26,7 @@ async function delegateToActiveRuntime(): Promise<boolean> {
 
 async function entry(): Promise<void> {
   const command = process.argv[2];
-  if (command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain") {
+  if (command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
     if (showsHelp) {
@@ -37,6 +37,7 @@ async function entry(): Promise<void> {
       console.log("  authorize --input <actionable-proposal.json> [--json]");
       console.log("  apply --authorization <authorization-id> --input <actionable-proposal.json> [--json]");
       console.log("  maintain --input <candidate.json> [--authorization <authorization-id>] [--json]");
+      console.log("  mcp");
     }
     return;
   }
@@ -71,8 +72,13 @@ async function entry(): Promise<void> {
     await handleApplyCommand(process.argv.slice(3));
     return;
   }
-  const { handleMaintenanceCommand } = await import("./maintenance-command.js");
-  await handleMaintenanceCommand(process.argv.slice(3));
+  if (command === "maintain") {
+    const { handleMaintenanceCommand } = await import("./maintenance-command.js");
+    await handleMaintenanceCommand(process.argv.slice(3));
+    return;
+  }
+  const { handleMcpCommand } = await import("./mcp-command.js");
+  await handleMcpCommand(process.argv.slice(3));
 }
 
 entry().catch((error: unknown) => {

@@ -130,7 +130,7 @@ sowie die Runtime-API `buildProviderContext()`.
 
 Provider Context verbindet kohärente aktuelle Project-Brain-Evidence mit genau einer begrenzten expliziten externen Aufgabe. Task-Material bleibt `session-ephemeral` und kann weder kanonische Wahrheit noch stabile Projektidentität, Zustimmung, Safety-State oder Mutationsautorität behaupten.
 
-Provider-Auswahl ändert nur das Projektionsziel. Kopierte oder vom Provider zurückgegebene Pakete gelten später nicht als vertrauenswürdige kanonische Eingabe. Die Funktion injiziert Kontext nicht automatisch in Claude Code oder Codex und ergänzt weder Provider-Transport noch persistente Provider-Writes.
+Provider-Auswahl ändert nur das Projektionsziel. Kopierte oder vom Provider zurückgegebene Pakete gelten später nicht als vertrauenswürdige kanonische Eingabe. Provider Context selbst injiziert Kontext nicht automatisch in Claude Code oder Codex und ergänzt keine persistenten Provider-Writes; die unten beschriebene separate Post-RC3 Local MCP Agent Bridge stellt einen eng begrenzten lokalen stdio-Transport über diese bestehenden Core-Primitive bereit.
 
 Siehe [Provider Context Foundation](provider-context-foundation.md).
 
@@ -243,6 +243,27 @@ Diese Oberfläche ergänzt kein vertrauenswürdiges Issuance-Ledger, keine Packe
 
 Siehe [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md).
 
+### Local MCP Agent Bridge
+
+Der aktuelle Post-RC3-Quellstand ergänzt eine eng begrenzte lokale stdio-MCP-kompatible Bridge:
+
+```text
+livariant mcp
+```
+
+Die Bridge implementiert den stabilen MCP-`2025-11-25`-JSON-RPC-Lifecycle und stellt genau zwei Tools bereit:
+
+- `livariant_provider_context` delegiert für genau ein explizites Provider-/Task-Paar an den bestehenden Provider-Context-Builder;
+- `livariant_provider_return` delegiert für genau ein bereitgestelltes Context-/Return-Paar an den bestehenden Provider-Return-Intake.
+
+MCP-Eingabe ist externe, nicht vertrauenswürdige Eingabe. Der stdio-Transport ist newline-delimitiertes UTF-8, byte-begrenzt und lehnt fehlerhaftes Framing ab, statt partiellen EOF-Input als vollständige Nachricht zu behandeln.
+
+Das MCP-Return-Tool besitzt kein Authorization- oder Authorization-ID-Feld. Es ruft Provider Return Intake ohne Authorization-Selektor auf; damit wird passende vorhandene Authority weder gesucht noch verbraucht, und kanonische semantische Mutation ist über diese WP-012-Oberfläche nicht erreichbar. Candidate-Evidence kann weiterhin die bestehenden Zustände `authorization-required`, Review, stale, mismatch, blocked oder no-candidate erreichen, Zustimmung bleibt jedoch eine separate bestehende Livariant-Operation außerhalb von MCP.
+
+WP-012 ist ausschließlich lokales stdio. Es ergänzt keinen HTTP-/TCP-Listener, kein Remote-MCP-Hosting, keine Cloud-Abhängigkeit, keine Provider-Prozesssteuerung, keine automatische Session-Injektion, keine provider-spezifische Authority, keine neue semantische Domäne, keine freie Candidate-Extraktion, keine Batch-Mutation und keine beliebigen Repository-Writes.
+
+Siehe [Local MCP Agent Bridge](mcp-agent-bridge.md).
+
 Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
 
 Die aktuellen Post-RC3-Oberflächen ergänzen weiterhin **nicht**:
@@ -252,7 +273,7 @@ Die aktuellen Post-RC3-Oberflächen ergänzen weiterhin **nicht**:
 - Project-Fork-, Split-, Merge- oder Project-ID-Replacement-Semantik;
 - automatisches Drift-Scanning oder automatische Drift-Reparatur;
 - Terminologie-Persistenz oder Canonical-Rename-Workflows;
-- Provider-Transport oder automatische Kontextinjektion;
+- Remote-/Netzwerk-Provider-Transport oder automatische Kontextinjektion in Provider-Sessions;
 - LLM-basierte semantische Gleichwertigkeit;
 - autonome Candidate-Erkennung;
 - Goal- oder Knowledge-Ersetzung, -Löschung oder -Supersession;
@@ -267,7 +288,7 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Provider-Auswahl 
 
 Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
 
-Die Post-RC3 Context-, Proposal-, Drift-, Stable-Identity-, Authorization-, Semantic-Apply-, Semantic-Maintenance- und Provider-Roundtrip-Oberflächen sind provider-neutrale Grundlagen oder lokale nutzergesteuerte Operationen. Provider Context ist eine providerbezogene read-only Projektion. Provider Roundtrip akzeptiert vom Provider zurückgegebene Bytes ausschließlich als nicht vertrauenswürdige Evidence. Keine davon behandelt Provider-Ausgabe oder providerseitige Zustimmungsbehauptungen als Livariant-Mutationsautorität.
+Die Post-RC3 Context-, Proposal-, Drift-, Stable-Identity-, Authorization-, Semantic-Apply-, Semantic-Maintenance-, Provider-Roundtrip- und Local-MCP-Agent-Bridge-Oberflächen sind provider-neutrale Grundlagen oder lokale nutzergesteuerte Operationen. Provider Context ist eine providerbezogene read-only Projektion. Provider Roundtrip und MCP-Return-Eingaben akzeptieren Provider-/Client-Bytes ausschließlich als nicht vertrauenswürdige Evidence. Keine davon behandelt Provider-Ausgabe oder providerseitige Zustimmungsbehauptungen als Livariant-Mutationsautorität.
 
 ## Semantische Wissenspflege
 
