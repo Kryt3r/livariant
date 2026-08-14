@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
+import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { frameHashField, type ProjectContextBaseline } from "./project-context-material.js";
 import {
   buildSemanticProposal,
@@ -13,6 +14,7 @@ import type { DoctorFinding } from "./doctor.js";
 export const ACTIONABLE_PROPOSAL_SCHEMA_VERSION = 1;
 export const ACTIONABLE_PROPOSAL_FILE_MAX_BYTES = 128 * 1024;
 const ACTIONABLE_PROPOSAL_DIGEST_DOMAIN = "livariant:actionable-proposal:v1";
+const PROJECT_CONTEXT_BASELINE_DOMAIN = "livariant:project-context-baseline:v1";
 
 export interface ActionableProposalActionability {
   authorizationEligible: true;
@@ -213,7 +215,13 @@ export async function buildActionableProposal(
 
 function parseBaseline(value: unknown): ProjectContextBaseline {
   if (!plainObject(value)) throw new Error("Actionable proposal baseline is invalid.");
-  if (value.algorithm !== "sha256" || typeof value.digest !== "string" || typeof value.schemaVersion !== "number") {
+  if (
+    value.algorithm !== "sha256"
+    || value.domain !== PROJECT_CONTEXT_BASELINE_DOMAIN
+    || typeof value.digest !== "string"
+    || !/^[a-f0-9]{64}$/.test(value.digest)
+    || typeof value.schemaVersion !== "number"
+  ) {
     throw new Error("Actionable proposal baseline is invalid.");
   }
   return value as unknown as ProjectContextBaseline;
@@ -229,6 +237,7 @@ function parseScope(value: unknown): ActionableProposalScope {
     throw new Error("Actionable proposal mutation scope domain is invalid.");
   }
   if (value.changeKind !== "add" && value.changeKind !== "supersede") throw new Error("Actionable proposal mutation scope change kind is invalid.");
+  if (value.changeKind === "supersede" && value.domain !== "project-decision") throw new Error("Only project decisions support actionable supersession.");
   if (typeof value.proposedStatement !== "string" || !value.proposedStatement.trim()) throw new Error("Actionable proposal mutation scope statement is invalid.");
   if (value.changeKind === "supersede" && (typeof value.targetDecisionId !== "string" || !value.targetDecisionId)) {
     throw new Error("Actionable proposal supersession target is invalid.");
@@ -262,10 +271,20 @@ export function parseActionableProposal(value: unknown): ActionableProposal {
   ]);
   if (value.schemaVersion !== 1 || value.actionableProposalVersion !== 1) throw new Error("Actionable proposal schema version is unsupported.");
   if (typeof value.actionableProposalId !== "string" || !value.actionableProposalId.startsWith("actionable-proposal-v1:")) throw new Error("Actionable proposal id is invalid.");
-  if (!plainObject(value.materialDigest) || value.materialDigest.algorithm !== "sha256" || value.materialDigest.domain !== ACTIONABLE_PROPOSAL_DIGEST_DOMAIN || typeof value.materialDigest.digest !== "string") {
+  if (
+    !plainObject(value.materialDigest)
+    || value.materialDigest.algorithm !== "sha256"
+    || value.materialDigest.domain !== ACTIONABLE_PROPOSAL_DIGEST_DOMAIN
+    || typeof value.materialDigest.digest !== "string"
+    || !/^[a-f0-9]{64}$/.test(value.materialDigest.digest)
+  ) {
     throw new Error("Actionable proposal digest is invalid.");
   }
-  if (typeof value.generatedAt !== "string" || typeof value.projectLocator !== "string" || typeof value.stableProjectIdentity !== "string") {
+  if (
+    typeof value.generatedAt !== "string"
+    || typeof value.projectLocator !== "string"
+    || !isStableProjectIdentity(value.stableProjectIdentity)
+  ) {
     throw new Error("Actionable proposal identity fields are invalid.");
   }
   const candidate = parseSemanticProposalCandidate(value.candidate);
