@@ -15,17 +15,25 @@ Schema version 1 currently supports:
 - `project-goal` with `add`;
 - `project-knowledge` with `add`.
 
-Candidate files are external input. The `origin` field is reported as an unverified origin claim and does not establish approval or mutation authority.
+Candidate files are external input. The `origin` field is reported as an unverified origin claim and does not establish approval, project identity, or mutation authority.
 
-A proposal is bound to the same material Project Brain baseline used by Project Context Snapshot. Project Brain changes during construction cause a blocked result.
+A proposal is bound to the same coherent material Project Brain state used by Project Context Snapshot. For a valid schema-2 Project Brain, the proposal also includes the canonical logical `stableProjectIdentity` captured from the same managed `metadata.json` state. Historical schema-1 projects expose `stableProjectIdentity: null` until explicit migration.
+
+The stable project identity is part of the proposal material used for deterministic proposal identity. It identifies the logical Project Brain lineage; it does not make a proposal executable or authorized. Project Brain changes during construction cause a blocked result.
 
 Every current proposal is review-only and makes zero changes:
 
 ```text
 reviewOnly: true
+mutationAuthorization: false
 applySupported: false
+authorizationEligible: false
 changesMade: 0
 ```
+
+Identity equality alone does not establish approval, anti-replay freshness, unique checkout identity, or trusted returned proposal state. A later material action must re-read canonical state.
+
+See [Stable Project Identity Foundation](stable-project-identity-foundation.md).
 
 ## Decision proposals
 
@@ -51,6 +59,6 @@ Input limits remain 64 KiB for the candidate file, 4 KiB for the proposed statem
 
 Successful proposal construction exits with status `0`. Invalid candidate input and blocked construction use non-zero status values and distinct JSON result states.
 
-This capability still does not add proposal application, automatic drift scanning, terminology persistence, provider transport, stable project identity, LLM semantic comparison, autonomous candidate discovery, goal or knowledge replacement, or goal or knowledge supersession.
+This capability still does not add proposal application, proposal-bound authorization, authorization replay state, automatic drift scanning, terminology persistence, provider transport, LLM semantic comparison, autonomous candidate discovery, goal or knowledge replacement, or goal or knowledge supersession.
 
-`v0.1.0-rc.3` remains unchanged. These capabilities are post-RC3 repository development until a later separately approved release.
+`v0.1.0-rc.3` remains unchanged. Stable Project Identity and these proposal capabilities are post-RC3 repository development until a later separately approved release.
