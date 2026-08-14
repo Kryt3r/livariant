@@ -148,6 +148,19 @@ async function executeAuthorizedMutation(
   throw new Error("Authorized semantic mutation scope is unsupported.");
 }
 
+async function tryAlignExistingFailure(
+  authorizationId: string,
+  proposal: ActionableProposal,
+  projectRoot: string,
+): Promise<boolean> {
+  try {
+    await reconcileFailedAuthorizationApplication(authorizationId, proposal, projectRoot);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function enterApplyingState(
   authorizationId: string,
   proposal: ActionableProposal,
@@ -167,6 +180,9 @@ async function enterApplyingState(
       await reconcilePreMutationAuthorization(authorizationId, proposal, projectRoot);
       return;
     } catch (reconcileError) {
+      if (await tryAlignExistingFailure(authorizationId, proposal, projectRoot)) {
+        throw new Error("Semantic apply Authority is already failed-recovery-required; project evidence was aligned forward and cannot be reused.");
+      }
       const ready = readyError instanceof Error ? readyError.message : "fresh Authority verification failed";
       const reconcile = reconcileError instanceof Error ? reconcileError.message : "pre-mutation reconciliation failed";
       throw new Error(`Semantic apply is not safely consumable: ${ready}; reconciliation refused: ${reconcile}`);
@@ -182,6 +198,9 @@ async function enterApplyingState(
       await reconcilePreMutationAuthorization(authorizationId, proposal, projectRoot);
       return;
     } catch (reconcileError) {
+      if (await tryAlignExistingFailure(authorizationId, proposal, projectRoot)) {
+        throw new Error("Authority consumption previously failed and is recovery-required; project evidence was aligned forward.");
+      }
       const begin = beginError instanceof Error ? beginError.message : "Authority consumption failed";
       const reconcile = reconcileError instanceof Error ? reconcileError.message : "pre-mutation reconciliation failed";
       throw new Error(`Authority consumption did not complete safely and requires recovery: ${begin}; reconciliation refused: ${reconcile}`);
