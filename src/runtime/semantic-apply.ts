@@ -11,6 +11,10 @@ import {
   completeAuthorizationApplication,
   failAuthorizationApplication,
 } from "./authorization.js";
+import {
+  reconcileFailedAuthorizationApplication,
+  reconcilePreMutationAuthorization,
+} from "./semantic-apply-reconciliation.js";
 import { recordAcceptedDecision, supersedeAcceptedDecision } from "./canonical-change.js";
 import { addConfirmedGoal, addConfirmedKnowledge } from "./canonical-knowledge-change.js";
 import { readProjectContextManagedInputs } from "./project-context-material.js";
@@ -144,6 +148,67 @@ async function executeAuthorizedMutation(
   throw new Error("Authorized semantic mutation scope is unsupported.");
 }
 
+async function enterApplyingState(
+  authorizationId: string,
+  proposal: ActionableProposal,
+  projectRoot: string,
+  options: SemanticApplyOptions,
+): Promise<void> {
+  let readyError: unknown;
+  try {
+    await assertAuthorizationReadyForApply(authorizationId, proposal, projectRoot);
+  } catch (error) {
+    readyError = error;
+  }
+
+  if (readyError !== undefined) {
+    try {
+      await assertProposalStillCurrent(proposal, projectRoot);
+      await reconcilePreMutationAuthorization(authorizationId, proposal, projectRoot);
+      return;
+    } catch (reconcileError) {
+      const ready = readyError instanceof Error ? readyError.message : "fresh Authority verification failed";
+      const reconcile = reconcileError instanceof Error ? reconcileError.message : "pre-mutation reconciliation failed";
+      throw new Error(`Semantic apply is not safely consumable: ${ready}; reconciliation refused: ${reconcile}`);
+    }
+  }
+
+  await options.beforeConsume?.();
+  try {
+    await beginAuthorizationApplication(authorizationId, proposal, projectRoot);
+  } catch (beginError) {
+    try {
+      await assertProposalStillCurrent(proposal, projectRoot);
+      await reconcilePreMutationAuthorization(authorizationId, proposal, projectRoot);
+      return;
+    } catch (reconcileError) {
+      const begin = beginError instanceof Error ? beginError.message : "Authority consumption failed";
+      const reconcile = reconcileError instanceof Error ? reconcileError.message : "pre-mutation reconciliation failed";
+      throw new Error(`Authority consumption did not complete safely and requires recovery: ${begin}; reconciliation refused: ${reconcile}`);
+    }
+  }
+}
+
+async function terminalizeFailure(
+  authorizationId: string,
+  proposal: ActionableProposal,
+  projectRoot: string,
+): Promise<void> {
+  try {
+    await failAuthorizationApplication(authorizationId, projectRoot);
+    return;
+  } catch (terminalError) {
+    try {
+      await reconcileFailedAuthorizationApplication(authorizationId, proposal, projectRoot);
+      return;
+    } catch (reconcileError) {
+      const terminal = terminalError instanceof Error ? terminalError.message : "authorization failure transition failed";
+      const reconcile = reconcileError instanceof Error ? reconcileError.message : "failure reconciliation failed";
+      throw new Error(`Authorization could not be terminalized safely: ${terminal}; reconciliation refused: ${reconcile}`);
+    }
+  }
+}
+
 export async function applyActionableProposal(
   authorizationId: string,
   proposalInput: ActionableProposal,
@@ -154,11 +219,8 @@ export async function applyActionableProposal(
   const project = discoverProject(projectPath);
   let consumed = false;
 
-  await assertAuthorizationReadyForApply(authorizationId, proposal, project.root);
-  await options.beforeConsume?.();
-
   try {
-    await beginAuthorizationApplication(authorizationId, proposal, project.root);
+    await enterApplyingState(authorizationId, proposal, project.root, options);
     consumed = true;
     await options.afterConsume?.();
     await assertProposalStillCurrent(proposal, project.root);
@@ -179,11 +241,11 @@ export async function applyActionableProposal(
   } catch (error) {
     if (!consumed) throw error;
     try {
-      await failAuthorizationApplication(authorizationId, project.root);
+      await terminalizeFailure(authorizationId, proposal, project.root);
     } catch (terminalError) {
       const original = error instanceof Error ? error.message : "semantic mutation failed";
       const terminal = terminalError instanceof Error ? terminalError.message : "authorization terminalization failed";
-      throw new Error(`Semantic apply failed after Authority consumption and requires recovery: ${original}; terminalization also failed: ${terminal}`);
+      throw new Error(`Semantic apply failed after Authority consumption and requires recovery: ${original}; ${terminal}`);
     }
     throw new Error(`Semantic apply failed after Authority consumption and is recovery-required: ${error instanceof Error ? error.message : "semantic mutation failed"}`);
   }
