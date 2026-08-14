@@ -17,7 +17,13 @@ import {
 } from "./semantic-apply-reconciliation.js";
 import { recordAcceptedDecision, supersedeAcceptedDecision } from "./canonical-change.js";
 import { addConfirmedGoal, addConfirmedKnowledge } from "./canonical-knowledge-change.js";
-import { readProjectContextManagedInputs } from "./project-context-material.js";
+import {
+  PROJECT_CONTEXT_MANAGED_INPUTS,
+  buildProjectContextBaseline,
+  projectContextManagedInputsEqual,
+  readProjectContextManagedInputs,
+  type ProjectContextManagedInputName,
+} from "./project-context-material.js";
 import { readProjectBrainSemanticRegions } from "./project-brain-semantics.js";
 
 export interface SemanticApplyOptions {
@@ -38,6 +44,8 @@ export interface SemanticApplyResult {
   semanticChangesMade: 1;
 }
 
+type ManagedInputs = Map<ProjectContextManagedInputName, Buffer>;
+
 function sameProposalMaterial(left: ActionableProposal, right: ActionableProposal): boolean {
   return left.actionableProposalId === right.actionableProposalId
     && left.materialDigest.digest === right.materialDigest.digest
@@ -52,6 +60,13 @@ function sameProposalMaterial(left: ActionableProposal, right: ActionableProposa
     && left.mutationScope.targetDecisionId === right.mutationScope.targetDecisionId;
 }
 
+function sameBaseline(left: ActionableProposal["baseline"], right: ActionableProposal["baseline"]): boolean {
+  return left.algorithm === right.algorithm
+    && left.domain === right.domain
+    && left.digest === right.digest
+    && left.schemaVersion === right.schemaVersion;
+}
+
 async function assertProposalStillCurrent(proposal: ActionableProposal, projectRoot: string): Promise<void> {
   const rebuilt = await buildActionableProposal(proposal.candidate, projectRoot);
   if (rebuilt.state !== "actionable-proposal" || !sameProposalMaterial(proposal, rebuilt.proposal)) {
@@ -59,18 +74,59 @@ async function assertProposalStillCurrent(proposal: ActionableProposal, projectR
   }
 }
 
-async function readSemanticRegions(projectRoot: string) {
-  const inputs = await readProjectContextManagedInputs(resolve(projectRoot, ".project-brain"));
-  return readProjectBrainSemanticRegions(inputs);
+async function captureCoherentManagedState(projectRoot: string): Promise<ManagedInputs> {
+  const brainPath = resolve(projectRoot, ".project-brain");
+  const first = await readProjectContextManagedInputs(brainPath);
+  const second = await readProjectContextManagedInputs(brainPath);
+  if (!projectContextManagedInputsEqual(first, second)) {
+    throw new Error("Project Brain changed while Semantic Apply was capturing managed state; refusing a mixed-time verification snapshot.");
+  }
+  return second;
 }
 
-export async function verifySemanticApplyPostcondition(
-  proposalInput: ActionableProposal,
-  projectPath: string = process.cwd(),
-): Promise<void> {
-  const proposal = parseActionableProposal(proposalInput);
-  const project = discoverProject(projectPath);
-  const regions = await readSemanticRegions(project.root);
+async function captureAuthorizedPreState(proposal: ActionableProposal, projectRoot: string): Promise<ManagedInputs> {
+  const captured = await captureCoherentManagedState(projectRoot);
+  const baseline = buildProjectContextBaseline(captured, proposal.baseline.schemaVersion);
+  if (!sameBaseline(baseline, proposal.baseline)) {
+    throw new Error("Managed Project Brain state no longer matches the exact authorized pre-mutation baseline.");
+  }
+  return captured;
+}
+
+function authorizedTargetFile(proposal: ActionableProposal): ProjectContextManagedInputName {
+  if (proposal.mutationScope.domain === "project-decision") return "decisions.md";
+  if (proposal.mutationScope.domain === "project-goal") return "goals.md";
+  if (proposal.mutationScope.domain === "project-knowledge") return "knowledge.md";
+  throw new Error("Semantic apply mutation scope has no supported managed target file.");
+}
+
+function assertExactManagedDelta(
+  proposal: ActionableProposal,
+  before: ReadonlyMap<ProjectContextManagedInputName, Buffer>,
+  after: ReadonlyMap<ProjectContextManagedInputName, Buffer>,
+): void {
+  const target = authorizedTargetFile(proposal);
+  for (const name of PROJECT_CONTEXT_MANAGED_INPUTS) {
+    const beforeBytes = before.get(name);
+    const afterBytes = after.get(name);
+    if (!beforeBytes || !afterBytes) throw new Error(`Semantic Apply exact-delta verification is missing managed input ${name}.`);
+    if (name === target) {
+      if (beforeBytes.equals(afterBytes)) {
+        throw new Error(`Semantic Apply expected the authorized target ${target} to change, but its bytes are unchanged.`);
+      }
+      continue;
+    }
+    if (!beforeBytes.equals(afterBytes)) {
+      throw new Error(`Semantic Apply detected an unrelated managed Project Brain change in ${name}; refusing terminal success.`);
+    }
+  }
+}
+
+function assertSemanticPostconditionFromInputs(
+  proposal: ActionableProposal,
+  inputs: ReadonlyMap<ProjectContextManagedInputName, Buffer>,
+): void {
+  const regions = readProjectBrainSemanticRegions(inputs);
   if (regions.decisionIssues.length > 0) {
     throw new Error(`Semantic apply verification found ambiguous decision history: ${regions.decisionIssues.join("; ")}`);
   }
@@ -112,6 +168,16 @@ export async function verifySemanticApplyPostcondition(
   }
 
   throw new Error("Semantic apply mutation scope is unsupported.");
+}
+
+export async function verifySemanticApplyPostcondition(
+  proposalInput: ActionableProposal,
+  projectPath: string = process.cwd(),
+): Promise<void> {
+  const proposal = parseActionableProposal(proposalInput);
+  const project = discoverProject(projectPath);
+  const captured = await captureCoherentManagedState(project.root);
+  assertSemanticPostconditionFromInputs(proposal, captured);
 }
 
 async function executeAuthorizedMutation(
@@ -243,10 +309,21 @@ export async function applyActionableProposal(
     consumed = true;
     await options.afterConsume?.();
     await assertProposalStillCurrent(proposal, project.root);
+    const authorizedPreState = await captureAuthorizedPreState(proposal, project.root);
+
     await executeAuthorizedMutation(proposal, project.root, options);
     await options.afterPromoteBeforeVerify?.();
-    await verifySemanticApplyPostcondition(proposal, project.root);
+
+    const verifiedPostState = await captureCoherentManagedState(project.root);
+    assertExactManagedDelta(proposal, authorizedPreState, verifiedPostState);
+    assertSemanticPostconditionFromInputs(proposal, verifiedPostState);
+
     await options.beforeComplete?.();
+    const beforeCompletion = await captureCoherentManagedState(project.root);
+    if (!projectContextManagedInputsEqual(verifiedPostState, beforeCompletion)) {
+      throw new Error("Managed Project Brain state changed after Semantic Apply verification and before Authority completion.");
+    }
+
     await completeAuthorizationApplication(authorizationId, project.root);
     return {
       state: "completed",
