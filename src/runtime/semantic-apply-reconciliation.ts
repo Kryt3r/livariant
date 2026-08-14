@@ -231,7 +231,7 @@ export async function reconcilePreMutationAuthorization(
   const initial = await readValidatedActive(project.root);
   if (!projectBindingMatchesProposal(initial.record, authorizationId, proposal)) throw new Error("Active project authorization does not match the exact Actionable Proposal during reconciliation.");
 
-  return withReconciliationLock(project.root, initial.record, async (receiptPath) => {
+  return withReconciliationLock<"applying">(project.root, initial.record, async (receiptPath) => {
     const current = await readValidatedActive(project.root);
     if (!projectBindingMatchesProposal(current.record, authorizationId, proposal)) throw new Error("Project authorization binding changed during reconciliation.");
     const machine = await readMachine(receiptPath, current.record);
