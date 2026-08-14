@@ -15,17 +15,25 @@ Schema-Version 1 unterstützt aktuell:
 - `project-goal` mit `add`;
 - `project-knowledge` mit `add`.
 
-Candidate-Dateien sind externe Eingaben. Das Feld `origin` wird als nicht verifizierte Herkunftsangabe ausgewiesen.
+Candidate-Dateien sind externe Eingaben. Das Feld `origin` wird als nicht verifizierte Herkunftsangabe ausgewiesen und begründet weder Zustimmung noch Projektidentität oder Mutationsautorität.
 
-Ein Proposal ist an dieselbe materiale Project-Brain-Baseline gebunden wie der Project Context Snapshot. Änderungen am Project Brain während der Erzeugung führen zu einem blockierten Ergebnis.
+Ein Proposal ist an denselben kohärenten materialen Project-Brain-Zustand gebunden wie der Project Context Snapshot. Für ein gültiges schema-2 Project Brain enthält das Proposal zusätzlich die kanonische logische `stableProjectIdentity`, die aus demselben verwalteten `metadata.json`-Zustand erfasst wird. Historische schema-1 Projekte melden bis zur ausdrücklichen Migration `stableProjectIdentity: null`.
+
+Die stabile Projektidentität ist Teil des materialen Proposal-Inhalts, aus dem die deterministische Proposal-Identität gebildet wird. Sie identifiziert die logische Project-Brain-Linie; dadurch wird ein Proposal weder ausführbar noch autorisiert. Änderungen am Project Brain während der Erzeugung führen zu einem blockierten Ergebnis.
 
 Jedes aktuelle Proposal ist nur für das Review bestimmt und macht keine Änderungen:
 
 ```text
 reviewOnly: true
+mutationAuthorization: false
 applySupported: false
+authorizationEligible: false
 changesMade: 0
 ```
+
+Bloße Identitätsgleichheit begründet weder Zustimmung noch Anti-Replay-Aktualität, eindeutige Checkout-Identität oder Vertrauenswürdigkeit eines zurückgegebenen Proposals. Eine spätere materiale Aktion muss den kanonischen Zustand erneut lesen.
+
+Siehe [Stable Project Identity Foundation](stable-project-identity-foundation.md).
 
 ## Decision-Proposals
 
@@ -51,6 +59,6 @@ Die Eingabegrenzen bleiben bei 64 KiB für die Candidate-Datei, 4 KiB für die v
 
 Eine erfolgreich erzeugte Proposal-Ausgabe endet mit Status `0`. Ungültige Candidate-Eingaben und blockierte Erzeugung verwenden von null verschiedene Statuswerte und unterscheidbare JSON-Ergebniszustände.
 
-Diese Funktion ergänzt weiterhin kein Proposal Apply, kein automatisches Drift-Scanning, keine Terminologie-Persistenz, keinen Provider-Transport, keine stabile Projektidentität, keinen LLM-basierten semantischen Vergleich, keine autonome Kandidatenfindung, keinen Goal- oder Knowledge-Ersatz und keine Goal- oder Knowledge-Supersession.
+Diese Funktion ergänzt weiterhin kein Proposal Apply, keine proposal-bound Authorization, keinen Authorization-Replay-Zustand, kein automatisches Drift-Scanning, keine Terminologie-Persistenz, keinen Provider-Transport, keinen LLM-basierten semantischen Vergleich, keine autonome Kandidatenfindung, keinen Goal- oder Knowledge-Ersatz und keine Goal- oder Knowledge-Supersession.
 
-`v0.1.0-rc.3` bleibt unverändert. Diese Fähigkeiten sind Post-RC3-Repository-Entwicklung, bis ein späteres Release separat freigegeben wird.
+`v0.1.0-rc.3` bleibt unverändert. Stable Project Identity und diese Proposal-Funktionen sind Post-RC3-Repository-Entwicklung, bis ein späteres Release separat freigegeben wird.
