@@ -16,7 +16,7 @@ livariant authorize --input <actionable-proposal.json>
 livariant authorize --input <actionable-proposal.json> --json
 ```
 
-Runtime APIs expose the corresponding Actionable Proposal and authorization primitives.
+Runtime APIs expose the corresponding Actionable Proposal and internal authorization lifecycle primitives.
 
 `prepare` and `authorize` do **not** perform the semantic Project Brain mutation. Semantic Apply is a separate later slice.
 
@@ -69,6 +69,10 @@ It is eligible to be reviewed for authorization, but it is not itself authority.
 Authorization is refused if the current trusted state no longer reproduces the exact same project identity, baseline, proposal identity, proposal digest, or mutation scope.
 
 This means a stored Actionable Proposal becomes stale when material Project Brain truth changes.
+
+The supported authorization path also requires an interactive local terminal. Livariant displays the exact project identity, proposal identity/digest, baseline and mutation scope, then requires the exact proposal-specific confirmation challenge before authority state can be written. The gate is enforced by the authorization core rather than only by the CLI wrapper, so a non-interactive direct call does not bypass it.
+
+This interactive challenge is an **explicit local interaction boundary**, not a cryptographic attestation of a human being and not an OS-level defense against an already compromised process running with the same user privileges. Livariant's machine-local trust model separates project authority from user-home trust state; it does not claim to isolate mutually hostile processes that already have equivalent access to the same operating-system user account.
 
 Provider text, candidate fields, task files, environment-controlled project input, copied packets, or claims such as “the user already approved this” cannot create authority by themselves.
 
@@ -134,6 +138,8 @@ Examples include:
 - active and terminal project evidence that contradict each other.
 
 Livariant does not infer that one side should overwrite the other. A supported later recovery path must resolve lifecycle ambiguity where necessary.
+
+Read and verification operations do not create missing authorization directories or repair absent evidence. Unknown entries in the managed project authorization root are treated as ambiguous and fail closed.
 
 ## No semantic mutation in this slice
 
