@@ -14,6 +14,7 @@ import {
   planNormalUpdate,
   type ReleaseDescriptor,
 } from "../src/runtime/index.js";
+import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
 import { NORMAL_TARGET_VERSION, TEST_SOURCE_CHANNEL, TEST_SOURCE_VERSION } from "./release-test-baseline.js";
 
@@ -55,6 +56,7 @@ test("discovery observes but never ingests a symlinked package manifest", async 
 test("an interrupted migration blocks a previously valid normal-update plan", async () => {
   await withProject(async (path) => {
     await initializeProject(path, { authorized: true });
+    await makeLegacySchema1Project(path);
     const normalPlan = await planNormalUpdate(path, [normalRelease]);
     assert.ok(normalPlan);
     const migrationPlan = await planMigrationUpdate(path, migrationRelease);
@@ -76,6 +78,7 @@ test("an interrupted migration blocks a previously valid normal-update plan", as
 test("normal update planning is blocked while migration recovery is unresolved", async () => {
   await withProject(async (path) => {
     await initializeProject(path, { authorized: true });
+    await makeLegacySchema1Project(path);
     const migrationPlan = await planMigrationUpdate(path, migrationRelease);
     await applyMigrationUpdate(path, migrationPlan, { ...migrationApplyOptions(), interruptAfterMutation: true } as Parameters<typeof applyMigrationUpdate>[2]);
     await assert.rejects(() => planNormalUpdate(path, [normalRelease]), /recovery is required|lifecycle evidence/i);
