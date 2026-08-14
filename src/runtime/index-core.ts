@@ -43,6 +43,30 @@ export type {
   SemanticProposalResult,
   SupersedeDecisionProposalCandidate,
 } from "./semantic-proposal.js";
+export {
+  ACTIONABLE_PROPOSAL_FILE_MAX_BYTES,
+  ACTIONABLE_PROPOSAL_SCHEMA_VERSION,
+  buildActionableProposal,
+  parseActionableProposal,
+  readActionableProposalFile,
+} from "./actionable-proposal.js";
+export type {
+  ActionableProposal,
+  ActionableProposalActionability,
+  ActionableProposalBuildOptions,
+  ActionableProposalResult,
+  ActionableProposalScope,
+  BlockedActionableProposalResult,
+  ReadyActionableProposalResult,
+} from "./actionable-proposal.js";
+export {
+  AUTHORIZATION_SCHEMA_VERSION,
+  inspectAuthorizationAudit,
+} from "./authorization.js";
+export type {
+  AuthorizationState,
+  ProjectAuthorizationRecord,
+} from "./authorization.js";
 export { listAcceptedDecisions, recordAcceptedDecision, supersedeAcceptedDecision } from "./canonical-change.js";
 export type { CanonicalDecisionChangeOptions, SupersedeDecisionInput, SupersedeDecisionResult } from "./canonical-change.js";
 export { addConfirmedGoal, addConfirmedKnowledge } from "./canonical-knowledge-change.js";
