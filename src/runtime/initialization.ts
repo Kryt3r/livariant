@@ -1,6 +1,7 @@
 import { FRAMEWORK_VERSION, PROJECT_BRAIN_SCHEMA_VERSION, UPDATE_CHANNEL } from "../lifecycle/state.js";
 import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
 import { discoverProject } from "../project/discovery.js";
+import { generateStableProjectIdentity } from "../project-brain/identity.js";
 import { ProjectBrainStore, type BootstrapOptions } from "../project-brain/store.js";
 import type { ProjectBrainHealth, ProjectBrainMetadata } from "../project-brain/types.js";
 
@@ -130,6 +131,7 @@ export async function initializeProject(
     },
     projectBrain: {
       schemaVersion: PROJECT_BRAIN_SCHEMA_VERSION,
+      projectId: generateStableProjectIdentity(),
     },
   };
 
