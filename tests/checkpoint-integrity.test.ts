@@ -11,12 +11,14 @@ import {
   planRecovery,
   readMigrationJournal,
 } from "../src/runtime/index.js";
+import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
 
 async function withInterruptedMigration(run: (path: string) => Promise<void>): Promise<void> {
   const path = await mkdtemp(join(tmpdir(), "pbf-checkpoint-integrity-"));
   try {
     await initializeProject(path, { authorized: true });
+    await makeLegacySchema1Project(path);
     const plan = await planMigrationUpdate(path, migrationRelease);
     await applyMigrationUpdate(path, plan, {
       ...migrationApplyOptions(),
