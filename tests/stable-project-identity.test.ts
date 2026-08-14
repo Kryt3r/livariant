@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -49,6 +49,7 @@ test("moving or copying a Project Brain does not rotate or pretend to uniquify l
   const moved = join(parent, "moved");
   const copied = join(parent, "copied");
   try {
+    await mkdir(original);
     await initializeProject(original, { authorized: true });
     const identity = await readProjectId(original);
 
