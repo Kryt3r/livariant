@@ -217,6 +217,32 @@ Diese Komposition ergänzt keine automatische Candidate-Erkennung, keinen Provid
 
 Siehe [Agent-Assisted Semantic Maintenance](semantic-maintenance.md).
 
+### Provider Roundtrip Evidence Intake
+
+Der aktuelle Post-RC3-Quellstand ergänzt außerdem die lokale Return-Hälfte von Provider Context:
+
+```text
+livariant provider-return --context <provider-context.json> --input <provider-return.json>
+livariant provider-return --context <provider-context.json> --input <provider-return.json> --json
+livariant provider-return --context <provider-context.json> --input <provider-return.json> --authorization <authorization-id> --json
+```
+
+sowie die Runtime-API `processProviderReturn()`.
+
+Beide bereitgestellten Dateien sind externe, nicht vertrauenswürdige Eingabe. Livariant parst genau eine ready Provider-Context-Kopie und genau ein Provider-Return-Paket strikt, berechnet deterministische Packet-/Task-Korrelation neu und rekonstruiert anschließend die aktuelle kanonische Project-Brain-Identität und materiale Baseline frisch, bevor ein zurückgegebener Candidate interpretiert wird.
+
+Packet-IDs, Task-/Baseline-Echos, Echos der stabilen Project Identity und schema-gültige kopierte Provider-Context-Evidence sind **nur Korrelation**. Sie beweisen weder historische Livariant-Issuance noch Provider-Konsum, kanonische Wahrheit, Zustimmung oder Authority. Ein fabriziertes, aber selbstkonsistentes Paketpaar darf keine stärkere Fähigkeit erhalten als die direkte Übergabe desselben typisierten Candidates an `maintain`.
+
+Wenn sich der aktuelle materiale Project-Brain-Zustand verändert hat, lautet der Return-State `stale-context`; er wird nicht stillschweigend an die neuere Baseline gebunden. Andere Korrelationsabweichungen ergeben `mismatched-context`. Ein blockiertes aktuelles Project Brain bleibt blockiert.
+
+Ein kohärenter Return darf `null` oder genau einen bestehenden schema-konformen Candidate enthalten. Ohne explizite Authorization-ID wird passende bestehende Authority niemals implizit verbraucht. Mit expliziter Authorization-ID ist der Wert lediglich ein Selektor für den bestehenden proposal-gebundenen Authorization-/Semantic-Apply-Pfad.
+
+Der Roundtrip übergibt außerdem die frisch verifizierte erwartete Project Identity und materiale Baseline als auf diesen Aufruf begrenzte Kohärenzbedingungen an `maintain`. Dadurch blockiert eine Zustandsänderung vor der Proposal-Rekonstruktion vor Actionable-Proposal-Erstellung, Authority-Lookup/-Consumption oder Mutation.
+
+Diese Oberfläche ergänzt kein vertrauenswürdiges Issuance-Ledger, keine Packet-Authentifizierung, keine automatische Provider-Injektion oder Transport, keine provider-spezifische Authorization, keine automatische freie Candidate-Extraktion, keine Standing-Authorization, keine neue semantische Domäne, keine Batch-Mutation und keine beliebigen Repository-Writes.
+
+Siehe [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md).
+
 Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
 
 Die aktuellen Post-RC3-Oberflächen ergänzen weiterhin **nicht**:
@@ -241,7 +267,7 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Provider-Auswahl 
 
 Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
 
-Die Post-RC3 Context-, Proposal-, Drift-, Stable-Identity-, Authorization-, Semantic-Apply- und Semantic-Maintenance-Oberflächen sind provider-neutrale Grundlagen oder lokale nutzergesteuerte Operationen. Provider Context ist eine providerbezogene read-only Projektion. Keine davon behandelt Provider-Ausgabe oder providerseitige Zustimmungsbehauptungen als Livariant-Mutationsautorität.
+Die Post-RC3 Context-, Proposal-, Drift-, Stable-Identity-, Authorization-, Semantic-Apply-, Semantic-Maintenance- und Provider-Roundtrip-Oberflächen sind provider-neutrale Grundlagen oder lokale nutzergesteuerte Operationen. Provider Context ist eine providerbezogene read-only Projektion. Provider Roundtrip akzeptiert vom Provider zurückgegebene Bytes ausschließlich als nicht vertrauenswürdige Evidence. Keine davon behandelt Provider-Ausgabe oder providerseitige Zustimmungsbehauptungen als Livariant-Mutationsautorität.
 
 ## Semantische Wissenspflege
 
