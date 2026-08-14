@@ -7,6 +7,8 @@ import {
   type JsonRpcResponse,
 } from "../mcp/server.js";
 
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+
 function writeMessage(message: JsonRpcResponse): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
@@ -27,7 +29,8 @@ export async function handleMcpCommand(args: readonly string[]): Promise<void> {
       }
       let value: unknown;
       try {
-        value = parseMcpJsonLine(normalized.toString("utf8"));
+        const decoded = utf8Decoder.decode(normalized);
+        value = parseMcpJsonLine(decoded);
       } catch {
         writeMessage(jsonRpcParseError());
         return;
@@ -86,8 +89,8 @@ export async function handleMcpCommand(args: readonly string[]): Promise<void> {
       if (droppingOversize) {
         writeMessage(jsonRpcOversizeError());
       } else if (pending.length > 0) {
-        enqueueLine(pending);
         pending = Buffer.alloc(0);
+        writeMessage(jsonRpcParseError());
       }
       void queue.finally(resolve);
     });
