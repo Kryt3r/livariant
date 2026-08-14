@@ -53,7 +53,7 @@ The release support claim is deliberately limited to the environments exercised 
 
 ## Post-RC3 repository development
 
-Development after RC3 adds bounded Active Project Intelligence read surfaces that remain unreleased until a later separately approved release.
+Development after RC3 adds bounded Active Project Intelligence read surfaces and supporting Project Brain foundations that remain unreleased until a later separately approved release.
 
 ### Project Context Snapshot
 
@@ -70,9 +70,9 @@ The snapshot is read-only. It exposes confirmed Project Brain context, unresolve
 
 Blocked machine-facing output is distinguishable from clean success with a non-zero CLI status. Concurrent managed Project Brain changes during snapshot construction fail closed instead of producing a mixed clean snapshot.
 
-The snapshot exposes a current project locator but does not invent a stable durable project identity. `stableProjectIdentity` remains `null` in this first contract.
+The snapshot keeps the current project locator separate from stable logical identity. A valid schema-2 Project Brain exposes its canonical UUID as `stableProjectIdentity`; historical schema-1 Project Brains expose `stableProjectIdentity: null` until explicit supported migration. Moving or copying a Project Brain does not turn the ID into a unique checkout or machine identity.
 
-See [Project Context Snapshot](project-context-snapshot.md).
+See [Project Context Snapshot](project-context-snapshot.md) and [Stable Project Identity Foundation](stable-project-identity-foundation.md).
 
 ### Semantic Proposal Core
 
@@ -91,9 +91,9 @@ Schema version 1 currently supports:
 - `project-goal` with `add`;
 - `project-knowledge` with `add`.
 
-Candidate JSON is external untrusted input. Its `origin` field is only an unverified origin claim, never approval or mutation authority.
+Candidate JSON is external untrusted input. Its `origin` field is only an unverified origin claim, never approval, project identity, or mutation authority.
 
-Every current proposal is permanently review-only. It exposes `reviewOnly: true`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`. Proposal identity is deterministic and bound to the same material Project Brain baseline semantics used by Project Context Snapshot. Concurrent managed-state changes fail closed.
+Every current proposal is permanently review-only. It exposes `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`. Proposal identity is deterministic and bound to the same coherent material Project Brain baseline semantics used by Project Context Snapshot. For schema 2, the stable logical project identity is also material to the derived proposal identity. Concurrent managed-state changes fail closed.
 
 Exact active decision, confirmed-goal, and confirmed-knowledge duplicates can be identified. Different text is not declared semantically compatible or conflict-free by this bounded implementation. Decision supersede candidates must name exactly one structured active decision ID. Goal and knowledge proposals are add-only in this slice.
 
@@ -116,7 +116,7 @@ Schema version 1 accepts one explicit observation in the `project-decision`, `pr
 
 The current trusted diagnosis subset is `consistent`, `confirmed-drift`, `historical-match`, `authority-ambiguous`, and `insufficient-evidence`. Different text alone is never treated as proof of drift or contradiction. A strong decision relationship requires an exact structured decision identity where the diagnosis depends on that identity.
 
-Assessment output is derived review evidence only. It exposes `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`. It is bound to the same coherent material Project Brain baseline used by the other Active Project Intelligence read surfaces. Concurrent managed-state changes fail closed.
+Assessment output is derived review evidence only. It exposes `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`. It is bound to the same coherent material Project Brain baseline used by the other Active Project Intelligence read surfaces. For schema 2 it carries the same canonical logical `stableProjectIdentity`. Concurrent managed-state changes fail closed.
 
 This slice does not scan the repository automatically and does not apply or authorize any change.
 
@@ -134,23 +134,36 @@ livariant provider-context --provider <provider> --task <task.txt> --json
 
 and the Runtime API `buildProviderContext()`.
 
-Provider Context combines the same coherent current Project Brain evidence with one explicit external task. Task material is bounded to 64 KiB, remains `session-ephemeral`, and cannot assert canonical project truth, approval, safety state, or mutation authority.
+Provider Context combines the same coherent current Project Brain evidence with one explicit external task. Task material is bounded to 64 KiB, remains `session-ephemeral`, and cannot assert canonical project truth, stable project identity, approval, safety state, or mutation authority.
 
-The packet preserves the Project Brain safety floor, exposes `stableProjectIdentity: null`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`, and fails closed on concurrent managed-state change. Provider selection changes the projection target only; copied or provider-returned packets are not trusted canonical input on later use.
+The packet preserves the Project Brain safety floor. A valid schema-2 Project Brain exposes the same canonical logical `stableProjectIdentity`; historical schema-1 state exposes `null` until explicit migration. The packet continues to expose `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false`, and `changesMade: 0`, and fails closed on concurrent managed-state change. Provider selection changes the projection target only; copied or provider-returned packets are not trusted canonical input on later use.
 
 This slice does not automatically inject context into Claude Code or Codex and adds no provider transport or persistent provider write.
 
 See [Provider Context Foundation](provider-context-foundation.md).
 
+### Stable Project Identity Foundation
+
+Current post-RC3 repository development advances the Project Brain schema to version 2 and adds one required canonical UUID in `projectBrain.projectId`.
+
+Fresh schema-2 initialization generates the logical identity locally from trusted runtime randomness. Existing schema-1 Project Brains receive identity only through the explicit supported `1 -> 2` lifecycle migration; read operations do not silently mint or repair it. Missing or malformed schema-2 identity fails closed.
+
+The ID identifies one logical Project Brain lineage, not one physical checkout, machine, provider session, or user session. Moving or renaming a project does not rotate it, and a byte-for-byte copied Project Brain legitimately retains the same ID.
+
+Identity equality alone is not approval, mutation authorization, anti-replay evidence, machine-local trust, checkpoint integrity, Runtime/release integrity, or proof that a returned provider packet is canonical. The current read-side surfaces remain non-authorizing.
+
+See [Stable Project Identity Foundation](stable-project-identity-foundation.md).
+
 These post-RC3 capabilities are not retroactively part of the immutable RC3 release. They become distributed release capabilities only through a later separately approved release.
 
 The current post-RC3 repository surfaces do **not** add:
 
-- proposal application or mutation authorization;
+- proposal application or proposal-bound mutation authorization;
+- authorization replay state or unique checkout identity;
+- project fork, split, merge, or project-ID replacement semantics;
 - automatic drift scanning or resolution;
-- terminology persistence or lifecycle mutation;
+- terminology persistence or lifecycle mutation beyond the explicitly supported schema migration;
 - provider transport or automatic context injection;
-- a durable stable project identity;
 - LLM-based semantic comparison;
 - autonomous candidate discovery;
 - goal or knowledge replacement, deletion, or supersession;
@@ -166,7 +179,7 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider tells
 
 Livariant does not claim to manage every provider feature, model-selection option, authentication mechanism, native instruction system, or provider memory surface.
 
-The post-RC3 Project Context Snapshot, Semantic Proposal Core, and Conflict and Drift Assessment are provider-neutral structured output. Provider Context is a provider-targeted projection for Claude Code and Codex. None of these surfaces automatically injects itself into a provider or grants provider-side mutation authority.
+The post-RC3 Project Context Snapshot, Semantic Proposal Core, Conflict and Drift Assessment, and Stable Project Identity Foundation are provider-neutral structured foundations or output. Provider Context is a provider-targeted projection for Claude Code and Codex. None of these surfaces automatically injects itself into a provider or grants provider-side mutation authority.
 
 ## Semantic knowledge editing
 
@@ -214,10 +227,10 @@ Project files, the release manifest, `--trusted-source`, and the project-facing 
 
 If exact artifact authority is missing, update stops before npm installation or candidate Runtime attestation.
 
-Schema-changing compatible releases use the same `livariant update` flow and are routed through the migration lifecycle. The currently proven schema-changing path is `1 -> 2`. Unsupported migration paths fail closed.
+Schema-changing compatible releases use the same `livariant update` flow and are routed through the migration lifecycle. The currently proven schema-changing path is `1 -> 2`. In current post-RC3 source that migration creates the required stable logical project ID inside the existing checkpoint/journal/validation/activation/recovery transaction. Unsupported migration paths fail closed.
 
 > [!WARNING]
-> Manually replacing Project Brain files, framework-managed lifecycle state, schema or version metadata, installed Runtime files, Runtime trust records, or release-authorization records is not a supported update method. Doing so bypasses lifecycle authority, compatibility, integrity, checkpoint, activation, and recovery guarantees.
+> Manually replacing Project Brain files, framework-managed lifecycle state, schema or version metadata, stable project identity, installed Runtime files, Runtime trust records, or release-authorization records is not a supported update method. Doing so bypasses lifecycle authority, compatibility, integrity, checkpoint, activation, and recovery guarantees.
 
 ## Recovery support
 
@@ -235,7 +248,7 @@ If late cleanup fails, both the restored Project Brain and the valid checkpoint 
 
 Livariant does not promise to repair arbitrary damaged, manually rewritten, or ambiguous Project Brain state automatically.
 
-When safe semantics cannot be established, diagnosis may deliberately stop and require human resolution.
+When safe semantics cannot be established, diagnosis may deliberately stop and require human resolution. That includes malformed schema-2 identity metadata; reads do not invent replacement IDs.
 
 ## Local-first does not mean trust-free
 
