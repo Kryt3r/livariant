@@ -61,7 +61,8 @@ export interface SemanticMaintenanceCompletedResult {
 export interface SemanticMaintenanceCompletedContextBlockedResult {
   state: "completed-context-blocked";
   apply: SemanticApplyResult;
-  context: BlockedProjectContextSnapshot;
+  context: BlockedProjectContextSnapshot | null;
+  refreshError?: string;
   semanticChangesMade: 1;
 }
 
@@ -204,21 +205,31 @@ export async function maintainSemanticProjectState(
     );
   }
 
-  await options.afterApplyBeforeRefresh?.();
-  const context = await buildProjectContextSnapshot(projectPath);
-  if (context.safetyState !== "clear") {
+  try {
+    await options.afterApplyBeforeRefresh?.();
+    const context = await buildProjectContextSnapshot(projectPath);
+    if (context.safetyState !== "clear") {
+      return {
+        state: "completed-context-blocked",
+        apply,
+        context,
+        semanticChangesMade: 1,
+      };
+    }
+
     return {
-      state: "completed-context-blocked",
+      state: "completed",
       apply,
       context,
       semanticChangesMade: 1,
     };
+  } catch (error) {
+    return {
+      state: "completed-context-blocked",
+      apply,
+      context: null,
+      refreshError: error instanceof Error ? error.message : "Fresh Project Context reconstruction failed after completed semantic mutation.",
+      semanticChangesMade: 1,
+    };
   }
-
-  return {
-    state: "completed",
-    apply,
-    context,
-    semanticChangesMade: 1,
-  };
 }
