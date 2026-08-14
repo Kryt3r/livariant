@@ -33,8 +33,8 @@ authorizationEligible: false
 changesMade: 0
 ```
 
-Automatic provider injection is not implemented, and copied or provider-returned packets are not trusted canonical input on later use. Equality of `stableProjectIdentity` does not make a returned packet trusted or authorize mutation.
+Automatic provider injection is not implemented. Post-RC3 repository source now also exposes a separate local `provider-return` intake surface for correlating one supplied ready Provider Context copy with one structured provider return. The supplied copy and its evidence remain external/untrusted bytes; packet-ID equality or matching `stableProjectIdentity` is correlation only and does not prove historical issuance, canonical truth, approval, or mutation authority.
 
-See [Stable Project Identity Foundation](stable-project-identity-foundation.md).
+See [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md) for the return-side contract and [Stable Project Identity Foundation](stable-project-identity-foundation.md) for logical identity semantics.
 
 This capability is repository development after RC3 and is not part of the immutable `v0.1.0-rc.3` release.
