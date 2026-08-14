@@ -12,6 +12,7 @@ import {
   planMigrationUpdate,
   type ReleaseDescriptor,
 } from "../src/runtime/index.js";
+import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { createRuntimePackageFixture } from "./runtime-package-fixture.js";
 import {
   MIGRATION_TARGET_VERSION,
@@ -51,7 +52,7 @@ test("Livariant update CLI plans read-only, requires explicit trust, and activat
     const release: ReleaseDescriptor = {
       version: targetVersion,
       channel: TEST_SOURCE_CHANNEL,
-      projectBrainSchema: 1,
+      projectBrainSchema: 2,
       compatibility: { from: [TEST_SOURCE_VERSION] },
       sourceId,
       artifact: { id: "runtime-node-cli", sha256: fixture.sha256 },
@@ -91,6 +92,7 @@ test("Livariant recover CLI inspects first and only rolls back after explicit ap
   const fixture = await createRuntimePackageFixture(targetVersion);
   try {
     await initializeProject(projectPath, { authorized: true });
+    await makeLegacySchema1Project(projectPath);
     const release: ReleaseDescriptor = {
       version: targetVersion,
       channel: TEST_SOURCE_CHANNEL,
