@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { initializeProject } from "../src/runtime/index.js";
+import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { NORMAL_TARGET_VERSION, TEST_SOURCE_CHANNEL, TEST_SOURCE_VERSION } from "./release-test-baseline.js";
 import { provisionArtifactAuthorizationForTest } from "./runtime-package-fixture.js";
 
@@ -44,6 +45,7 @@ test("project-supplied Runtime cannot create its own machine release authority b
   const artifactId = "runtime-node-cli";
   try {
     await initializeProject(projectPath, { authorized: true });
+    await makeLegacySchema1Project(projectPath);
     await mkdir(resolve(packageRoot, "dist", "src", "cli"), { recursive: true });
     await mkdir(packRoot, { recursive: true });
     await writeFile(resolve(packageRoot, "package.json"), `${JSON.stringify({
