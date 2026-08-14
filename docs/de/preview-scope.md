@@ -173,17 +173,41 @@ Aufgezeichnete Authority verwendet Dual Evidence: einen projektlokalen Lifecycle
 
 Der Authorization-Lifecycle ist zustandsbehaftet und replay-resistent. Er unterscheidet `authorized`, `applying`, `completed`, `failed-recovery-required` und `invalidated`; ein machine-local Consumption-Lock verhindert, dass zwei Consumer dieselbe Authorization erfolgreich beginnen. Abgeschlossene und failed/recovery-required Authorizations sind terminal und können durch Replay kopierter Records nicht wieder zu nutzbarer Zustimmung werden.
 
-Diese Foundation führt weiterhin **null semantische Apply-Mutationen** aus. Authorization-Records können für einen später separat implementierten Semantic-Apply-Pfad vorbereitet werden, aber die aktuelle unterstützte WP-008-Oberfläche kann damit weder Goals noch Knowledge oder Decisions verändern.
+`prepare` und `authorize` selbst führen weiterhin **null semantische Mutationen** aus. Ihre eng gebundene Dual Evidence kann ausschließlich vom separaten Semantic-Apply-Pfad unten verbraucht werden.
 
 Bestehende Semantic-Proposal-, Conflict/Drift- und Provider-Context-Ausgaben bleiben nicht autorisierend. Provider-Text mit der Behauptung, der Nutzer habe bereits zugestimmt, erzeugt keine Livariant-Mutationsautorität.
 
 Siehe [Proposal-bound Authorization Foundation](proposal-bound-authorization.md).
 
+### Semantic Apply
+
+Die aktuelle Post-RC3-Repository-Entwicklung ergänzt die begrenzte Apply-Oberfläche:
+
+```text
+livariant apply --authorization <authorization-id> --input <actionable-proposal.json>
+livariant apply --authorization <authorization-id> --input <actionable-proposal.json> --json
+```
+
+sowie die Runtime-API `applyActionableProposal()`.
+
+Semantic Apply unterstützt ausschließlich die bereits im Actionable-Proposal-Vertrag repräsentierten Mutationsdomänen: Decision Add, Decision Supersede, Confirmed-Goal Add und Confirmed-Knowledge Add. Review-only Semantic-Proposal-JSON oder rohe Candidate-JSON werden nicht als Ersatz für ein Actionable Proposal akzeptiert.
+
+Ein frisches Apply muss das exakte Actionable Proposal, die stabile logische Projektidentität, die materiale Project-Brain-Baseline, den Mutation-Scope, projektlokale Authorization-Evidence und die passende unabhängige machine-local Authority erneut prüfen. Authority wird vor Beginn der semantischen Mutation zu `applying` verbraucht, sodass dieselbe Authorization während des Schreibversuchs nicht wiederverwendbar bleibt.
+
+Die Implementierung verwendet die bestehenden semantischen Project-Brain-Writer weiter, einschließlich Managed-Path-Confinement, Regular-File-/Symlink-Safety, Exact-Original-Concurrency-Prüfung, atomarer Promotion und Writer-Verifikation. Die exakte autorisierte Baseline wird unmittelbar vor der Promotion erneut geprüft. Anschließend liest Livariant den kanonischen semantischen Zustand erneut und verifiziert das autorisierte Ergebnis vor normaler terminaler Completion.
+
+Crash-Reconciliation ist absichtlich enger als die normale erfolgreiche Ausführung. Ein unterbrochener Split darf nur dann automatisch weiterlaufen, solange die exakte autorisierte aggregierte **Pre-Mutation-Baseline** weiterhin reproduzierbar ist. Dass der gewünschte Satz im aktuellen Project Brain auftaucht, beweist nicht vollständig, dass ausschließlich die autorisierte Mutation stattgefunden hat. Post-Mutation- oder Changed-Baseline-Splits bleiben deshalb fail-closed/recovery-required, solange keine separat akzeptierte vollständige exakte Post-State-Evidence existiert.
+
+Machine-local Terminal-State wird niemals heruntergestuft und Authority niemals auf `authorized` zurückgesetzt. Passende machine-local `failed-recovery-required`-Evidence darf Project-Audit-Evidence ausschließlich vorwärts in denselben failed terminal state ausrichten. Ein Split `machine=completed / project=applying` wird nach einer Prozessgrenze ohne vollständigen Exact-Delta-Beweis nicht automatisch als Erfolg deklariert.
+
+Semantic Apply ergänzt keine provider-getriebene Mutation, keine Wildcard-/Standing-Authorization, keine beliebigen Repository-Writes, keine automatische Candidate-Ermittlung und keine neuen semantischen Domänen.
+
+Siehe [Semantic Apply](semantic-apply.md).
+
 Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
 
 Die aktuellen Post-RC3-Oberflächen ergänzen **nicht**:
 
-- Semantic Proposal Apply;
 - provider-getriebene, automatische, Wildcard- oder Standing-Mutationsautorität;
 - eindeutige Checkout-Identität oder Authority-Transfer durch Kopieren von Project-Brain-Bytes;
 - Project-Fork-, Split-, Merge- oder Project-ID-Replacement-Semantik;
@@ -193,7 +217,7 @@ Die aktuellen Post-RC3-Oberflächen ergänzen **nicht**:
 - LLM-basierten semantischen Vergleich;
 - autonome Kandidatenfindung;
 - Goal- oder Knowledge-Ersetzung, -Löschung oder -Supersession;
-- zusätzliche Proposal-Domänen außerhalb des ausdrücklich dokumentierten Schema-Version-1-Sets.
+- zusätzliche Proposal-/Apply-Domänen außerhalb des ausdrücklich dokumentierten Schema-Version-1-Sets.
 
 Diese Oberflächen bleiben spätere Arbeit, solange sie nicht separat implementiert und verifiziert wurden.
 
@@ -205,7 +229,7 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Pro
 
 Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
 
-Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core, die Konflikt- und Drift-Bewertung, die Stable Project Identity Foundation und die Proposal-bound Authorization Foundation sind provider-neutrale strukturierte Grundlagen oder lokale nutzergesteuerte Oberflächen. Provider Context ist eine providerbezogene Projektion für Claude Code und Codex. Keine davon behandelt Provider-Ausgabe oder providerseitige Zustimmungsbehauptungen automatisch als Livariant-Mutationsautorität.
+Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core, die Konflikt- und Drift-Bewertung, die Stable Project Identity Foundation, die Proposal-bound Authorization Foundation und Semantic Apply sind provider-neutrale strukturierte Grundlagen oder lokale nutzergesteuerte Oberflächen. Provider Context ist eine providerbezogene Projektion für Claude Code und Codex. Keine davon behandelt Provider-Ausgabe oder providerseitige Zustimmungsbehauptungen automatisch als Livariant-Mutationsautorität.
 
 ## Semantische Wissenspflege
 
