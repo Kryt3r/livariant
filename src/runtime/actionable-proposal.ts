@@ -209,7 +209,9 @@ export async function buildActionableProposal(
     domain: source.intendedScope.domain,
     changeKind: source.intendedScope.changeKind,
     proposedStatement: candidate.proposedStatement,
-    targetDecisionId: source.intendedScope.targetDecisionId,
+    ...(source.intendedScope.targetDecisionId !== undefined
+      ? { targetDecisionId: source.intendedScope.targetDecisionId }
+      : {}),
   };
   const actionability: ActionableProposalActionability = {
     authorizationEligible: true,
