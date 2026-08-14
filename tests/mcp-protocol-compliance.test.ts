@@ -46,6 +46,19 @@ function parseSingleError(stdout: string): { error?: { code?: number; message?: 
   return JSON.parse(lines[0] ?? "{}") as { error?: { code?: number; message?: string } };
 }
 
+async function readySession(path: string) {
+  const session = createMcpSession(path);
+  const initialized = await session.handleMessage({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "protocol-test", version: "1" } },
+  });
+  assert.ok(initialized && "result" in initialized);
+  assert.equal(await session.handleMessage({ jsonrpc: "2.0", method: "notifications/initialized" }), null);
+  return session;
+}
+
 test("MCP rejects fractional numeric request ids", async () => {
   await withProject(async (path) => {
     const session = createMcpSession(path);
@@ -59,6 +72,40 @@ test("MCP rejects fractional numeric request ids", async () => {
     if (response && "error" in response) {
       assert.equal(response.error.code, -32600);
       assert.match(response.error.message, /safe integer/i);
+    }
+  });
+});
+
+test("MCP initialize requires clientInfo name and version strings", async () => {
+  await withProject(async (path) => {
+    const session = createMcpSession(path);
+    const response = await session.handleMessage({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "missing-version" } },
+    });
+    assert.ok(response && "error" in response);
+    if (response && "error" in response) {
+      assert.equal(response.error.code, -32602);
+      assert.match(response.error.message, /clientInfo/i);
+    }
+  });
+});
+
+test("MCP tools/list rejects unsupported pagination fields", async () => {
+  await withProject(async (path) => {
+    const session = await readySession(path);
+    const response = await session.handleMessage({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/list",
+      params: { authorizationId: "must-not-be-accepted" },
+    });
+    assert.ok(response && "error" in response);
+    if (response && "error" in response) {
+      assert.equal(response.error.code, -32602);
+      assert.match(response.error.message, /unsupported field/i);
     }
   });
 });
