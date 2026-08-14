@@ -83,26 +83,49 @@ async function classifyApplyFailure(
 ): Promise<SemanticMaintenanceBlockedResult> {
   try {
     const audit = await inspectAuthorizationAudit(projectPath);
-    const active = audit.active?.authorizationId === authorizationId ? audit.active : null;
+    const active = audit.active;
     const terminal = audit.history.find((record) => record.authorizationId === authorizationId);
-    const recoveryRequired = active?.state === "applying" || terminal?.state === "failed-recovery-required";
-    if (recoveryRequired) {
+
+    if (active && active.authorizationId !== authorizationId) {
       return {
         state: "blocked",
         phase: "apply",
         message,
-        recoveryRequired: true,
-        mutationOutcome: "unknown-recovery-required",
-        semanticChangesMade: "unknown",
+        recoveryRequired: false,
+        mutationOutcome: "not-applied",
+        semanticChangesMade: 0,
       };
     }
+
+    if (!active && !terminal) {
+      return {
+        state: "blocked",
+        phase: "apply",
+        message,
+        recoveryRequired: false,
+        mutationOutcome: "not-applied",
+        semanticChangesMade: 0,
+      };
+    }
+
+    if (terminal?.state === "completed") {
+      return {
+        state: "blocked",
+        phase: "apply",
+        message,
+        recoveryRequired: false,
+        mutationOutcome: "not-applied",
+        semanticChangesMade: 0,
+      };
+    }
+
     return {
       state: "blocked",
       phase: "apply",
       message,
-      recoveryRequired: false,
-      mutationOutcome: "not-applied",
-      semanticChangesMade: 0,
+      recoveryRequired: true,
+      mutationOutcome: "unknown-recovery-required",
+      semanticChangesMade: "unknown",
     };
   } catch (auditError) {
     const auditMessage = auditError instanceof Error ? auditError.message : "authorization audit could not be inspected";
