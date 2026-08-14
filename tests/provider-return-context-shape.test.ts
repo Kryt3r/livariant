@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildProviderContext } from "../src/runtime/provider-context.js";
 import { initializeProject } from "../src/runtime/index.js";
 import { parseSuppliedReadyProviderContext } from "../src/runtime/provider-return.js";
+import { PROVIDER_CONTEXT_TASK_MAX_BYTES } from "../src/runtime/provider-context-task.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -27,6 +28,22 @@ test("ready Provider Context copy rejects structurally invalid evidence", async 
       ...context,
       evidence: { fabricated: true },
     }), /evidence/i);
+  });
+});
+
+test("ready Provider Context copy preserves original task bounds", async () => {
+  await withProject(async (path) => {
+    const context = await buildProviderContext("codex", "Validate copied task bounds", path);
+    assert.equal(context.state, "ready");
+    if (context.state !== "ready") return;
+
+    assert.throws(() => parseSuppliedReadyProviderContext({
+      ...context,
+      task: {
+        value: "x".repeat(PROVIDER_CONTEXT_TASK_MAX_BYTES + 1),
+        authorityClass: "session-ephemeral",
+      },
+    }), /task input exceeds the supported size limit/i);
   });
 });
 
