@@ -4,6 +4,7 @@ import { buildProjectContextSnapshot, type ProjectContextBaseline } from "./cont
 import { validateProviderContextEvidence } from "./provider-context-copy-validation.js";
 import { PROJECT_CONTEXT_BASELINE_DOMAIN } from "./project-context-material.js";
 import { providerContextPacketId } from "./provider-context-hash.js";
+import { validateProviderContextTask } from "./provider-context-task.js";
 import type { ProviderContextProvider } from "./provider-context-types.js";
 import {
   maintainSemanticProjectState,
@@ -226,9 +227,10 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
   if (!Array.isArray(value.findings) || value.findings.length !== 0) throw new Error("Ready Provider Context must not contain blocking findings.");
   if (!plainObject(value.task)) throw new Error("Provider context task must be an object.");
   strictKeys(value.task, ["value", "authorityClass"]);
-  if (typeof value.task.value !== "string" || value.task.value.trim().length === 0 || value.task.authorityClass !== "session-ephemeral") {
+  if (typeof value.task.value !== "string" || value.task.authorityClass !== "session-ephemeral") {
     throw new Error("Provider context task is invalid.");
   }
+  validateProviderContextTask(value.task.value);
   const expectedPacketId = providerContextPacketId(provider, baseline.digest, value.task.value);
   if (packetId !== expectedPacketId) throw new Error("Provider context packet id does not match its provider/baseline/task material.");
 
