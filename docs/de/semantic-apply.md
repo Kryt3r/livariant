@@ -44,7 +44,7 @@ Ein frischer Apply-Vorgang benötigt die vorhandene WP-008 Dual-Evidence-Authori
 - projektlokaler Authorization-Lifecycle-Evidence;
 - unabhängiger machine-local Authorization Receipt.
 
-Projektlokale Bytes allein, Provider-Behauptungen, kopierte Pakete, Stable Project ID, Review-only-Proposal, übereinstimmender Text oder frühere Gesprächszustimmung können Apply nicht autorisieren.
+Projektlokale Bytes allein, Provider-Behauptungen, kopierte Pakete, Stable Project Identity, Review-only-Proposal-Ausgabe, übereinstimmender Text oder frühere Gesprächszustimmung können Apply nicht autorisieren.
 
 ## Ablauf eines frischen Apply
 
@@ -56,16 +56,20 @@ Actionable Proposal strikt parsen
 -> exakten dual-evidence authorized state verifizieren
 -> Authority verbrauchen: authorized -> applying
 -> exaktes Pre-Mutation-Proposal/Baseline erneut validieren
+-> den verwalteten Pre-State dieses Aufrufs nur flüchtig im Speicher halten
 -> bestehenden unterstützten semantischen Writer vorbereiten
 -> unmittelbar vor atomarem Promote erneut validieren
 -> nur die exakt autorisierte semantische Mutation promoten
--> kanonisches semantisches Ergebnis erneut lesen und strukturell verifizieren
+-> beweisen, dass alle nicht betroffenen verwalteten Project-Brain-Inputs byte-identisch geblieben sind
+-> exakten autorisierten semantischen Zielzustand erneut lesen und strukturell verifizieren
+-> vollständigen verifizierten verwalteten Post-State nur flüchtig im Speicher erfassen
+-> unmittelbar vor terminaler Completion erneut Byte-Identität des vollständigen verwalteten Zustands beweisen
 -> Authority abschließen: applying -> completed
 ```
 
 Authority wird vor Beginn der semantischen Mutation nicht mehr wiederverwendbar.
 
-Ein normal erfolgreicher Aufruf meldet genau eine semantische Änderung und terminalen Abschluss.
+Die flüchtigen Pre-/Post-Bytes existieren nur für den aktuellen vertrauenswürdigen Prozess. WP-009 persistiert sie nicht als neuen Recovery-Checkpoint, Journal, Authority-Quelle oder machine-local Trust-Objekt.
 
 ## Bestehende semantische Writer bleiben für die Mutation maßgeblich
 
@@ -80,24 +84,24 @@ Dadurch bleiben die bestehenden Grenzen aktiv, darunter:
 - Erhalt nicht betroffener menschlich gepflegter Inhalte;
 - Duplicate-Rejection;
 - strukturierte Decision-Historie und Supersession-Semantik;
-- Post-Write-Verifikation.
+- Writer-seitige Post-Write-Verifikation.
 
 Das Actionable Proposal bestimmt, welche Mutation versucht werden darf. Der aktuelle kanonische Project-Brain-Zustand bestimmt weiterhin, ob genau dieser Versuch noch gültig ist.
 
 ## Verifikation vor `completed`
 
-`completed` ist erst zulässig, nachdem Livariant den kanonischen Project-Brain-Zustand erneut gelesen und das unterstützte semantische Ergebnis bewiesen hat.
+Eine normale Same-Process-Completion verlangt mehr, als dass das gewünschte semantische Statement lediglich vorhanden ist.
 
-Die aktuelle Verifikation umfasst:
+Livariant verifiziert:
 
+- jeder nicht betroffene verwaltete Project-Brain-Input bleibt byte-identisch zum exakten Pre-State dieses Aufrufs;
 - Decision Add: exakt eine aktive strukturierte Decision mit dem autorisierten Statement;
 - Decision Supersede: das exakt autorisierte Ziel ist superseded und verweist auf exakt eine aktive Replacement-Decision;
 - Goal Add: exakt ein passendes bestätigtes Goal im Confirmed-Goal-Bereich;
-- Knowledge Add: exakt ein passender bestätigter Fakt im bestätigten Project Knowledge.
+- Knowledge Add: exakt ein passender bestätigter Fakt im bestätigten Project Knowledge;
+- der vollständige verwaltete Project-Brain-Zustand bleibt vom verifizierten Post-State bis unmittelbar vor Authority-Completion byte-identisch.
 
-Eine semantische Postcondition reicht für die normale In-Process-Verifikation nur deshalb aus, weil sie unmittelbar auf den bestehenden atomaren Writer und die direkt davor erfolgte exakte Baseline-Revalidierung im selben vertrauenswürdigen Ablauf folgt.
-
-Für Crash-Recovery nach Verlust dieses Ausführungskontexts ist sie **nicht automatisch** ausreichende Post-State-Evidence.
+Scheitert eine dieser Prüfungen nach Beginn des Authority-Verbrauchs, bleibt Semantic Apply unter den bestehenden `failed-recovery-required`-Regeln fail-closed, statt erfolgreiche Completion zu melden.
 
 ## Failure- und Replay-Grenze
 
@@ -111,7 +115,7 @@ applying -> failed-recovery-required
 
 Eine abgeschlossene oder fehlgeschlagene Authorization ist terminal und kann nicht als neuer Mutation-Token wiederverwendet werden.
 
-Gleichzeitige Consumer teilen den WP-008 machine-local Transition Lock. Zwei Kopien desselben logischen Project Brain auf derselben Maschine können dadurch dieselbe Authorization nicht gleichzeitig verbrauchen.
+Gleichzeitige Consumer teilen den WP-008 machine-local Transition Lock. Zwei Consumer mit derselben logischen Project-Brain-Identität können dadurch dieselbe Authorization nicht gleichzeitig erfolgreich verbrauchen.
 
 ## Unterbrochene Pre-Mutation-Reconciliation
 
@@ -129,23 +133,21 @@ project-local: applying
 machine-local: applying
 ```
 
-Semantic Apply darf diese Zustände nur fortsetzen, wenn der aktuelle Project Brain weiterhin das **exakte ursprüngliche Actionable-Proposal-Baseline** reproduziert. Dann beweist der ursprüngliche Pre-Mutation-Zustand, dass die semantische Mutation noch nicht committed wurde.
+Semantic Apply darf diese Zustände nur fortsetzen, wenn der aktuelle Project Brain weiterhin das **exakte ursprüngliche Actionable-Proposal-Pre-Mutation-Baseline** reproduziert. Dann beweist der exakte Pre-State, dass die semantische Mutation noch nicht committed wurde.
 
 Erlaubte Forward-Aktionen sind ausschließlich:
 
-- projektlokal `authorized -> applying` ausrichten, wenn machine-local bereits `applying` ist;
+- projektlokal `authorized -> applying` ausrichten, wenn passende machine-local Evidence bereits `applying` ist;
 - aus passendem `applying/applying` fortsetzen;
 - die exakt autorisierte semantische Mutation genau einmal ausführen.
 
-Machine-local Authority wird niemals auf `authorized` zurückgesetzt.
-
-Ein aktiver oder unterbrochener machine-local Transition Lock blockiert Reconciliation.
+Machine-local Authority wird niemals auf `authorized` zurückgesetzt. Ein aktiver oder unterbrochener machine-local Transition Lock blockiert Reconciliation.
 
 ## Proof-Grenze nach einer Mutation
 
-Das Actionable-Proposal-Baseline ist ein aggregierter Digest über die verwalteten Project-Brain-Inputs. Es beweist den exakten autorisierten Pre-Mutation-Zustand, verrät nach einer Mutation aber nicht mehr die alten Bytes jeder einzelnen verwalteten Oberfläche.
+Der Same-Process-Exact-Delta-Beweis ist bewusst flüchtig. Nach einer Prozessgrenze steht er nicht mehr als dauerhafte Recovery-Evidence zur Verfügung.
 
-Darum beweist eine scheinbar korrekte semantische Postcondition wie „das angeforderte Goal existiert“ nach einem Prozesscrash **nicht**, dass alle übrigen verwalteten Project-Brain-Flächen unverändert geblieben sind.
+Das Actionable-Proposal-Baseline beweist den exakten autorisierten Pre-Mutation-Zustand, bewahrt nach einer Mutation aber nicht die alten Bytes jeder einzelnen verwalteten Oberfläche. Deshalb beweist eine scheinbar korrekte semantische Postcondition wie „das angeforderte Goal existiert“ nach einem Crash **nicht**, dass alle übrigen verwalteten Project-Brain-Flächen unverändert geblieben sind.
 
 Semantic Apply bleibt bei unterbrochenen Zuständen mit geändertem Baseline bewusst fail-closed, statt aus gewünschtem Text Erfolg abzuleiten.
 
@@ -158,7 +160,7 @@ machine-local: completed
 
 nach einer Prozessgrenze nicht automatisch zu projektlokal `completed`, nur weil das gewünschte Statement vorhanden ist.
 
-Für eine automatische Post-Crash-Completion wäre separat akzeptierte, vertrauenswürdige und dauerhafte Exact-Delta-Evidence nötig. WP-009 führt nicht stillschweigend einen neuen Checkpoint, ein Recovery Journal, ein machine-local Trust-Objekt oder ein zweites Authority-Substrat ein, nur um diese Evidence zu erzeugen.
+Für automatische Post-Crash-Completion wäre separat akzeptierte, vertrauenswürdige und dauerhafte Exact-Delta-Evidence nötig. WP-009 führt ein solches Trust-Substrat nicht stillschweigend ein.
 
 ## Forward-only Failure-Reconciliation
 
@@ -199,9 +201,29 @@ mutationAuthorizationConsumed: true
 semanticChangesMade: 1
 ```
 
-Blockierte Versuche melden für den jeweiligen Aufruf null semantische Änderungen.
+Fehler, die nachweislich auftreten, bevor ein gültiges Actionable Proposal Authority-Consumption erreichen kann, dürfen melden:
 
-Der Command stellt einen ungeklärten Recovery-Zustand nicht als erfolgreiche Completion dar.
+```text
+recoveryRequired: false
+mutationOutcome: not-applied
+semanticChangesMade: 0
+```
+
+Sobald die exakte Authorization bereits in einem aktiven oder recovery-required Lifecycle stehen könnte, behauptet die CLI **nicht** pauschal null Writes. Sie macht die Unsicherheit ausdrücklich sichtbar, zum Beispiel:
+
+```text
+recoveryRequired: true
+mutationOutcome: unknown-recovery-required
+semanticChangesMade: unknown
+```
+
+Der Command stellt einen ungeklärten Recovery-Zustand nicht als erfolgreiche Completion dar und verwendet einen `0`-Mutation-Claim nicht als Ersatz für fehlende Evidence.
+
+## Komposition über `maintain`
+
+Post-RC3-Repository-Entwicklung enthält zusätzlich die separate provider-neutrale Semantic-Maintenance-Oberfläche, dokumentiert unter [Agent-Assisted Semantic Maintenance](semantic-maintenance.md).
+
+`maintain` erzeugt keine Authority. Ohne explizite Authorization-ID kann die Oberfläche nur Review-/Actionable-State rekonstruieren und `review-required` oder `authorization-required` zurückgeben. Mit expliziter Authorization-ID delegiert sie die Mutation an diesen bestehenden Semantic-Apply-Pfad; damit bleiben alle WP-008/WP-009-Replay-, Recovery-, Exact-Delta- und Terminal-State-Regeln maßgeblich.
 
 ## Nicht-Ziele
 
