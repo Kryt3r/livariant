@@ -35,6 +35,10 @@ interface SuppliedReadyProviderContext {
   };
 }
 
+export interface ProviderReturnOptions {
+  afterCurrentContextCheckBeforeMaintenance?: () => void | Promise<void>;
+}
+
 export interface ProviderReturnEvidence {
   schemaVersion: 1;
   packetVersion: 1;
@@ -275,6 +279,7 @@ export async function processProviderReturn(
   returnValue: unknown,
   authorizationId?: string,
   projectPath: string = process.cwd(),
+  options: ProviderReturnOptions = {},
 ): Promise<ProviderReturnResult> {
   let context: SuppliedReadyProviderContext;
   try {
@@ -364,7 +369,11 @@ export async function processProviderReturn(
     };
   }
 
-  const maintenance = await maintainSemanticProjectState(returned.candidate, authorizationId, projectPath);
+  await options.afterCurrentContextCheckBeforeMaintenance?.();
+  const maintenance = await maintainSemanticProjectState(returned.candidate, authorizationId, projectPath, {
+    expectedBaseline: context.baseline,
+    expectedStableProjectIdentity: context.stableProjectIdentity,
+  });
   if (maintenance.state === "blocked") {
     return {
       state: "blocked",
