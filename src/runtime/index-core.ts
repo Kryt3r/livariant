@@ -61,15 +61,10 @@ export type {
 } from "./actionable-proposal.js";
 export {
   AUTHORIZATION_SCHEMA_VERSION,
-  assertAuthorizationReadyForApply,
-  authorizeActionableProposal,
   inspectAuthorizationAudit,
 } from "./authorization.js";
 export type {
-  AuthorizationOptions,
-  AuthorizationResult,
   AuthorizationState,
-  MachineAuthorizationReceipt,
   ProjectAuthorizationRecord,
 } from "./authorization.js";
 export { listAcceptedDecisions, recordAcceptedDecision, supersedeAcceptedDecision } from "./canonical-change.js";
