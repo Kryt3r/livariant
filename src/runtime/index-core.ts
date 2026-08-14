@@ -67,6 +67,14 @@ export type {
   AuthorizationState,
   ProjectAuthorizationRecord,
 } from "./authorization.js";
+export {
+  applyActionableProposal,
+  verifySemanticApplyPostcondition,
+} from "./semantic-apply.js";
+export type {
+  SemanticApplyOptions,
+  SemanticApplyResult,
+} from "./semantic-apply.js";
 export { listAcceptedDecisions, recordAcceptedDecision, supersedeAcceptedDecision } from "./canonical-change.js";
 export type { CanonicalDecisionChangeOptions, SupersedeDecisionInput, SupersedeDecisionResult } from "./canonical-change.js";
 export { addConfirmedGoal, addConfirmedKnowledge } from "./canonical-knowledge-change.js";

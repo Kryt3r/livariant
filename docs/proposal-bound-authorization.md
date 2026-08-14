@@ -1,12 +1,12 @@
 # Proposal-bound Authorization and Replay Resistance
 
-Proposal-bound Authorization is a post-RC3 Active Project Intelligence foundation for granting narrow authority to one exact future semantic mutation without turning a provider message, copied proposal, project-owned file, or old approval into standing permission.
+Proposal-bound Authorization is a post-RC3 Active Project Intelligence foundation for granting narrow authority to one exact semantic mutation without turning a provider message, copied proposal, project-owned file, or old approval into standing permission.
 
 This capability is repository development after the immutable `v0.1.0-rc.3` Foundation Preview release.
 
 ## Current surface
 
-The current repository implementation adds two bounded commands:
+The authorization foundation provides two bounded commands:
 
 ```text
 livariant prepare --input <candidate.json>
@@ -16,9 +16,9 @@ livariant authorize --input <actionable-proposal.json>
 livariant authorize --input <actionable-proposal.json> --json
 ```
 
-Runtime APIs expose the corresponding Actionable Proposal and internal authorization lifecycle primitives.
+Runtime APIs expose the corresponding Actionable Proposal and authorization lifecycle foundation.
 
-`prepare` and `authorize` do **not** perform the semantic Project Brain mutation. Semantic Apply is a separate later slice.
+`prepare` and `authorize` do **not** perform the semantic Project Brain mutation. The separate post-RC3 [Semantic Apply](./semantic-apply.md) capability consumes this Authority through `livariant apply`.
 
 ## Review-only proposals remain non-actionable
 
@@ -60,7 +60,7 @@ authorizationRequired: true
 changesMade: 0
 ```
 
-It is eligible to be reviewed for authorization, but it is not itself authority.
+It is eligible to be reviewed for authorization, but it is not itself authority and it is not an apply token.
 
 ## Explicit authorization
 
@@ -87,7 +87,7 @@ Livariant uses two matching evidence surfaces:
 1. **Project-local lifecycle/audit evidence** below `.project-brain/.authorizations`. It records the exact binding, current lifecycle state, interruption evidence, and terminal history.
 2. **Independent machine-local authority** below the operating-system user's Livariant trust state, outside the project directory. The machine-local receipt binds the same authorization ID, stable project identity, Actionable Proposal identity/digest, scope, and baseline.
 
-A future apply operation may consume authority only when both surfaces are present, valid, non-ambiguous, and materially identical.
+Semantic Apply may consume authority only when the required evidence is present, valid, non-ambiguous, and materially identical for the exact authorized operation.
 
 The machine-local authorization root is checked against the physical user-home and project paths so project-controlled path overlap or symlink substitution cannot turn repository state into machine-local authority.
 
@@ -116,11 +116,11 @@ invalidated
 
 `preparing` is project-local dual-evidence creation state. It cannot authorize apply.
 
-An `authorized` record may later transition to `applying` only after the Actionable Proposal, current baseline, project identity, project-local audit evidence, and machine-local authority are revalidated.
+An `authorized` record may transition to `applying` only after the Actionable Proposal, current baseline, project identity, project-local audit evidence, and machine-local authority are revalidated.
 
 The machine-local receipt is consumed first under an atomic lock. This makes replay unavailable before semantic mutation can begin.
 
-A successful future apply will finish as terminal `completed`. A failed or ambiguous apply becomes `failed-recovery-required`. Explicit invalidation is terminal as well.
+A successfully verified Semantic Apply finishes as terminal `completed`. A failed or unsafe post-consumption operation becomes `failed-recovery-required`. Explicit invalidation is terminal as well.
 
 Terminal authorization cannot be silently reset to `authorized` or replayed for another mutation.
 
@@ -137,25 +137,28 @@ Examples include:
 - a machine-local consumption lock left by an interrupted transition;
 - active and terminal project evidence that contradict each other.
 
-Livariant does not infer that one side should overwrite the other. A supported later recovery path must resolve lifecycle ambiguity where necessary.
+Semantic Apply adds only bounded forward reconciliation where the **exact original pre-mutation Actionable Proposal baseline** is still reproducible. For example, `project=authorized / machine=applying` can be aligned forward to project `applying`, and matching `applying/applying` can continue the one exact authorized mutation, only while the original complete pre-state still matches.
 
-Read and verification operations do not create missing authorization directories or repair absent evidence. Unknown entries in the managed project authorization root are treated as ambiguous and fail closed.
+Authority is never moved backward to `authorized`.
 
-## No semantic mutation in this slice
+A changed baseline is not treated as successful recovery merely because the desired semantic statement appears in Project Brain. The Actionable Proposal stores one aggregate pre-state digest, not the old bytes of every individual managed surface. After a process boundary, semantic postcondition equality alone therefore cannot prove that unrelated managed surfaces remained unchanged.
 
-WP-008 creates and manages authority state only.
+In particular, `project=applying / machine=completed` is not automatically promoted to project-local `completed` without separately accepted complete exact post-state evidence. The machine terminal state is not downgraded; the state remains fail-closed/recovery-required instead of guessing success.
 
-The current authorization result may report that matching authority exists, but:
+If machine-local failure terminalization completed first (`project=applying / machine=failed-recovery-required`), matching project evidence may be aligned **forward** to the same terminal failure without semantic mutation.
 
-```text
-applySupported: false
-semanticChangesMade: 0
-```
+Read and verification operations do not create missing authorization directories or repair absent authority. Unknown entries in the managed project authorization root remain ambiguous and fail closed.
 
-The actual Project Brain semantic mutation belongs to Semantic Apply and must consume the exact authorization lifecycle safely.
+## WP-008 remains authority-only
+
+WP-008 itself creates and manages authority state only. `prepare` and `authorize` still make zero semantic Project Brain changes.
+
+An authorization result may report that matching authority exists, but the actual semantic mutation is performed only by the separate Semantic Apply path after the exact Authority is revalidated and consumed.
+
+The Actionable Proposal remains non-authoritative by itself even though a matching authorization may exist separately.
 
 ## Release boundary
 
-Proposal-bound Authorization is not retroactively part of `v0.1.0-rc.3`.
+Proposal-bound Authorization and Semantic Apply are not retroactively part of `v0.1.0-rc.3`.
 
-RC3 remains immutable historical release evidence. Any future distributed release containing this capability requires a separately approved release process.
+RC3 remains immutable historical release evidence. Any future distributed release containing these capabilities requires a separately approved release process.

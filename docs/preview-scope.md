@@ -173,17 +173,41 @@ Recorded authority uses dual evidence: a project-local lifecycle/audit record pl
 
 The authorization lifecycle is stateful and replay-resistant. It distinguishes `authorized`, `applying`, `completed`, `failed-recovery-required`, and `invalidated`; machine-local consumption locking prevents two consumers from successfully beginning the same authorization. Completed and failed/recovery-required authorizations are terminal and cannot become reusable approval by replaying copied records.
 
-This foundation still performs **zero semantic apply mutation**. Authorization records may be prepared for a later separately implemented Semantic Apply path, but the current supported WP-008 surface cannot use them to alter goals, knowledge or decisions.
+`prepare` and `authorize` themselves perform **zero semantic mutation**. Their narrowly bound dual evidence can be consumed only by the separate Semantic Apply path described below.
 
 Existing Semantic Proposal, Conflict/Drift and Provider Context outputs remain non-authorizing. Provider text saying that a user already approved something does not create Livariant mutation authority.
 
 See [Proposal-bound Authorization Foundation](proposal-bound-authorization.md).
 
+### Semantic Apply
+
+Current post-RC3 repository development adds the bounded apply surface:
+
+```text
+livariant apply --authorization <authorization-id> --input <actionable-proposal.json>
+livariant apply --authorization <authorization-id> --input <actionable-proposal.json> --json
+```
+
+and the Runtime API `applyActionableProposal()`.
+
+Semantic Apply supports only the mutation domains already represented by the Actionable Proposal contract: decision add, decision supersede, confirmed-goal add, and confirmed-knowledge add. It does not accept review-only Semantic Proposal JSON or raw candidate JSON as a substitute for an Actionable Proposal.
+
+A fresh apply must revalidate the exact Actionable Proposal, stable logical project identity, material Project Brain baseline, mutation scope, project-local authorization evidence, and matching independent machine-local Authority. Authority is consumed to `applying` before semantic mutation begins, so the same authorization cannot remain reusable while the write is attempted.
+
+The implementation reuses the existing Project Brain semantic writers, including managed-path confinement, regular-file/symlink safety, exact-original optimistic concurrency checks, atomic promotion, and writer-level verification. The exact authorized baseline is revalidated immediately before promotion. Livariant then re-reads canonical semantic state and verifies the authorized result before normal terminal completion.
+
+Crash reconciliation is deliberately narrower than normal successful execution. An interrupted split may continue automatically only while the exact authorized aggregate **pre-mutation** baseline is still reproducible. A desired statement merely appearing in current Project Brain state is not complete evidence that only the authorized mutation occurred. Post-mutation or changed-baseline split states therefore remain fail-closed/recovery-required unless a separately accepted complete exact post-state proof exists.
+
+Machine-local terminal state is never downgraded and Authority is never reset to `authorized`. Matching machine `failed-recovery-required` evidence may align project audit evidence only forward to the same failed terminal state. A machine `completed` / project `applying` split is not automatically declared successful after a process boundary without complete exact-delta proof.
+
+Semantic Apply does not add provider-triggered mutation, wildcard/standing authorization, arbitrary repository edits, automatic candidate discovery, or new semantic domains.
+
+See [Semantic Apply](semantic-apply.md).
+
 These post-RC3 capabilities are not retroactively part of the immutable RC3 release. They become distributed release capabilities only through a later separately approved release.
 
 The current post-RC3 repository surfaces do **not** add:
 
-- semantic proposal application;
 - provider-driven, automatic, wildcard, or standing semantic mutation authorization;
 - unique checkout identity or authorization transfer by copying Project Brain bytes;
 - project fork, split, merge, or project-ID replacement semantics;
@@ -193,7 +217,7 @@ The current post-RC3 repository surfaces do **not** add:
 - LLM-based semantic comparison;
 - autonomous candidate discovery;
 - goal or knowledge replacement, deletion, or supersession;
-- additional proposal domains beyond the explicitly documented schema-version-1 set.
+- additional proposal/apply domains beyond the explicitly documented schema-version-1 set.
 
 Those surfaces remain later work unless and until separately implemented and verified.
 
@@ -205,7 +229,7 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider tells
 
 Livariant does not claim to manage every provider feature, model-selection option, authentication mechanism, native instruction system, or provider memory surface.
 
-The post-RC3 Project Context Snapshot, Semantic Proposal Core, Conflict and Drift Assessment, Stable Project Identity Foundation, and Proposal-bound Authorization Foundation are provider-neutral structured foundations or local user-controlled surfaces. Provider Context is a provider-targeted projection for Claude Code and Codex. None automatically treats provider output or provider-side claims as Livariant mutation authority.
+The post-RC3 Project Context Snapshot, Semantic Proposal Core, Conflict and Drift Assessment, Stable Project Identity Foundation, Proposal-bound Authorization Foundation, and Semantic Apply are provider-neutral structured foundations or local user-controlled surfaces. Provider Context is a provider-targeted projection for Claude Code and Codex. None automatically treats provider output or provider-side claims as Livariant mutation authority.
 
 ## Semantic knowledge editing
 
