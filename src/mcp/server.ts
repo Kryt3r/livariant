@@ -1,3 +1,4 @@
+import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProviderContext } from "../runtime/provider-context.js";
 import { processProviderReturn } from "../runtime/provider-return.js";
 
@@ -205,7 +206,7 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
           serverInfo: {
             name: "livariant",
             title: "Livariant Local MCP Agent Bridge",
-            version: "0.1.0-rc.3",
+            version: FRAMEWORK_VERSION,
             description: "Local read-only bridge over Livariant Provider Context and Provider Return evidence intake.",
           },
           instructions: "Livariant MCP capability is not mutation Authority. This bridge never accepts or consumes proposal-bound authorization.",
