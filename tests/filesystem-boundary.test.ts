@@ -6,6 +6,7 @@ import test from "node:test";
 import { initializeProject, recordAcceptedDecision, runDoctor } from "../src/runtime/index.js";
 import { applyMigrationUpdate, planMigrationUpdate, type MigrationJournal } from "../src/lifecycle/migration.js";
 import { inspectRecovery } from "../src/lifecycle/recovery.js";
+import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {
@@ -61,6 +62,7 @@ test("symlinked lifecycle directory blocks journal writes outside Project Brain"
 
 test("tampered recovery checkpoint path outside project root is rejected", async () => {
   await withProject(async (path) => {
+    await makeLegacySchema1Project(path);
     const plan = await planMigrationUpdate(path, migrationRelease);
     await applyMigrationUpdate(path, plan, { ...migrationApplyOptions(), interruptAfterMutation: true } as Parameters<typeof applyMigrationUpdate>[2]);
     const lifecycle = resolve(path, ".project-brain", ".lifecycle");

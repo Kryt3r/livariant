@@ -31,10 +31,10 @@ function localArtifact(overrides: Partial<LocalReleaseArtifact> = {}): LocalRele
   return { sourceId: "official-local-test-source", releaseVersion: targetVersion, artifactId: "runtime-node-cli", path: normalArtifactPath, ...overrides };
 }
 function descriptor(version: string, channel: "stable" | "preview" | "development" = TEST_SOURCE_CHANNEL): ReleaseDescriptor {
-  return { version, channel, projectBrainSchema: 1, compatibility: { from: [TEST_SOURCE_VERSION] }, sourceId: "official-local-test-source", artifact: { id: "runtime-node-cli", sha256: normalDigest } };
+  return { version, channel, projectBrainSchema: 2, compatibility: { from: [TEST_SOURCE_VERSION] }, sourceId: "official-local-test-source", artifact: { id: "runtime-node-cli", sha256: normalDigest } };
 }
 function installedRelease(fixture: RuntimePackageFixture): ReleaseDescriptor {
-  return { version: targetVersion, channel: TEST_SOURCE_CHANNEL, projectBrainSchema: 1, compatibility: { from: [TEST_SOURCE_VERSION] }, sourceId: "official-local-test-source", artifact: { id: "runtime-node-cli", sha256: fixture.sha256 } };
+  return { version: targetVersion, channel: TEST_SOURCE_CHANNEL, projectBrainSchema: 2, compatibility: { from: [TEST_SOURCE_VERSION] }, sourceId: "official-local-test-source", artifact: { id: "runtime-node-cli", sha256: fixture.sha256 } };
 }
 function installedArtifact(fixture: RuntimePackageFixture, overrides: Partial<LocalReleaseArtifact> = {}): LocalReleaseArtifact {
   return { sourceId: "official-local-test-source", releaseVersion: targetVersion, artifactId: "runtime-node-cli", path: fixture.path, ...overrides };

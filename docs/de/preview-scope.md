@@ -53,7 +53,7 @@ Die Release-Supportaussage ist bewusst auf die Umgebungen begrenzt, die von der 
 
 ## Post-RC3-Repository-Entwicklung
 
-Die Entwicklung nach RC3 ergänzt klar begrenzte read-only Oberflächen von Active Project Intelligence. Sie bleiben unveröffentlicht, bis ein späteres Release separat freigegeben wird.
+Die Entwicklung nach RC3 ergänzt klar begrenzte read-only Oberflächen von Active Project Intelligence sowie unterstützende Project-Brain-Grundlagen. Sie bleiben unveröffentlicht, bis ein späteres Release separat freigegeben wird.
 
 ### Project Context Snapshot
 
@@ -70,9 +70,9 @@ Der Snapshot ist read-only. Er liefert bestätigten Project-Brain-Kontext, offen
 
 Blockierte maschinenlesbare Ausgabe ist durch einen von null verschiedenen CLI-Status von sauberem Erfolg unterscheidbar. Parallele Änderungen am verwalteten Project Brain während der Snapshot-Erzeugung brechen geschlossen ab, statt einen gemischten sauberen Snapshot auszugeben.
 
-Der Snapshot zeigt einen aktuellen Projekt-Locator, erfindet aber keine stabile dauerhafte Projektidentität. `stableProjectIdentity` bleibt in diesem ersten Vertrag `null`.
+Der Snapshot hält den aktuellen Projekt-Locator von der stabilen logischen Identität getrennt. Ein gültiges Schema-2-Project-Brain liefert seine kanonische UUID als `stableProjectIdentity`; historische Schema-1-Project-Brains liefern bis zur ausdrücklichen unterstützten Migration `stableProjectIdentity: null`. Verschieben oder Kopieren eines Project Brain macht die ID weder zu einer eindeutigen Checkout- noch zu einer Machine-ID.
 
-Siehe [Project Context Snapshot](project-context-snapshot.md).
+Siehe [Project Context Snapshot](project-context-snapshot.md) und [Stable Project Identity Foundation](stable-project-identity-foundation.md).
 
 ### Semantic Proposal Core
 
@@ -91,9 +91,9 @@ Schema-Version 1 unterstützt aktuell:
 - `project-goal` mit `add`;
 - `project-knowledge` mit `add`.
 
-Candidate-JSON ist externe, nicht vertrauenswürdige Eingabe. Das Feld `origin` ist lediglich eine nicht verifizierte Herkunftsbehauptung und niemals Zustimmung oder Mutationsautorität.
+Candidate-JSON ist externe, nicht vertrauenswürdige Eingabe. Das Feld `origin` ist lediglich eine nicht verifizierte Herkunftsbehauptung und niemals Zustimmung, Projektidentität oder Mutationsautorität.
 
-Jedes aktuelle Proposal bleibt dauerhaft nur für Review bestimmt. Es weist `reviewOnly: true`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Die Proposal-Identität ist deterministisch und an dieselbe materiale Project-Brain-Baseline-Semantik gebunden wie der Project Context Snapshot. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
+Jedes aktuelle Proposal bleibt dauerhaft nur für Review bestimmt. Es weist `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Die Proposal-Identität ist deterministisch und an dieselbe kohärente materiale Project-Brain-Baseline-Semantik gebunden wie der Project Context Snapshot. Für Schema 2 ist auch die stabile logische Projektidentität material für die abgeleitete Proposal-Identität. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
 
 Exakte Duplikate aktiver Entscheidungen, bestätigter Ziele und bestätigten Projektwissens können erkannt werden. Abweichender Text wird von dieser begrenzten Implementierung nicht als semantisch vereinbar oder konfliktfrei behauptet. Decision-Supersede-Kandidaten müssen genau eine strukturierte aktive Decision-ID benennen. Goal- und Knowledge-Proposals unterstützen in diesem Slice nur `add`.
 
@@ -116,7 +116,7 @@ Schema-Version 1 akzeptiert genau eine ausdrückliche Beobachtung in den Domäne
 
 Die aktuelle vertrauenswürdige Diagnosemenge umfasst `consistent`, `confirmed-drift`, `historical-match`, `authority-ambiguous` und `insufficient-evidence`. Abweichender Text allein gilt niemals als Beweis für Drift oder Widerspruch. Eine starke Decision-Beziehung setzt eine exakte strukturierte Entscheidungsidentität voraus, wenn die Diagnose von dieser Identität abhängt.
 
-Die Bewertung ist ausschließlich abgeleitete Review-Evidenz. Sie weist `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Sie ist an dieselbe kohärente materiale Project-Brain-Baseline gebunden wie die übrigen Active-Project-Intelligence-Read-Surfaces. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
+Die Bewertung ist ausschließlich abgeleitete Review-Evidenz. Sie weist `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Sie ist an dieselbe kohärente materiale Project-Brain-Baseline gebunden wie die übrigen Active-Project-Intelligence-Read-Surfaces. Für Schema 2 trägt sie dieselbe kanonische logische `stableProjectIdentity`. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
 
 Dieser Slice scannt das Repository nicht automatisch und wendet keine Änderung an oder autorisiert sie.
 
@@ -134,23 +134,36 @@ livariant provider-context --provider <provider> --task <task.txt> --json
 
 sowie die Runtime-API `buildProviderContext()`.
 
-Provider Context verbindet dieselbe kohärente aktuelle Project-Brain-Evidence mit genau einer ausdrücklich angegebenen externen Aufgabe. Task-Material ist auf 64 KiB begrenzt, bleibt `session-ephemeral` und kann weder kanonische Projektwahrheit noch Zustimmung, Safety-State oder Mutationsautorität behaupten.
+Provider Context verbindet dieselbe kohärente aktuelle Project-Brain-Evidence mit genau einer ausdrücklich angegebenen externen Aufgabe. Task-Material ist auf 64 KiB begrenzt, bleibt `session-ephemeral` und kann weder kanonische Projektwahrheit noch stabile Projektidentität, Zustimmung, Safety-State oder Mutationsautorität behaupten.
 
-Das Paket erhält den Safety-Floor des Project Brain, weist `stableProjectIdentity: null`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus und bricht bei parallelen Änderungen am verwalteten Zustand geschlossen ab. Die Provider-Auswahl ändert nur das Projektionsziel; kopierte oder vom Provider zurückgegebene Pakete gelten bei späterer Verwendung nicht als vertrauenswürdige kanonische Eingabe.
+Das Paket erhält den Safety-Floor des Project Brain. Ein gültiges Schema-2-Project-Brain liefert dieselbe kanonische logische `stableProjectIdentity`; historischer Schema-1-Zustand liefert bis zur ausdrücklichen Migration `null`. Das Paket weist weiterhin `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus und bricht bei parallelen Änderungen am verwalteten Zustand geschlossen ab. Die Provider-Auswahl ändert nur das Projektionsziel; kopierte oder vom Provider zurückgegebene Pakete gelten bei späterer Verwendung nicht als vertrauenswürdige kanonische Eingabe.
 
 Dieser Slice injiziert Kontext nicht automatisch in Claude Code oder Codex und ergänzt weder Provider-Transport noch persistente Provider-Writes.
 
 Siehe [Provider Context Foundation](provider-context-foundation.md).
 
+### Stable Project Identity Foundation
+
+Die aktuelle Post-RC3-Repository-Entwicklung hebt das Project-Brain-Schema auf Version 2 an und ergänzt genau eine erforderliche kanonische UUID in `projectBrain.projectId`.
+
+Bei einer frischen Schema-2-Initialisierung erzeugt Livariant die logische Identität lokal aus vertrauenswürdiger Runtime-Zufälligkeit. Bestehende Schema-1-Project-Brains erhalten die Identität ausschließlich über die ausdrückliche unterstützte `1 -> 2`-Lifecycle-Migration; Leseoperationen erzeugen oder reparieren sie nicht stillschweigend. Fehlende oder fehlerhafte Schema-2-Identität bricht geschlossen ab.
+
+Die ID identifiziert eine logische Project-Brain-Linie, nicht einen physischen Checkout, eine Maschine, eine Provider-Session oder eine User-Session. Verschieben oder Umbenennen eines Projekts rotiert sie nicht, und eine byte-identische Kopie des Project Brain behält legitimerweise dieselbe ID.
+
+Gleiche Identität allein ist weder Zustimmung noch Mutationsautorität, Anti-Replay-Evidenz, machine-local Trust, Checkpoint-Integrität, Runtime-/Release-Integrität oder Beweis dafür, dass ein zurückgeliefertes Provider-Paket kanonisch ist. Die aktuellen read-side Oberflächen bleiben nicht autorisierend.
+
+Siehe [Stable Project Identity Foundation](stable-project-identity-foundation.md).
+
 Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
 
 Die aktuellen Post-RC3-Oberflächen ergänzen **nicht**:
 
-- Proposal Apply oder Mutationsautorität;
+- Proposal Apply oder proposal-gebundene Mutationsautorität;
+- Authorization-Replay-State oder eindeutige Checkout-Identität;
+- Project-Fork-, Split-, Merge- oder Project-ID-Replacement-Semantik;
 - automatisches Drift-Scanning oder automatische Drift-Auflösung;
-- Terminologie-Persistenz oder Lifecycle-Mutation;
+- Terminologie-Persistenz oder Lifecycle-Mutation außerhalb der ausdrücklich unterstützten Schema-Migration;
 - Provider-Transport oder automatische Kontextinjektion;
-- eine dauerhafte stabile Projektidentität;
 - LLM-basierten semantischen Vergleich;
 - autonome Kandidatenfindung;
 - Goal- oder Knowledge-Ersetzung, -Löschung oder -Supersession;
@@ -166,7 +179,7 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Pro
 
 Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
 
-Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core und die Konflikt- und Drift-Bewertung sind provider-neutrale strukturierte Ausgaben. Provider Context ist eine providerbezogene Projektion für Claude Code und Codex. Keine dieser Oberflächen injiziert sich automatisch in einen Provider oder verleiht providerseitige Mutationsautorität.
+Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core, die Konflikt- und Drift-Bewertung und die Stable Project Identity Foundation sind provider-neutrale strukturierte Grundlagen oder Ausgaben. Provider Context ist eine providerbezogene Projektion für Claude Code und Codex. Keine dieser Oberflächen injiziert sich automatisch in einen Provider oder verleiht providerseitige Mutationsautorität.
 
 ## Semantische Wissenspflege
 
@@ -214,10 +227,10 @@ Projektdateien, Release-Manifest, `--trusted-source` und die projektseitige Liva
 
 Fehlt die exakte Artefakt-Autorität, stoppt das Update vor npm-Installation oder Candidate-Runtime-Attestation.
 
-Kompatible schema-ändernde Releases verwenden denselben `livariant update`-Ablauf und werden durch den Migrations-Lifecycle geführt. Der aktuell belegte Schema-Pfad ist `1 -> 2`. Nicht unterstützte Migrationspfade brechen geschlossen ab.
+Kompatible schema-ändernde Releases verwenden denselben `livariant update`-Ablauf und werden durch den Migrations-Lifecycle geführt. Der aktuell belegte Schema-Pfad ist `1 -> 2`. Im aktuellen Post-RC3-Quellstand erzeugt diese Migration die erforderliche stabile logische Projekt-ID innerhalb der bestehenden Checkpoint-/Journal-/Validation-/Activation-/Recovery-Transaktion. Nicht unterstützte Migrationspfade brechen geschlossen ab.
 
 > [!WARNING]
-> Das manuelle Ersetzen von Project-Brain-Dateien, framework-verwaltetem Lifecycle-State, Schema- oder Versionsmetadaten, installierten Runtime-Dateien, Runtime-Trust-Records oder Release-Authorization-Records ist kein unterstützter Update-Weg. Damit würden Autoritäts-, Kompatibilitäts-, Integritäts-, Checkpoint-, Aktivierungs- und Recovery-Garantien umgangen.
+> Das manuelle Ersetzen von Project-Brain-Dateien, framework-verwaltetem Lifecycle-State, Schema- oder Versionsmetadaten, stabiler Projektidentität, installierten Runtime-Dateien, Runtime-Trust-Records oder Release-Authorization-Records ist kein unterstützter Update-Weg. Damit würden Autoritäts-, Kompatibilitäts-, Integritäts-, Checkpoint-, Aktivierungs- und Recovery-Garantien umgangen.
 
 ## Wiederherstellung
 
@@ -235,7 +248,7 @@ Scheitert die späte Bereinigung, müssen das wiederhergestellte Project Brain u
 
 Livariant verspricht nicht, beliebigen beschädigten, manuell umgeschriebenen oder mehrdeutigen Project-Brain-Zustand automatisch zu reparieren.
 
-Wenn sichere Semantik nicht eindeutig hergestellt werden kann, darf die Diagnose bewusst stoppen und menschliche Klärung verlangen.
+Wenn sichere Semantik nicht eindeutig hergestellt werden kann, darf die Diagnose bewusst stoppen und menschliche Klärung verlangen. Dazu gehören auch fehlerhafte Schema-2-Identitätsmetadaten; Reads erfinden keine Ersatz-ID.
 
 ## Local-first bedeutet nicht vertrauensfrei
 

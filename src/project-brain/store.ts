@@ -12,6 +12,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { parseDecisionsMarkdown } from "./decisions.js";
+import { isStableProjectIdentity } from "./identity.js";
 import { assertPathWithinRoot, assertRegularFile } from "./path-safety.js";
 import type {
   BootstrapKnowledge,
@@ -29,6 +30,22 @@ export interface BootstrapOptions {
 
 export interface ManagedDocumentWriteOptions {
   beforePromote?: () => void | Promise<void>;
+}
+
+function metadataShapeIsValid(metadata: Partial<ProjectBrainMetadata>): boolean {
+  if (
+    typeof metadata.framework?.version !== "string" ||
+    typeof metadata.framework?.channel !== "string" ||
+    typeof metadata.projectBrain?.schemaVersion !== "number"
+  ) {
+    return false;
+  }
+
+  if (metadata.projectBrain.schemaVersion === 2 && !isStableProjectIdentity(metadata.projectBrain.projectId)) {
+    return false;
+  }
+
+  return true;
 }
 
 export class ProjectBrainStore {
@@ -107,11 +124,7 @@ export class ProjectBrainStore {
 
     try {
       const metadata = await this.readMetadata();
-      if (
-        typeof metadata.framework?.version !== "string" ||
-        typeof metadata.framework?.channel !== "string" ||
-        typeof metadata.projectBrain?.schemaVersion !== "number"
-      ) {
+      if (!metadataShapeIsValid(metadata)) {
         return {
           health: "partial-or-damaged",
           path: brainPath,
@@ -219,7 +232,7 @@ export class ProjectBrainStore {
     await writeFile(tempPath, `${JSON.stringify(next, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
     try {
       const parsed = JSON.parse(await readFile(tempPath, "utf8")) as Partial<ProjectBrainMetadata>;
-      if (typeof parsed.framework?.version !== "string" || typeof parsed.framework?.channel !== "string") {
+      if (!metadataShapeIsValid(parsed)) {
         throw new Error("Lifecycle metadata candidate is invalid");
       }
       await rename(tempPath, metadataPath);
@@ -293,11 +306,7 @@ export class ProjectBrainStore {
     for (const file of REQUIRED_FILES) await assertRegularFile(resolve(candidatePath, file), `Bootstrap candidate file '${file}'`);
 
     const metadata = JSON.parse(await readFile(resolve(candidatePath, "metadata.json"), "utf8")) as Partial<ProjectBrainMetadata>;
-    if (
-      typeof metadata.framework?.version !== "string" ||
-      typeof metadata.framework?.channel !== "string" ||
-      typeof metadata.projectBrain?.schemaVersion !== "number"
-    ) {
+    if (!metadataShapeIsValid(metadata)) {
       throw new Error("Bootstrap candidate metadata is invalid");
     }
   }

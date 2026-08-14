@@ -1,4 +1,5 @@
 import { discoverProject } from "../project/discovery.js";
+import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { runDoctor, type DoctorFinding } from "./doctor.js";
 import {
@@ -62,11 +63,18 @@ export async function buildConflictDriftAssessment(
   let captured;
   let baseline: ProjectContextBaseline;
   let semantic;
+  let stableProjectIdentity: string | null;
   try {
     captured = await readProjectContextManagedInputs(inspection.path);
-    const metadata = JSON.parse(captured.get("metadata.json")!.toString("utf8")) as { projectBrain?: { schemaVersion?: unknown } };
+    const metadata = JSON.parse(captured.get("metadata.json")!.toString("utf8")) as { projectBrain?: { schemaVersion?: unknown; projectId?: unknown } };
     const schemaVersion = metadata.projectBrain?.schemaVersion;
     if (typeof schemaVersion !== "number") throw new Error("missing schema version");
+    if (schemaVersion === 2) {
+      if (!isStableProjectIdentity(metadata.projectBrain?.projectId)) throw new Error("invalid stable project identity");
+      stableProjectIdentity = metadata.projectBrain.projectId;
+    } else {
+      stableProjectIdentity = null;
+    }
     baseline = buildProjectContextBaseline(captured, schemaVersion);
     semantic = readProjectBrainSemanticRegions(captured);
     if (semantic.decisionIssues.length > 0) {
@@ -102,7 +110,7 @@ export async function buildConflictDriftAssessment(
     schemaVersion: 1 as const,
     assessmentVersion: 1 as const,
     projectLocator: project.root,
-    stableProjectIdentity: null,
+    stableProjectIdentity,
     baseline,
     observation,
     comparisonEvidence: comparison.evidence,

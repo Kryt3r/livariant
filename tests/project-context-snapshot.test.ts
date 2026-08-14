@@ -12,6 +12,7 @@ import {
   initializeProject,
   recordAcceptedDecision,
 } from "../src/runtime/index.js";
+import { isStableProjectIdentity } from "../src/project-brain/identity.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -48,7 +49,7 @@ test("healthy snapshot exposes provenance-aware canonical context and remains re
     if (snapshot.safetyState !== "clear") return;
 
     assert.equal(snapshot.changesMade, 0);
-    assert.equal(snapshot.stableProjectIdentity, null);
+    assert.ok(isStableProjectIdentity(snapshot.stableProjectIdentity));
     assert.equal(snapshot.projection.derived, true);
     assert.equal(snapshot.projection.mutationAuthorization, false);
     assert.equal(snapshot.projection.returnedCopiesTrusted, false);
@@ -72,6 +73,7 @@ test("material baseline is stable across unchanged reads and changes with manage
     assert.equal(second.safetyState, "clear");
     if (first.safetyState !== "clear" || second.safetyState !== "clear") return;
     assert.equal(first.baseline.digest, second.baseline.digest);
+    assert.equal(first.stableProjectIdentity, second.stableProjectIdentity);
     assert.notEqual(first.generatedAt, "");
 
     await addConfirmedGoal("Change the material baseline", path, { authorized: true });
@@ -79,6 +81,7 @@ test("material baseline is stable across unchanged reads and changes with manage
     assert.equal(changed.safetyState, "clear");
     if (changed.safetyState !== "clear") return;
     assert.notEqual(changed.baseline.digest, first.baseline.digest);
+    assert.equal(changed.stableProjectIdentity, first.stableProjectIdentity);
   });
 });
 
@@ -132,10 +135,12 @@ test("human and JSON CLI preserve authority distinctions and derived-output warn
     assert.equal(json.status, 0, json.stderr);
     const parsed = JSON.parse(json.stdout) as {
       safetyState: string;
+      stableProjectIdentity: unknown;
       projection: { mutationAuthorization: boolean; returnedCopiesTrusted: boolean };
       context: { confirmedGoals: Array<{ authorityClass: string }> };
     };
     assert.equal(parsed.safetyState, "clear");
+    assert.ok(isStableProjectIdentity(parsed.stableProjectIdentity));
     assert.equal(parsed.projection.mutationAuthorization, false);
     assert.equal(parsed.projection.returnedCopiesTrusted, false);
     assert.equal(parsed.context.confirmedGoals[0]?.authorityClass, "canonical-project");

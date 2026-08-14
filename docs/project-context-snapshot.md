@@ -16,9 +16,10 @@ The default command is for human review. `--json` exposes the same safety and au
 A clean snapshot includes:
 
 - the current project locator;
+- the stable logical Project Brain identity when the current schema provides one;
 - the Livariant framework version;
 - a deterministic material Project Brain baseline;
-- confirmed project identity;
+- confirmed project identity evidence;
 - confirmed goals;
 - active accepted decisions;
 - known facts;
@@ -33,7 +34,7 @@ Confirmed Project Brain material is labelled `canonical-project`. Unresolved unk
 
 The snapshot baseline uses a deterministic SHA-256 identity over the managed Project Brain inputs that produced the snapshot.
 
-The digest input is versioned, domain-separated, framed, and deterministically ordered. It binds the managed input names, exact bytes, and the interpretation-relevant Project Brain schema version.
+The digest input is versioned, domain-separated, framed, and deterministically ordered. It binds the managed input names, exact bytes, and the interpretation-relevant Project Brain schema version. Because `metadata.json` is managed baseline material, a schema-2 `projectId` is captured coherently with the same state.
 
 Generation time, display formatting, provider rendering, and the absolute project location do not establish the material baseline.
 
@@ -43,48 +44,54 @@ Two unchanged reads therefore keep the same material baseline even though their 
 
 Livariant does not return a clean snapshot if the managed Project Brain changes while the snapshot is being constructed.
 
-The canonical content and baseline are derived from one captured state and the managed inputs are revalidated before clean return. If they changed concurrently, the result is blocked and the caller must retry from a fresh state.
+The canonical content, material baseline, and stable project identity are derived from one captured state and the managed inputs are revalidated before clean return. If they changed concurrently, the result is blocked and the caller must retry from a fresh state.
 
 ## Blocked state
 
 If the Project Brain is missing, damaged, ambiguous, recovery-required, or otherwise unsafe to project as clean current context, Livariant returns a blocked result instead of presenting partial material as trustworthy current context.
 
+A schema-2 Project Brain with a missing or malformed `projectId` is damaged state. A read operation does not silently mint or repair the identifier.
+
 For machine-facing use, blocked JSON contains an explicit `safetyState: "blocked"` and the CLI exits non-zero. Internal Runtime failure remains a different failure path.
 
 Human output puts the blocking state before diagnostic detail.
 
-## Project locator is not durable project identity
+## Project locator and stable logical identity are different
 
-The current snapshot exposes the project location from which it was generated, but this is not a stable durable project identity.
+`projectLocator` is the filesystem location from which the snapshot was generated. It is not durable identity.
 
-The first snapshot contract deliberately reports:
+Current repository development supports a separate stable logical Project Brain identity:
 
-```text
-stableProjectIdentity: null
-```
+- schema 2 requires one canonical UUID and exposes it as `stableProjectIdentity`;
+- schema 1 is the historical pre-identity schema and reports `stableProjectIdentity: null` until an explicit supported migration occurs;
+- moving or renaming a project directory does not rotate the logical ID;
+- a byte-for-byte copied Project Brain retains the same logical ID.
 
-A moved or copied project must not be assigned an invented identity merely because Livariant can read it. Any future durable cross-project identity requires a separate reviewed storage and migration contract.
+The ID therefore identifies a logical Project Brain lineage, not one unique checkout or machine.
+
+See [Stable Project Identity Foundation](stable-project-identity-foundation.md).
 
 ## Trust boundary
 
 A Project Context Snapshot is derived output.
 
-It does not:
+Neither the snapshot nor its stable project ID:
 
-- authorize mutation;
-- create or consume an approval;
-- make provider-returned copies trusted;
-- promote provider text to canonical truth;
-- persist terminology or concept identities;
-- repair drift automatically;
-- inject context automatically into Claude Code, Codex, or another provider.
+- authorizes mutation;
+- creates or consumes an approval;
+- proves anti-replay freshness or unique checkout identity;
+- makes provider-returned copies trusted;
+- promotes provider text to canonical truth;
+- persists terminology or concept identities;
+- repairs drift automatically;
+- injects context automatically into Claude Code, Codex, or another provider.
 
-A later material action must re-read and revalidate current canonical state instead of treating an old or returned snapshot as standing authority.
+A later material action must re-read and revalidate current canonical state instead of treating an old or returned snapshot, or identity equality alone, as standing authority.
 
 ## Relationship to `resume`
 
 `livariant resume` remains the current provider-handoff surface for Claude Code and Codex.
 
-`livariant context` is the structured project-truth projection layer. It establishes the read-side baseline and safety contract that future Semantic Change Proposals, drift analysis, and richer provider integrations can build on.
+`livariant context` is the structured project-truth projection layer. It establishes the read-side baseline, identity, and safety contract that Semantic Change Proposals, drift analysis, and Provider Context can use without gaining mutation authority.
 
-Those later capabilities are not implied to be available merely because the Project Context Snapshot exists.
+Stable Project Identity and the other post-RC3 Active Project Intelligence surfaces are repository development and are not retroactively part of immutable `v0.1.0-rc.3`.

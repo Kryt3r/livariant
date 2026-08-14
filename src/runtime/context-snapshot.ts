@@ -1,4 +1,5 @@
 import { discoverProject } from "../project/discovery.js";
+import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { runDoctor, type DoctorFinding } from "./doctor.js";
@@ -42,13 +43,14 @@ interface SnapshotBase {
   generatedAt: string;
   frameworkVersion: string;
   projectLocator: string;
-  stableProjectIdentity: null;
+  stableProjectIdentity: string | null;
   projection: ProjectContextProjectionMetadata;
   changesMade: 0;
 }
 
 export interface ClearProjectContextSnapshot extends SnapshotBase {
   safetyState: "clear";
+  stableProjectIdentity: string | null;
   baseline: ProjectContextBaseline;
   context: ProjectContextSnapshotContext;
   findings: DoctorFinding[];
@@ -67,13 +69,13 @@ export interface ProjectContextSnapshotBuildOptions {
   beforeRevalidate?: () => void | Promise<void>;
 }
 
-function base(projectLocator: string): SnapshotBase {
+function base(projectLocator: string, stableProjectIdentity: string | null = null): SnapshotBase {
   return {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     frameworkVersion: FRAMEWORK_VERSION,
     projectLocator,
-    stableProjectIdentity: null,
+    stableProjectIdentity,
     projection: {
       derived: true,
       mutationAuthorization: false,
@@ -131,12 +133,21 @@ export async function buildProjectContextSnapshot(
   let captured: Map<ManagedInputName, Buffer>;
   let context: ProjectContextSnapshotContext;
   let baseline: ProjectContextBaseline;
+  let stableProjectIdentity: string | null;
   try {
     captured = await readProjectContextManagedInputs(inspection.path);
-    const metadata = JSON.parse(captured.get("metadata.json")!.toString("utf8")) as { projectBrain?: { schemaVersion?: unknown } };
+    const metadata = JSON.parse(captured.get("metadata.json")!.toString("utf8")) as { projectBrain?: { schemaVersion?: unknown; projectId?: unknown } };
     const schemaVersion = metadata.projectBrain?.schemaVersion;
     if (typeof schemaVersion !== "number") {
       return blocked(project.root, [{ code: "snapshot-metadata-invalid", severity: "error", message: "Project Brain schema version is unavailable for snapshot baseline construction." }]);
+    }
+    if (schemaVersion === 2) {
+      if (!isStableProjectIdentity(metadata.projectBrain?.projectId)) {
+        return blocked(project.root, [{ code: "snapshot-project-identity-invalid", severity: "error", message: "Project Brain schema 2 does not expose one valid stable logical project identity." }]);
+      }
+      stableProjectIdentity = metadata.projectBrain.projectId;
+    } else {
+      stableProjectIdentity = null;
     }
     context = parseContext(captured);
     baseline = buildProjectContextBaseline(captured, schemaVersion);
@@ -161,7 +172,7 @@ export async function buildProjectContextSnapshot(
   if (doctorAfter.state !== "healthy") return blocked(project.root, doctorAfter.findings, baseline);
 
   return {
-    ...base(project.root),
+    ...base(project.root, stableProjectIdentity),
     safetyState: "clear",
     baseline,
     context,

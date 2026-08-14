@@ -25,6 +25,7 @@ export interface ProjectBrainMetadata {
   };
   projectBrain: {
     schemaVersion: number;
+    projectId?: string;
   };
 }
 

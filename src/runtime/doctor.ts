@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
+import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { readMigrationJournal } from "../lifecycle/migration.js";
 import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
@@ -53,8 +54,9 @@ export async function runDoctor(projectPath: string = process.cwd()): Promise<Do
   if (!new Set(["stable", "preview", "development"]).has(metadata.framework.channel)) findings.push({ code: "unsupported-update-channel", severity: "error", message: `Unsupported update channel: ${metadata.framework.channel}.` });
 
   if (metadata.projectBrain.schemaVersion === 2) {
-    const extended = metadata as typeof metadata & { lifecycle?: { migrationHistory?: unknown } };
-    if (!Array.isArray(extended.lifecycle?.migrationHistory) || !extended.lifecycle?.migrationHistory.includes("pb-schema-1-to-2")) findings.push({ code: "schema-postcondition-mismatch", severity: "error", message: "Project Brain claims schema 2 but required schema-2 migration evidence is missing." });
+    if (!isStableProjectIdentity(metadata.projectBrain.projectId)) {
+      findings.push({ code: "schema-postcondition-mismatch", severity: "error", message: "Project Brain schema 2 requires one canonical stable logical project identity." });
+    }
   } else if (metadata.projectBrain.schemaVersion !== 1) {
     findings.push({ code: "unsupported-schema", severity: "error", message: `Unsupported Project Brain schema version: ${metadata.projectBrain.schemaVersion}.` });
   }

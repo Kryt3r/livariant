@@ -35,7 +35,7 @@ export async function buildProviderContext(
     frameworkVersion: FRAMEWORK_VERSION,
     provider,
     projectLocator: snapshot.projectLocator,
-    stableProjectIdentity: null,
+    stableProjectIdentity: snapshot.stableProjectIdentity,
     projection: projection(),
     mutationAuthorization: false,
     applySupported: false,

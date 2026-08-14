@@ -12,6 +12,7 @@ import {
   planRecovery,
   readMigrationJournal,
 } from "../src/runtime/index.js";
+import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
 import { TEST_SOURCE_VERSION } from "./release-test-baseline.js";
 
@@ -19,6 +20,7 @@ test("late displaced cleanup failure keeps restored brain and last valid checkpo
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-recovery-cleanup-"));
   try {
     await initializeProject(projectPath, { authorized: true });
+    await makeLegacySchema1Project(projectPath);
     const migrationPlan = await planMigrationUpdate(projectPath, migrationRelease);
     await applyMigrationUpdate(
       projectPath,
@@ -39,10 +41,11 @@ test("late displaced cleanup failure keeps restored brain and last valid checkpo
 
     const restoredMetadata = JSON.parse(await readFile(resolve(projectPath, ".project-brain", "metadata.json"), "utf8")) as {
       framework: { version: string };
-      projectBrain: { schemaVersion: number };
+      projectBrain: { schemaVersion: number; projectId?: unknown };
     };
     assert.equal(restoredMetadata.framework.version, TEST_SOURCE_VERSION);
     assert.equal(restoredMetadata.projectBrain.schemaVersion, 1);
+    assert.equal(restoredMetadata.projectBrain.projectId, undefined);
     assert.equal(await readFile(resolve(projectPath, ".project-brain", "project.md"), "utf8"), checkpointProject);
 
     const checkpointStats = await stat(checkpointPath);

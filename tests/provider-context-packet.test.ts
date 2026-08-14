@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { addConfirmedGoal, addConfirmedKnowledge, initializeProject, recordAcceptedDecision } from "../src/runtime/index.js";
+import { isStableProjectIdentity } from "../src/project-brain/identity.js";
 import { buildProviderContext, PROVIDER_CONTEXT_TASK_MAX_BYTES } from "../src/runtime/provider-context.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
@@ -50,7 +51,8 @@ test("provider context preserves canonical evidence, provider boundary, and read
     if (claude.state !== "ready" || codex.state !== "ready") return;
 
     assert.equal(claude.changesMade, 0);
-    assert.equal(claude.stableProjectIdentity, null);
+    assert.ok(isStableProjectIdentity(claude.stableProjectIdentity));
+    assert.equal(codex.stableProjectIdentity, claude.stableProjectIdentity);
     assert.equal(claude.safetyState, "clear");
     assert.equal(claude.task.authorityClass, "session-ephemeral");
     assert.equal(claude.projection.derived, true);
@@ -79,6 +81,7 @@ test("material packet identity ignores generation time and changes with material
     assert.equal(second.state, "ready");
     if (first.state !== "ready" || second.state !== "ready") return;
     assert.equal(first.packetId, second.packetId);
+    assert.equal(first.stableProjectIdentity, second.stableProjectIdentity);
 
     const taskChanged = await buildProviderContext("codex", "task-b", path);
     const providerChanged = await buildProviderContext("claude-code", "task-a", path);
@@ -93,6 +96,7 @@ test("material packet identity ignores generation time and changes with material
     assert.equal(baselineChanged.state, "ready");
     if (baselineChanged.state !== "ready") return;
     assert.notEqual(first.packetId, baselineChanged.packetId);
+    assert.equal(first.stableProjectIdentity, baselineChanged.stableProjectIdentity);
   });
 });
 
@@ -156,9 +160,10 @@ test("human and JSON CLI outputs remain read-only and render task control charac
 
     const json = runCli(path, ["provider-context", "--provider", "codex", "--task", taskPath, "--json"]);
     assert.equal(json.status, 0, json.stderr);
-    const parsed = JSON.parse(json.stdout) as { state: string; provider: string; task: { authorityClass: string }; changesMade: number };
+    const parsed = JSON.parse(json.stdout) as { state: string; provider: string; stableProjectIdentity: unknown; task: { authorityClass: string }; changesMade: number };
     assert.equal(parsed.state, "ready");
     assert.equal(parsed.provider, "codex");
+    assert.ok(isStableProjectIdentity(parsed.stableProjectIdentity));
     assert.equal(parsed.task.authorityClass, "session-ephemeral");
     assert.equal(parsed.changesMade, 0);
 

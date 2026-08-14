@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { getStatus, getVersionInfo, initializeProject, inspectInitialization } from "../src/runtime/index.js";
 import { FRAMEWORK_VERSION } from "../src/lifecycle/state.js";
+import { isStableProjectIdentity } from "../src/project-brain/identity.js";
 
 async function withTempProject(run: (path: string) => Promise<void>): Promise<void> {
   const path = await mkdtemp(join(tmpdir(), "pbf-runtime-"));
@@ -63,8 +64,8 @@ test("failure before promotion leaves no apparently valid Project Brain", async 
   await withTempProject(async(projectPath)=>{await assert.rejects(()=>initializeProject(projectPath,{authorized:true,beforePromote:()=>{throw new Error("simulated bootstrap interruption");}}),/simulated bootstrap interruption/); await assert.rejects(()=>access(resolve(projectPath,".project-brain"))); const leftovers=(await readdir(projectPath)).filter((entry)=>entry.startsWith(".project-brain.tmp-")); assert.deepEqual(leftovers,[]);});
 });
 
-test("bootstrap metadata records separate framework, channel, and schema identity", async () => {
-  await withTempProject(async(projectPath)=>{await initializeProject(projectPath,{authorized:true}); const metadata=JSON.parse(await readFile(resolve(projectPath,".project-brain","metadata.json"),"utf8")) as {framework:{version:string;channel:string};projectBrain:{schemaVersion:number}}; assert.equal(metadata.framework.version,FRAMEWORK_VERSION); assert.equal(metadata.framework.channel,"preview"); assert.equal(metadata.projectBrain.schemaVersion,1);});
+test("bootstrap metadata records separate framework, channel, schema, and stable project identity", async () => {
+  await withTempProject(async(projectPath)=>{await initializeProject(projectPath,{authorized:true}); const metadata=JSON.parse(await readFile(resolve(projectPath,".project-brain","metadata.json"),"utf8")) as {framework:{version:string;channel:string};projectBrain:{schemaVersion:number;projectId?:unknown}}; assert.equal(metadata.framework.version,FRAMEWORK_VERSION); assert.equal(metadata.framework.channel,"preview"); assert.equal(metadata.projectBrain.schemaVersion,2); assert.ok(isStableProjectIdentity(metadata.projectBrain.projectId));});
 });
 
 test("bootstrap preserves unknown intent instead of inventing project assumptions", async () => {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
 import { discoverProject } from "../project/discovery.js";
+import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import type { DecisionRecord } from "../project-brain/decisions.js";
 import { runDoctor, type DoctorFinding } from "./doctor.js";
@@ -108,7 +109,7 @@ export interface SemanticProposal {
   };
   generatedAt: string;
   projectLocator: string;
-  stableProjectIdentity: null;
+  stableProjectIdentity: string | null;
   baseline: ProjectContextBaseline;
   candidate: SemanticProposalCandidate;
   evidence: SemanticProposalEvidence;
@@ -127,7 +128,7 @@ export interface SemanticProposal {
 export interface BlockedSemanticProposalResult {
   state: "blocked";
   projectLocator: string;
-  stableProjectIdentity: null;
+  stableProjectIdentity: string | null;
   baseline: ProjectContextBaseline | null;
   proposal: null;
   findings: Array<SemanticProposalFinding | DoctorFinding>;
@@ -546,9 +547,10 @@ export async function buildSemanticProposal(
   let captured;
   let baseline: ProjectContextBaseline;
   let semantic;
+  let stableProjectIdentity: string | null;
   try {
     captured = await readProjectContextManagedInputs(inspection.path);
-    const metadata = JSON.parse(captured.get("metadata.json")!.toString("utf8")) as { projectBrain?: { schemaVersion?: unknown } };
+    const metadata = JSON.parse(captured.get("metadata.json")!.toString("utf8")) as { projectBrain?: { schemaVersion?: unknown; projectId?: unknown } };
     const schemaVersion = metadata.projectBrain?.schemaVersion;
     if (typeof schemaVersion !== "number") {
       return blocked(project.root, [{
@@ -557,6 +559,19 @@ export async function buildSemanticProposal(
         effect: "blocking",
         message: "Project Brain schema version is unavailable for proposal baseline construction.",
       }]);
+    }
+    if (schemaVersion === 2) {
+      if (!isStableProjectIdentity(metadata.projectBrain?.projectId)) {
+        return blocked(project.root, [{
+          category: "insufficient-evidence",
+          code: "proposal-project-identity-invalid",
+          effect: "blocking",
+          message: "Project Brain schema 2 does not expose one valid stable logical project identity.",
+        }]);
+      }
+      stableProjectIdentity = metadata.projectBrain.projectId;
+    } else {
+      stableProjectIdentity = null;
     }
     baseline = buildProjectContextBaseline(captured, schemaVersion);
     semantic = readProjectBrainSemanticRegions(captured);
@@ -623,7 +638,7 @@ export async function buildSemanticProposal(
     schemaVersion: SEMANTIC_PROPOSAL_SCHEMA_VERSION,
     proposalVersion: 1 as const,
     projectLocator: project.root,
-    stableProjectIdentity: null,
+    stableProjectIdentity,
     baseline,
     candidate,
     evidence: analysis.evidence,

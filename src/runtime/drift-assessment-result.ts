@@ -10,7 +10,7 @@ export interface DriftAssessment {
   materialDigest: { algorithm: "sha256"; domain: "livariant:drift-assessment:v1"; digest: string };
   generatedAt: string;
   projectLocator: string;
-  stableProjectIdentity: null;
+  stableProjectIdentity: string | null;
   baseline: ProjectContextBaseline;
   observation: DriftObservation;
   comparisonEvidence: DriftComparisonEvidence[];
@@ -22,7 +22,7 @@ export interface DriftAssessment {
 
 export type DriftAssessmentResult =
   | { state: "assessment"; assessment: DriftAssessment; changesMade: 0 }
-  | { state: "blocked"; projectLocator: string; stableProjectIdentity: null; baseline: ProjectContextBaseline | null; assessment: null; findings: Array<DriftFinding | DoctorFinding>; reviewOnly: true; mutationAuthorization: false; applySupported: false; authorizationEligible: false; changesMade: 0 };
+  | { state: "blocked"; projectLocator: string; stableProjectIdentity: string | null; baseline: ProjectContextBaseline | null; assessment: null; findings: Array<DriftFinding | DoctorFinding>; reviewOnly: true; mutationAuthorization: false; applySupported: false; authorizationEligible: false; changesMade: 0 };
 
 export interface DriftAssessmentBuildOptions {
   beforeRevalidate?: () => void | Promise<void>;

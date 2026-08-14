@@ -6,6 +6,7 @@ import test from "node:test";
 import { initializeProject, runDoctor } from "../src/runtime/index.js";
 import { ProjectBrainStore } from "../src/project-brain/store.js";
 import { applyMigrationUpdate, planMigrationUpdate } from "../src/lifecycle/migration.js";
+import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {
@@ -65,10 +66,10 @@ test("unsupported update channel is classified unsupported and remains untouched
   });
 });
 
-test("schema 2 without schema-2 postconditions is drift rather than accepted state", async () => {
+test("schema 2 without a canonical stable project identity is partial-or-damaged and remains untouched", async () => {
   await withProject(async (path) => {
-    await mutateMetadata(path,(metadata)=>{metadata.projectBrain.schemaVersion=2; delete metadata.lifecycle;}); const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path);
-    assert.equal(report.state,"drift-detected"); assert.ok(report.findings.some((finding)=>finding.code==="schema-postcondition-mismatch")); assert.deepEqual(after,before);
+    await mutateMetadata(path,(metadata)=>{delete metadata.projectBrain.projectId;}); const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path);
+    assert.equal(report.state,"partial-or-damaged"); assert.ok(report.findings.some((finding)=>finding.code==="project-brain-invalid")); assert.deepEqual(after,before);
   });
 });
 
@@ -85,7 +86,7 @@ test("partial Project Brain is diagnosed without automatic init or repair", asyn
 
 test("open migration journal narrows doctor state to recovery-required", async () => {
   await withProject(async (path) => {
-    const plan=await planMigrationUpdate(path,migrationRelease); await applyMigrationUpdate(path,plan,{...migrationApplyOptions(),interruptAfterMutation:true} as Parameters<typeof applyMigrationUpdate>[2]);
+    await makeLegacySchema1Project(path); const plan=await planMigrationUpdate(path,migrationRelease); await applyMigrationUpdate(path,plan,{...migrationApplyOptions(),interruptAfterMutation:true} as Parameters<typeof applyMigrationUpdate>[2]);
     const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path); assert.equal(report.state,"recovery-required"); assert.ok(report.findings.some((finding)=>finding.code==="interrupted-migration")); assert.deepEqual(after,before);
   });
 });
