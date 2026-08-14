@@ -195,6 +195,9 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
           if (typeof params.protocolVersion !== "string") throw new Error("protocolVersion must be a string.");
           if (!plainObject(params.capabilities)) throw new Error("capabilities must be an object.");
           if (!plainObject(params.clientInfo)) throw new Error("clientInfo must be an object.");
+          if (typeof params.clientInfo.name !== "string" || typeof params.clientInfo.version !== "string") {
+            throw new Error("clientInfo must contain string name and version fields.");
+          }
           if ("_meta" in params && !plainObject(params._meta)) throw new Error("initialize _meta must be an object when present.");
         } catch (error) {
           return errorResponse(id, -32602, error instanceof Error ? error.message : "Invalid initialize params.");
@@ -231,8 +234,15 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
 
       if (value.method === "tools/list") {
         if (!hasId) return null;
-        if (value.params !== undefined && !plainObject(value.params)) {
-          return errorResponse(id, -32602, "tools/list params must be an object when present.");
+        if (value.params !== undefined) {
+          if (!plainObject(value.params)) return errorResponse(id, -32602, "tools/list params must be an object when present.");
+          try {
+            strictKeys(value.params, ["cursor", "_meta"], []);
+            if ("cursor" in value.params && typeof value.params.cursor !== "string") throw new Error("tools/list cursor must be a string when present.");
+            if ("_meta" in value.params && !plainObject(value.params._meta)) throw new Error("tools/list _meta must be an object when present.");
+          } catch (error) {
+            return errorResponse(id, -32602, error instanceof Error ? error.message : "Invalid tools/list params.");
+          }
         }
         return response(id, { tools: tools() });
       }
