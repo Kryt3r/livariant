@@ -33,8 +33,8 @@ authorizationEligible: false
 changesMade: 0
 ```
 
-Automatische Provider-Injektion ist nicht implementiert, und kopierte oder vom Provider zurückgegebene Pakete werden bei späterer Verwendung nicht als vertrauenswürdige kanonische Eingabe behandelt. Die Gleichheit von `stableProjectIdentity` macht ein zurückgegebenes Paket nicht vertrauenswürdig und autorisiert keine Mutation.
+Automatische Provider-Injektion ist nicht implementiert. Der Repository-Stand nach RC3 stellt nun zusätzlich eine getrennte lokale `provider-return`-Intake-Oberfläche bereit, die eine bereitgestellte ready Provider-Context-Kopie mit genau einem strukturierten Provider-Return korreliert. Die bereitgestellte Kopie und ihre Evidence bleiben externe/nicht vertrauenswürdige Bytes; Packet-ID-Gleichheit oder passende `stableProjectIdentity` sind nur Korrelation und beweisen weder historische Ausgabe noch kanonische Wahrheit, Zustimmung oder Mutationsautorität.
 
-Siehe [Stable Project Identity Foundation](stable-project-identity-foundation.md).
+Siehe [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md) für den Return-Vertrag und [Stable Project Identity Foundation](stable-project-identity-foundation.md) für die Semantik der logischen Identität.
 
 Diese Funktion ist Repository-Entwicklung nach RC3 und nicht Bestandteil des unveränderlichen Releases `v0.1.0-rc.3`.
