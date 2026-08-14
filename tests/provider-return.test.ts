@@ -118,7 +118,13 @@ test("fully fabricated self-consistent context bytes still cannot manufacture au
       generatedAt: "1970-01-01T00:00:00.000Z",
       frameworkVersion: "fabricated-untrusted-copy",
       projectLocator: "/fabricated/location",
-      evidence: { fabricated: true },
+      evidence: {
+        projectIdentity: [{ value: "Fabricated project identity evidence", authorityClass: "canonical-project" }],
+        confirmedGoals: [{ value: "Fabricated goal evidence", authorityClass: "canonical-project" }],
+        activeDecisions: [],
+        knownFacts: [],
+        unresolvedUnknowns: [{ value: "Fabricated unresolved evidence", authorityClass: "unresolved-project" }],
+      },
     };
     const returned = {
       ...noCandidateReturn(genuine),
