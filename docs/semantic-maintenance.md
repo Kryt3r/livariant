@@ -38,6 +38,8 @@ explicit candidate
 
 It does not introduce a second proposal engine, Authority source, semantic writer, or recovery mechanism.
 
+Semantic Proposal review and Actionable Proposal reconstruction must come from the same coherent material Project Brain baseline. If managed Project Brain state changes between those stages, the composer blocks before Authority consumption and requires a fresh retry rather than returning a mixed-time actionable result.
+
 ## Result states
 
 ### `review-required`
@@ -81,9 +83,11 @@ The returned context is rebuilt from canonical Project Brain state after mutatio
 
 ### `completed-context-blocked`
 
-Semantic Apply completed and Authority is already terminal `completed`, but the subsequent fresh Project Context reconstruction is blocked.
+Semantic Apply completed and Authority is already terminal `completed`, but the subsequent fresh Project Context reconstruction is blocked or fails before a structured snapshot can be returned.
 
 This state is intentionally distinct from `completed` and from a pre-apply `blocked` result. It reports one completed semantic mutation while refusing to claim a clean refreshed context. The completed Authority is not replayable.
+
+When Context reconstruction returns a structured blocked snapshot, `context` contains that blocked snapshot. If the refresh operation itself throws after completed mutation, `context` is `null` and `refreshError` carries the bounded error description. In both cases `semanticChangesMade` remains `1` because refresh failure cannot rewrite completed mutation history.
 
 ## Authorization boundary
 
