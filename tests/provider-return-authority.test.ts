@@ -67,6 +67,27 @@ async function readyContext(path: string, task = "Return one durable candidate")
   return context;
 }
 
+function externalCandidate(candidate: SemanticProposalCandidate) {
+  return candidate.domain === "project-decision" && candidate.changeKind === "supersede"
+    ? {
+        schemaVersion: candidate.schemaVersion,
+        domain: candidate.domain,
+        changeKind: candidate.changeKind,
+        proposedStatement: candidate.proposedStatement,
+        rationale: candidate.rationale,
+        origin: candidate.originClaim,
+        targetDecisionId: candidate.targetDecisionId,
+      }
+    : {
+        schemaVersion: candidate.schemaVersion,
+        domain: candidate.domain,
+        changeKind: candidate.changeKind,
+        proposedStatement: candidate.proposedStatement,
+        rationale: candidate.rationale,
+        origin: candidate.originClaim,
+      };
+}
+
 function providerReturn(
   context: Awaited<ReturnType<typeof readyContext>>,
   candidate: SemanticProposalCandidate | null,
@@ -79,7 +100,7 @@ function providerReturn(
     stableProjectIdentity: context.stableProjectIdentity,
     baselineDigest: context.baseline.digest,
     taskDigest: providerReturnTaskDigest(context.task.value),
-    candidate,
+    candidate: candidate === null ? null : externalCandidate(candidate),
   };
 }
 
