@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   buildActionableProposal,
@@ -19,6 +21,9 @@ import {
   failAuthorizationApplication,
   inspectAuthorizationAudit,
 } from "../src/runtime/authorization.js";
+
+const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
+const FIXED_AUTH_ID = "22222222-2222-4222-8222-222222222222";
 
 function candidate(statement = "Use passkeys") {
   return parseSemanticProposalCandidate({
@@ -58,6 +63,49 @@ async function prepared(path: string, statement = "Use passkeys") {
   assert.equal(result.state, "actionable-proposal");
   if (result.state !== "actionable-proposal") throw new Error("expected actionable proposal");
   return result.proposal;
+}
+
+async function seedAuthorizedEvidence(path: string, proposal: Awaited<ReturnType<typeof prepared>>, authorizationId = FIXED_AUTH_ID): Promise<void> {
+  const authorizedAt = new Date().toISOString();
+  const binding = {
+    authorizationId,
+    stableProjectIdentity: proposal.stableProjectIdentity,
+    actionableProposalId: proposal.actionableProposalId,
+    actionableProposalVersion: 1,
+    proposalDigest: proposal.materialDigest.digest,
+    mutationScope: proposal.mutationScope,
+    baseline: proposal.baseline,
+  };
+  const projectRoot = resolve(path, ".project-brain", ".authorizations");
+  await mkdir(resolve(projectRoot, "history"), { recursive: true });
+  await writeFile(resolve(projectRoot, "active.json"), `${JSON.stringify({
+    ...binding,
+    schemaVersion: 1,
+    kind: "semantic-mutation-authorization-audit",
+    state: "authorized",
+    authorizedAt,
+  }, null, 2)}\n`, "utf8");
+
+  const machineRoot = resolve(userInfo().homedir, ".livariant", "trust", "semantic-authorizations", proposal.stableProjectIdentity);
+  await mkdir(machineRoot, { recursive: true });
+  await writeFile(resolve(machineRoot, `${authorizationId}.json`), `${JSON.stringify({
+    ...binding,
+    schemaVersion: 1,
+    kind: "semantic-mutation-authorization",
+    state: "authorized",
+    authorizedAt,
+  }, null, 2)}\n`, "utf8");
+}
+
+function runInteractiveAuthorize(path: string, proposalPath: string, challenge: string) {
+  const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(cliPath)} authorize --input ${JSON.stringify(proposalPath)} --json`;
+  return spawnSync("script", ["-qfec", command, "/dev/null"], {
+    cwd: path,
+    input: `${challenge}\n`,
+    encoding: "utf8",
+    shell: false,
+    env: { ...process.env, PBF_RUNTIME_DELEGATION_BYPASS: "1" },
+  });
 }
 
 const semanticFiles = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"] as const;
@@ -106,27 +154,47 @@ test("tampering with actionable proposal material invalidates its digest", async
   });
 });
 
-test("authorization binds current baseline and refuses stale actionable proposal", async () => {
+test("authorization binds current baseline and refuses stale actionable proposal before user-presence prompt", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await recordAcceptedDecision("Concurrent durable decision", path, { authorized: true });
     await assert.rejects(authorizeActionableProposal(proposal, path), /no longer matches|cannot reproduce/);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
+    assert.equal((await inspectAuthorizationAudit(path)).active, null);
   });
 });
 
-test("authorization creates dual evidence without changing semantic Project Brain files", async () => {
+test("non-interactive authorization is blocked before project or machine authority state is created", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
+    const projectAuthorityRoot = resolve(path, ".project-brain", ".authorizations");
+    const machineAuthorityRoot = resolve(userInfo().homedir, ".livariant", "trust", "semantic-authorizations", proposal.stableProjectIdentity);
+    await assert.rejects(authorizeActionableProposal(proposal, path), /interactive local terminal/);
+    await assert.rejects(readFile(resolve(projectAuthorityRoot, "active.json")), /ENOENT/);
+    await assert.rejects(readFile(resolve(machineAuthorityRoot, `${FIXED_AUTH_ID}.json`)), /ENOENT/);
+    assert.deepEqual(await inspectAuthorizationAudit(path), { active: null, history: [] });
+  });
+});
+
+test("authorization audit inspection is read-only when no authorization state exists", async () => {
+  await withProject(async (path) => {
+    const root = resolve(path, ".project-brain", ".authorizations");
+    assert.deepEqual(await inspectAuthorizationAudit(path), { active: null, history: [] });
+    await assert.rejects(readFile(resolve(root, "active.json")), /ENOENT/);
+  });
+});
+
+test("interactive local CLI creates dual evidence without changing semantic Project Brain files", { skip: process.platform === "win32" }, async () => {
+  await withProject(async (path) => {
+    const proposal = await prepared(path);
+    const proposalPath = resolve(path, "actionable.json");
+    await writeFile(proposalPath, `${JSON.stringify(proposal)}\n`, "utf8");
     const before = new Map(await Promise.all(semanticFiles.map(async (name) => [name, await readFile(resolve(path, ".project-brain", name))] as const)));
-    const result = await authorizeActionableProposal(proposal, path);
-    assert.equal(result.machineAuthorityVerified, true);
-    assert.equal(result.mutationAuthorization, true);
-    assert.equal(result.applySupported, false);
-    assert.equal(result.semanticChangesMade, 0);
-    assert.equal(result.authorization.state, "authorized");
-    await assertAuthorizationReadyForApply(result.authorization.authorizationId, proposal, path);
+    const result = runInteractiveAuthorize(path, proposalPath, `AUTHORIZE ${proposal.materialDigest.digest.slice(0, 12)}`);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const audit = await inspectAuthorizationAudit(path);
+    assert.equal(audit.active?.state, "authorized");
+    assert.ok(audit.active?.authorizationId);
+    await assertAuthorizationReadyForApply(audit.active!.authorizationId, proposal, path);
     for (const name of semanticFiles) assert.deepEqual(await readFile(resolve(path, ".project-brain", name)), before.get(name));
   });
 });
@@ -134,7 +202,6 @@ test("authorization creates dual evidence without changing semantic Project Brai
 test("project-local authorization-looking bytes alone cannot establish authority", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
-    const authorizationId = "11111111-1111-4111-8111-111111111111";
     const root = resolve(path, ".project-brain", ".authorizations");
     await mkdir(resolve(root, "history"), { recursive: true });
     await writeFile(resolve(root, "active.json"), `${JSON.stringify({
@@ -142,7 +209,7 @@ test("project-local authorization-looking bytes alone cannot establish authority
       kind: "semantic-mutation-authorization-audit",
       state: "authorized",
       authorizedAt: new Date().toISOString(),
-      authorizationId,
+      authorizationId: FIXED_AUTH_ID,
       stableProjectIdentity: proposal.stableProjectIdentity,
       actionableProposalId: proposal.actionableProposalId,
       actionableProposalVersion: 1,
@@ -150,68 +217,64 @@ test("project-local authorization-looking bytes alone cannot establish authority
       mutationScope: proposal.mutationScope,
       baseline: proposal.baseline,
     }, null, 2)}\n`, "utf8");
-    await assert.rejects(assertAuthorizationReadyForApply(authorizationId, proposal, path), /machine-local authorization is missing|Matching independent machine-local authorization is missing/i);
+    await assert.rejects(assertAuthorizationReadyForApply(FIXED_AUTH_ID, proposal, path), /machine-local authorization is missing|Matching independent machine-local authorization is missing/i);
   });
 });
 
 test("machine-local receipt alone cannot establish authority without matching project audit", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
-    const result = await authorizeActionableProposal(proposal, path);
+    await seedAuthorizedEvidence(path, proposal);
     await rm(resolve(path, ".project-brain", ".authorizations", "active.json"));
-    await assert.rejects(assertAuthorizationReadyForApply(result.authorization.authorizationId, proposal, path), /No active project-local authorization audit/);
+    await assert.rejects(assertAuthorizationReadyForApply(FIXED_AUTH_ID, proposal, path), /No active project-local authorization audit/);
+  });
+});
+
+test("unsupported project authorization entries fail closed", async () => {
+  await withProject(async (path) => {
+    const root = resolve(path, ".project-brain", ".authorizations");
+    await mkdir(resolve(root, "history"), { recursive: true });
+    await writeFile(resolve(root, "shadow.json"), "{}\n", "utf8");
+    await assert.rejects(inspectAuthorizationAudit(path), /unsupported or ambiguous entry/);
   });
 });
 
 test("concurrent consumers cannot both transition the same authorization to applying", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
-    const result = await authorizeActionableProposal(proposal, path);
+    await seedAuthorizedEvidence(path, proposal);
     const attempts = await Promise.allSettled([
-      beginAuthorizationApplication(result.authorization.authorizationId, proposal, path),
-      beginAuthorizationApplication(result.authorization.authorizationId, proposal, path),
+      beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path),
+      beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path),
     ]);
     assert.equal(attempts.filter((item) => item.status === "fulfilled").length, 1);
     assert.equal(attempts.filter((item) => item.status === "rejected").length, 1);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active?.state, "applying");
-    await failAuthorizationApplication(result.authorization.authorizationId, path);
+    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "applying");
+    await failAuthorizationApplication(FIXED_AUTH_ID, path);
   });
 });
 
 test("completed authorization is terminal and cannot be replayed", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
-    const result = await authorizeActionableProposal(proposal, path);
-    await beginAuthorizationApplication(result.authorization.authorizationId, proposal, path);
-    const completed = await completeAuthorizationApplication(result.authorization.authorizationId, path);
+    await seedAuthorizedEvidence(path, proposal);
+    await beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path);
+    const completed = await completeAuthorizationApplication(FIXED_AUTH_ID, path);
     assert.equal(completed.state, "completed");
     const audit = await inspectAuthorizationAudit(path);
     assert.equal(audit.active, null);
-    assert.ok(audit.history.some((record) => record.authorizationId === result.authorization.authorizationId && record.state === "completed"));
-    await assert.rejects(beginAuthorizationApplication(result.authorization.authorizationId, proposal, path), /No active authorization exists/);
+    assert.ok(audit.history.some((record) => record.authorizationId === FIXED_AUTH_ID && record.state === "completed"));
+    await assert.rejects(beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path), /No active authorization exists/);
   });
 });
 
 test("failed-recovery-required authorization is terminal and cannot be reused", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
-    const result = await authorizeActionableProposal(proposal, path);
-    await beginAuthorizationApplication(result.authorization.authorizationId, proposal, path);
-    const failed = await failAuthorizationApplication(result.authorization.authorizationId, path);
+    await seedAuthorizedEvidence(path, proposal);
+    await beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path);
+    const failed = await failAuthorizationApplication(FIXED_AUTH_ID, path);
     assert.equal(failed.state, "failed-recovery-required");
-    await assert.rejects(assertAuthorizationReadyForApply(result.authorization.authorizationId, proposal, path), /No active project-local authorization audit/);
-  });
-});
-
-test("authorization revalidates concurrent managed change immediately before commit", async () => {
-  await withProject(async (path) => {
-    const proposal = await prepared(path);
-    await assert.rejects(authorizeActionableProposal(proposal, path, {
-      beforeCommit: async () => {
-        await recordAcceptedDecision("Changed before authorization commit", path, { authorized: true });
-      },
-    }), /no longer matches|cannot reproduce/);
-    assert.equal((await inspectAuthorizationAudit(path)).active, null);
+    await assert.rejects(assertAuthorizationReadyForApply(FIXED_AUTH_ID, proposal, path), /No active project-local authorization audit/);
   });
 });
