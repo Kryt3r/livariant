@@ -16,9 +16,10 @@ Der Standardbefehl ist für die menschliche Prüfung gedacht. `--json` stellt di
 Ein sauberer Snapshot enthält:
 
 - den aktuellen Projekt-Locator;
+- die stabile logische Project-Brain-Identität, wenn das aktuelle Schema eine bereitstellt;
 - die Livariant-Framework-Version;
 - eine deterministische materiale Project-Brain-Baseline;
-- bestätigte Projektidentität;
+- bestätigte Projektidentitäts-Evidence;
 - bestätigte Ziele;
 - aktive akzeptierte Entscheidungen;
 - bekannte Fakten;
@@ -33,7 +34,7 @@ Bestätigtes Project-Brain-Material wird als `canonical-project` gekennzeichnet.
 
 Die Snapshot-Baseline verwendet eine deterministische SHA-256-Identität über die verwalteten Project-Brain-Eingaben, aus denen der Snapshot erzeugt wurde.
 
-Die Digest-Eingabe ist versioniert, domain-separiert, eindeutig gerahmt und deterministisch sortiert. Sie bindet die Namen der verwalteten Eingaben, ihre exakten Bytes und die für die Interpretation relevante Project-Brain-Schema-Version.
+Die Digest-Eingabe ist versioniert, domain-separiert, eindeutig gerahmt und deterministisch sortiert. Sie bindet die Namen der verwalteten Eingaben, ihre exakten Bytes und die für die Interpretation relevante Project-Brain-Schema-Version. Da `metadata.json` Bestandteil der verwalteten Baseline ist, wird eine schema-2 `projectId` kohärent aus demselben Zustand erfasst.
 
 Erzeugungszeit, Darstellung, Provider-Rendering und der absolute Projektpfad bestimmen die materiale Baseline nicht.
 
@@ -43,48 +44,54 @@ Zwei unveränderte Reads behalten deshalb dieselbe materiale Baseline, auch wenn
 
 Livariant gibt keinen sauberen Snapshot zurück, wenn sich das verwaltete Project Brain während der Snapshot-Erzeugung ändert.
 
-Kanonischer Inhalt und Baseline werden aus demselben erfassten Zustand abgeleitet. Vor einem sauberen Ergebnis werden die verwalteten Eingaben erneut geprüft. Wurden sie parallel geändert, ist das Ergebnis blockiert und muss aus einem frischen Zustand neu erzeugt werden.
+Kanonischer Inhalt, materiale Baseline und stabile Projektidentität werden aus demselben erfassten Zustand abgeleitet. Vor einem sauberen Ergebnis werden die verwalteten Eingaben erneut geprüft. Wurden sie parallel geändert, ist das Ergebnis blockiert und muss aus einem frischen Zustand neu erzeugt werden.
 
 ## Blockierter Zustand
 
 Wenn das Project Brain fehlt, beschädigt, mehrdeutig, recovery-required oder aus einem anderen Grund nicht sicher als sauberer aktueller Kontext projiziert werden kann, liefert Livariant ein blockiertes Ergebnis, statt Teilinformationen als vertrauenswürdigen aktuellen Kontext darzustellen.
 
+Ein schema-2 Project Brain mit fehlender oder ungültiger `projectId` ist beschädigter Zustand. Eine Read-Operation erzeugt oder repariert die Kennung nicht stillschweigend.
+
 Für maschinenlesbare Nutzung enthält blockiertes JSON ausdrücklich `safetyState: "blocked"` und die CLI beendet sich mit einem von null verschiedenen Status. Ein interner Runtime-Fehler bleibt davon als eigener Fehlerpfad unterscheidbar.
 
 In der menschlichen Ausgabe steht der blockierende Zustand vor den Diagnoseinformationen.
 
-## Projekt-Locator ist keine dauerhafte Projektidentität
+## Projekt-Locator und stabile logische Identität sind verschieden
 
-Der aktuelle Snapshot zeigt den Projektort, aus dem er erzeugt wurde. Das ist jedoch keine stabile dauerhafte Projektidentität.
+`projectLocator` ist der Dateisystemort, aus dem der Snapshot erzeugt wurde. Er ist keine dauerhafte Identität.
 
-Der erste Snapshot-Vertrag meldet deshalb bewusst:
+Die aktuelle Repository-Entwicklung unterstützt eine getrennte stabile logische Project-Brain-Identität:
 
-```text
-stableProjectIdentity: null
-```
+- Schema 2 verlangt genau eine kanonische UUID und gibt sie als `stableProjectIdentity` aus;
+- Schema 1 ist das historische Schema vor Einführung der Identität und meldet bis zu einer ausdrücklich unterstützten Migration `stableProjectIdentity: null`;
+- Verschieben oder Umbenennen eines Projektverzeichnisses rotiert die logische ID nicht;
+- eine bytegenaue Kopie eines Project Brains behält dieselbe logische ID.
 
-Ein verschobenes oder kopiertes Projekt erhält nicht einfach eine erfundene Identität, nur weil Livariant es lesen kann. Eine spätere dauerhafte projektübergreifende Identität benötigt einen eigenen geprüften Storage- und Migrationsvertrag.
+Die ID identifiziert daher eine logische Project-Brain-Linie, nicht einen eindeutigen Checkout oder eine Maschine.
+
+Siehe [Stable Project Identity Foundation](stable-project-identity-foundation.md).
 
 ## Trust-Grenze
 
 Ein Project Context Snapshot ist abgeleitete Ausgabe.
 
-Er:
+Weder der Snapshot noch seine stabile Projekt-ID:
 
-- autorisiert keine Mutation;
-- erzeugt oder verbraucht keine Freigabe;
-- macht zurückgelieferte Provider-Kopien nicht vertrauenswürdig;
-- erhebt Provider-Text nicht zu kanonischer Wahrheit;
-- persistiert keine Terminologie oder Concept-IDs;
-- repariert Drift nicht automatisch;
-- injiziert Kontext nicht automatisch in Claude Code, Codex oder andere Provider.
+- autorisiert eine Mutation;
+- erzeugt oder verbraucht eine Freigabe;
+- beweist Anti-Replay-Aktualität oder eindeutige Checkout-Identität;
+- macht zurückgelieferte Provider-Kopien vertrauenswürdig;
+- erhebt Provider-Text zu kanonischer Wahrheit;
+- persistiert Terminologie oder Concept-IDs;
+- repariert Drift automatisch;
+- injiziert Kontext automatisch in Claude Code, Codex oder andere Provider.
 
-Eine spätere materiale Aktion muss den aktuellen kanonischen Zustand neu lesen und revalidieren, statt einen alten oder zurückgelieferten Snapshot als dauerhafte Autorität zu behandeln.
+Eine spätere materiale Aktion muss den aktuellen kanonischen Zustand erneut lesen und revalidieren, statt einen alten oder zurückgegebenen Snapshot oder bloße ID-Gleichheit als dauerhafte Autorität zu behandeln.
 
 ## Verhältnis zu `resume`
 
 `livariant resume` bleibt die aktuelle Provider-Handoff-Oberfläche für Claude Code und Codex.
 
-`livariant context` ist die strukturierte Projektwahrheits-Projektion. Sie legt die read-side Baseline- und Sicherheitsgrenze fest, auf der spätere Semantic Change Proposals, Drift-Analyse und reichere Provider-Integrationen aufbauen können.
+`livariant context` ist die strukturierte Projektwahrheits-Projektion. Sie legt die read-side Baseline-, Identitäts- und Sicherheitsgrenze fest, die Semantic Change Proposals, Drift-Analyse und Provider Context verwenden können, ohne Mutationsautorität zu erhalten.
 
-Diese späteren Funktionen gelten nicht allein deshalb als verfügbar, weil der Project Context Snapshot existiert.
+Stable Project Identity und die anderen Active-Project-Intelligence-Oberflächen nach RC3 sind Repository-Entwicklung und werden nicht rückwirkend Bestandteil des unveränderlichen Releases `v0.1.0-rc.3`.
