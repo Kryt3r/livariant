@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -41,6 +42,14 @@ function runNpm(args, options = {}) {
   return run(invocation.command, invocation.args, options);
 }
 
+function providerReturnTaskDigest(task) {
+  const hash = createHash("sha256");
+  hash.update("livariant:provider-return-task:v1", "utf8");
+  hash.update(Buffer.from([0]));
+  hash.update(task, "utf8");
+  return hash.digest("hex");
+}
+
 try {
   const packDir = resolve(temp, "pack");
   const installDir = resolve(temp, "install");
@@ -63,8 +72,11 @@ try {
     "dist/src/cli/index.js",
     "dist/src/cli/lifecycle.js",
     "dist/src/cli/maintenance-command.js",
+    "dist/src/cli/provider-return-command.js",
     "dist/src/runtime/index.js",
     "dist/src/runtime/semantic-maintenance.js",
+    "dist/src/runtime/provider-return.js",
+    "dist/src/runtime/provider-context-copy-validation.js",
     "dist/src/lifecycle/update.js",
     "dist/src/lifecycle/recovery.js",
     "dist/src/distribution/release-integrity.js",
@@ -132,6 +144,48 @@ try {
     throw new Error("Installed maintain CLI mutated Project Brain before separate authorization");
   }
 
+  const providerTaskPath = resolve(installDir, "provider-task.txt");
+  await writeFile(providerTaskPath, "Review installed provider return smoke\n", "utf8");
+  const providerContextResult = run(process.execPath, [cliPath, "provider-context", "--provider", "codex", "--task", providerTaskPath, "--json"], {
+    cwd: installDir,
+  });
+  let providerContext;
+  try {
+    providerContext = JSON.parse(providerContextResult.stdout.trim());
+  } catch {
+    throw new Error(`Installed provider-context CLI did not return valid JSON:\n${providerContextResult.stdout}`);
+  }
+  if (providerContext.state !== "ready" || providerContext.mutationAuthorization !== false || providerContext.changesMade !== 0) {
+    throw new Error(`Installed provider-context CLI returned unexpected packet state:\n${providerContextResult.stdout}`);
+  }
+
+  const providerContextPath = resolve(installDir, "provider-context.json");
+  await writeFile(providerContextPath, `${JSON.stringify(providerContext, null, 2)}\n`, "utf8");
+  const providerReturnPath = resolve(installDir, "provider-return.json");
+  await writeFile(providerReturnPath, `${JSON.stringify({
+    schemaVersion: 1,
+    packetVersion: 1,
+    provider: providerContext.provider,
+    contextPacketId: providerContext.packetId,
+    stableProjectIdentity: providerContext.stableProjectIdentity,
+    baselineDigest: providerContext.baseline.digest,
+    taskDigest: providerReturnTaskDigest(providerContext.task.value),
+    candidate: null,
+  }, null, 2)}\n`, "utf8");
+
+  const providerReturnResult = run(process.execPath, [cliPath, "provider-return", "--context", providerContextPath, "--input", providerReturnPath, "--json"], {
+    cwd: installDir,
+  });
+  let providerReturnOutput;
+  try {
+    providerReturnOutput = JSON.parse(providerReturnResult.stdout.trim());
+  } catch {
+    throw new Error(`Installed provider-return CLI did not return valid JSON:\n${providerReturnResult.stdout}`);
+  }
+  if (providerReturnOutput.state !== "no-candidate" || providerReturnOutput.semanticChangesMade !== 0 || providerReturnOutput.mutationAuthorization !== false) {
+    throw new Error(`Installed provider-return CLI returned unexpected non-mutating intake state:\n${providerReturnResult.stdout}`);
+  }
+
   const resume = run(process.execPath, [cliPath, "resume", "--provider", "codex"], {
     cwd: installDir,
     env: { LIVARIANT_PROVIDER_ENV: "codex" },
@@ -162,7 +216,7 @@ try {
     throw new Error("Installed package does not expose the expected Livariant package and CLI identity");
   }
 
-  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed, globally installed from the release tarball, project-locally installed for packaging compatibility, initialized, verified non-mutating installed semantic maintenance orchestration, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.`);
+  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed, globally installed from the release tarball, project-locally installed for packaging compatibility, initialized, verified non-mutating installed semantic maintenance and provider-return intake, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
