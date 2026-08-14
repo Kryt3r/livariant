@@ -53,7 +53,7 @@ Die Release-Supportaussage ist bewusst auf die Umgebungen begrenzt, die von der 
 
 ## Post-RC3-Repository-Entwicklung
 
-Die Entwicklung nach RC3 ergänzt klar begrenzte read-only Oberflächen von Active Project Intelligence sowie unterstützende Project-Brain-Grundlagen. Sie bleiben unveröffentlicht, bis ein späteres Release separat freigegeben wird.
+Die Entwicklung nach RC3 ergänzt klar begrenzte Active-Project-Intelligence-Oberflächen und unterstützende Project-Brain-Grundlagen. Sie bleiben unveröffentlicht, bis ein späteres Release separat freigegeben wird.
 
 ### Project Context Snapshot
 
@@ -93,7 +93,7 @@ Schema-Version 1 unterstützt aktuell:
 
 Candidate-JSON ist externe, nicht vertrauenswürdige Eingabe. Das Feld `origin` ist lediglich eine nicht verifizierte Herkunftsbehauptung und niemals Zustimmung, Projektidentität oder Mutationsautorität.
 
-Jedes aktuelle Proposal bleibt dauerhaft nur für Review bestimmt. Es weist `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Die Proposal-Identität ist deterministisch und an dieselbe kohärente materiale Project-Brain-Baseline-Semantik gebunden wie der Project Context Snapshot. Für Schema 2 ist auch die stabile logische Projektidentität material für die abgeleitete Proposal-Identität. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
+Jedes Ergebnis des Semantic Proposal Core bleibt dauerhaft nur für Review bestimmt. Es weist `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0` aus. Die Proposal-Identität ist deterministisch und an dieselbe kohärente materiale Project-Brain-Baseline-Semantik gebunden wie der Project Context Snapshot. Für Schema 2 ist auch die stabile logische Projektidentität material für die abgeleitete Proposal-Identität. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
 
 Exakte Duplikate aktiver Entscheidungen, bestätigter Ziele und bestätigten Projektwissens können erkannt werden. Abweichender Text wird von dieser begrenzten Implementierung nicht als semantisch vereinbar oder konfliktfrei behauptet. Decision-Supersede-Kandidaten müssen genau eine strukturierte aktive Decision-ID benennen. Goal- und Knowledge-Proposals unterstützen in diesem Slice nur `add`.
 
@@ -150,16 +150,42 @@ Bei einer frischen Schema-2-Initialisierung erzeugt Livariant die logische Ident
 
 Die ID identifiziert eine logische Project-Brain-Linie, nicht einen physischen Checkout, eine Maschine, eine Provider-Session oder eine User-Session. Verschieben oder Umbenennen eines Projekts rotiert sie nicht, und eine byte-identische Kopie des Project Brain behält legitimerweise dieselbe ID.
 
-Gleiche Identität allein ist weder Zustimmung noch Mutationsautorität, Anti-Replay-Evidenz, machine-local Trust, Checkpoint-Integrität, Runtime-/Release-Integrität oder Beweis dafür, dass ein zurückgeliefertes Provider-Paket kanonisch ist. Die aktuellen read-side Oberflächen bleiben nicht autorisierend.
+Gleiche Identität allein ist weder Zustimmung noch Mutationsautorität, Anti-Replay-Evidenz, machine-local Trust, Checkpoint-Integrität, Runtime-/Release-Integrität oder Beweis dafür, dass ein zurückgeliefertes Provider-Paket kanonisch ist.
 
 Siehe [Stable Project Identity Foundation](stable-project-identity-foundation.md).
+
+### Proposal-bound Authorization Foundation
+
+Die aktuelle Post-RC3-Repository-Entwicklung stellt zusätzlich eine getrennte Actionable-Proposal- und Authorization-Grundlage bereit:
+
+```text
+livariant prepare --input <candidate.json>
+livariant prepare --input <candidate.json> --json
+livariant authorize --input <actionable-proposal.json>
+livariant authorize --input <actionable-proposal.json> --json
+```
+
+`prepare` erzeugt ein strukturell eigenes Actionable Proposal aus derselben kanonischen semantischen Evidence wie der review-only Proposal Core. Es bindet die exakte stabile logische Projektidentität, die materiale Project-Brain-Baseline, den normalisierten semantischen Mutations-Scope und einen eigenen deterministischen Material-Digest. Es autorisiert oder appliziert die Änderung nicht.
+
+`authorize` ist eine ausdrückliche lokale User-Presence-Operation. Die unterstützte CLI benötigt ein interaktives TTY, zeigt exakte Projektidentität, Proposal-Digest, Baseline und Mutations-Scope und verlangt die ausdrückliche Bestätigung der Challenge. Es gibt kein projektseitiges `--yes`, Environment-Flag, Candidate-Feld, zurückgeliefertes Provider-Paket oder bloß passende Project-ID, die diesen User-Presence-Schritt ersetzt.
+
+Aufgezeichnete Authority verwendet Dual Evidence: einen projektlokalen Lifecycle-/Audit-Record plus passende unabhängige machine-local Authority außerhalb der Projektkontrolle. Beide binden dieselbe Authorization-ID, dasselbe Actionable Proposal, Projektidentität, Baseline und den exakten Mutation-Scope. Fehlende, fehlerhafte oder widersprüchliche Evidence bricht geschlossen ab.
+
+Der Authorization-Lifecycle ist zustandsbehaftet und replay-resistent. Er unterscheidet `authorized`, `applying`, `completed`, `failed-recovery-required` und `invalidated`; ein machine-local Consumption-Lock verhindert, dass zwei Consumer dieselbe Authorization erfolgreich beginnen. Abgeschlossene und failed/recovery-required Authorizations sind terminal und können durch Replay kopierter Records nicht wieder zu nutzbarer Zustimmung werden.
+
+Diese Foundation führt weiterhin **null semantische Apply-Mutationen** aus. Authorization-Records können für einen später separat implementierten Semantic-Apply-Pfad vorbereitet werden, aber die aktuelle unterstützte WP-008-Oberfläche kann damit weder Goals noch Knowledge oder Decisions verändern.
+
+Bestehende Semantic-Proposal-, Conflict/Drift- und Provider-Context-Ausgaben bleiben nicht autorisierend. Provider-Text mit der Behauptung, der Nutzer habe bereits zugestimmt, erzeugt keine Livariant-Mutationsautorität.
+
+Siehe [Proposal-bound Authorization Foundation](proposal-bound-authorization.md).
 
 Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
 
 Die aktuellen Post-RC3-Oberflächen ergänzen **nicht**:
 
-- Proposal Apply oder proposal-gebundene Mutationsautorität;
-- Authorization-Replay-State oder eindeutige Checkout-Identität;
+- Semantic Proposal Apply;
+- provider-getriebene, automatische, Wildcard- oder Standing-Mutationsautorität;
+- eindeutige Checkout-Identität oder Authority-Transfer durch Kopieren von Project-Brain-Bytes;
 - Project-Fork-, Split-, Merge- oder Project-ID-Replacement-Semantik;
 - automatisches Drift-Scanning oder automatische Drift-Auflösung;
 - Terminologie-Persistenz oder Lifecycle-Mutation außerhalb der ausdrücklich unterstützten Schema-Migration;
@@ -179,7 +205,7 @@ Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Wenn du einen Pro
 
 Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
 
-Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core, die Konflikt- und Drift-Bewertung und die Stable Project Identity Foundation sind provider-neutrale strukturierte Grundlagen oder Ausgaben. Provider Context ist eine providerbezogene Projektion für Claude Code und Codex. Keine dieser Oberflächen injiziert sich automatisch in einen Provider oder verleiht providerseitige Mutationsautorität.
+Der Post-RC3 Project Context Snapshot, der Semantic Proposal Core, die Konflikt- und Drift-Bewertung, die Stable Project Identity Foundation und die Proposal-bound Authorization Foundation sind provider-neutrale strukturierte Grundlagen oder lokale nutzergesteuerte Oberflächen. Provider Context ist eine providerbezogene Projektion für Claude Code und Codex. Keine davon behandelt Provider-Ausgabe oder providerseitige Zustimmungsbehauptungen automatisch als Livariant-Mutationsautorität.
 
 ## Semantische Wissenspflege
 
@@ -230,7 +256,7 @@ Fehlt die exakte Artefakt-Autorität, stoppt das Update vor npm-Installation ode
 Kompatible schema-ändernde Releases verwenden denselben `livariant update`-Ablauf und werden durch den Migrations-Lifecycle geführt. Der aktuell belegte Schema-Pfad ist `1 -> 2`. Im aktuellen Post-RC3-Quellstand erzeugt diese Migration die erforderliche stabile logische Projekt-ID innerhalb der bestehenden Checkpoint-/Journal-/Validation-/Activation-/Recovery-Transaktion. Nicht unterstützte Migrationspfade brechen geschlossen ab.
 
 > [!WARNING]
-> Das manuelle Ersetzen von Project-Brain-Dateien, framework-verwaltetem Lifecycle-State, Schema- oder Versionsmetadaten, stabiler Projektidentität, installierten Runtime-Dateien, Runtime-Trust-Records oder Release-Authorization-Records ist kein unterstützter Update-Weg. Damit würden Autoritäts-, Kompatibilitäts-, Integritäts-, Checkpoint-, Aktivierungs- und Recovery-Garantien umgangen.
+> Das manuelle Ersetzen von Project-Brain-Dateien, framework-verwaltetem Lifecycle-State, Schema- oder Versionsmetadaten, stabiler Projektidentität, installierten Runtime-Dateien, Runtime-Trust-Records, Release-Authorization-Records oder semantischen Authorization-Audit-Records ist kein unterstützter Authority- oder Update-Weg. Damit würden Lifecycle-, Integritäts-, Baseline-, Authority-, Checkpoint-, Aktivierungs- und Recovery-Garantien umgangen oder ungültig.
 
 ## Wiederherstellung
 
@@ -248,13 +274,13 @@ Scheitert die späte Bereinigung, müssen das wiederhergestellte Project Brain u
 
 Livariant verspricht nicht, beliebigen beschädigten, manuell umgeschriebenen oder mehrdeutigen Project-Brain-Zustand automatisch zu reparieren.
 
-Wenn sichere Semantik nicht eindeutig hergestellt werden kann, darf die Diagnose bewusst stoppen und menschliche Klärung verlangen. Dazu gehören auch fehlerhafte Schema-2-Identitätsmetadaten; Reads erfinden keine Ersatz-ID.
+Wenn sichere Semantik nicht eindeutig hergestellt werden kann, darf die Diagnose bewusst stoppen und menschliche Klärung verlangen. Dazu gehören auch fehlerhafte Schema-2-Identitätsmetadaten sowie fehlerhafte oder widersprüchliche semantische Authorization-Evidence; Reads erfinden weder Ersatz-IDs noch Zustimmung.
 
 ## Local-first bedeutet nicht vertrauensfrei
 
 Die normale Project-Brain-Nutzung ist local-first und braucht kein Livariant-Cloud-Konto.
 
-Release- und Update-Vorgänge benötigen trotzdem vertrauenswürdige Release-Evidenz sowie bereits vorhandene unabhängige rechnerlokale Authority für das exakte ausführbare Artefakt.
+Release-/Update-Authority und semantische Mutationsautorität verwenden unabhängige machine-local Evidence, wo ihre jeweiligen Verträge dies verlangen. Projektkontrollierte Bytes können diese Trust Roots nicht selbst erzeugen.
 
 Die aktuelle Runtime implementiert keine Livariant-Telemetrie, keinen automatischen Project-Brain-Upload und keinen automatischen Remote-Update-Check. Siehe [Datenschutz & Netzwerkverhalten](privacy-and-network.md).
 
