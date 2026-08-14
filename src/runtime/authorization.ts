@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { createInterface } from "node:readline/promises";
+import { stdin, stderr } from "node:process";
 import { discoverProject } from "../project/discovery.js";
 import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
@@ -57,7 +59,7 @@ export interface AuthorizationResult {
   mutationAuthorization: true;
   applySupported: false;
   semanticChangesMade: 0;
-  authorizationStateChangesMade: 1;
+  authorizationStateChangesMade: 0 | 1;
 }
 
 export interface AuthorizationOptions {
@@ -116,6 +118,36 @@ function sameBinding(left: AuthorizationBinding, right: AuthorizationBinding): b
     && sameBaseline(left.baseline, right.baseline);
 }
 
+function displaySafe(value: string): string {
+  return value.replace(/[\r\n\u0000-\u001f\u007f]/g, " ");
+}
+
+async function requireInteractiveAuthorizationConfirmation(proposal: ActionableProposal): Promise<void> {
+  if (!stdin.isTTY || !stderr.isTTY) {
+    throw new Error("Authorization requires an interactive local terminal. Non-interactive callers, providers, scripts, redirected input, and CI cannot create mutation authority.");
+  }
+
+  const phrase = `AUTHORIZE ${proposal.materialDigest.digest.slice(0, 12)}`;
+  stderr.write("Authorization review\n");
+  stderr.write(`Project: ${proposal.stableProjectIdentity}\n`);
+  stderr.write(`Proposal: ${proposal.actionableProposalId}\n`);
+  stderr.write(`Proposal digest: ${proposal.materialDigest.digest}\n`);
+  stderr.write(`Baseline: ${proposal.baseline.digest}\n`);
+  stderr.write(`Scope: ${proposal.mutationScope.domain}/${proposal.mutationScope.changeKind}\n`);
+  stderr.write(`Statement: ${displaySafe(proposal.mutationScope.proposedStatement)}\n`);
+  if (proposal.mutationScope.targetDecisionId) stderr.write(`Target: ${displaySafe(proposal.mutationScope.targetDecisionId)}\n`);
+  stderr.write("This records narrow authority only. It does not apply the semantic change.\n");
+  stderr.write(`Type exactly: ${phrase}\n`);
+
+  const terminal = createInterface({ input: stdin, output: stderr });
+  try {
+    const answer = await terminal.question("> ");
+    if (answer !== phrase) throw new Error("Authorization confirmation did not match the exact proposal challenge.");
+  } finally {
+    terminal.close();
+  }
+}
+
 function parseScope(value: unknown): ActionableProposalScope {
   if (!plainObject(value)) throw new Error("Authorization mutation scope is invalid.");
   const allowed = value.changeKind === "supersede"
@@ -124,6 +156,7 @@ function parseScope(value: unknown): ActionableProposalScope {
   strictKeys(value, allowed, "Authorization mutation scope");
   if (value.domain !== "project-decision" && value.domain !== "project-goal" && value.domain !== "project-knowledge") throw new Error("Authorization mutation scope domain is invalid.");
   if (value.changeKind !== "add" && value.changeKind !== "supersede") throw new Error("Authorization mutation scope change kind is invalid.");
+  if (value.changeKind === "supersede" && value.domain !== "project-decision") throw new Error("Only project decisions support authorization for supersession.");
   if (typeof value.proposedStatement !== "string" || !value.proposedStatement) throw new Error("Authorization mutation scope statement is invalid.");
   if (value.changeKind === "supersede" && (typeof value.targetDecisionId !== "string" || !value.targetDecisionId)) throw new Error("Authorization supersession target is invalid.");
   return {
@@ -198,6 +231,16 @@ async function ensureRealDirectory(path: string, label: string): Promise<void> {
   if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error(`${label} must be a real directory and must not be a symbolic link.`);
 }
 
+async function assertRealDirectory(path: string, label: string): Promise<boolean> {
+  let stats;
+  try { stats = await lstat(path); } catch (error) {
+    if (errno(error, "ENOENT")) return false;
+    throw error;
+  }
+  if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error(`${label} must be a real directory and must not be a symbolic link.`);
+  return true;
+}
+
 function projectAuthorizationPaths(projectRoot: string) {
   const brain = resolve(projectRoot, ".project-brain");
   const root = resolve(brain, ".authorizations");
@@ -209,15 +252,30 @@ function projectAuthorizationPaths(projectRoot: string) {
   return { brain, root, active, history };
 }
 
+async function inspectProjectAuthorizationRoot(projectRoot: string): Promise<ReturnType<typeof projectAuthorizationPaths> | null> {
+  const paths = projectAuthorizationPaths(projectRoot);
+  if (!await assertRealDirectory(paths.root, "Project authorization root")) return null;
+  const entries = await readdir(paths.root);
+  for (const entry of entries) {
+    if (entry !== "active.json" && entry !== "history") throw new Error("Project authorization root contains an unsupported or ambiguous entry.");
+  }
+  if (!entries.includes("history")) throw new Error("Project authorization root is partial or damaged: history directory is missing.");
+  await assertRealDirectory(paths.history, "Project authorization history");
+  return paths;
+}
+
 async function ensureProjectAuthorizationRoot(projectRoot: string): Promise<ReturnType<typeof projectAuthorizationPaths>> {
   const paths = projectAuthorizationPaths(projectRoot);
   await ensureRealDirectory(paths.root, "Project authorization root");
   await ensureRealDirectory(paths.history, "Project authorization history");
-  return paths;
+  const inspected = await inspectProjectAuthorizationRoot(projectRoot);
+  if (!inspected) throw new Error("Project authorization root could not be established.");
+  return inspected;
 }
 
 async function readProjectActive(projectRoot: string): Promise<{ record: ProjectAuthorizationRecord; raw: string } | null> {
-  const paths = await ensureProjectAuthorizationRoot(projectRoot);
+  const paths = await inspectProjectAuthorizationRoot(projectRoot);
+  if (!paths) return null;
   try { await assertRegularFile(paths.active, "Project active authorization record"); }
   catch (error) {
     if (errno(error, "ENOENT")) return null;
@@ -263,11 +321,15 @@ function machineAuthorizationBase(): string {
   return resolve(userInfo().homedir, ".livariant", "trust", "semantic-authorizations");
 }
 
-async function safeMachineAuthorizationRoot(projectRoot: string, projectId: string): Promise<string> {
+async function safeMachineAuthorizationRoot(projectRoot: string, projectId: string, create: boolean): Promise<string | null> {
   if (!isStableProjectIdentity(projectId)) throw new Error("Machine-local authorization requires a valid stable project identity.");
   const home = userInfo().homedir;
   const base = machineAuthorizationBase();
-  await mkdir(base, { recursive: true });
+  if (create) {
+    await mkdir(base, { recursive: true });
+  } else if (!await assertRealDirectory(base, "Machine-local semantic authorization root")) {
+    return null;
+  }
   const [physicalHome, physicalBase, physicalProject] = await Promise.all([realpath(home), realpath(base), realpath(projectRoot)]);
   if (!pathIsWithin(physicalHome, physicalBase)) throw new Error("Machine-local semantic authorization root resolves outside the operating-system user home.");
   if (pathIsWithin(physicalBase, physicalProject) || pathIsWithin(physicalProject, physicalBase)) throw new Error("Machine-local semantic authorization must not overlap the current project directory.");
@@ -275,7 +337,11 @@ async function safeMachineAuthorizationRoot(projectRoot: string, projectId: stri
   if (!baseStats.isDirectory() || baseStats.isSymbolicLink()) throw new Error("Machine-local semantic authorization root must be a real directory.");
   const projectAuthority = resolve(physicalBase, projectId);
   if (!pathIsWithin(physicalBase, projectAuthority)) throw new Error("Machine-local semantic authorization project path is unsafe.");
-  await ensureRealDirectory(projectAuthority, "Machine-local semantic authorization project root");
+  if (create) {
+    await ensureRealDirectory(projectAuthority, "Machine-local semantic authorization project root");
+  } else if (!await assertRealDirectory(projectAuthority, "Machine-local semantic authorization project root")) {
+    return null;
+  }
   return realpath(projectAuthority);
 }
 
@@ -288,7 +354,8 @@ function machinePaths(root: string, authorizationId: string) {
 }
 
 async function readMachineReceipt(projectRoot: string, binding: AuthorizationBinding): Promise<{ receipt: MachineAuthorizationReceipt; raw: string } | null> {
-  const root = await safeMachineAuthorizationRoot(projectRoot, binding.stableProjectIdentity);
+  const root = await safeMachineAuthorizationRoot(projectRoot, binding.stableProjectIdentity, false);
+  if (!root) return null;
   const { receipt } = machinePaths(root, binding.authorizationId);
   let stats;
   try { stats = await lstat(receipt); } catch (error) {
@@ -303,13 +370,15 @@ async function readMachineReceipt(projectRoot: string, binding: AuthorizationBin
 }
 
 async function createMachineReceipt(projectRoot: string, receipt: MachineAuthorizationReceipt): Promise<void> {
-  const root = await safeMachineAuthorizationRoot(projectRoot, receipt.stableProjectIdentity);
+  const root = await safeMachineAuthorizationRoot(projectRoot, receipt.stableProjectIdentity, true);
+  if (!root) throw new Error("Machine-local authorization root could not be established.");
   const { receipt: path } = machinePaths(root, receipt.authorizationId);
   await writeFile(path, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
 }
 
 async function withMachineLock<T>(projectRoot: string, binding: AuthorizationBinding, action: (receiptPath: string) => Promise<T>): Promise<T> {
-  const root = await safeMachineAuthorizationRoot(projectRoot, binding.stableProjectIdentity);
+  const root = await safeMachineAuthorizationRoot(projectRoot, binding.stableProjectIdentity, false);
+  if (!root) throw new Error("Matching independent machine-local authorization is missing.");
   const { receipt, lock } = machinePaths(root, binding.authorizationId);
   try { await mkdir(lock, { recursive: false }); }
   catch (error) {
@@ -318,7 +387,7 @@ async function withMachineLock<T>(projectRoot: string, binding: AuthorizationBin
   }
   try { return await action(receipt); }
   finally {
-    try { await rm(lock, { recursive: true, force: true }); } catch { /* lock cleanup failure leaves later operations fail-closed only if directory remains */ }
+    try { await rm(lock, { recursive: true, force: true }); } catch { /* a remaining lock keeps later consumption fail-closed */ }
   }
 }
 
@@ -379,6 +448,7 @@ export async function authorizeActionableProposal(
   if (inspection.health !== "valid") throw new Error("Authorization requires a valid Project Brain.");
 
   const fresh = await rebuildAndVerifyProposal(input, project.root);
+  await requireInteractiveAuthorizationConfirmation(fresh);
   await options.beforeCommit?.();
   const revalidated = await rebuildAndVerifyProposal(input, project.root);
   assertProposalMatchesFresh(fresh, revalidated);
@@ -397,7 +467,7 @@ export async function authorizeActionableProposal(
         mutationAuthorization: true,
         applySupported: false,
         semanticChangesMade: 0,
-        authorizationStateChangesMade: 0 as 1,
+        authorizationStateChangesMade: 0,
       };
     }
     if (existing.record.state !== "preparing") throw new Error(`Active authorization is ${existing.record.state}; it cannot be reused for a new authorization event.`);
@@ -513,7 +583,8 @@ export async function invalidateAuthorization(authorizationId: string, projectPa
 
 export async function inspectAuthorizationAudit(projectPath: string = process.cwd()): Promise<{ active: ProjectAuthorizationRecord | null; history: ProjectAuthorizationRecord[] }> {
   const project = discoverProject(projectPath);
-  const paths = await ensureProjectAuthorizationRoot(project.root);
+  const paths = await inspectProjectAuthorizationRoot(project.root);
+  if (!paths) return { active: null, history: [] };
   const active = await readProjectActive(project.root);
   const history: ProjectAuthorizationRecord[] = [];
   for (const name of await readdir(paths.history)) {
@@ -522,7 +593,7 @@ export async function inspectAuthorizationAudit(projectPath: string = process.cw
     assertPathWithinRoot(paths.history, path, "Project authorization history entry path");
     await assertRegularFile(path, "Project authorization history record");
     const record = parseProjectRecord(JSON.parse(await readFile(path, "utf8")) as unknown);
-    if (!record.state || !["completed", "failed-recovery-required", "invalidated"].includes(record.state)) throw new Error("Project authorization history contains a non-terminal record.");
+    if (!["completed", "failed-recovery-required", "invalidated"].includes(record.state)) throw new Error("Project authorization history contains a non-terminal record.");
     if (`${record.authorizationId}.json` !== name) throw new Error("Project authorization history record filename does not match its authorization id.");
     history.push(record);
   }
