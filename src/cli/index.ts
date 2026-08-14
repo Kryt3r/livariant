@@ -26,12 +26,13 @@ async function delegateToActiveRuntime(): Promise<boolean> {
 
 async function entry(): Promise<void> {
   const command = process.argv[2];
-  if (command !== "drift" && command !== "provider-context" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain") {
+  if (command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain") {
     const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
     if (showsHelp) {
       console.log("  drift --input <observation.json> [--json]");
       console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
+      console.log("  provider-return --context <provider-context.json> --input <provider-return.json> [--authorization <authorization-id>] [--json]");
       console.log("  prepare --input <candidate.json> [--json]");
       console.log("  authorize --input <actionable-proposal.json> [--json]");
       console.log("  apply --authorization <authorization-id> --input <actionable-proposal.json> [--json]");
@@ -48,6 +49,11 @@ async function entry(): Promise<void> {
   if (command === "provider-context") {
     const { handleProviderContextCommand } = await import("./provider-context-command.js");
     await handleProviderContextCommand(process.argv.slice(3));
+    return;
+  }
+  if (command === "provider-return") {
+    const { handleProviderReturnCommand } = await import("./provider-return-command.js");
+    await handleProviderReturnCommand(process.argv.slice(3));
     return;
   }
   if (command === "prepare") {
