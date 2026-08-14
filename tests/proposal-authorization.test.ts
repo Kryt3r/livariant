@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -108,6 +108,10 @@ function runInteractiveAuthorize(path: string, proposalPath: string, challenge: 
   });
 }
 
+async function assertMissing(path: string): Promise<void> {
+  await assert.rejects(lstat(path), (error: unknown) => error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT");
+}
+
 const semanticFiles = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"] as const;
 
 test("review-only proposal remains permanently non-actionable while actionable proposal is structurally distinct", async () => {
@@ -169,9 +173,11 @@ test("non-interactive authorization is blocked before project or machine authori
     const projectAuthorityRoot = resolve(path, ".project-brain", ".authorizations");
     const machineAuthorityRoot = resolve(userInfo().homedir, ".livariant", "trust", "semantic-authorizations", proposal.stableProjectIdentity);
     await assert.rejects(authorizeActionableProposal(proposal, path), /interactive local terminal/);
-    await assert.rejects(readFile(resolve(projectAuthorityRoot, "active.json")), /ENOENT/);
-    await assert.rejects(readFile(resolve(machineAuthorityRoot, `${FIXED_AUTH_ID}.json`)), /ENOENT/);
+    await assertMissing(projectAuthorityRoot);
+    await assertMissing(machineAuthorityRoot);
     assert.deepEqual(await inspectAuthorizationAudit(path), { active: null, history: [] });
+    await assertMissing(projectAuthorityRoot);
+    await assertMissing(machineAuthorityRoot);
   });
 });
 
@@ -179,7 +185,7 @@ test("authorization audit inspection is read-only when no authorization state ex
   await withProject(async (path) => {
     const root = resolve(path, ".project-brain", ".authorizations");
     assert.deepEqual(await inspectAuthorizationAudit(path), { active: null, history: [] });
-    await assert.rejects(readFile(resolve(root, "active.json")), /ENOENT/);
+    await assertMissing(root);
   });
 });
 
