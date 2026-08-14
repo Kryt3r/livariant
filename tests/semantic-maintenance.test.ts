@@ -156,7 +156,7 @@ test("wrong authorization id fails closed without consuming the exact active Aut
   });
 });
 
-test("candidate changed after authorization cannot consume prior Authority", async () => {
+test("candidate changed after authorization cannot consume prior Authority and does not overclaim a zero-write outcome", async () => {
   await withProject(async (path) => {
     const authorizedCandidate = goalCandidate("Authorized exact candidate");
     const authorizedProposal = await prepare(path, authorizedCandidate);
@@ -166,7 +166,9 @@ test("candidate changed after authorization cannot consume prior Authority", asy
     const result = await maintainSemanticProjectState(changedCandidate, AUTH_A, path);
     assert.equal(result.state, "blocked");
     if (result.state !== "blocked") throw new Error("expected blocked");
-    assert.equal(result.semanticChangesMade, 0);
+    assert.equal(result.recoveryRequired, true);
+    assert.equal(result.mutationOutcome, "unknown-recovery-required");
+    assert.equal(result.semanticChangesMade, "unknown");
     const audit = await inspectAuthorizationAudit(path);
     assert.equal(audit.active?.state, "authorized");
     assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Different candidate after authorization/);
