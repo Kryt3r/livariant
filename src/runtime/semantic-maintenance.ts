@@ -23,6 +23,8 @@ const NOOP_FINDING_CODES = new Set([
 export interface SemanticMaintenanceOptions {
   afterReviewBeforePrepare?: () => void | Promise<void>;
   afterApplyBeforeRefresh?: () => void | Promise<void>;
+  expectedBaseline?: ProjectContextBaseline;
+  expectedStableProjectIdentity?: string;
 }
 
 export interface SemanticMaintenanceReviewRequiredResult {
@@ -162,6 +164,19 @@ export async function maintainSemanticProjectState(
       state: "blocked",
       phase: "proposal",
       message: reviewed.findings.map((finding) => finding.message).join("; ") || "Semantic proposal construction is blocked.",
+      recoveryRequired: false,
+      mutationOutcome: "not-applied",
+      semanticChangesMade: 0,
+    };
+  }
+
+  if ((options.expectedBaseline !== undefined && !sameBaseline(reviewed.proposal.baseline, options.expectedBaseline))
+    || (options.expectedStableProjectIdentity !== undefined
+      && reviewed.proposal.stableProjectIdentity !== options.expectedStableProjectIdentity)) {
+    return {
+      state: "blocked",
+      phase: "proposal",
+      message: "Semantic maintenance current project identity/baseline no longer matches the expected roundtrip context. Retry from fresh context evidence.",
       recoveryRequired: false,
       mutationOutcome: "not-applied",
       semanticChangesMade: 0,

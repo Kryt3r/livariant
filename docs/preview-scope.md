@@ -217,6 +217,32 @@ This composition adds no automatic candidate discovery, provider transport/injec
 
 See [Agent-Assisted Semantic Maintenance](semantic-maintenance.md).
 
+### Provider Roundtrip Evidence Intake
+
+Current post-RC3 source also exposes the local return half of Provider Context:
+
+```text
+livariant provider-return --context <provider-context.json> --input <provider-return.json>
+livariant provider-return --context <provider-context.json> --input <provider-return.json> --json
+livariant provider-return --context <provider-context.json> --input <provider-return.json> --authorization <authorization-id> --json
+```
+
+and the Runtime API `processProviderReturn()`.
+
+Both supplied files are external untrusted input. Livariant strictly parses one ready Provider Context copy and one provider-return packet, recomputes deterministic packet/task correlation, then freshly reconstructs current canonical Project Brain identity and material baseline before interpreting a returned candidate.
+
+Packet IDs, task/baseline echoes, stable project identity echoes, and schema-valid copied Provider Context evidence are **correlation only**. They do not prove historical Livariant issuance, provider consumption, canonical truth, approval, or Authority. A fabricated but self-consistent packet pair cannot gain capabilities stronger than supplying the same typed candidate directly to `maintain`.
+
+If current material Project Brain state moved, the return is `stale-context`; it is not silently rebound to the newer baseline. Other correlation mismatches are `mismatched-context`. A blocked current Project Brain remains blocked.
+
+A coherent return may contain `null` or one existing-schema candidate. Without an explicit authorization ID, matching existing Authority is never consumed implicitly. With an explicit authorization ID, the value is only a selector for the existing proposal-bound Authorization/Semantic Apply path.
+
+The roundtrip also carries the freshly verified expected project identity/material baseline into `maintain` as invocation-local coherence constraints, so a state change before proposal reconstruction blocks before Actionable Proposal preparation, Authority lookup/consumption, or mutation.
+
+This surface adds no trusted issuance ledger, packet authentication, automatic provider injection/transport, provider-specific authorization, automatic free-form candidate extraction, standing approval, new semantic domain, batch mutation, or arbitrary repository write.
+
+See [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md).
+
 These post-RC3 capabilities are not retroactively part of the immutable RC3 release. They become distributed release capabilities only through a later separately approved release.
 
 The current post-RC3 repository surfaces still do **not** add:
@@ -241,7 +267,7 @@ Provider applicability uses `LIVARIANT_PROVIDER_ENV`. Selecting a provider ident
 
 Livariant does not claim to manage every provider feature, model-selection option, authentication mechanism, native instruction system, or provider memory surface.
 
-The post-RC3 Context, Proposal, Drift, Stable Identity, Authorization, Semantic Apply, and Semantic Maintenance surfaces are provider-neutral foundations or local user-controlled operations. Provider Context is a provider-targeted read projection. None treats provider output or provider-side approval claims as Livariant mutation authority.
+The post-RC3 Context, Proposal, Drift, Stable Identity, Authorization, Semantic Apply, Semantic Maintenance, and Provider Roundtrip surfaces are provider-neutral foundations or local user-controlled operations. Provider Context is a provider-targeted read projection. Provider Roundtrip accepts provider-returned bytes only as untrusted evidence. None treats provider output or provider-side approval claims as Livariant mutation authority.
 
 ## Semantic knowledge editing
 
