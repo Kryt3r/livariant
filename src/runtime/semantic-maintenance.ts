@@ -5,6 +5,7 @@ import {
   type BlockedProjectContextSnapshot,
   type ClearProjectContextSnapshot,
 } from "./context-snapshot.js";
+import type { ProjectContextBaseline } from "./project-context-material.js";
 import { applyActionableProposal, type SemanticApplyResult } from "./semantic-apply.js";
 import {
   buildSemanticProposal,
@@ -20,6 +21,7 @@ const NOOP_FINDING_CODES = new Set([
 ]);
 
 export interface SemanticMaintenanceOptions {
+  afterReviewBeforePrepare?: () => void | Promise<void>;
   afterApplyBeforeRefresh?: () => void | Promise<void>;
 }
 
@@ -75,6 +77,13 @@ export type SemanticMaintenanceResult =
 
 function isNoopProposal(proposal: SemanticProposal): boolean {
   return proposal.findings.some((finding) => NOOP_FINDING_CODES.has(finding.code));
+}
+
+function sameBaseline(left: ProjectContextBaseline, right: ProjectContextBaseline): boolean {
+  return left.algorithm === right.algorithm
+    && left.domain === right.domain
+    && left.digest === right.digest
+    && left.schemaVersion === right.schemaVersion;
 }
 
 async function classifyApplyFailure(
@@ -171,12 +180,26 @@ export async function maintainSemanticProjectState(
     };
   }
 
+  await options.afterReviewBeforePrepare?.();
   const prepared = await buildActionableProposal(candidate, projectPath);
   if (prepared.state !== "actionable-proposal") {
     return {
       state: "blocked",
       phase: "actionable-proposal",
       message: prepared.findings.map((finding) => finding.message).join("; ") || "Actionable proposal construction is blocked.",
+      recoveryRequired: false,
+      mutationOutcome: "not-applied",
+      semanticChangesMade: 0,
+    };
+  }
+
+  if (!sameBaseline(reviewed.proposal.baseline, prepared.proposal.baseline)
+    || reviewed.proposal.stableProjectIdentity !== prepared.proposal.stableProjectIdentity
+    || reviewed.proposal.projectLocator !== prepared.proposal.projectLocator) {
+    return {
+      state: "blocked",
+      phase: "actionable-proposal",
+      message: "Project Brain changed between semantic review and actionable proposal reconstruction. Retry from a fresh coherent baseline.",
       recoveryRequired: false,
       mutationOutcome: "not-applied",
       semanticChangesMade: 0,
