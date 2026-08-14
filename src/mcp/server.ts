@@ -52,8 +52,8 @@ function strictKeys(value: Record<string, unknown>, allowed: readonly string[], 
 
 function parseId(value: unknown): JsonRpcId {
   if (typeof value === "string") return value;
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  throw new Error("JSON-RPC request id must be a string or finite number.");
+  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  throw new Error("JSON-RPC request id must be a string or safe integer.");
 }
 
 function response(id: JsonRpcId | null, result: unknown): JsonRpcSuccess {
