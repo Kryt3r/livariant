@@ -16,7 +16,7 @@ livariant authorize --input <actionable-proposal.json>
 livariant authorize --input <actionable-proposal.json> --json
 ```
 
-Die Runtime-APIs stellen die entsprechenden Actionable-Proposal- und Autorisierungsprimitive bereit.
+Die Runtime-APIs stellen die entsprechenden Actionable-Proposal- und internen Authorization-Lifecycle-Primitive bereit.
 
 `prepare` und `authorize` führen **keine** semantische Mutation am Project Brain aus. Semantic Apply ist ein eigener späterer Slice.
 
@@ -69,6 +69,10 @@ Es kann für eine Autorisierung geprüft werden, ist aber selbst keine Autoritä
 Die Autorisierung wird verweigert, wenn der aktuelle vertrauenswürdige Zustand nicht mehr exakt dieselbe Projektidentität, Baseline, Proposal-Identität, denselben Proposal-Digest oder Mutationsumfang reproduziert.
 
 Ein gespeichertes Actionable Proposal wird dadurch veraltet, sobald sich materiale Project-Brain-Wahrheit ändert.
+
+Der unterstützte Authorization-Pfad verlangt zusätzlich ein interaktives lokales Terminal. Livariant zeigt die exakte Projektidentität, Proposal-Identität/-Digest, Baseline und den Mutations-Scope und verlangt danach die exakte proposal-spezifische Bestätigungs-Challenge, bevor Authority-State geschrieben werden darf. Dieser Gate sitzt im Authorization-Core und nicht nur im CLI-Wrapper; ein non-interaktiver Direktaufruf umgeht ihn deshalb nicht.
+
+Diese interaktive Challenge ist eine **explizite lokale Interaktionsgrenze**, aber keine kryptografische Attestation eines Menschen und kein Betriebssystem-Schutz gegen einen bereits kompromittierten Prozess mit denselben Benutzerrechten. Livariants machine-local Trust-Modell trennt Projektautorität vom Trust-State im User-Home; es behauptet nicht, gegeneinander feindliche Prozesse mit bereits gleichwertigem Zugriff auf dasselbe Betriebssystem-Benutzerkonto voneinander zu isolieren.
 
 Provider-Text, Candidate-Felder, Task-Dateien, projektkontrollierte Eingaben, kopierte Pakete oder Aussagen wie „der Benutzer hat das bereits freigegeben“ können nicht selbst Autorität erzeugen.
 
@@ -134,6 +138,8 @@ Beispiele:
 - aktive und terminale Projektevidence, die sich widersprechen.
 
 Livariant nimmt nicht an, dass eine Seite die andere überschreiben soll. Wo nötig, muss ein unterstützter späterer Recovery-Pfad die Lifecycle-Ambiguität auflösen.
+
+Read- und Verify-Operationen erzeugen keine fehlenden Authorization-Verzeichnisse und reparieren fehlende Evidence nicht. Unbekannte Einträge im verwalteten projektlokalen Authorization Root gelten als mehrdeutig und brechen geschlossen ab.
 
 ## Keine semantische Mutation in diesem Slice
 
