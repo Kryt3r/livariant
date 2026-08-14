@@ -4,20 +4,20 @@ import { tmpdir, userInfo } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import {
-  assertAuthorizationReadyForApply,
-  authorizeActionableProposal,
   buildActionableProposal,
   buildSemanticProposal,
   initializeProject,
-  inspectAuthorizationAudit,
   parseActionableProposal,
   parseSemanticProposalCandidate,
   recordAcceptedDecision,
 } from "../src/runtime/index.js";
 import {
+  assertAuthorizationReadyForApply,
+  authorizeActionableProposal,
   beginAuthorizationApplication,
   completeAuthorizationApplication,
   failAuthorizationApplication,
+  inspectAuthorizationAudit,
 } from "../src/runtime/authorization.js";
 
 function candidate(statement = "Use passkeys") {
