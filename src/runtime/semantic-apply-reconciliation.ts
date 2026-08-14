@@ -34,11 +34,40 @@ function plainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 }
 
-function exactKeys(value: Record<string, unknown>, keys: readonly string[]): void {
+function exactKeys(value: Record<string, unknown>, keys: readonly string[], label = "Machine-local semantic authorization receipt"): void {
   const expected = new Set(keys);
   if (Object.keys(value).length !== keys.length || Object.keys(value).some((key) => !expected.has(key))) {
-    throw new Error("Machine-local semantic authorization receipt shape is invalid during apply reconciliation.");
+    throw new Error(`${label} shape is invalid during apply reconciliation.`);
   }
+  for (const key of keys) if (!(key in value)) throw new Error(`${label} is missing required material during apply reconciliation.`);
+}
+
+function parseScope(value: unknown): ActionableProposal["mutationScope"] {
+  if (!plainObject(value)) throw new Error("Machine-local authorization mutation scope is invalid during apply reconciliation.");
+  const supersede = value.changeKind === "supersede";
+  exactKeys(value, supersede
+    ? ["domain", "changeKind", "proposedStatement", "targetDecisionId"]
+    : ["domain", "changeKind", "proposedStatement"], "Machine-local authorization mutation scope");
+  if (value.domain !== "project-decision" && value.domain !== "project-goal" && value.domain !== "project-knowledge") throw new Error("Machine-local authorization mutation scope domain is invalid during apply reconciliation.");
+  if (value.changeKind !== "add" && value.changeKind !== "supersede") throw new Error("Machine-local authorization mutation scope change kind is invalid during apply reconciliation.");
+  if (value.changeKind === "supersede" && value.domain !== "project-decision") throw new Error("Only project-decision may be superseded during apply reconciliation.");
+  if (typeof value.proposedStatement !== "string" || !value.proposedStatement) throw new Error("Machine-local authorization mutation scope statement is invalid during apply reconciliation.");
+  if (supersede && (typeof value.targetDecisionId !== "string" || !value.targetDecisionId)) throw new Error("Machine-local authorization supersession target is invalid during apply reconciliation.");
+  return {
+    domain: value.domain,
+    changeKind: value.changeKind,
+    proposedStatement: value.proposedStatement,
+    ...(supersede ? { targetDecisionId: value.targetDecisionId as string } : {}),
+  };
+}
+
+function parseBaseline(value: unknown): ActionableProposal["baseline"] {
+  if (!plainObject(value)) throw new Error("Machine-local authorization baseline is invalid during apply reconciliation.");
+  exactKeys(value, ["algorithm", "domain", "digest", "schemaVersion"], "Machine-local authorization baseline");
+  if (value.algorithm !== "sha256" || value.domain !== "livariant:project-context-baseline:v1" || typeof value.digest !== "string" || !/^[a-f0-9]{64}$/.test(value.digest) || typeof value.schemaVersion !== "number") {
+    throw new Error("Machine-local authorization baseline material is invalid during apply reconciliation.");
+  }
+  return value as unknown as ActionableProposal["baseline"];
 }
 
 function sameScope(left: ActionableProposal["mutationScope"], right: ActionableProposal["mutationScope"]): boolean {
@@ -73,12 +102,9 @@ function parseMachineReceipt(value: unknown): MachineReceipt {
   ]);
   if (value.schemaVersion !== 1 || value.kind !== "semantic-mutation-authorization") throw new Error("Machine-local semantic authorization receipt schema is invalid during apply reconciliation.");
   if (!["authorized", "applying", "completed", "failed-recovery-required", "invalidated"].includes(String(value.state))) throw new Error("Machine-local semantic authorization receipt state is invalid during apply reconciliation.");
-  if (typeof value.authorizedAt !== "string" || typeof value.authorizationId !== "string" || typeof value.stableProjectIdentity !== "string" || typeof value.actionableProposalId !== "string" || value.actionableProposalVersion !== 1 || typeof value.proposalDigest !== "string") {
+  if (typeof value.authorizedAt !== "string" || typeof value.authorizationId !== "string" || typeof value.stableProjectIdentity !== "string" || typeof value.actionableProposalId !== "string" || value.actionableProposalVersion !== 1 || typeof value.proposalDigest !== "string" || !/^[a-f0-9]{64}$/.test(value.proposalDigest)) {
     throw new Error("Machine-local semantic authorization receipt binding is invalid during apply reconciliation.");
   }
-  if (!plainObject(value.mutationScope) || !plainObject(value.baseline)) throw new Error("Machine-local semantic authorization receipt material is invalid during apply reconciliation.");
-  const scope = value.mutationScope as unknown as ActionableProposal["mutationScope"];
-  const baseline = value.baseline as unknown as ActionableProposal["baseline"];
   return {
     schemaVersion: 1,
     kind: "semantic-mutation-authorization",
@@ -89,8 +115,8 @@ function parseMachineReceipt(value: unknown): MachineReceipt {
     actionableProposalId: value.actionableProposalId,
     actionableProposalVersion: 1,
     proposalDigest: value.proposalDigest,
-    mutationScope: scope,
-    baseline,
+    mutationScope: parseScope(value.mutationScope),
+    baseline: parseBaseline(value.baseline),
   };
 }
 
