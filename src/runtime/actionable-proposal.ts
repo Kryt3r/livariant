@@ -8,6 +8,7 @@ import {
   type SemanticProposalCandidate,
   type SemanticProposalEvidence,
   type SemanticProposalFinding,
+  type SemanticProposalOriginClaim,
 } from "./semantic-proposal.js";
 import type { DoctorFinding } from "./doctor.js";
 
@@ -15,6 +16,12 @@ export const ACTIONABLE_PROPOSAL_SCHEMA_VERSION = 1;
 export const ACTIONABLE_PROPOSAL_FILE_MAX_BYTES = 128 * 1024;
 const ACTIONABLE_PROPOSAL_DIGEST_DOMAIN = "livariant:actionable-proposal:v1";
 const PROJECT_CONTEXT_BASELINE_DOMAIN = "livariant:project-context-baseline:v1";
+const ORIGIN_CLAIMS = new Set<SemanticProposalOriginClaim>([
+  "explicit-user",
+  "provider-observation",
+  "project-evidence",
+  "livariant-inference",
+]);
 
 export interface ActionableProposalActionability {
   authorizationEligible: true;
@@ -82,6 +89,31 @@ function strictKeys(value: Record<string, unknown>, allowed: readonly string[]):
   const allow = new Set(allowed);
   for (const key of Object.keys(value)) if (!allow.has(key)) throw new Error("Actionable proposal contains an unsupported field.");
   for (const key of allowed) if (!(key in value)) throw new Error(`Actionable proposal is missing required field: ${key}.`);
+}
+
+function parseEmbeddedCandidate(value: unknown): SemanticProposalCandidate {
+  if (!plainObject(value)) throw new Error("Actionable proposal candidate is invalid.");
+  if (value.schemaVersion !== 1) throw new Error("Actionable proposal candidate schema version is unsupported.");
+  if (value.originVerified !== false || typeof value.originClaim !== "string" || !ORIGIN_CLAIMS.has(value.originClaim as SemanticProposalOriginClaim)) {
+    throw new Error("Actionable proposal candidate origin fields are invalid.");
+  }
+
+  const supersede = value.domain === "project-decision" && value.changeKind === "supersede";
+  const allowed = supersede
+    ? ["schemaVersion", "domain", "changeKind", "proposedStatement", "rationale", "originClaim", "originVerified", "targetDecisionId"] as const
+    : ["schemaVersion", "domain", "changeKind", "proposedStatement", "rationale", "originClaim", "originVerified"] as const;
+  strictKeys(value, allowed);
+
+  const external: Record<string, unknown> = {
+    schemaVersion: value.schemaVersion,
+    domain: value.domain,
+    changeKind: value.changeKind,
+    proposedStatement: value.proposedStatement,
+    rationale: value.rationale,
+    origin: value.originClaim,
+  };
+  if (supersede) external.targetDecisionId = value.targetDecisionId;
+  return parseSemanticProposalCandidate(external);
 }
 
 function hashMaterial(hash: ReturnType<typeof createHash>, label: string, value: unknown): void {
@@ -287,7 +319,7 @@ export function parseActionableProposal(value: unknown): ActionableProposal {
   ) {
     throw new Error("Actionable proposal identity fields are invalid.");
   }
-  const candidate = parseSemanticProposalCandidate(value.candidate);
+  const candidate = parseEmbeddedCandidate(value.candidate);
   const baseline = parseBaseline(value.baseline);
   const mutationScope = parseScope(value.mutationScope);
   if (!Array.isArray(value.findings) || !Array.isArray(value.intentionallyUnchanged) || !plainObject(value.actionability)) {
