@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { buildProjectContextSnapshot, type ProjectContextBaseline } from "./context-snapshot.js";
+import { validateProviderContextEvidence } from "./provider-context-copy-validation.js";
 import { PROJECT_CONTEXT_BASELINE_DOMAIN } from "./project-context-material.js";
 import { providerContextPacketId } from "./provider-context-hash.js";
 import type { ProviderContextProvider } from "./provider-context-types.js";
@@ -221,7 +222,7 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
     throw new Error("Provider context copy contains invalid authority flags.");
   }
   if (value.safetyState !== "clear") throw new Error("Blocked Provider Context cannot be used as a ready roundtrip root.");
-  if (!plainObject(value.evidence)) throw new Error("Provider context evidence must be an object.");
+  validateProviderContextEvidence(value.evidence);
   if (!Array.isArray(value.findings) || value.findings.length !== 0) throw new Error("Ready Provider Context must not contain blocking findings.");
   if (!plainObject(value.task)) throw new Error("Provider context task must be an object.");
   strictKeys(value.task, ["value", "authorityClass"]);
