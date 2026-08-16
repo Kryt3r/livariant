@@ -66,7 +66,7 @@ export async function inspectInitialization(projectPath: string = process.cwd())
       ".project-brain/metadata.json",
     ],
     projectFilesToModify: [] as string[],
-    unknowns: discovery.unknowns,
+    unknowns: ["project goals", "accepted architecture decisions", "deployment target"],
     confirmedProjectName: project.packageName,
   };
 
