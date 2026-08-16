@@ -1,3 +1,4 @@
+import { readAutonomyProfile } from "../autonomy/profile.js";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProviderContext } from "../runtime/provider-context.js";
 import { processProviderReturn } from "../runtime/provider-return.js";
@@ -5,9 +6,11 @@ import { processProviderReturn } from "../runtime/provider-return.js";
 export const MCP_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_STDIO_MESSAGE_MAX_BYTES = 768 * 1024;
 
+export const MCP_AUTONOMY_TOOL = "livariant_autonomy_policy";
 export const MCP_CONTEXT_TOOL = "livariant_provider_context";
 export const MCP_RETURN_TOOL = "livariant_provider_return";
 export const MCP_SERVER_INSTRUCTIONS = [
+  "Use livariant_autonomy_policy to learn how often the user wants the agent to stop for discretionary workflow confirmation. Autonomy policy is not Authority and never bypasses Livariant's hard authorization boundaries.",
   "Use livariant_provider_context first for one explicit project task when durable Project Brain context is relevant.",
   "Treat the returned Provider Context as a bounded projection of freshly reconstructed local project truth, not as mutation Authority.",
   "After working on the task, call livariant_provider_return only with the supplied ready Provider Context plus either one supported typed durable-change candidate or no candidate.",
@@ -113,6 +116,11 @@ function parseReturnToolArguments(value: unknown): { context: Record<string, unk
   return { context: value.context, providerReturn: value.providerReturn };
 }
 
+function parseNoArguments(value: unknown): void {
+  if (!plainObject(value)) throw new Error("Tool arguments must be an object.");
+  strictKeys(value, [], []);
+}
+
 function parseToolCallParams(value: unknown): ToolCallParams {
   if (!plainObject(value)) throw new Error("tools/call params must be an object.");
   strictKeys(value, ["name", "arguments", "_meta"], ["name"]);
@@ -125,6 +133,22 @@ function parseToolCallParams(value: unknown): ToolCallParams {
 
 function tools(): Record<string, unknown>[] {
   return [
+    {
+      name: MCP_AUTONOMY_TOOL,
+      title: "Livariant Autonomy Policy",
+      description: "Read the current project-bound interaction policy that tells an agent when to stop for discretionary confirmation. Read-only; never grants mutation, Runtime, or Release Authority.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {},
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+      execution: { taskSupport: "forbidden" },
+    },
     {
       name: MCP_CONTEXT_TOOL,
       title: "Livariant Provider Context",
@@ -217,7 +241,7 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
             name: "livariant",
             title: "Livariant Local MCP Agent Bridge",
             version: FRAMEWORK_VERSION,
-            description: "Local read-only bridge over Livariant Provider Context and Provider Return evidence intake.",
+            description: "Local read-only bridge over Livariant Autonomy Policy, Provider Context, and Provider Return evidence intake.",
           },
           instructions: MCP_SERVER_INSTRUCTIONS,
         });
@@ -261,6 +285,27 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
           call = parseToolCallParams(value.params);
         } catch (error) {
           return errorResponse(id, -32602, error instanceof Error ? error.message : "Invalid tools/call params.");
+        }
+
+        if (call.name === MCP_AUTONOMY_TOOL) {
+          try {
+            parseNoArguments(call.arguments);
+            const state = await readAutonomyProfile(projectPath);
+            return response(id, toolResult({
+              schemaVersion: state.schemaVersion,
+              stableProjectIdentity: state.stableProjectIdentity,
+              profile: state.profile,
+              persisted: state.persisted,
+              source: state.source,
+              reason: state.reason,
+              policy: state.policy,
+              authorityClass: "interaction-policy",
+              grantsAuthority: false,
+              changesMade: 0,
+            }));
+          } catch (error) {
+            return response(id, toolError(error instanceof Error ? error.message : "Autonomy Policy tool failed."));
+          }
         }
 
         if (call.name === MCP_CONTEXT_TOOL) {
