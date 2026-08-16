@@ -112,7 +112,11 @@ async function resolveLanguage(parsed: FirstRunArgs): Promise<string> {
   }
 }
 
-function buildNextActions(plan: Awaited<ReturnType<typeof inspectInitialization>>, provider?: FirstRunProvider): FirstRunNextAction[] {
+function buildNextActions(
+  plan: Awaited<ReturnType<typeof inspectInitialization>>,
+  provider?: FirstRunProvider,
+  externalSourceType?: string,
+): FirstRunNextAction[] {
   const next: FirstRunNextAction[] = [];
   if (plan.action === "initialize") {
     next.push({
@@ -127,8 +131,12 @@ function buildNextActions(plan: Awaited<ReturnType<typeof inspectInitialization>
   next.push({
     id: "review-understanding",
     optional: false,
-    command: "livariant understand",
-    purpose: "Review unknowns and provide corrections or answers before anything becomes Project Truth.",
+    command: externalSourceType
+      ? `livariant understand --external-source-type ${externalSourceType} --external-source <same-source-path>`
+      : "livariant understand",
+    purpose: externalSourceType
+      ? "Continue the understanding review with the same external knowledge source. Replace <same-source-path> with the source path you selected for First-Run."
+      : "Review unknowns and provide corrections or answers before anything becomes Project Truth.",
     changesProject: false,
     requiresSeparateAuthorization: false,
   });
@@ -176,7 +184,7 @@ export async function buildFirstRunReport(options: {
       initializationAction: plan.action,
     },
     understanding,
-    nextActions: buildNextActions(plan, options.provider),
+    nextActions: buildNextActions(plan, options.provider, options.externalSourceType),
     boundaries: {
       evidenceIsProjectTruth: false,
       externalEvidenceIsProjectTruth: false,
