@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildUnderstandingReview, understandingCandidateEvidenceId } from "../src/project/understanding-review.js";
 import { escapeTerminalControlText } from "../src/cli/understand-command.js";
+import type { ExternalKnowledgeEvidenceBundle } from "../src/external-knowledge/index.js";
 import type { BootstrapDiscoveryReport } from "../src/project/bootstrap-discovery.js";
 
 function discovery(): BootstrapDiscoveryReport {
@@ -25,6 +26,44 @@ function discovery(): BootstrapDiscoveryReport {
   };
 }
 
+function externalBundle(): ExternalKnowledgeEvidenceBundle {
+  const sourceId = `external-source-v1:${"a".repeat(64)}`;
+  return {
+    schemaVersion: 1,
+    source: {
+      schemaVersion: 1,
+      sourceId,
+      kind: "local-directory",
+      location: "/second-brain",
+      readOnly: true,
+      trust: "external-evidence",
+      grantsAuthority: false,
+    },
+    evidence: [
+      {
+        evidenceId: `external-evidence-v1:${"b".repeat(64)}`,
+        trust: "external-evidence",
+        mediaType: "text/markdown",
+        content: "Project purpose notes",
+        provenance: {
+          sourceId,
+          sourceKind: "local-directory",
+          materialPath: "purpose.md",
+          contentSha256: "c".repeat(64),
+        },
+      },
+    ],
+    skipped: [],
+    boundaries: {
+      evidenceIsProjectTruth: false,
+      grantsAuthority: false,
+      sourceMutated: false,
+      projectMutated: false,
+      changesMade: 0,
+    },
+  };
+}
+
 test("understanding review turns discovery into grouped evidence and bounded clarification questions", () => {
   const report = buildUnderstandingReview(discovery());
 
@@ -35,6 +74,7 @@ test("understanding review turns discovery into grouped evidence and bounded cla
   assert.equal(report.stronglyInferred[0]?.value, "React");
   assert.equal(report.uncertain.length, 0);
   assert.equal(report.attention.length, 1);
+  assert.equal(report.externalEvidence.length, 0);
   assert.deepEqual(report.questions.map((item) => item.id), [
     "unknown:project-purpose",
     "unknown:current-product-direction",
@@ -43,10 +83,27 @@ test("understanding review turns discovery into grouped evidence and bounded cla
   assert.match(report.questions[0]?.prompt ?? "", /project for/i);
   assert.deepEqual(report.boundaries, {
     evidenceIsProjectTruth: false,
+    externalEvidenceIsProjectTruth: false,
     candidateEvidenceIsProjectTruth: false,
+    externalEvidenceCanBeAdoptedDirectly: false,
     grantsAuthority: false,
     changesMade: 0,
   });
+});
+
+test("understanding review keeps external source material separate from candidate evidence", () => {
+  const bundle = externalBundle();
+  const report = buildUnderstandingReview(discovery(), undefined, [bundle]);
+
+  assert.deepEqual(report.externalEvidence, [bundle]);
+  assert.equal(report.candidateEvidence.length, 0);
+  assert.equal(report.boundaries.externalEvidenceIsProjectTruth, false);
+  assert.equal(report.boundaries.externalEvidenceCanBeAdoptedDirectly, false);
+  assert.deepEqual(report.questions.map((item) => item.id), [
+    "unknown:project-purpose",
+    "unknown:current-product-direction",
+    "unknown:non-negotiable-project-rules",
+  ]);
 });
 
 test("understanding review keeps user answers and corrections as material-bound candidate evidence only", () => {
