@@ -72,6 +72,7 @@ export function parseMcpSetupArgs(args: readonly string[]): { provider: McpSetup
       continue;
     }
     if (arg === "--provider") {
+      if (provider !== undefined) throw new Error("--provider may be specified exactly once.");
       const value = args[index + 1];
       if (value !== "claude-code" && value !== "codex") {
         throw new Error("--provider must be claude-code or codex.");
