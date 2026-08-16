@@ -44,8 +44,21 @@ if (!metadata.sbom?.sha256 || metadata.sbom?.format !== "SPDX-2.3") throw new Er
 
 const runsResponse = await githubApi(`/repos/${repository}/actions/runs?head_sha=${sourceSha}&per_page=100`, token);
 const runs = Array.isArray(runsResponse.workflow_runs) ? runsResponse.workflow_runs : [];
-const hardeningRun = latestRun(runs, (run) => run.name === "Hardening CI" && run.head_sha === sourceSha && run.status === "completed");
-const codeqlRun = latestRun(runs, (run) => run.head_sha === sourceSha && run.status === "completed" && (String(run.path).includes("codeql") || String(run.name).toLowerCase().includes("codeql")));
+const hardeningRun = latestRun(
+  runs,
+  (run) => run.name === "Hardening CI"
+    && run.head_sha === sourceSha
+    && run.head_branch === "main"
+    && run.event === "push"
+    && run.status === "completed",
+);
+const codeqlRun = latestRun(
+  runs,
+  (run) => run.head_sha === sourceSha
+    && run.head_branch === "main"
+    && run.status === "completed"
+    && (String(run.path).includes("codeql") || String(run.name).toLowerCase().includes("codeql")),
+);
 
 const hardeningPassed = hardeningRun?.conclusion === "success";
 const codeqlPassed = codeqlRun?.conclusion === "success";
@@ -68,15 +81,15 @@ const evidence = {
       required: true,
       status: codeqlPassed ? "PASS" : "UNKNOWN",
       summary: codeqlPassed
-        ? `CodeQL completed successfully on exact source ${sourceSha}; deterministic hardening tests also passed in the RC workflow.`
-        : `No successful completed CodeQL Actions run was found for exact source ${sourceSha}.`,
+        ? `CodeQL completed successfully on canonical main at exact source ${sourceSha}; deterministic hardening tests also passed in the RC workflow.`
+        : `No successful completed CodeQL Actions run on canonical main was found for exact source ${sourceSha}.`,
     },
     ciPlatforms: {
       required: true,
       status: hardeningPassed ? "PASS" : "UNKNOWN",
       summary: hardeningPassed
-        ? `Hardening CI completed successfully on exact source ${sourceSha}, including its configured Ubuntu/Windows matrix.`
-        : `No successful completed Hardening CI run was found for exact source ${sourceSha}.`,
+        ? `Post-merge Hardening CI completed successfully on canonical main at exact source ${sourceSha}, including its configured Ubuntu/Windows matrix.`
+        : `No successful completed post-merge Hardening CI push on canonical main was found for exact source ${sourceSha}.`,
     },
     packaging: {
       required: true,
@@ -86,7 +99,7 @@ const evidence = {
     supplyChain: {
       required: true,
       status: "PASS",
-      summary: `Artifact SHA-256 and SPDX 2.3 release SBOM SHA-256 were independently verified for the exact candidate; root devDependencies are excluded from release SBOM evidence.`,
+      summary: "Artifact SHA-256 and SPDX 2.3 release SBOM SHA-256 were independently verified for the exact candidate; root devDependencies are excluded from release SBOM evidence.",
     },
     documentationTruth: {
       required: true,
@@ -113,7 +126,7 @@ const evidence = {
       status: hardeningPassed ? "PASS" : "UNKNOWN",
       sourceSha,
       reference: hardeningRun ? `github-actions:${repository}#${hardeningRun.id}` : undefined,
-      summary: hardeningPassed ? "Exact-source Hardening CI succeeded." : "Exact-source successful Hardening CI evidence was not found.",
+      summary: hardeningPassed ? "Exact-source post-merge Hardening CI on canonical main succeeded." : "Exact-source successful post-merge Hardening CI evidence on canonical main was not found.",
     },
     {
       id: "codeql",
@@ -122,7 +135,7 @@ const evidence = {
       status: codeqlPassed ? "PASS" : "UNKNOWN",
       sourceSha,
       reference: codeqlRun ? `github-actions:${repository}#${codeqlRun.id}` : undefined,
-      summary: codeqlPassed ? "Exact-source CodeQL Actions run succeeded." : "Exact-source successful CodeQL Actions evidence was not found.",
+      summary: codeqlPassed ? "Exact-source CodeQL Actions run on canonical main succeeded." : "Exact-source successful CodeQL Actions evidence on canonical main was not found.",
     },
     {
       id: "release-artifact-digest",
@@ -147,8 +160,8 @@ const evidence = {
       type: "pull-request-gate",
       required: false,
       status: "NOT_APPLICABLE",
-      reference: "PR-scoped evidence; not rerun on main-only RC workflow",
-      summary: "Dependency Review is enforced before merge on pull requests and is intentionally not treated as exact-main-SHA evidence by dossier v1.",
+      reference: "PR-scoped evidence; not rerun or rebound to canonical main by dossier v1",
+      summary: "Dependency Review remains enforced before merge on pull requests and is intentionally not represented as exact-main-SHA evidence.",
     },
   ],
 };
