@@ -16,11 +16,73 @@ livariant mcp
 
 Der Prozess kommuniziert ausschließlich über MCP-JSON-RPC-Nachrichten auf Standard-Ein-/Ausgabe. Diagnosefehler werden auf Standardfehler ausgegeben.
 
-WP-012 zielt auf die stabile MCP-Protokollrevision `2025-11-25` über lokales stdio.
+Die Bridge zielt auf die MCP-Protokollrevision `2025-11-25` über lokales stdio.
+
+## Nativer Setup-Helfer
+
+WP-013 ergänzt eine ausschließlich lesende Setup-Ausgabe für die aktuell unterstützten lokalen MCP-Pfade:
+
+```text
+livariant mcp setup --provider claude-code
+livariant mcp setup --provider codex
+livariant mcp setup --provider <claude-code|codex> --json
+```
+
+Der Setup-Helfer **führt weder Claude Code noch Codex aus und schreibt keine Provider-Konfiguration**. Er gibt nur providerspezifische native Befehle bzw. Konfigurationsmaterial aus, das der Nutzer selbst prüfen und anwenden kann.
+
+### Claude Code
+
+Der ausgegebene native lokale stdio-Registrierungsbefehl lautet:
+
+```text
+claude mcp add --transport stdio --scope local livariant -- livariant mcp
+```
+
+Er sollte im Livariant-Projektverzeichnis ausgeführt werden. Prüfen lässt sich die Registrierung mit:
+
+```text
+claude mcp get livariant
+claude mcp list
+```
+
+Claude Code bleibt Eigentümer seiner MCP-Konfiguration und seines Freigabeverhaltens.
+
+### Codex
+
+Der ausgegebene native CLI-Registrierungsbefehl lautet:
+
+```text
+codex mcp add livariant -- livariant mcp
+```
+
+Prüfen lässt sich die Registrierung mit:
+
+```text
+codex mcp list
+```
+
+Für ein ausdrücklich projektgebundenes Codex-Setup gibt der Helfer zusätzlich einen `.codex/config.toml`-Abschnitt aus. Dieser verwendet das aktuelle Projektverzeichnis als `cwd` und erlaubt exakt die beiden Livariant-MCP-Tools. Livariant schreibt diese Datei nicht selbst.
+
+Codex CLI, die Codex-IDE-Erweiterung und unterstützte Desktop-Clients teilen sich die Codex-MCP-Konfiguration entsprechend dem aktuellen Provider-Modell.
+
+Die Provider-Setup-Syntax wurde am 16.08.2026 gegen die aktuelle Herstellerdokumentation geprüft. Provider-Konfigurationssyntax ist externe Kompatibilität und kann sich unabhängig von Livariant ändern.
+
+## Agent-Workflow-Anweisungen
+
+Die MCP-Initialize-Antwort erklärt kompatiblen Agents nun den begrenzten Ablauf:
+
+```text
+Livariant Provider Context für genau eine explizite Aufgabe anfordern
+-> mit der zurückgegebenen begrenzten Projektion arbeiten
+-> den bereitgestellten Kontext plus genau einen unterstützten typisierten dauerhaften Änderungskandidaten oder keinen Kandidaten zurückgeben
+-> bei Review / Authorization-required / Blocked / No-candidate stoppen
+```
+
+Die Anweisungen stellen ausdrücklich klar, dass MCP keine proposal-bound Authorization erzeugen, entdecken, auswählen oder konsumieren und keine kanonische semantische Mutation durchführen kann.
 
 ## Verfügbare Tools
 
-In dieser Foundation werden genau zwei Tools bereitgestellt.
+Es werden weiterhin exakt zwei Tools bereitgestellt.
 
 ### `livariant_provider_context`
 
@@ -77,13 +139,13 @@ Die MCP-Oberfläche akzeptiert **nicht**:
 
 Unbekannte oder zusätzliche MCP-Toolargumente schlagen fail-closed fehl.
 
-Eine andernorts bereits vorhandene passende proposal-bound Authorization wird von dieser Bridge weder gesucht noch konsumiert. Ein über MCP zurückgegebener Candidate kann deshalb in WP-012 keine kanonische semantische Mutation ausführen.
+Eine andernorts bereits vorhandene passende proposal-bound Authorization wird von dieser Bridge weder gesucht noch konsumiert. Ein über MCP zurückgegebener Candidate kann deshalb keine kanonische semantische Mutation ausführen.
 
-Für eine autorisierte semantische Mutation bleibt der separate bestehende lokale Authorization-/Semantic-Apply-Workflow außerhalb dieser MCP-Foundation zuständig.
+Für eine autorisierte semantische Mutation bleibt der separate bestehende lokale Authorization-/Semantic-Apply-Workflow außerhalb dieser MCP-Oberfläche zuständig.
 
 ## Transportgrenze
 
-WP-012 ist ausschließlich lokales stdio.
+Die Bridge ist ausschließlich lokales stdio.
 
 Nicht enthalten sind:
 
@@ -117,10 +179,10 @@ initialize
 
 `ping` wird ebenfalls unterstützt.
 
-WP-012 führt keine MCP-Tasks, Prompts, Resources, Sampling, HTTP-Authorization, Server-zu-Client-Requests oder Remote-Transporte ein.
+Es werden keine MCP-Tasks, Prompts, Resources, Sampling, HTTP-Authorization, Server-zu-Client-Requests oder Remote-Transporte eingeführt.
 
 ## Release-Grenze
 
 Diese Fähigkeit ist Repository-Entwicklung nach der unveränderlichen Foundation Preview `v0.1.0-rc.3`.
 
-RC3 enthält die MCP-Agent-Bridge nicht. Ein späterer Release benötigt eine separate ausdrückliche Release-Freigabe.
+RC3 enthält weder die MCP-Agent-Bridge noch die native WP-013-Setup-UX. Ein späterer Release benötigt eine separate ausdrückliche Release-Freigabe.

@@ -38,6 +38,7 @@ async function entry(): Promise<void> {
       console.log("  apply --authorization <authorization-id> --input <actionable-proposal.json> [--json]");
       console.log("  maintain --input <candidate.json> [--authorization <authorization-id>] [--json]");
       console.log("  mcp");
+      console.log("  mcp setup --provider <claude-code|codex> [--json]");
     }
     return;
   }

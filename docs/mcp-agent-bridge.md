@@ -16,11 +16,73 @@ livariant mcp
 
 The process communicates only through MCP JSON-RPC messages on standard input/output. Diagnostic failures are written to standard error.
 
-WP-012 targets the stable MCP protocol revision `2025-11-25` over local stdio.
+The bridge targets MCP protocol revision `2025-11-25` over local stdio.
+
+## Native setup helper
+
+WP-013 adds read-only setup rendering for the currently supported local MCP paths:
+
+```text
+livariant mcp setup --provider claude-code
+livariant mcp setup --provider codex
+livariant mcp setup --provider <claude-code|codex> --json
+```
+
+The setup helper **does not execute Claude Code or Codex and does not write provider configuration**. It only renders provider-native commands/configuration material for the user to review and apply.
+
+### Claude Code
+
+The rendered native local stdio registration command is:
+
+```text
+claude mcp add --transport stdio --scope local livariant -- livariant mcp
+```
+
+Run it from the Livariant project directory. Verify with:
+
+```text
+claude mcp get livariant
+claude mcp list
+```
+
+Claude Code remains the owner of its MCP configuration and approval behavior.
+
+### Codex
+
+The rendered native CLI registration command is:
+
+```text
+codex mcp add livariant -- livariant mcp
+```
+
+Verify with:
+
+```text
+codex mcp list
+```
+
+For an explicit project-bound Codex setup, the helper also renders a `.codex/config.toml` fragment using the current project directory as `cwd` and allow-listing exactly the two Livariant MCP tools. Livariant does not write this file.
+
+Codex CLI, the Codex IDE extension and supported desktop clients share Codex MCP configuration according to the provider's current configuration model.
+
+Provider setup syntax was checked against current vendor documentation on 2026-08-16. Provider configuration syntax is external and may evolve independently of Livariant.
+
+## Agent workflow guidance
+
+The MCP initialize response now tells compatible agents how to use the bounded workflow:
+
+```text
+request Livariant Provider Context for one explicit task
+-> work from the returned bounded projection
+-> return the supplied context plus one supported typed durable-change candidate or no candidate
+-> stop at review / authorization-required / blocked / no-candidate
+```
+
+The instructions explicitly state that MCP cannot create, discover, select or consume proposal-bound Authorization and cannot perform canonical semantic mutation.
 
 ## Exposed tools
 
-Exactly two tools are exposed in this foundation.
+Exactly two tools are exposed.
 
 ### `livariant_provider_context`
 
@@ -77,13 +139,13 @@ The MCP surface does **not** accept:
 
 Unknown or additional MCP tool arguments fail closed.
 
-A matching proposal-bound Authorization that already exists elsewhere is not searched for or consumed by this bridge. A candidate returned through MCP therefore cannot perform canonical semantic mutation in WP-012.
+A matching proposal-bound Authorization that already exists elsewhere is not searched for or consumed by this bridge. A candidate returned through MCP therefore cannot perform canonical semantic mutation.
 
-To perform an authorized semantic mutation, users continue to use the separate existing local Authorization / Semantic Apply workflow outside this MCP foundation.
+To perform an authorized semantic mutation, users continue to use the separate existing local Authorization / Semantic Apply workflow outside this MCP surface.
 
 ## Transport boundary
 
-WP-012 is local stdio only.
+The bridge is local stdio only.
 
 It does not add:
 
@@ -117,10 +179,10 @@ initialize
 
 `ping` is also supported.
 
-No MCP task execution, prompts, resources, sampling, HTTP authorization, server-to-client requests, or remote transport are introduced by WP-012.
+No MCP task execution, prompts, resources, sampling, HTTP authorization, server-to-client requests, or remote transport are introduced.
 
 ## Release boundary
 
 This capability is repository development after the immutable `v0.1.0-rc.3` Foundation Preview.
 
-RC3 does not contain the MCP Agent Bridge. A later release requires separate explicit release authorization.
+RC3 does not contain the MCP Agent Bridge or WP-013 native setup UX. A later release requires separate explicit release authorization.
