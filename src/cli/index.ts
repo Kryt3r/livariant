@@ -26,12 +26,13 @@ async function delegateToActiveRuntime(): Promise<boolean> {
 
 async function entry(): Promise<void> {
   const command = process.argv[2];
-  if (command !== "discover" && command !== "understand" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "discover" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
     if (showsHelp) {
       console.log("  discover [--json]");
       console.log("  understand [--input <review.json>] [--json]");
+      console.log("  adopt-understanding --input <review.json> --select <candidate-target> [--json]");
       console.log("  drift --input <observation.json> [--json]");
       console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
       console.log("  provider-return --context <provider-context.json> --input <provider-return.json> [--authorization <authorization-id>] [--json]");
@@ -53,6 +54,11 @@ async function entry(): Promise<void> {
   if (command === "understand") {
     const { handleUnderstandCommand } = await import("./understand-command.js");
     await handleUnderstandCommand(process.argv.slice(3));
+    return;
+  }
+  if (command === "adopt-understanding") {
+    const { handleAdoptUnderstandingCommand } = await import("./adopt-understanding-command.js");
+    await handleAdoptUnderstandingCommand(process.argv.slice(3));
     return;
   }
   if (command === "drift") {
