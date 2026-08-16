@@ -137,9 +137,9 @@ function buildNextActions(plan: Awaited<ReturnType<typeof inspectInitialization>
       id: "configure-provider",
       optional: true,
       command: `livariant mcp setup --provider ${provider}`,
-      purpose: `Configure the ${provider} MCP bridge separately if you want native agent access.`,
-      changesProject: true,
-      requiresSeparateAuthorization: true,
+      purpose: `Render the ${provider} MCP setup guidance. Livariant makes no provider-configuration write; any later registration remains a separate explicit external action.`,
+      changesProject: false,
+      requiresSeparateAuthorization: false,
     });
   }
   next.push({
@@ -211,7 +211,7 @@ function renderHuman(report: FirstRunReport): void {
 
   console.log("Important safety boundary:");
   console.log("- Discovery and external knowledge are evidence, not Project Truth.");
-  console.log("- This first-run does not authorize initialization, adoption, provider setup, runtime changes, or release.");
+  console.log("- This first-run does not authorize initialization, adoption, provider configuration, runtime changes, or release.");
   console.log("");
 
   console.log("Next actions:");
