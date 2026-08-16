@@ -120,9 +120,10 @@ export async function handleUnderstandCommand(args: string[]): Promise<void> {
   printEvidence("What Livariant strongly infers:", report.stronglyInferred);
   printEvidence("What remains uncertain:", report.uncertain);
 
+  const externalBundles = report.externalEvidence ?? [];
   console.log("External knowledge evidence (read-only, non-authoritative):");
-  if (report.externalEvidence.length === 0) console.log("- none connected");
-  else for (const bundle of report.externalEvidence) {
+  if (externalBundles.length === 0) console.log("- none connected");
+  else for (const bundle of externalBundles) {
     console.log(`- Source ${escapeTerminalControlText(bundle.source.sourceId)} (${bundle.source.kind})`);
     if (bundle.evidence.length === 0) console.log("  - no supported evidence material");
     else for (const item of bundle.evidence) {
