@@ -32,7 +32,7 @@ async function entry(): Promise<void> {
     if (showsHelp) {
       console.log("  discover [--json]");
       console.log("  understand [--input <review.json>] [--json]");
-      console.log("  adopt-understanding --input <review.json> --select <candidate-target> [--json]");
+      console.log("  adopt-understanding --input <review.json> --select <candidate-id> [--json]");
       console.log("  drift --input <observation.json> [--json]");
       console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
       console.log("  provider-return --context <provider-context.json> --input <provider-return.json> [--authorization <authorization-id>] [--json]");
