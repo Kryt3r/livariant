@@ -1,5 +1,6 @@
 import { FRAMEWORK_VERSION, PROJECT_BRAIN_SCHEMA_VERSION, UPDATE_CHANNEL } from "../lifecycle/state.js";
 import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
+import { buildBootstrapDiscovery, type BootstrapDiscoveryReport } from "../project/bootstrap-discovery.js";
 import { discoverProject } from "../project/discovery.js";
 import { generateStableProjectIdentity } from "../project-brain/identity.js";
 import { ProjectBrainStore, type BootstrapOptions } from "../project-brain/store.js";
@@ -19,6 +20,7 @@ export interface InitializationPlan {
   projectState: InitializationProjectState;
   projectBrainHealth: ProjectBrainHealth;
   evidence: string[];
+  discovery: BootstrapDiscoveryReport;
   filesToCreate: string[];
   projectFilesToModify: string[];
   unknowns: string[];
@@ -38,6 +40,7 @@ export interface InitializeOptions extends BootstrapOptions {
 
 export async function inspectInitialization(projectPath: string = process.cwd()): Promise<InitializationPlan> {
   const project = discoverProject(projectPath);
+  const discovery = buildBootstrapDiscovery(project);
   const store = new ProjectBrainStore(project.root);
   const brain = await store.inspect();
   const stranded = brain.health === "not-found" ? await findStrandedLifecycleArtifacts(project.root) : [];
@@ -54,6 +57,7 @@ export async function inspectInitialization(projectPath: string = process.cwd())
     projectRoot: project.root,
     projectBrainHealth: brain.health,
     evidence,
+    discovery,
     filesToCreate: [
       ".project-brain/project.md",
       ".project-brain/goals.md",
