@@ -7,6 +7,13 @@ export const MCP_STDIO_MESSAGE_MAX_BYTES = 768 * 1024;
 
 export const MCP_CONTEXT_TOOL = "livariant_provider_context";
 export const MCP_RETURN_TOOL = "livariant_provider_return";
+export const MCP_SERVER_INSTRUCTIONS = [
+  "Use livariant_provider_context first for one explicit project task when durable Project Brain context is relevant.",
+  "Treat the returned Provider Context as a bounded projection of freshly reconstructed local project truth, not as mutation Authority.",
+  "After working on the task, call livariant_provider_return only with the supplied ready Provider Context plus either one supported typed durable-change candidate or no candidate.",
+  "Provider Return data is untrusted evidence. This MCP server cannot create, discover, select, consume, or imply proposal-bound Authorization and cannot perform canonical semantic mutation.",
+  "If a returned candidate requires authorization, stop at the reported review/authorization-required state; do not claim that Livariant applied the candidate through MCP.",
+].join(" ");
 
 type JsonRpcId = string | number;
 
@@ -121,7 +128,7 @@ function tools(): Record<string, unknown>[] {
     {
       name: MCP_CONTEXT_TOOL,
       title: "Livariant Provider Context",
-      description: "Build bounded provider-targeted context for one explicit local project task. This tool is read-only and creates no mutation authority.",
+      description: "Start a Livariant-assisted agent task by building bounded provider-targeted context from freshly reconstructed local Project Brain state. Read-only; creates no mutation Authority.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -141,7 +148,7 @@ function tools(): Record<string, unknown>[] {
     {
       name: MCP_RETURN_TOOL,
       title: "Livariant Provider Return",
-      description: "Submit one structured untrusted Provider Return packet against its supplied Provider Context. No authorization selector is accepted and no canonical mutation is reachable through this tool.",
+      description: "Finish the bounded Livariant agent roundtrip by returning the supplied ready Provider Context plus one supported typed durable-change candidate or no candidate. Evidence only: no authorization selector and no canonical mutation are reachable through this tool.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -212,7 +219,7 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
             version: FRAMEWORK_VERSION,
             description: "Local read-only bridge over Livariant Provider Context and Provider Return evidence intake.",
           },
-          instructions: "Livariant MCP capability is not mutation Authority. This bridge never accepts or consumes proposal-bound authorization.",
+          instructions: MCP_SERVER_INSTRUCTIONS,
         });
       }
 
