@@ -40,9 +40,11 @@ function runNpm(args, options = {}) {
 
 try {
   const packDir = resolve(temp, "pack");
-  const installDir = resolve(temp, "project");
+  const installHost = resolve(temp, "install-host");
+  const projectDir = resolve(temp, "project");
   await mkdir(packDir, { recursive: true });
-  await mkdir(installDir, { recursive: true });
+  await mkdir(installHost, { recursive: true });
+  await mkdir(projectDir, { recursive: true });
 
   const packed = runNpm(["pack", "--json", "--pack-destination", packDir]);
   const packResult = JSON.parse(packed.stdout);
@@ -57,18 +59,23 @@ try {
     if (!entries.includes(required)) throw new Error(`Packed artifact is missing discovery runtime file: ${required}`);
   }
 
-  await writeFile(resolve(installDir, "package.json"), JSON.stringify({
+  await writeFile(resolve(installHost, "package.json"), JSON.stringify({
+    name: "livariant-discovery-install-host",
+    private: true,
+  }), "utf8");
+  const tarball = resolve(packDir, filename);
+  runNpm(["install", "--ignore-scripts", tarball], { cwd: installHost });
+
+  await writeFile(resolve(projectDir, "package.json"), JSON.stringify({
     name: "installed-discovery-smoke",
     dependencies: { react: "1.0.0" },
   }), "utf8");
-  await writeFile(resolve(installDir, "README.md"), "# Installed discovery smoke\n", "utf8");
-  await writeFile(resolve(installDir, ".env"), "TOKEN=PACKAGE_SMOKE_SECRET\n", "utf8");
+  await writeFile(resolve(projectDir, "README.md"), "# Installed discovery smoke\n", "utf8");
+  await writeFile(resolve(projectDir, ".env"), "TOKEN=PACKAGE_SMOKE_SECRET\n", "utf8");
 
-  const tarball = resolve(packDir, filename);
-  runNpm(["install", "--ignore-scripts", tarball], { cwd: installDir });
-  const cliPath = resolve(installDir, "node_modules", "livariant", "dist", "src", "cli", "index.js");
+  const cliPath = resolve(installHost, "node_modules", "livariant", "dist", "src", "cli", "index.js");
   const result = run(process.execPath, [cliPath, "discover", "--json"], {
-    cwd: installDir,
+    cwd: projectDir,
     env: { PBF_RUNTIME_DELEGATION_BYPASS: "1" },
   });
   const report = JSON.parse(result.stdout.trim());
@@ -88,13 +95,13 @@ try {
     throw new Error("Installed discover exposed sensitive file contents");
   }
 
-  const entriesAfter = await import("node:fs/promises").then(({ readdir }) => readdir(installDir));
+  const entriesAfter = await import("node:fs/promises").then(({ readdir }) => readdir(projectDir));
   if (entriesAfter.includes(".project-brain")) {
     throw new Error("Installed discover mutated the project by creating Project Brain state");
   }
 
-  const installedPackage = JSON.parse(await readFile(resolve(installDir, "node_modules", "livariant", "package.json"), "utf8"));
-  console.log(`Discovery package smoke passed for Livariant ${installedPackage.version}: packaged discover command returned structured evidence with zero project mutation.`);
+  const installedPackage = JSON.parse(await readFile(resolve(installHost, "node_modules", "livariant", "package.json"), "utf8"));
+  console.log(`Discovery package smoke passed for Livariant ${installedPackage.version}: installed package inspected an independent project and returned structured evidence with zero project mutation.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
