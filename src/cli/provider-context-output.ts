@@ -10,6 +10,11 @@ export function printProviderContext(packet: ProviderContextPacket, json: boolea
   console.log(`State: ${packet.state}`);
   console.log(`Provider: ${packet.provider}`);
   console.log(`Project: ${packet.projectLocator}`);
+  console.log(`Autonomy profile: ${packet.autonomy.profile}`);
+  console.log(`Autonomy behavior: ${packet.autonomy.policy.summary}`);
+  if (packet.autonomy.policy.warning) console.log(`Autonomy warning: ${packet.autonomy.policy.warning}`);
+  console.log("Autonomy authority class: interaction-policy");
+  console.log("Autonomy grants authority: false");
   if (packet.baseline) console.log(`Baseline: ${packet.baseline.algorithm}:${packet.baseline.digest}`);
   if (packet.state === "blocked") {
     console.log("Findings:");
