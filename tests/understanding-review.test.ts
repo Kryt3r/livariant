@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildUnderstandingReview } from "../src/project/understanding-review.js";
+import { escapeTerminalControlText } from "../src/cli/understand-command.js";
 import type { BootstrapDiscoveryReport } from "../src/project/bootstrap-discovery.js";
 
 function discovery(): BootstrapDiscoveryReport {
@@ -87,4 +88,11 @@ test("understanding review rejects answers to question ids that were not produce
 
 test("understanding review rejects unsupported input schema versions", () => {
   assert.throws(() => buildUnderstandingReview(discovery(), { schemaVersion: 2 } as never), /Unsupported understanding review schemaVersion/);
+});
+
+test("understanding human rendering escapes terminal control characters", () => {
+  const hostile = "before\u001b]8;;https://example.invalid\u0007click\u001b]8;;\u0007after\nnext";
+  const rendered = escapeTerminalControlText(hostile);
+  assert.doesNotMatch(rendered, /[\u0000-\u001f\u007f-\u009f]/);
+  assert.equal(rendered, "before\\u001b]8;;https://example.invalid\\u0007click\\u001b]8;;\\u0007after\\u000anext");
 });
