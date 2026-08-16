@@ -1,13 +1,10 @@
-import { readAutonomyProfile } from "../autonomy/profile.js";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProjectContextSnapshot, type ProjectContextSnapshotBuildOptions } from "./context-snapshot.js";
 import { providerContextPacketId } from "./provider-context-hash.js";
 import { validateProviderContextTask } from "./provider-context-task.js";
 import type { ProviderContextBase, ProviderContextPacket, ProviderContextProjection, ProviderContextProvider } from "./provider-context-types.js";
 
-export interface ProviderContextBuildOptions extends ProjectContextSnapshotBuildOptions {
-  autonomyHomeDir?: string;
-}
+export interface ProviderContextBuildOptions extends ProjectContextSnapshotBuildOptions {}
 
 function projection(): ProviderContextProjection {
   return {
@@ -30,15 +27,7 @@ export async function buildProviderContext(
   if (provider !== "claude-code" && provider !== "codex") throw new Error("Unsupported provider context target.");
   validateProviderContextTask(task);
 
-  const snapshot = await buildProjectContextSnapshot(projectPath, { beforeRevalidate: options.beforeRevalidate });
-  const autonomyState = await readAutonomyProfile(projectPath, { homeDir: options.autonomyHomeDir });
-  const autonomy = {
-    source: autonomyState.source,
-    profile: autonomyState.profile,
-    policy: autonomyState.policy,
-    authorityClass: "interaction-policy" as const,
-    grantsAuthority: false as const,
-  };
+  const snapshot = await buildProjectContextSnapshot(projectPath, options);
   const base: ProviderContextBase = {
     schemaVersion: 1,
     packetVersion: 1,
@@ -48,7 +37,6 @@ export async function buildProviderContext(
     projectLocator: snapshot.projectLocator,
     stableProjectIdentity: snapshot.stableProjectIdentity,
     projection: projection(),
-    autonomy,
     mutationAuthorization: false,
     applySupported: false,
     authorizationEligible: false,
@@ -62,7 +50,7 @@ export async function buildProviderContext(
   return {
     ...base,
     state: "ready",
-    packetId: providerContextPacketId(provider, snapshot.baseline.digest, task, autonomyState.profile),
+    packetId: providerContextPacketId(provider, snapshot.baseline.digest, task),
     baseline: snapshot.baseline,
     safetyState: "clear",
     evidence: snapshot.context,
