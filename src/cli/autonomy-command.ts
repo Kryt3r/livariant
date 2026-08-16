@@ -82,7 +82,7 @@ export async function handleAutonomyCommand(args: string[]): Promise<void> {
     }
 
     const profile = parsed.profile as AutonomyProfile;
-    const state = await writeAutonomyProfile(profile, process.cwd());
+    const state = await writeAutonomyProfile(profile, process.cwd(), { acknowledgeRisk: parsed.acknowledgeRisk });
     if (json) console.log(JSON.stringify({ state: "saved", ...state }));
     else {
       console.log("Autonomy profile saved");
