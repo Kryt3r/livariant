@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import type { BootstrapDiscoveryAttention, BootstrapDiscoveryEvidence, BootstrapDiscoveryReport, DiscoveryConfidence } from "./bootstrap-discovery.js";
 
 export const UNDERSTANDING_REVIEW_SCHEMA_VERSION = 1 as const;
+const CANDIDATE_EVIDENCE_ID_DOMAIN = "livariant:understanding-candidate-evidence:v1";
 
 export interface UnderstandingReviewQuestion {
   id: string;
@@ -26,6 +28,7 @@ export interface UnderstandingReviewInput {
 }
 
 export interface UnderstandingReviewCandidateEvidence {
+  candidateId: string;
   kind: "response" | "correction";
   target: string;
   statement: string;
@@ -75,10 +78,40 @@ function groupEvidence(evidence: BootstrapDiscoveryEvidence[], confidence: Disco
   return evidence.filter((item) => item.confidence === confidence);
 }
 
+export function understandingCandidateEvidenceId(
+  kind: "response" | "correction",
+  target: string,
+  statement: string,
+): string {
+  const hash = createHash("sha256");
+  for (const value of [CANDIDATE_EVIDENCE_ID_DOMAIN, kind, target, statement, "candidate-evidence"]) {
+    const bytes = Buffer.from(value, "utf8");
+    hash.update(Buffer.from(String(bytes.length), "utf8"));
+    hash.update(Buffer.from(":"));
+    hash.update(bytes);
+    hash.update(Buffer.from("|"));
+  }
+  return `candidate-evidence-v1:${hash.digest("hex")}`;
+}
+
+function candidateEvidence(
+  kind: "response" | "correction",
+  target: string,
+  statement: string,
+): UnderstandingReviewCandidateEvidence {
+  return {
+    candidateId: understandingCandidateEvidenceId(kind, target, statement),
+    kind,
+    target,
+    statement,
+    trust: "candidate-evidence",
+  };
+}
+
 function normalizeCandidateEvidence(input: UnderstandingReviewInput | undefined, questions: UnderstandingReviewQuestion[]): UnderstandingReviewCandidateEvidence[] {
   if (!input) return [];
   const questionIds = new Set(questions.map((item) => item.id));
-  const candidateEvidence: UnderstandingReviewCandidateEvidence[] = [];
+  const result: UnderstandingReviewCandidateEvidence[] = [];
 
   for (const response of input.responses ?? []) {
     if (!questionIds.has(response.questionId)) {
@@ -86,17 +119,17 @@ function normalizeCandidateEvidence(input: UnderstandingReviewInput | undefined,
     }
     const statement = response.statement.trim();
     if (statement.length === 0) throw new Error(`Review response for ${response.questionId} must not be empty.`);
-    candidateEvidence.push({ kind: "response", target: response.questionId, statement, trust: "candidate-evidence" });
+    result.push(candidateEvidence("response", response.questionId, statement));
   }
 
   for (const correction of input.corrections ?? []) {
     const target = correction.target.trim();
     const statement = correction.statement.trim();
     if (target.length === 0 || statement.length === 0) throw new Error("Review corrections require non-empty target and statement.");
-    candidateEvidence.push({ kind: "correction", target, statement, trust: "candidate-evidence" });
+    result.push(candidateEvidence("correction", target, statement));
   }
 
-  return candidateEvidence;
+  return result;
 }
 
 export function buildUnderstandingReview(discovery: BootstrapDiscoveryReport, input?: UnderstandingReviewInput): UnderstandingReviewReport {
