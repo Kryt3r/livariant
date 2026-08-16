@@ -45,15 +45,15 @@ export interface UnderstandingReviewReport {
   uncertain: BootstrapDiscoveryEvidence[];
   attention: BootstrapDiscoveryAttention[];
   questions: UnderstandingReviewQuestion[];
-  externalEvidence: ExternalKnowledgeEvidenceBundle[];
+  externalEvidence?: ExternalKnowledgeEvidenceBundle[];
   candidateEvidence: UnderstandingReviewCandidateEvidence[];
   boundaries: {
     evidenceIsProjectTruth: false;
-    externalEvidenceIsProjectTruth: false;
     candidateEvidenceIsProjectTruth: false;
-    externalEvidenceCanBeAdoptedDirectly: false;
     grantsAuthority: false;
     changesMade: 0;
+    externalEvidenceIsProjectTruth?: false;
+    externalEvidenceCanBeAdoptedDirectly?: false;
   };
 }
 
@@ -146,7 +146,7 @@ export function buildUnderstandingReview(
   }
 
   const questions = buildQuestions(discovery.unknowns);
-  return {
+  const report: UnderstandingReviewReport = {
     schemaVersion: UNDERSTANDING_REVIEW_SCHEMA_VERSION,
     projectRoot: discovery.projectRoot,
     projectShape: discovery.projectShape,
@@ -155,15 +155,20 @@ export function buildUnderstandingReview(
     uncertain: groupEvidence(discovery.evidence, "uncertain"),
     attention: discovery.attention,
     questions,
-    externalEvidence,
     candidateEvidence: normalizeCandidateEvidence(input, questions),
     boundaries: {
       evidenceIsProjectTruth: false,
-      externalEvidenceIsProjectTruth: false,
       candidateEvidenceIsProjectTruth: false,
-      externalEvidenceCanBeAdoptedDirectly: false,
       grantsAuthority: false,
       changesMade: 0,
     },
   };
+
+  if (externalEvidence.length > 0) {
+    report.externalEvidence = externalEvidence;
+    report.boundaries.externalEvidenceIsProjectTruth = false;
+    report.boundaries.externalEvidenceCanBeAdoptedDirectly = false;
+  }
+
+  return report;
 }
