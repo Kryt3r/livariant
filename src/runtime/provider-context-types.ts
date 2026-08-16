@@ -1,3 +1,4 @@
+import type { AutonomyPolicy } from "../autonomy/profile.js";
 import type { DoctorFinding } from "./doctor.js";
 import type { ProjectContextBaseline, ProjectContextItem } from "./context-snapshot.js";
 
@@ -26,6 +27,14 @@ export interface ProviderContextEvidence {
   unresolvedUnknowns: ProjectContextItem[];
 }
 
+export interface ProviderContextAutonomy {
+  source: "default" | "machine-local" | "fail-closed";
+  profile: AutonomyPolicy["profile"];
+  policy: AutonomyPolicy;
+  authorityClass: "interaction-policy";
+  grantsAuthority: false;
+}
+
 export interface ProviderContextBase {
   schemaVersion: 1;
   packetVersion: 1;
@@ -35,6 +44,7 @@ export interface ProviderContextBase {
   projectLocator: string;
   stableProjectIdentity: string | null;
   projection: ProviderContextProjection;
+  autonomy: ProviderContextAutonomy;
   mutationAuthorization: false;
   applySupported: false;
   authorizationEligible: false;
