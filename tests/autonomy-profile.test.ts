@@ -64,6 +64,19 @@ test("machine-local profile is bound to stable project identity", async () => {
   });
 });
 
+test("highest-autonomy persistence requires acknowledgement at the storage boundary", async () => {
+  await withEnvironment(async (project, home) => {
+    await initialize(project);
+    await assert.rejects(
+      writeAutonomyProfile("continue-without-confirmation", project, { homeDir: home }),
+      /explicit risk acknowledgement/i,
+    );
+    const state = await readAutonomyProfile(project, { homeDir: home });
+    assert.equal(state.profile, DEFAULT_AUTONOMY_PROFILE);
+    assert.equal(state.persisted, false);
+  });
+});
+
 test("copied profile state cannot raise autonomy in a different project", async () => {
   const root = await mkdtemp(resolve(tmpdir(), "livariant-autonomy-copy-"));
   const projectA = resolve(root, "project-a");
@@ -75,7 +88,7 @@ test("copied profile state cannot raise autonomy in a different project", async 
   try {
     const projectAId = await initialize(projectA);
     const projectBId = await initialize(projectB);
-    await writeAutonomyProfile("continue-without-confirmation", projectA, { homeDir: home });
+    await writeAutonomyProfile("continue-without-confirmation", projectA, { homeDir: home, acknowledgeRisk: true });
 
     const source = resolve(home, ".livariant", "preferences", "autonomy", projectAId, "profile.json");
     const targetRoot = resolve(home, ".livariant", "preferences", "autonomy", projectBId);
