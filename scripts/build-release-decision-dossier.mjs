@@ -11,6 +11,14 @@ export const AREA_KEYS = [
   "documentationTruth",
 ];
 
+export const REQUIRED_TECHNICAL_EVIDENCE_IDS = [
+  "rc-source-validation",
+  "hardening-ci",
+  "codeql",
+  "release-artifact-digest",
+  "release-sbom",
+];
+
 const VALID_STATUSES = new Set(["PASS", "WARN", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]);
 const VALID_RECOMMENDATIONS = new Set(["GO", "GO WITH RISKS", "NO-GO"]);
 
@@ -34,15 +42,18 @@ export function validateReleaseDecisionEvidence(input) {
   for (const key of AREA_KEYS) {
     const area = input.areas[key];
     assert(area && typeof area === "object", `Missing required decision area: ${key}`);
-    assert(typeof area.required === "boolean", `Decision area ${key} must declare required.`);
+    assert(area.required === true, `Canonical decision area ${key} cannot be demoted from required.`);
     assert(VALID_STATUSES.has(area.status), `Decision area ${key} has invalid status: ${String(area.status)}`);
     assert(typeof area.summary === "string" && area.summary.length > 0, `Decision area ${key} must include a summary.`);
   }
 
   assert(Array.isArray(input.technicalEvidence), "technicalEvidence must be an array.");
+  const evidenceById = new Map();
   for (const item of input.technicalEvidence) {
     assert(item && typeof item === "object", "Technical evidence entries must be objects.");
     assert(typeof item.id === "string" && item.id.length > 0, "Technical evidence entry requires id.");
+    assert(!evidenceById.has(item.id), `Duplicate technical evidence id: ${item.id}`);
+    evidenceById.set(item.id, item);
     assert(typeof item.type === "string" && item.type.length > 0, `Technical evidence ${item.id} requires type.`);
     assert(typeof item.required === "boolean", `Technical evidence ${item.id} must declare required.`);
     assert(VALID_STATUSES.has(item.status), `Technical evidence ${item.id} has invalid status: ${String(item.status)}`);
@@ -50,6 +61,12 @@ export function validateReleaseDecisionEvidence(input) {
     if (item.sourceSha !== undefined) {
       assert(/^[0-9a-f]{40}$/u.test(item.sourceSha), `Technical evidence ${item.id} has invalid sourceSha.`);
     }
+  }
+
+  for (const id of REQUIRED_TECHNICAL_EVIDENCE_IDS) {
+    const item = evidenceById.get(id);
+    assert(item, `Missing canonical required technical evidence: ${id}`);
+    assert(item.required === true, `Canonical technical evidence ${id} cannot be demoted from required.`);
   }
 
   return input;
@@ -63,9 +80,9 @@ export function evaluateReleaseDecision(input) {
 
   for (const key of AREA_KEYS) {
     const area = evidence.areas[key];
-    if (area.required && ["FAIL", "UNKNOWN", "NOT_APPLICABLE"].includes(area.status)) {
+    if (["FAIL", "UNKNOWN", "NOT_APPLICABLE"].includes(area.status)) {
       blockers.push(`${key}: required area is ${area.status}. ${area.summary}`);
-    } else if (area.status === "WARN" || (!area.required && ["FAIL", "UNKNOWN"].includes(area.status))) {
+    } else if (area.status === "WARN") {
       warnings.push(`${key}: ${area.status}. ${area.summary}`);
     }
   }
@@ -160,7 +177,7 @@ export function renderReleaseDecisionMarkdown(evaluated) {
       ? "NO-GO because at least one required evidence surface is missing, failed, not candidate-bound, or explicitly blocked."
       : evaluated.recommendation === "GO WITH RISKS"
         ? "GO WITH RISKS because required evidence passes but warnings or explicit residual risks remain."
-        : "GO because every required evidence surface is present, exact-candidate-bound where required, and passing with no recorded blockers, warnings, or residual risks.",
+        : "GO because every canonical required evidence surface is present, exact-candidate-bound, and passing with no recorded blockers, warnings, or residual risks.",
     "",
     "> This recommendation is evidence only. It does not authorize a release, tag, GitHub Release, package publication, or any other publication action.",
     "",
