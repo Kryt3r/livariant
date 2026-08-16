@@ -7,10 +7,10 @@ import { escapeTerminalControlText } from "./understand-command.js";
 
 const REVIEW_INPUT_MAX_BYTES = 64 * 1024;
 
-function parseArgs(args: string[]): { json: boolean; inputPath: string; selectedTarget: string } {
+function parseArgs(args: string[]): { json: boolean; inputPath: string; selectedCandidateId: string } {
   let json = false;
   let inputPath: string | undefined;
-  let selectedTarget: string | undefined;
+  let selectedCandidateId: string | undefined;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
@@ -26,8 +26,8 @@ function parseArgs(args: string[]): { json: boolean; inputPath: string; selected
         if (inputPath !== undefined) throw new Error("Adopt-understanding accepts --input at most once.");
         inputPath = value;
       } else {
-        if (selectedTarget !== undefined) throw new Error("Adopt-understanding accepts --select at most once.");
-        selectedTarget = value;
+        if (selectedCandidateId !== undefined) throw new Error("Adopt-understanding accepts --select at most once.");
+        selectedCandidateId = value;
       }
       i += 1;
       continue;
@@ -36,8 +36,9 @@ function parseArgs(args: string[]): { json: boolean; inputPath: string; selected
   }
 
   if (!inputPath) throw new Error("Adopt-understanding requires --input <review.json>.");
-  if (!selectedTarget) throw new Error("Adopt-understanding requires --select <candidate-target>.");
-  return { json, inputPath, selectedTarget };
+  if (!selectedCandidateId) throw new Error("Adopt-understanding requires --select <candidate-id>.");
+  if (!/^candidate-evidence-v1:[a-f0-9]{64}$/.test(selectedCandidateId)) throw new Error("Adopt-understanding --select requires a valid candidate material id.");
+  return { json, inputPath, selectedCandidateId };
 }
 
 function readReviewInput(inputPath: string): UnderstandingReviewInput {
@@ -82,7 +83,9 @@ export async function handleAdoptUnderstandingCommand(args: string[]): Promise<v
     const input = readReviewInput(parsed.inputPath);
     const plan = await inspectInitialization();
     const review = buildUnderstandingReview(plan.discovery, input);
-    const result = await buildUnderstandingAdoptionProposal(review, parsed.selectedTarget);
+    const selected = review.candidateEvidence.find((item) => item.candidateId === parsed.selectedCandidateId);
+    if (!selected) throw new Error("Selected candidate material id is not present in the current reconstructed review.");
+    const result = await buildUnderstandingAdoptionProposal(review, parsed.selectedCandidateId);
 
     if (json) {
       console.log(JSON.stringify(result));
@@ -99,7 +102,8 @@ export async function handleAdoptUnderstandingCommand(args: string[]): Promise<v
 
     const proposal = result.proposal;
     console.log("Controlled understanding adoption proposal prepared");
-    console.log(`Selected review target: ${escapeTerminalControlText(parsed.selectedTarget)}`);
+    console.log(`Selected candidate: ${escapeTerminalControlText(selected.candidateId)}`);
+    console.log(`Source target: ${escapeTerminalControlText(selected.target)}`);
     console.log(`Proposal: ${proposal.actionableProposalId}`);
     console.log(`Project: ${proposal.stableProjectIdentity}`);
     console.log(`Baseline: ${proposal.baseline.digest}`);
