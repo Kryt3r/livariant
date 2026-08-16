@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { evaluateReleaseDecision, renderReleaseDecisionMarkdown } from "./build-release-decision-dossier.mjs";
+import { selectCanonicalReleaseRuns } from "./release-decision-evidence-selection.mjs";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -92,6 +93,18 @@ test("duplicate technical evidence identities are rejected", () => {
   const evidence = baseEvidence();
   evidence.technicalEvidence.push({ ...evidence.technicalEvidence[0] });
   assert.throws(() => evaluateReleaseDecision(evidence), /Duplicate technical evidence id/u);
+});
+
+test("canonical selector rejects newer PR hardening evidence for the same SHA", () => {
+  const runs = [
+    { id: 1, name: "Hardening CI", head_sha: sha, head_branch: "main", event: "push", status: "completed", conclusion: "success", created_at: "2026-08-16T10:00:00Z", path: ".github/workflows/ci.yml" },
+    { id: 2, name: "Hardening CI", head_sha: sha, head_branch: "feature", event: "pull_request", status: "completed", conclusion: "success", created_at: "2026-08-16T11:00:00Z", path: ".github/workflows/ci.yml" },
+    { id: 3, name: "Push on main", head_sha: sha, head_branch: "main", event: "dynamic", status: "completed", conclusion: "success", created_at: "2026-08-16T10:05:00Z", path: "dynamic/github-code-scanning/codeql" },
+    { id: 4, name: "PR #59", head_sha: sha, head_branch: "refs/pull/59/head", event: "dynamic", status: "completed", conclusion: "success", created_at: "2026-08-16T11:05:00Z", path: "dynamic/github-code-scanning/codeql" },
+  ];
+  const selected = selectCanonicalReleaseRuns(runs, sha);
+  assert.equal(selected.hardeningRun.id, 1);
+  assert.equal(selected.codeqlRun.id, 3);
 });
 
 test("rendered dossier contains both decision and technical evidence layers", () => {
