@@ -68,4 +68,4 @@ Diese Ausgabe soll später Guided-Onboarding- und Evidence-Adoption-Workflows er
 
 `livariant init` bleibt plan-first und ohne `--apply` read-only.
 
-Initialization verwendet nun intern dasselbe Bootstrap-Discovery-Ergebnis, wenn bestimmt wird, welche Informationen noch unbekannt sind. Die Discovery-Schicht schwächt keine Initialization-, Lifecycle-, Authority-, Runtime-Trust-, Recovery- oder Project-Brain-Mutationsgrenzen.
+Die Initialization-Assessment-Ausgabe stellt denselben read-only Bootstrap-Discovery-Report bereit, aber WP-014 verändert bewusst nicht, welche Unknowns bei einem ausdrücklich autorisierten Bootstrap geschrieben werden. Discovery ergänzt damit Beobachtung, ohne Initialization-, Lifecycle-, Authority-, Runtime-Trust-, Recovery- oder Project-Brain-Mutationssemantik zu verändern.
