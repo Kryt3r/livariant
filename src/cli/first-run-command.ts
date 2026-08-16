@@ -197,6 +197,21 @@ export async function buildFirstRunReport(options: {
   };
 }
 
+function renderEvidencePreview(
+  items: Array<{ value: string; provenance: string }>,
+  emptyText: string,
+  maxItems = 3,
+): void {
+  if (items.length === 0) {
+    console.log(`- ${emptyText}`);
+    return;
+  }
+  for (const item of items.slice(0, maxItems)) {
+    console.log(`- ${escapeTerminalControlText(item.value)} (${escapeTerminalControlText(item.provenance)})`);
+  }
+  if (items.length > maxItems) console.log(`- ...and ${items.length - maxItems} more`);
+}
+
 function renderHuman(report: FirstRunReport): void {
   console.log("Livariant first run");
   console.log("");
@@ -207,13 +222,23 @@ function renderHuman(report: FirstRunReport): void {
   console.log("");
 
   console.log("What Livariant found:");
-  const confirmed = report.understanding.confirmed.length;
-  const inferred = report.understanding.stronglyInferred.length;
-  const uncertain = report.understanding.uncertain.length;
-  console.log(`- confirmed evidence: ${confirmed}`);
-  console.log(`- strong inferences: ${inferred}`);
-  console.log(`- uncertain evidence: ${uncertain}`);
-  console.log(`- questions still open: ${report.understanding.questions.length}`);
+  renderEvidencePreview(report.understanding.confirmed, "no confirmed project evidence yet");
+  renderEvidencePreview(report.understanding.stronglyInferred, "no strong inferences", 2);
+  console.log("");
+
+  console.log("Still needs your review:");
+  if (report.understanding.attention.length === 0 && report.understanding.questions.length === 0) {
+    console.log("- nothing currently flagged");
+  } else {
+    for (const item of report.understanding.attention.slice(0, 2)) {
+      console.log(`- ${escapeTerminalControlText(item.message)}`);
+    }
+    for (const question of report.understanding.questions.slice(0, 3)) {
+      console.log(`- ${escapeTerminalControlText(question.prompt)}`);
+    }
+    const hidden = Math.max(0, report.understanding.attention.length - 2) + Math.max(0, report.understanding.questions.length - 3);
+    if (hidden > 0) console.log(`- ...and ${hidden} more item(s)`);
+  }
   console.log(`- external knowledge sources connected: ${report.understanding.externalEvidence?.length ?? 0}`);
   console.log("");
 
