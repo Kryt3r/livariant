@@ -5,6 +5,13 @@ import { buildUnderstandingReview, type UnderstandingReviewInput } from "../proj
 
 const REVIEW_INPUT_MAX_BYTES = 64 * 1024;
 
+export function escapeTerminalControlText(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, (character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return `\\u${code.toString(16).padStart(4, "0")}`;
+  });
+}
+
 function parseArgs(args: string[]): { json: boolean; inputPath?: string } {
   let json = false;
   let inputPath: string | undefined;
@@ -64,7 +71,9 @@ function readReviewInput(inputPath: string): UnderstandingReviewInput {
 function printEvidence(title: string, items: ReturnType<typeof buildUnderstandingReview>["confirmed"]): void {
   console.log(title);
   if (items.length === 0) console.log("- none");
-  else for (const item of items) console.log(`- ${item.value} [${item.confidence}] (${item.provenance})`);
+  else for (const item of items) {
+    console.log(`- ${escapeTerminalControlText(item.value)} [${item.confidence}] (${escapeTerminalControlText(item.provenance)})`);
+  }
   console.log("");
 }
 
@@ -81,7 +90,7 @@ export async function handleUnderstandCommand(args: string[]): Promise<void> {
 
   console.log("Guided project understanding review");
   console.log("");
-  console.log(`Project: ${report.projectRoot}`);
+  console.log(`Project: ${escapeTerminalControlText(report.projectRoot)}`);
   console.log(`Workspace: ${report.projectShape}`);
   console.log("");
   printEvidence("What Livariant can confirm:", report.confirmed);
@@ -90,17 +99,23 @@ export async function handleUnderstandCommand(args: string[]): Promise<void> {
 
   console.log("Needs attention:");
   if (report.attention.length === 0) console.log("- none");
-  else for (const item of report.attention) console.log(`- ${item.message} (${item.provenance.join(", ")})`);
+  else for (const item of report.attention) {
+    console.log(`- ${escapeTerminalControlText(item.message)} (${item.provenance.map(escapeTerminalControlText).join(", ")})`);
+  }
   console.log("");
 
   console.log("Questions that would improve understanding:");
   if (report.questions.length === 0) console.log("- none");
-  else for (const question of report.questions) console.log(`- ${question.id}: ${question.prompt}`);
+  else for (const question of report.questions) {
+    console.log(`- ${escapeTerminalControlText(question.id)}: ${escapeTerminalControlText(question.prompt)}`);
+  }
   console.log("");
 
   console.log("Candidate review evidence:");
   if (report.candidateEvidence.length === 0) console.log("- none supplied");
-  else for (const item of report.candidateEvidence) console.log(`- [candidate-evidence] ${item.target}: ${item.statement}`);
+  else for (const item of report.candidateEvidence) {
+    console.log(`- [candidate-evidence] ${escapeTerminalControlText(item.target)}: ${escapeTerminalControlText(item.statement)}`);
+  }
   console.log("");
 
   console.log("Discovery and review input remain evidence, not Project Brain truth or Authority.");
