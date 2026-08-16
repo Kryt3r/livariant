@@ -54,6 +54,7 @@ export interface AutonomyProfileState {
 
 export interface AutonomyStorageOptions {
   homeDir?: string;
+  acknowledgeRisk?: boolean;
 }
 
 const PROFILE_VALUES = new Set<AutonomyProfile>([
@@ -162,6 +163,7 @@ export function isAutonomyProfile(value: unknown): value is AutonomyProfile {
 }
 
 export function autonomyPolicy(profile: AutonomyProfile): AutonomyPolicy {
+  if (!isAutonomyProfile(profile)) throw new Error("Autonomy profile value is invalid.");
   if (profile === "ask-always") {
     return {
       profile,
@@ -315,6 +317,10 @@ export async function writeAutonomyProfile(
   projectRoot: string = process.cwd(),
   options: AutonomyStorageOptions = {},
 ): Promise<AutonomyProfileState> {
+  if (!isAutonomyProfile(profile)) throw new Error("Autonomy profile value is invalid.");
+  if (profile === "continue-without-confirmation" && options.acknowledgeRisk !== true) {
+    throw new Error("Persisting continue-without-confirmation requires explicit risk acknowledgement at the autonomy storage boundary.");
+  }
   const projectId = await resolveStableProjectIdentity(projectRoot);
   if (!projectId) throw new Error("Cannot persist autonomy profile until this project has a valid initialized Project Brain with a stable project identity.");
   const root = await safeProjectProfileRoot(projectRoot, projectId, true, options);
