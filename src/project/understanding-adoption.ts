@@ -1,6 +1,10 @@
 import { buildActionableProposal, type ActionableProposalResult } from "../runtime/actionable-proposal.js";
 import { parseSemanticProposalCandidate } from "../runtime/semantic-proposal.js";
-import type { UnderstandingReviewCandidateEvidence, UnderstandingReviewReport } from "./understanding-review.js";
+import {
+  understandingCandidateEvidenceId,
+  type UnderstandingReviewCandidateEvidence,
+  type UnderstandingReviewReport,
+} from "./understanding-review.js";
 
 export const UNDERSTANDING_ADOPTION_SCHEMA_VERSION = 1 as const;
 
@@ -13,13 +17,17 @@ export function supportedUnderstandingAdoptionDomain(target: string): "project-g
   return SUPPORTED_RESPONSE_TARGETS.get(target) ?? null;
 }
 
+function candidateMaterialIsConsistent(item: UnderstandingReviewCandidateEvidence): boolean {
+  return item.candidateId === understandingCandidateEvidenceId(item.kind, item.target, item.statement);
+}
+
 export function selectUnderstandingCandidateForAdoption(
   review: UnderstandingReviewReport,
   candidateId: string,
 ): UnderstandingReviewCandidateEvidence {
-  const matches = review.candidateEvidence.filter((item) => item.candidateId === candidateId);
+  const matches = review.candidateEvidence.filter((item) => item.candidateId === candidateId && candidateMaterialIsConsistent(item));
   if (matches.length !== 1) {
-    throw new Error("Controlled adoption requires exactly one current candidate matching the selected material id.");
+    throw new Error("Controlled adoption requires exactly one current material-consistent candidate matching the selected id.");
   }
 
   const selected = matches[0];
