@@ -89,7 +89,10 @@ const evidence = {
     },
   },
   blockers: [],
-  residualRisks: [],
+  residualRisks: [
+    "Artifact provenance/attestation is not yet implemented, so the current dossier verifies source-bound build evidence and digests but not an independently verifiable build attestation.",
+    "Independent AI-assisted release audits are not yet part of dossier v1; current security confidence comes from deterministic hardening, CodeQL, dependency controls, regression evidence, and human review.",
+  ],
   technicalEvidence: [
     {
       id: "rc-source-validation",
