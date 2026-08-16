@@ -96,18 +96,19 @@ test("first-run keeps external knowledge read-only and separate from candidate e
   });
 });
 
-test("first-run only surfaces provider setup as a separately authorized next step", async () => {
+test("first-run reports Livariant MCP setup truthfully as zero-write guidance", async () => {
   await withProject(async (path) => {
     const result = runCli(path, ["first-run", "--language", "English", "--provider", "codex", "--json"]);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     const report = JSON.parse(result.stdout.trim()) as {
-      nextActions: Array<{ id: string; command?: string; changesProject: boolean; requiresSeparateAuthorization: boolean }>;
+      nextActions: Array<{ id: string; command?: string; changesProject: boolean; requiresSeparateAuthorization: boolean; purpose: string }>;
       boundaries: { mutationAuthorized: boolean };
     };
     const provider = report.nextActions.find((item) => item.id === "configure-provider");
     assert.equal(provider?.command, "livariant mcp setup --provider codex");
-    assert.equal(provider?.changesProject, true);
-    assert.equal(provider?.requiresSeparateAuthorization, true);
+    assert.equal(provider?.changesProject, false);
+    assert.equal(provider?.requiresSeparateAuthorization, false);
+    assert.match(provider?.purpose ?? "", /no provider-configuration write/i);
     assert.equal(report.boundaries.mutationAuthorized, false);
   });
 });
