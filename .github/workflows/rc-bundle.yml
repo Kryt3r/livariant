@@ -56,7 +56,13 @@ jobs:
             --compatible-from 0.1.0-rc.1,0.1.0-rc.2 \
             --output rc-bundle
 
-      - name: Independently verify bundle identity and digest
+      - name: Generate exact-source SPDX SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm sbom --sbom-format spdx --sbom-type framework > rc-bundle/release-sbom.spdx.json
+
+      - name: Independently verify bundle identity, SBOM, and digests
         id: verify
         shell: bash
         env:
@@ -98,13 +104,35 @@ jobs:
           const sums = readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8');
           if (sums !== `${sha256}  ${artifact}\n`) throw new Error('SHA256SUMS mismatch.');
 
+          const sbomFile = 'release-sbom.spdx.json';
+          const sbomBytes = readFileSync(path.join(dir, sbomFile));
+          const sbomSha256 = createHash('sha256').update(sbomBytes).digest('hex');
+          const sbom = JSON.parse(sbomBytes.toString('utf8'));
+          if (sbom.spdxVersion !== 'SPDX-2.3') throw new Error(`Unexpected SBOM SPDX version: ${String(sbom.spdxVersion)}`);
+          if (!Array.isArray(sbom.packages)) throw new Error('SBOM packages are missing.');
+          const rootPackage = sbom.packages.find((entry) => entry?.name === packageJson.name && entry?.versionInfo === expectedVersion);
+          if (!rootPackage) throw new Error('SBOM does not describe the expected Livariant package/version.');
+
           writeFileSync(
             path.join(dir, 'RC-BUILD-METADATA.json'),
-            `${JSON.stringify({ sourceSha, version: release.version, channel: release.channel, sourceId: release.sourceId, artifact, sha256 }, null, 2)}\n`,
+            `${JSON.stringify({
+              sourceSha,
+              version: release.version,
+              channel: release.channel,
+              sourceId: release.sourceId,
+              artifact,
+              sha256,
+              sbom: {
+                file: sbomFile,
+                format: 'SPDX-2.3',
+                sha256: sbomSha256,
+              },
+            }, null, 2)}\n`,
           );
           appendFileSync(process.env.GITHUB_OUTPUT, `version=${release.version}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `sha256=${sha256}\n`);
-          console.log(JSON.stringify({ sourceSha, version: release.version, artifact, sha256 }, null, 2));
+          appendFileSync(process.env.GITHUB_OUTPUT, `sbom_sha256=${sbomSha256}\n`);
+          console.log(JSON.stringify({ sourceSha, version: release.version, artifact, sha256, sbomFile, sbomSha256 }, null, 2));
           NODE
           cp RC-SOURCE-COMMIT rc-bundle/RC-SOURCE-COMMIT
 
@@ -122,9 +150,11 @@ jobs:
           SOURCE_SHA: ${{ github.sha }}
           VERSION: ${{ steps.verify.outputs.version }}
           SHA256: ${{ steps.verify.outputs.sha256 }}
+          SBOM_SHA256: ${{ steps.verify.outputs.sbom_sha256 }}
         run: |
           set -euo pipefail
           echo "Verified RC version: $VERSION"
           echo "Verified RC source: $SOURCE_SHA"
           echo "Verified RC artifact SHA-256: $SHA256"
+          echo "Verified RC SBOM SHA-256: $SBOM_SHA256"
           echo "Artifact name: livariant-$VERSION-$SOURCE_SHA-$SHA256"
