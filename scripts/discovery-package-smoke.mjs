@@ -54,11 +54,13 @@ try {
   for (const required of [
     "dist/src/cli/discover-command.js",
     "dist/src/cli/understand-command.js",
+    "dist/src/cli/adopt-understanding-command.js",
     "dist/src/project/bootstrap-discovery.js",
     "dist/src/project/understanding-review.js",
+    "dist/src/project/understanding-adoption.js",
     "dist/src/runtime/initialization.js",
   ]) {
-    if (!entries.includes(required)) throw new Error(`Packed artifact is missing discovery/understanding runtime file: ${required}`);
+    if (!entries.includes(required)) throw new Error(`Packed artifact is missing discovery/understanding/adoption runtime file: ${required}`);
   }
 
   await writeFile(resolve(installHost, "package.json"), JSON.stringify({
@@ -118,8 +120,9 @@ try {
   if (!understanding.questions?.some((item) => item.id === "unknown:project-purpose")) {
     throw new Error(`Installed understand did not produce the expected clarification question:\n${understandingResult.stdout}`);
   }
-  if (!understanding.candidateEvidence?.some((item) => item.trust === "candidate-evidence" && item.target === "unknown:project-purpose")) {
-    throw new Error(`Installed understand did not retain review input as candidate evidence:\n${understandingResult.stdout}`);
+  const purposeCandidate = understanding.candidateEvidence?.find((item) => item.trust === "candidate-evidence" && item.target === "unknown:project-purpose");
+  if (!purposeCandidate || typeof purposeCandidate.candidateId !== "string" || !/^candidate-evidence-v1:[a-f0-9]{64}$/.test(purposeCandidate.candidateId)) {
+    throw new Error(`Installed understand did not retain material-bound candidate evidence:\n${understandingResult.stdout}`);
   }
   if (understandingResult.stdout.includes("PACKAGE_SMOKE_SECRET")) {
     throw new Error("Installed understand exposed sensitive file contents");
@@ -131,7 +134,7 @@ try {
   }
 
   const installedPackage = JSON.parse(await readFile(resolve(installHost, "node_modules", "livariant", "package.json"), "utf8"));
-  console.log(`Discovery/understanding package smoke passed for Livariant ${installedPackage.version}: installed package inspected and reviewed an independent project with zero project mutation.`);
+  console.log(`Discovery/understanding/adoption package smoke passed for Livariant ${installedPackage.version}: installed package exposes the bounded discovery, review, and controlled-adoption runtime surfaces while read-only inspection remains non-mutating.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
