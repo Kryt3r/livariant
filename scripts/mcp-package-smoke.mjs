@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -64,6 +64,15 @@ function taskDigest(task) {
   return hash.digest("hex");
 }
 
+async function assertMissing(path, label) {
+  try {
+    await access(path);
+  } catch {
+    return;
+  }
+  throw new Error(`MCP setup helper unexpectedly created ${label}: ${path}`);
+}
+
 try {
   const packDir = resolve(temp, "pack");
   const installDir = resolve(temp, "install");
@@ -77,7 +86,7 @@ try {
   const filename = packResult?.[0]?.filename;
   if (typeof filename !== "string") throw new Error("npm pack did not return a package filename");
   const entries = packResult[0]?.files?.map((file) => file.path) ?? [];
-  for (const required of ["dist/src/cli/mcp-command.js", "dist/src/mcp/server.js"]) {
+  for (const required of ["dist/src/cli/mcp-command.js", "dist/src/cli/mcp-setup.js", "dist/src/mcp/server.js"]) {
     if (!entries.includes(required)) throw new Error(`Packed artifact is missing MCP file: ${required}`);
   }
 
@@ -88,6 +97,21 @@ try {
 
   const init = run(process.execPath, [cliPath, "init", "--apply"], { cwd: installDir });
   if (!/Project Brain initialized:/.test(init.stdout)) throw new Error(`MCP smoke could not initialize Project Brain:\n${init.stdout}`);
+
+  const setup = run(process.execPath, [cliPath, "mcp", "setup", "--provider", "codex", "--json"], { cwd: installDir });
+  if (setup.stderr !== "") throw new Error(`Installed MCP setup helper wrote unexpected stderr:\n${setup.stderr}`);
+  const setupPlan = JSON.parse(setup.stdout);
+  if (setupPlan.provider !== "codex" || setupPlan.transport !== "stdio" || setupPlan.mutatesProviderConfiguration !== false) {
+    throw new Error(`Installed MCP setup helper returned an unexpected plan:\n${setup.stdout}`);
+  }
+  if (setupPlan.registrationCommand !== "codex mcp add livariant -- livariant mcp") {
+    throw new Error(`Installed MCP setup helper returned unexpected Codex registration command:\n${setup.stdout}`);
+  }
+  if (!setupPlan.projectScopedConfig?.includes("[mcp_servers.livariant]") || !setupPlan.projectScopedConfig.includes("enabled_tools")) {
+    throw new Error(`Installed MCP setup helper omitted project-scoped Codex configuration:\n${setup.stdout}`);
+  }
+  await assertMissing(resolve(installDir, ".codex", "config.toml"), "Codex project configuration");
+  await assertMissing(resolve(installDir, ".mcp.json"), "Claude project MCP configuration");
 
   const task = "Installed package MCP smoke";
   const first = run(process.execPath, [cliPath, "mcp"], {
@@ -150,7 +174,7 @@ try {
   }
 
   const packageJson = JSON.parse(await readFile(resolve(installDir, "node_modules", "livariant", "package.json"), "utf8"));
-  console.log(`MCP package smoke passed for Livariant ${packageJson.version}: installed tarball exposed bounded stdio context + no-candidate return without mutation authority.`);
+  console.log(`MCP package smoke passed for Livariant ${packageJson.version}: installed tarball rendered read-only native setup guidance and exposed bounded stdio context + no-candidate return without mutation authority.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
