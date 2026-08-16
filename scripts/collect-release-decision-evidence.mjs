@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { selectCanonicalReleaseRuns } from "./release-decision-evidence-selection.mjs";
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -22,12 +23,6 @@ async function githubApi(path, token) {
   return response.json();
 }
 
-function latestRun(runs, predicate) {
-  return runs
-    .filter(predicate)
-    .sort((left, right) => Date.parse(right.created_at ?? 0) - Date.parse(left.created_at ?? 0))[0];
-}
-
 const token = requiredEnv("GITHUB_TOKEN");
 const repository = requiredEnv("GITHUB_REPOSITORY");
 const sourceSha = requiredEnv("GITHUB_SHA");
@@ -44,21 +39,7 @@ if (!metadata.sbom?.sha256 || metadata.sbom?.format !== "SPDX-2.3") throw new Er
 
 const runsResponse = await githubApi(`/repos/${repository}/actions/runs?head_sha=${sourceSha}&per_page=100`, token);
 const runs = Array.isArray(runsResponse.workflow_runs) ? runsResponse.workflow_runs : [];
-const hardeningRun = latestRun(
-  runs,
-  (run) => run.name === "Hardening CI"
-    && run.head_sha === sourceSha
-    && run.head_branch === "main"
-    && run.event === "push"
-    && run.status === "completed",
-);
-const codeqlRun = latestRun(
-  runs,
-  (run) => run.head_sha === sourceSha
-    && run.head_branch === "main"
-    && run.status === "completed"
-    && (String(run.path).includes("codeql") || String(run.name).toLowerCase().includes("codeql")),
-);
+const { hardeningRun, codeqlRun } = selectCanonicalReleaseRuns(runs, sourceSha);
 
 const hardeningPassed = hardeningRun?.conclusion === "success";
 const codeqlPassed = codeqlRun?.conclusion === "success";
