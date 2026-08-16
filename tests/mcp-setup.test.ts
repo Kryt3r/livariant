@@ -28,6 +28,10 @@ test("MCP setup parsing rejects ambiguous or unsupported setup requests", () => 
   assert.throws(() => parseMcpSetupArgs([]), /Usage:/);
   assert.throws(() => parseMcpSetupArgs(["--provider", "unknown"]), /claude-code or codex/);
   assert.throws(() => parseMcpSetupArgs(["--provider", "codex", "--apply"]), /Usage:/);
+  assert.throws(
+    () => parseMcpSetupArgs(["--provider", "codex", "--provider", "claude-code"]),
+    /exactly once/,
+  );
 });
 
 test("server instructions describe context-return workflow without expanding the tool or Authority surface", async () => {
