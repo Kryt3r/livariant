@@ -74,7 +74,7 @@ test("understanding review turns discovery into grouped evidence and bounded cla
   assert.equal(report.stronglyInferred[0]?.value, "React");
   assert.equal(report.uncertain.length, 0);
   assert.equal(report.attention.length, 1);
-  assert.equal(report.externalEvidence.length, 0);
+  assert.equal("externalEvidence" in report, false);
   assert.deepEqual(report.questions.map((item) => item.id), [
     "unknown:project-purpose",
     "unknown:current-product-direction",
@@ -83,9 +83,7 @@ test("understanding review turns discovery into grouped evidence and bounded cla
   assert.match(report.questions[0]?.prompt ?? "", /project for/i);
   assert.deepEqual(report.boundaries, {
     evidenceIsProjectTruth: false,
-    externalEvidenceIsProjectTruth: false,
     candidateEvidenceIsProjectTruth: false,
-    externalEvidenceCanBeAdoptedDirectly: false,
     grantsAuthority: false,
     changesMade: 0,
   });
