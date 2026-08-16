@@ -26,10 +26,11 @@ async function delegateToActiveRuntime(): Promise<boolean> {
 
 async function entry(): Promise<void> {
   const command = process.argv[2];
-  if (command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "first-run" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
     if (showsHelp) {
+      console.log("  first-run [--language <preferred-language>] [--external-source-type <local-directory> --external-source <source-path>] [--provider <claude-code|codex>] [--json]");
       console.log("  discover [--json]");
       console.log("  external-source inspect --type <local-directory> --path <source-path> [--json]");
       console.log("  understand [--input <review.json>] [--external-source-type <local-directory> --external-source <source-path>] [--json]");
@@ -47,6 +48,11 @@ async function entry(): Promise<void> {
     return;
   }
   if (await delegateToActiveRuntime()) return;
+  if (command === "first-run") {
+    const { handleFirstRunCommand } = await import("./first-run-command.js");
+    await handleFirstRunCommand(process.argv.slice(3));
+    return;
+  }
   if (command === "discover") {
     const { handleDiscoverCommand } = await import("./discover-command.js");
     await handleDiscoverCommand(process.argv.slice(3));
