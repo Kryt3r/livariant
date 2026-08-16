@@ -85,8 +85,13 @@ try {
     throw new Error("Installed first-run manufactured candidate evidence from raw discovery/external material");
   }
   const provider = report.nextActions?.find((item) => item.id === "configure-provider");
-  if (provider?.command !== "livariant mcp setup --provider codex" || provider?.requiresSeparateAuthorization !== true) {
-    throw new Error("Installed first-run did not preserve separate provider setup authority");
+  if (
+    provider?.command !== "livariant mcp setup --provider codex" ||
+    provider?.changesProject !== false ||
+    provider?.requiresSeparateAuthorization !== false ||
+    !/no provider-configuration write/i.test(provider?.purpose ?? "")
+  ) {
+    throw new Error("Installed first-run misreported the zero-write MCP setup guidance boundary");
   }
 
   const after = (await readdir(projectDir)).sort();
@@ -94,7 +99,7 @@ try {
     throw new Error("Installed first-run mutated the inspected project");
   }
 
-  console.log("First-run package smoke passed: installed package composes language, project discovery, optional external evidence, and provider guidance without mutation or authority escalation.");
+  console.log("First-run package smoke passed: installed package composes language, project discovery, optional external evidence, and zero-write provider guidance without mutation or authority escalation.");
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
