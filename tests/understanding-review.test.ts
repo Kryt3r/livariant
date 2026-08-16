@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildUnderstandingReview } from "../src/project/understanding-review.js";
+import { buildUnderstandingReview, understandingCandidateEvidenceId } from "../src/project/understanding-review.js";
 import { escapeTerminalControlText } from "../src/cli/understand-command.js";
 import type { BootstrapDiscoveryReport } from "../src/project/bootstrap-discovery.js";
 
@@ -49,31 +49,36 @@ test("understanding review turns discovery into grouped evidence and bounded cla
   });
 });
 
-test("understanding review keeps user answers and corrections as candidate evidence only", () => {
+test("understanding review keeps user answers and corrections as material-bound candidate evidence only", () => {
+  const responseStatement = "A browser game with persistent progression.";
+  const correctionStatement = "React is only used by a tooling package, not by the product UI.";
   const report = buildUnderstandingReview(discovery(), {
     schemaVersion: 1,
     responses: [
-      { questionId: "unknown:project-purpose", statement: "  A browser game with persistent progression.  " },
+      { questionId: "unknown:project-purpose", statement: `  ${responseStatement}  ` },
     ],
     corrections: [
-      { target: "stack:React", statement: " React is only used by a tooling package, not by the product UI. " },
+      { target: "stack:React", statement: ` ${correctionStatement} ` },
     ],
   });
 
   assert.deepEqual(report.candidateEvidence, [
     {
+      candidateId: understandingCandidateEvidenceId("response", "unknown:project-purpose", responseStatement),
       kind: "response",
       target: "unknown:project-purpose",
-      statement: "A browser game with persistent progression.",
+      statement: responseStatement,
       trust: "candidate-evidence",
     },
     {
+      candidateId: understandingCandidateEvidenceId("correction", "stack:React", correctionStatement),
       kind: "correction",
       target: "stack:React",
-      statement: "React is only used by a tooling package, not by the product UI.",
+      statement: correctionStatement,
       trust: "candidate-evidence",
     },
   ]);
+  assert.notEqual(report.candidateEvidence[0]?.candidateId, understandingCandidateEvidenceId("response", "unknown:project-purpose", `${responseStatement}!`));
   assert.equal(report.boundaries.candidateEvidenceIsProjectTruth, false);
   assert.equal(report.boundaries.grantsAuthority, false);
   assert.equal(report.boundaries.changesMade, 0);

@@ -59,6 +59,8 @@ Review input is bounded and fail-closed. The file must be a regular non-symlink 
 
 User responses and corrections are returned as explicitly labelled `candidate-evidence`.
 
+Each candidate evidence item also carries a deterministic `candidateId` bound to its kind, target, normalized statement and candidate-evidence trust class. The human renderer shows the same id. Changing the candidate statement therefore changes its id.
+
 They are not automatically accepted into Project Brain truth, do not grant Authority, and do not authorize a later mutation merely because a user supplied them to this command.
 
 The structured result states this boundary explicitly:
@@ -74,9 +76,9 @@ The structured result states this boundary explicitly:
 }
 ```
 
-Controlled adoption of reviewed understanding into durable Project Brain truth is a separate future capability and is intentionally outside this review surface.
+Where supported by the separately gated Controlled Starting Understanding Adoption capability, a user may explicitly select a material-bound candidate id for proposal preparation. That selection is intent only: it still does not create Authority or mutate Project Brain, and any durable change must continue through the existing proposal-bound authorization and apply path.
 
-## Relationship to Bootstrap Discovery
+## Relationship to Bootstrap Discovery and controlled adoption
 
 The intended progression is:
 
@@ -85,8 +87,11 @@ repository
 -> Bootstrap Discovery
 -> evidence + provenance + confidence
 -> Guided Understanding Review
--> clarification/correction candidate evidence
--> no canonical mutation
+-> clarification/correction candidate evidence + material id
+-> optional explicit controlled adoption proposal
+-> separate authorization/apply boundary
 ```
+
+Unsupported or ambiguous candidate material remains candidate evidence rather than being guessed into Project Truth.
 
 This makes project understanding visible and reviewable without weakening Livariant's distinction between observation, inference, reviewed candidate evidence, accepted truth, and mutation Authority.

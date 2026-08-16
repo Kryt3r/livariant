@@ -59,7 +59,9 @@ Review-Input ist begrenzt und fail-closed. Die Datei muss eine reguläre Nicht-S
 
 Nutzerantworten und Korrekturen werden ausdrücklich als `candidate-evidence` zurückgegeben.
 
-Sie werden nicht automatisch in Project Brain Truth übernommen, vergeben keine Authority und autorisieren keine spätere Mutation nur deshalb, weil ein Nutzer sie diesem Befehl übergeben hat.
+Jeder Candidate-Evidence-Eintrag trägt zusätzlich eine deterministische `candidateId`, die an Typ, Ziel, normalisierte Aussage und die Trust-Klasse `candidate-evidence` gebunden ist. Auch die menschliche Ausgabe zeigt dieselbe ID. Ändert sich die Aussage, ändert sich damit auch ihre ID.
+
+Candidate Evidence wird nicht automatisch in Project Brain Truth übernommen, vergibt keine Authority und autorisiert keine spätere Mutation nur deshalb, weil ein Nutzer sie diesem Befehl übergeben hat.
 
 Das strukturierte Ergebnis hält diese Grenze ausdrücklich fest:
 
@@ -74,9 +76,9 @@ Das strukturierte Ergebnis hält diese Grenze ausdrücklich fest:
 }
 ```
 
-Die kontrollierte Übernahme eines geprüften Verständnisses in dauerhafte Project Brain Truth ist eine separate zukünftige Fähigkeit und absichtlich nicht Teil dieser Review-Oberfläche.
+Soweit die separat begrenzte Controlled-Starting-Understanding-Adoption-Fähigkeit ein Candidate unterstützt, kann der Nutzer dessen materialgebundene ID ausdrücklich zur Proposal-Vorbereitung auswählen. Diese Auswahl ist weiterhin nur Absicht: Sie erzeugt keine Authority und verändert Project Brain nicht. Jede dauerhafte Änderung muss weiterhin durch den bestehenden proposalgebundenen Authorization- und Apply-Pfad.
 
-## Verhältnis zu Bootstrap Discovery
+## Verhältnis zu Bootstrap Discovery und Controlled Adoption
 
 Der gedachte Ablauf ist:
 
@@ -85,8 +87,11 @@ Repository
 -> Bootstrap Discovery
 -> Evidence + Provenienz + Confidence
 -> Guided Understanding Review
--> Klärungs-/Korrektur-Candidate-Evidence
--> keine kanonische Mutation
+-> Klärungs-/Korrektur-Candidate-Evidence + Material-ID
+-> optional explizites Controlled-Adoption-Proposal
+-> separate Authorization-/Apply-Grenze
 ```
+
+Nicht unterstütztes oder mehrdeutiges Candidate-Material bleibt Candidate Evidence, statt in Project Truth geraten zu werden.
 
 Damit wird Projektverständnis sichtbar und überprüfbar, ohne Livariants Trennung zwischen Beobachtung, Inferenz, geprüfter Candidate Evidence, akzeptierter Truth und Mutation Authority zu schwächen.

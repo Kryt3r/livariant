@@ -114,7 +114,7 @@ export async function handleUnderstandCommand(args: string[]): Promise<void> {
   console.log("Candidate review evidence:");
   if (report.candidateEvidence.length === 0) console.log("- none supplied");
   else for (const item of report.candidateEvidence) {
-    console.log(`- [candidate-evidence] ${escapeTerminalControlText(item.target)}: ${escapeTerminalControlText(item.statement)}`);
+    console.log(`- ${escapeTerminalControlText(item.candidateId)} [candidate-evidence] ${escapeTerminalControlText(item.target)}: ${escapeTerminalControlText(item.statement)}`);
   }
   console.log("");
 
