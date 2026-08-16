@@ -84,6 +84,7 @@ test("first-run keeps external knowledge read-only and separate from candidate e
         candidateEvidence: unknown[];
         boundaries: { externalEvidenceIsProjectTruth?: boolean; externalEvidenceCanBeAdoptedDirectly?: boolean; grantsAuthority: boolean };
       };
+      nextActions: Array<{ id: string; command?: string; purpose: string }>;
     };
     assert.equal(report.preferredLanguage, "Español");
     assert.equal(report.understanding.externalEvidence?.length, 1);
@@ -92,6 +93,9 @@ test("first-run keeps external knowledge read-only and separate from candidate e
     assert.equal(report.understanding.boundaries.externalEvidenceIsProjectTruth, false);
     assert.equal(report.understanding.boundaries.externalEvidenceCanBeAdoptedDirectly, false);
     assert.equal(report.understanding.boundaries.grantsAuthority, false);
+    const review = report.nextActions.find((item) => item.id === "review-understanding");
+    assert.equal(review?.command, "livariant understand --external-source-type local-directory --external-source <same-source-path>");
+    assert.match(review?.purpose ?? "", /same external knowledge source/i);
     assert.deepEqual(await topLevelEntries(path), before);
   });
 });
