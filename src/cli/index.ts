@@ -26,12 +26,13 @@ async function delegateToActiveRuntime(): Promise<boolean> {
 
 async function entry(): Promise<void> {
   const command = process.argv[2];
-  if (command !== "discover" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
     if (showsHelp) {
       console.log("  discover [--json]");
-      console.log("  understand [--input <review.json>] [--json]");
+      console.log("  external-source inspect --type <local-directory> --path <source-path> [--json]");
+      console.log("  understand [--input <review.json>] [--external-source-type <local-directory> --external-source <source-path>] [--json]");
       console.log("  adopt-understanding --input <review.json> --select <candidate-id> [--json]");
       console.log("  drift --input <observation.json> [--json]");
       console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
@@ -49,6 +50,11 @@ async function entry(): Promise<void> {
   if (command === "discover") {
     const { handleDiscoverCommand } = await import("./discover-command.js");
     await handleDiscoverCommand(process.argv.slice(3));
+    return;
+  }
+  if (command === "external-source") {
+    const { handleExternalSourceCommand } = await import("./external-source-command.js");
+    await handleExternalSourceCommand(process.argv.slice(3));
     return;
   }
   if (command === "understand") {
