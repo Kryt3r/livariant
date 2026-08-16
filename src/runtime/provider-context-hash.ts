@@ -1,13 +1,7 @@
 import { createHash } from "node:crypto";
-import type { AutonomyProfile } from "../autonomy/profile.js";
 import type { ProviderContextProvider } from "./provider-context-types.js";
 
-export function providerContextPacketId(
-  provider: ProviderContextProvider,
-  baselineDigest: string,
-  task: string,
-  autonomyProfile: AutonomyProfile,
-): string {
+export function providerContextPacketId(provider: ProviderContextProvider, baselineDigest: string, task: string): string {
   const hash = createHash("sha256");
   const add = (label: string, value: string): void => {
     const labelBytes = Buffer.from(label, "utf8");
@@ -23,6 +17,5 @@ export function providerContextPacketId(
   add("provider", provider);
   add("baseline", baselineDigest);
   add("task", task);
-  add("autonomy-profile", autonomyProfile);
   return `pcx_${hash.digest("hex")}`;
 }
