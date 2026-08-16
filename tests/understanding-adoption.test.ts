@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildUnderstandingReview } from "../src/project/understanding-review.js";
 import {
+  buildUnderstandingAdoptionProposal,
   selectUnderstandingCandidateForAdoption,
   supportedUnderstandingAdoptionDomain,
 } from "../src/project/understanding-adoption.js";
@@ -75,5 +76,25 @@ test("controlled adoption rejects unsupported or ambiguous review targets", () =
   assert.throws(
     () => selectUnderstandingCandidateForAdoption(review, "unknown:current-product-direction"),
     /not supported for controlled adoption v1/,
+  );
+});
+
+test("controlled adoption reuses canonical goal/knowledge scalar validation", async () => {
+  const multiline = buildUnderstandingReview(discovery(), {
+    schemaVersion: 1,
+    responses: [{ questionId: "unknown:project-goals", statement: "Goal line one\nGoal line two" }],
+  });
+  await assert.rejects(
+    buildUnderstandingAdoptionProposal(multiline, "unknown:project-goals", "/path-not-used-before-parse"),
+    /single-line scalar value/,
+  );
+
+  const oversized = buildUnderstandingReview(discovery(), {
+    schemaVersion: 1,
+    responses: [{ questionId: "unknown:project-purpose", statement: "x".repeat(4097) }],
+  });
+  await assert.rejects(
+    buildUnderstandingAdoptionProposal(oversized, "unknown:project-purpose", "/path-not-used-before-parse"),
+    /exceeds the supported size limit/,
   );
 });
