@@ -9,7 +9,7 @@ It does **not** accept the whole review, does not treat review input as Project 
 ```text
 current project discovery
 -> guided understanding review input
--> explicit candidate selection
+-> material-bound candidate id
 -> actionable proposal
 -> separate `authorize`
 -> separate `apply`
@@ -19,10 +19,12 @@ current project discovery
 Command:
 
 ```text
-livariant adopt-understanding --input <review.json> --select <candidate-target> [--json]
+livariant adopt-understanding --input <review.json> --select <candidate-id> [--json]
 ```
 
-The review input uses the same bounded schema as `livariant understand --input`.
+The review input uses the same bounded schema as `livariant understand --input`. Candidate evidence now carries a deterministic `candidateId` bound to its kind, target, normalized statement and candidate-evidence trust class. The human `understand` output shows the same id.
+
+If the statement changes, its candidate id changes. Adoption therefore fails closed instead of silently treating different text under the same review topic as the material the user selected.
 
 V1 deliberately supports only two unambiguous response mappings:
 
@@ -31,13 +33,11 @@ V1 deliberately supports only two unambiguous response mappings:
 
 Corrections, current-product-direction answers, technical-direction answers, rules and other ambiguous material remain candidate evidence. Livariant does not guess them into a canonical domain.
 
-Exactly one current response must exist for the selected target. Missing or duplicate responses fail closed.
-
 ## Trust boundary
 
 Selection expresses user intent; it is **not** mutation Authority.
 
-The command reconstructs current Bootstrap Discovery and Guided Understanding Review from the current project plus the supplied review input. It then routes the selected supported statement through the existing Semantic Proposal / Actionable Proposal machinery.
+The command reconstructs current Bootstrap Discovery and Guided Understanding Review from the current project plus the supplied review input. The selected candidate id must still exist in that reconstructed review. The selected statement is then passed back through the canonical Semantic Proposal candidate parser, preserving the existing single-line and size bounds, before the existing Actionable Proposal machinery is used.
 
 The resulting actionable proposal still requires the existing proposal-bound authorization and apply path. No matching Authority is searched for or consumed implicitly.
 
