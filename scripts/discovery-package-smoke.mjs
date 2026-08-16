@@ -53,10 +53,12 @@ try {
   const entries = packResult[0]?.files?.map((file) => file.path) ?? [];
   for (const required of [
     "dist/src/cli/discover-command.js",
+    "dist/src/cli/understand-command.js",
     "dist/src/project/bootstrap-discovery.js",
+    "dist/src/project/understanding-review.js",
     "dist/src/runtime/initialization.js",
   ]) {
-    if (!entries.includes(required)) throw new Error(`Packed artifact is missing discovery runtime file: ${required}`);
+    if (!entries.includes(required)) throw new Error(`Packed artifact is missing discovery/understanding runtime file: ${required}`);
   }
 
   await writeFile(resolve(installHost, "package.json"), JSON.stringify({
@@ -95,13 +97,41 @@ try {
     throw new Error("Installed discover exposed sensitive file contents");
   }
 
+  const reviewPath = resolve(projectDir, "review.json");
+  await writeFile(reviewPath, JSON.stringify({
+    schemaVersion: 1,
+    responses: [
+      { questionId: "unknown:project-purpose", statement: "Installed package smoke project." },
+    ],
+  }), "utf8");
+  const understandingResult = run(process.execPath, [cliPath, "understand", "--input", reviewPath, "--json"], {
+    cwd: projectDir,
+    env: { PBF_RUNTIME_DELEGATION_BYPASS: "1" },
+  });
+  const understanding = JSON.parse(understandingResult.stdout.trim());
+  if (understanding.boundaries?.changesMade !== 0 || understanding.boundaries?.grantsAuthority !== false) {
+    throw new Error(`Installed understand returned unsafe boundaries:\n${understandingResult.stdout}`);
+  }
+  if (!understanding.stronglyInferred?.some((item) => item.value === "React")) {
+    throw new Error(`Installed understand did not compose discovery stack evidence:\n${understandingResult.stdout}`);
+  }
+  if (!understanding.questions?.some((item) => item.id === "unknown:project-purpose")) {
+    throw new Error(`Installed understand did not produce the expected clarification question:\n${understandingResult.stdout}`);
+  }
+  if (!understanding.candidateEvidence?.some((item) => item.trust === "candidate-evidence" && item.target === "unknown:project-purpose")) {
+    throw new Error(`Installed understand did not retain review input as candidate evidence:\n${understandingResult.stdout}`);
+  }
+  if (understandingResult.stdout.includes("PACKAGE_SMOKE_SECRET")) {
+    throw new Error("Installed understand exposed sensitive file contents");
+  }
+
   const entriesAfter = await import("node:fs/promises").then(({ readdir }) => readdir(projectDir));
   if (entriesAfter.includes(".project-brain")) {
-    throw new Error("Installed discover mutated the project by creating Project Brain state");
+    throw new Error("Installed discover/understand mutated the project by creating Project Brain state");
   }
 
   const installedPackage = JSON.parse(await readFile(resolve(installHost, "node_modules", "livariant", "package.json"), "utf8"));
-  console.log(`Discovery package smoke passed for Livariant ${installedPackage.version}: installed package inspected an independent project and returned structured evidence with zero project mutation.`);
+  console.log(`Discovery/understanding package smoke passed for Livariant ${installedPackage.version}: installed package inspected and reviewed an independent project with zero project mutation.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
