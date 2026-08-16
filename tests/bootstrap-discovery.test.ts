@@ -35,6 +35,7 @@ test("bootstrap discovery returns bounded high-signal evidence with provenance a
     assert.equal(plan.projectState, "existing-project-without-brain");
     assert.equal(plan.discovery.changesMade, 0);
     assert.deepEqual(plan.projectFilesToModify, []);
+    assert.deepEqual(plan.unknowns, ["project goals", "accepted architecture decisions", "deployment target"]);
 
     const evidence = plan.discovery.evidence;
     assert.ok(evidence.some((item) => item.kind === "documentation" && item.provenance === "README.md" && item.confidence === "confirmed"));
@@ -44,6 +45,7 @@ test("bootstrap discovery returns bounded high-signal evidence with provenance a
     assert.ok(evidence.some((item) => item.kind === "stack" && item.value === "Supabase client"));
     assert.ok(evidence.some((item) => item.kind === "tooling" && item.value === "test script declared"));
     assert.ok(plan.discovery.unknowns.includes("project purpose"));
+    assert.notDeepEqual(plan.discovery.unknowns, plan.unknowns);
   });
 });
 
