@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build-rc-bundle:
@@ -141,6 +142,57 @@ jobs:
           NODE
           cp RC-SOURCE-COMMIT rc-bundle/RC-SOURCE-COMMIT
 
+      - name: Collect exact-source release decision evidence
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node scripts/collect-release-decision-evidence.mjs \
+            rc-bundle/RC-BUILD-METADATA.json \
+            rc-bundle/release-decision-evidence.json
+
+      - name: Build release decision dossier
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/build-release-decision-dossier.mjs \
+            --input rc-bundle/release-decision-evidence.json \
+            --output-dir rc-bundle
+
+      - name: Bind dossier identity into RC metadata
+        id: dossier
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { createHash } = require('node:crypto');
+          const { readFileSync, writeFileSync, appendFileSync } = require('node:fs');
+          const path = require('node:path');
+          const dir = 'rc-bundle';
+          const metadataPath = path.join(dir, 'RC-BUILD-METADATA.json');
+          const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
+          const jsonFile = 'release-decision-dossier.json';
+          const markdownFile = 'release-decision-dossier.md';
+          const jsonBytes = readFileSync(path.join(dir, jsonFile));
+          const markdownBytes = readFileSync(path.join(dir, markdownFile));
+          const dossier = JSON.parse(jsonBytes.toString('utf8'));
+          const jsonSha256 = createHash('sha256').update(jsonBytes).digest('hex');
+          const markdownSha256 = createHash('sha256').update(markdownBytes).digest('hex');
+          metadata.releaseDecisionDossier = {
+            recommendation: dossier.recommendation,
+            jsonFile,
+            jsonSha256,
+            markdownFile,
+            markdownSha256,
+            authority: false,
+          };
+          writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `recommendation=${dossier.recommendation}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `json_sha256=${jsonSha256}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `markdown_sha256=${markdownSha256}\n`);
+          NODE
+
       - name: Upload verified RC bundle artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -149,17 +201,36 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Record artifact identity
+      - name: Record artifact and decision identity
         shell: bash
         env:
           SOURCE_SHA: ${{ github.sha }}
           VERSION: ${{ steps.verify.outputs.version }}
           SHA256: ${{ steps.verify.outputs.sha256 }}
           SBOM_SHA256: ${{ steps.verify.outputs.sbom_sha256 }}
+          RECOMMENDATION: ${{ steps.dossier.outputs.recommendation }}
+          DOSSIER_JSON_SHA256: ${{ steps.dossier.outputs.json_sha256 }}
+          DOSSIER_MARKDOWN_SHA256: ${{ steps.dossier.outputs.markdown_sha256 }}
         run: |
           set -euo pipefail
           echo "Verified RC version: $VERSION"
           echo "Verified RC source: $SOURCE_SHA"
           echo "Verified RC artifact SHA-256: $SHA256"
           echo "Verified RC SBOM SHA-256: $SBOM_SHA256"
+          echo "Release decision recommendation: $RECOMMENDATION"
+          echo "Dossier JSON SHA-256: $DOSSIER_JSON_SHA256"
+          echo "Dossier Markdown SHA-256: $DOSSIER_MARKDOWN_SHA256"
           echo "Artifact name: livariant-$VERSION-$SOURCE_SHA-$SHA256"
+
+      - name: Enforce fail-closed RC qualification
+        shell: bash
+        env:
+          RECOMMENDATION: ${{ steps.dossier.outputs.recommendation }}
+        run: |
+          set -euo pipefail
+          if [[ "$RECOMMENDATION" == "NO-GO" ]]; then
+            echo "Release Decision Dossier is NO-GO. Evidence artifact was preserved, but RC qualification fails closed."
+            exit 1
+          fi
+          echo "Release Decision Dossier recommendation: $RECOMMENDATION"
+          echo "This is evidence only and does not authorize publication."
