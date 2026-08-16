@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildUnderstandingReview } from "../src/project/understanding-review.js";
+import { buildUnderstandingReview, understandingCandidateEvidenceId } from "../src/project/understanding-review.js";
 import {
   buildUnderstandingAdoptionProposal,
   selectUnderstandingCandidateForAdoption,
@@ -26,55 +26,56 @@ test("controlled adoption v1 maps only unambiguous supported review response tar
   assert.equal(supportedUnderstandingAdoptionDomain("unknown:non-negotiable-project-rules"), null);
 });
 
-test("controlled adoption selects exactly one current candidate response", () => {
+test("controlled adoption selects exactly one current material-bound candidate response", () => {
+  const statement = "Ship a playable alpha.";
   const review = buildUnderstandingReview(discovery(), {
     schemaVersion: 1,
-    responses: [{ questionId: "unknown:project-goals", statement: "Ship a playable alpha." }],
+    responses: [{ questionId: "unknown:project-goals", statement }],
   });
-  const selected = selectUnderstandingCandidateForAdoption(review, "unknown:project-goals");
-  assert.deepEqual(selected, {
-    kind: "response",
-    target: "unknown:project-goals",
-    statement: "Ship a playable alpha.",
-    trust: "candidate-evidence",
-  });
+  const candidateId = understandingCandidateEvidenceId("response", "unknown:project-goals", statement);
+  const selected = selectUnderstandingCandidateForAdoption(review, candidateId);
+  assert.equal(selected.candidateId, candidateId);
+  assert.equal(selected.target, "unknown:project-goals");
+  assert.equal(selected.statement, statement);
   assert.equal(review.boundaries.candidateEvidenceIsProjectTruth, false);
   assert.equal(review.boundaries.grantsAuthority, false);
   assert.equal(review.boundaries.changesMade, 0);
 });
 
-test("controlled adoption rejects corrections as an alternate canonical path", () => {
-  const review = buildUnderstandingReview(discovery(), {
+test("controlled adoption rejects statement substitution under the same review target", () => {
+  const originalId = understandingCandidateEvidenceId("response", "unknown:project-goals", "Goal A");
+  const changed = buildUnderstandingReview(discovery(), {
     schemaVersion: 1,
-    corrections: [{ target: "unknown:project-goals", statement: "Treat this correction as truth." }],
+    responses: [{ questionId: "unknown:project-goals", statement: "Goal B" }],
   });
   assert.throws(
-    () => selectUnderstandingCandidateForAdoption(review, "unknown:project-goals"),
-    /exactly one current review response/,
+    () => selectUnderstandingCandidateForAdoption(changed, originalId),
+    /exactly one current candidate matching the selected material id/,
   );
 });
 
-test("controlled adoption fails closed on duplicate candidate responses", () => {
+test("controlled adoption rejects corrections as an alternate canonical path", () => {
+  const statement = "Treat this correction as truth.";
   const review = buildUnderstandingReview(discovery(), {
     schemaVersion: 1,
-    responses: [
-      { questionId: "unknown:project-goals", statement: "Goal A" },
-      { questionId: "unknown:project-goals", statement: "Goal B" },
-    ],
+    corrections: [{ target: "unknown:project-goals", statement }],
   });
+  const candidateId = understandingCandidateEvidenceId("correction", "unknown:project-goals", statement);
   assert.throws(
-    () => selectUnderstandingCandidateForAdoption(review, "unknown:project-goals"),
-    /exactly one current review response/,
+    () => selectUnderstandingCandidateForAdoption(review, candidateId),
+    /not supported for controlled adoption v1/,
   );
 });
 
 test("controlled adoption rejects unsupported or ambiguous review targets", () => {
+  const statement = "Move toward mobile.";
   const review = buildUnderstandingReview(discovery(), {
     schemaVersion: 1,
-    responses: [{ questionId: "unknown:current-product-direction", statement: "Move toward mobile." }],
+    responses: [{ questionId: "unknown:current-product-direction", statement }],
   });
+  const candidateId = understandingCandidateEvidenceId("response", "unknown:current-product-direction", statement);
   assert.throws(
-    () => selectUnderstandingCandidateForAdoption(review, "unknown:current-product-direction"),
+    () => selectUnderstandingCandidateForAdoption(review, candidateId),
     /not supported for controlled adoption v1/,
   );
 });
@@ -85,7 +86,7 @@ test("controlled adoption reuses canonical goal/knowledge scalar validation", as
     responses: [{ questionId: "unknown:project-goals", statement: "Goal line one\nGoal line two" }],
   });
   await assert.rejects(
-    buildUnderstandingAdoptionProposal(multiline, "unknown:project-goals", "/path-not-used-before-parse"),
+    buildUnderstandingAdoptionProposal(multiline, multiline.candidateEvidence[0]!.candidateId, "/path-not-used-before-parse"),
     /single-line scalar value/,
   );
 
@@ -94,7 +95,7 @@ test("controlled adoption reuses canonical goal/knowledge scalar validation", as
     responses: [{ questionId: "unknown:project-purpose", statement: "x".repeat(4097) }],
   });
   await assert.rejects(
-    buildUnderstandingAdoptionProposal(oversized, "unknown:project-purpose", "/path-not-used-before-parse"),
+    buildUnderstandingAdoptionProposal(oversized, oversized.candidateEvidence[0]!.candidateId, "/path-not-used-before-parse"),
     /exceeds the supported size limit/,
   );
 });
