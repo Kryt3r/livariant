@@ -4,6 +4,10 @@ import { evaluateReleaseDecision, renderReleaseDecisionMarkdown } from "./build-
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
+function requiredEvidence(id, type, reference) {
+  return { id, type, required: true, status: "PASS", sourceSha: sha, reference, summary: `${id} passed.` };
+}
+
 function baseEvidence() {
   return {
     schemaVersion: 1,
@@ -19,14 +23,17 @@ function baseEvidence() {
     blockers: [],
     residualRisks: [],
     technicalEvidence: [
-      { id: "hardening", type: "ci", required: true, status: "PASS", sourceSha: sha, reference: "run:1", summary: "Hardening passed." },
-      { id: "codeql", type: "security", required: true, status: "PASS", sourceSha: sha, reference: "run:2", summary: "CodeQL passed." },
+      requiredEvidence("rc-source-validation", "workflow", "run:0"),
+      requiredEvidence("hardening-ci", "ci", "run:1"),
+      requiredEvidence("codeql", "security", "run:2"),
+      requiredEvidence("release-artifact-digest", "sha256", "artifact:abc"),
+      requiredEvidence("release-sbom", "spdx", "sbom:def"),
       { id: "dependency-review", type: "pr-gate", required: false, status: "NOT_APPLICABLE", reference: "pr-only", summary: "PR-scoped." },
     ],
   };
 }
 
-test("all required evidence passing produces GO without manufacturing authority", () => {
+test("all canonical required evidence passing produces GO without manufacturing authority", () => {
   const evaluated = evaluateReleaseDecision(baseEvidence());
   assert.equal(evaluated.recommendation, "GO");
   assert.deepEqual(evaluated.blockers, []);
@@ -44,9 +51,27 @@ test("missing required area evidence fails closed to NO-GO", () => {
   assert.ok(evaluated.blockers.some((entry) => entry.includes("security")));
 });
 
+test("canonical decision areas cannot be demoted from required", () => {
+  const evidence = baseEvidence();
+  evidence.areas.security.required = false;
+  assert.throws(() => evaluateReleaseDecision(evidence), /cannot be demoted from required/u);
+});
+
+test("canonical technical evidence cannot be omitted", () => {
+  const evidence = baseEvidence();
+  evidence.technicalEvidence = evidence.technicalEvidence.filter((item) => item.id !== "codeql");
+  assert.throws(() => evaluateReleaseDecision(evidence), /Missing canonical required technical evidence: codeql/u);
+});
+
+test("canonical technical evidence cannot be demoted to optional", () => {
+  const evidence = baseEvidence();
+  evidence.technicalEvidence.find((item) => item.id === "hardening-ci").required = false;
+  assert.throws(() => evaluateReleaseDecision(evidence), /cannot be demoted from required/u);
+});
+
 test("required technical evidence bound to another source fails closed", () => {
   const evidence = baseEvidence();
-  evidence.technicalEvidence[0].sourceSha = "fedcba9876543210fedcba9876543210fedcba98";
+  evidence.technicalEvidence.find((item) => item.id === "hardening-ci").sourceSha = "fedcba9876543210fedcba9876543210fedcba98";
   const evaluated = evaluateReleaseDecision(evidence);
   assert.equal(evaluated.recommendation, "NO-GO");
   assert.ok(evaluated.blockers.some((entry) => entry.includes("not bound to exact candidate source")));
@@ -63,6 +88,12 @@ test("warnings and residual risks produce GO WITH RISKS when required evidence p
   assert.ok(evaluated.warnings.length > 0);
 });
 
+test("duplicate technical evidence identities are rejected", () => {
+  const evidence = baseEvidence();
+  evidence.technicalEvidence.push({ ...evidence.technicalEvidence[0] });
+  assert.throws(() => evaluateReleaseDecision(evidence), /Duplicate technical evidence id/u);
+});
+
 test("rendered dossier contains both decision and technical evidence layers", () => {
   const markdown = renderReleaseDecisionMarkdown(evaluateReleaseDecision(baseEvidence()));
   for (const requiredText of [
@@ -73,7 +104,7 @@ test("rendered dossier contains both decision and technical evidence layers", ()
     "Release blockers",
     "Layer 2 - Technical evidence",
     `Exact source: ${sha}`,
-    "### hardening",
+    "### hardening-ci",
     "### codeql",
   ]) {
     assert.ok(markdown.includes(requiredText), `Missing rendered dossier section: ${requiredText}`);
