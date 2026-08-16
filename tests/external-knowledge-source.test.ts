@@ -88,19 +88,30 @@ test("local-directory adapter does not traverse nested symlinks outside the sour
   });
 });
 
-test("local-directory adapter bounds oversized and binary material", async () => {
+test("local-directory adapter bounds oversized, binary, and invalid UTF-8 material", async () => {
   await withTempDirectory(async (temp) => {
     const source = join(temp, "brain");
     await mkdir(source);
     await writeFile(join(source, "too-large.md"), "x".repeat(64 * 1024 + 1), "utf8");
     await writeFile(join(source, "binary.txt"), Buffer.from([0x61, 0x00, 0x62]));
+    await writeFile(join(source, "invalid-utf8.md"), Buffer.from([0xc3, 0x28]));
 
     const bundle = await inspectExternalKnowledgeSource("local-directory", source);
     assert.equal(bundle.evidence.length, 0);
     assert.deepEqual(bundle.skipped, [
       { materialPath: "binary.txt", reason: "binary" },
+      { materialPath: "invalid-utf8.md", reason: "binary" },
       { materialPath: "too-large.md", reason: "oversized" },
     ]);
+  });
+});
+
+test("local-directory traversal fails closed before an unbounded directory scan", async () => {
+  await withTempDirectory(async (temp) => {
+    const source = join(temp, "brain");
+    await mkdir(source);
+    await Promise.all(Array.from({ length: 1001 }, (_, index) => writeFile(join(source, `entry-${String(index).padStart(4, "0")}.bin`), "")));
+    await assert.rejects(() => inspectExternalKnowledgeSource("local-directory", source), /maximum scan entries of 1000/);
   });
 });
 
@@ -112,7 +123,7 @@ test("external evidence stays separate from candidate evidence and cannot be sel
     const bundle = await inspectExternalKnowledgeSource("local-directory", source);
     const review = buildUnderstandingReview(discovery(temp), undefined, [bundle]);
 
-    assert.equal(review.externalEvidence.length, 1);
+    assert.equal(review.externalEvidence?.length, 1);
     assert.equal(review.candidateEvidence.length, 0);
     assert.equal(review.boundaries.externalEvidenceIsProjectTruth, false);
     assert.equal(review.boundaries.externalEvidenceCanBeAdoptedDirectly, false);
