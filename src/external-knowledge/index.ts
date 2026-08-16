@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { ExternalKnowledgeAdapter } from "./adapter.js";
 import { LocalDirectoryExternalKnowledgeAdapter } from "./local-directory-adapter.js";
 import type { ExternalKnowledgeEvidenceBundle, ExternalKnowledgeSourceKind } from "./types.js";
 
@@ -12,7 +13,7 @@ export type {
   ExternalKnowledgeSourceKind,
 } from "./types.js";
 
-const adapters = new Map<ExternalKnowledgeSourceKind, LocalDirectoryExternalKnowledgeAdapter>([
+const adapters = new Map<ExternalKnowledgeSourceKind, ExternalKnowledgeAdapter>([
   ["local-directory", new LocalDirectoryExternalKnowledgeAdapter()],
 ]);
 
@@ -58,8 +59,16 @@ export function validateExternalKnowledgeEvidenceBundle(bundle: ExternalKnowledg
     if (item.provenance.sourceId !== bundle.source.sourceId || item.provenance.sourceKind !== bundle.source.kind) {
       throw new Error(`External knowledge provenance source mismatch: ${item.evidenceId}`);
     }
-    if (!item.provenance.materialPath || item.provenance.materialPath.startsWith("/") || item.provenance.materialPath.includes("../")) {
+    const pathSegments = item.provenance.materialPath.split("/");
+    if (
+      !item.provenance.materialPath ||
+      item.provenance.materialPath.startsWith("/") ||
+      pathSegments.some((segment) => segment === "" || segment === "." || segment === "..")
+    ) {
       throw new Error(`External knowledge provenance material path is invalid: ${item.evidenceId}`);
+    }
+    if (!/^[a-f0-9]{64}$/u.test(item.provenance.contentSha256)) {
+      throw new Error(`External knowledge provenance content digest is invalid: ${item.evidenceId}`);
     }
     const contentSha256 = createHash("sha256").update(Buffer.from(item.content, "utf8")).digest("hex");
     if (contentSha256 !== item.provenance.contentSha256) {
