@@ -6,6 +6,7 @@ import {
   parseMcpJsonLine,
   type JsonRpcResponse,
 } from "../mcp/server.js";
+import { buildMcpSetupPlan, parseMcpSetupArgs, renderMcpSetupPlan } from "./mcp-setup.js";
 
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -13,8 +14,24 @@ function writeMessage(message: JsonRpcResponse): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
+function handleMcpSetupCommand(args: readonly string[]): void {
+  const parsed = parseMcpSetupArgs(args);
+  const plan = buildMcpSetupPlan(parsed.provider, process.cwd());
+  if (parsed.json) {
+    process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${renderMcpSetupPlan(plan)}\n`);
+}
+
 export async function handleMcpCommand(args: readonly string[]): Promise<void> {
-  if (args.length !== 0) throw new Error("Usage: livariant mcp");
+  if (args[0] === "setup") {
+    handleMcpSetupCommand(args.slice(1));
+    return;
+  }
+  if (args.length !== 0) {
+    throw new Error("Usage: livariant mcp | livariant mcp setup --provider <claude-code|codex> [--json]");
+  }
 
   const session = createMcpSession(process.cwd());
   let pending = Buffer.alloc(0);
