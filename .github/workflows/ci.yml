@@ -64,6 +64,19 @@ jobs:
           echo "Executable matrix required: ${{ steps.classify.outputs.run_executable }}"
           echo "Full hardening required: ${{ steps.classify.outputs.run_full }}"
 
+  dependency-review:
+    name: Dependency Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Review introduced dependency risk
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+
   build-and-test:
     needs: classify
     strategy:
@@ -121,22 +134,36 @@ jobs:
     if: always()
     needs:
       - classify
+      - dependency-review
       - build-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Verify required CI results
         shell: bash
         env:
+          EVENT_NAME: ${{ github.event_name }}
           CLASSIFY_RESULT: ${{ needs.classify.result }}
+          DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           BUILD_RESULT: ${{ needs.build-and-test.result }}
           RISK_CLASS: ${{ needs.classify.outputs.class }}
         run: |
           echo "Risk class: ${RISK_CLASS:-unknown}"
           echo "Classifier result: $CLASSIFY_RESULT"
+          echo "Dependency review result: $DEPENDENCY_REVIEW_RESULT"
           echo "Build/test result: $BUILD_RESULT"
 
           if [[ "$CLASSIFY_RESULT" != "success" ]]; then
             echo "Risk classification did not succeed."
+            exit 1
+          fi
+
+          if [[ "$EVENT_NAME" == "pull_request" && "$DEPENDENCY_REVIEW_RESULT" != "success" ]]; then
+            echo "Dependency Review did not succeed for this pull request."
+            exit 1
+          fi
+
+          if [[ "$EVENT_NAME" != "pull_request" && "$DEPENDENCY_REVIEW_RESULT" != "skipped" ]]; then
+            echo "Dependency Review produced an unexpected result outside pull_request context."
             exit 1
           fi
 
