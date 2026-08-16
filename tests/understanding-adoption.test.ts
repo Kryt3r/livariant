@@ -50,7 +50,21 @@ test("controlled adoption rejects statement substitution under the same review t
   });
   assert.throws(
     () => selectUnderstandingCandidateForAdoption(changed, originalId),
-    /exactly one current candidate matching the selected material id/,
+    /material-consistent candidate matching the selected id/,
+  );
+});
+
+test("controlled adoption revalidates candidate ids even for direct core API callers", () => {
+  const review = buildUnderstandingReview(discovery(), {
+    schemaVersion: 1,
+    responses: [{ questionId: "unknown:project-goals", statement: "Goal A" }],
+  });
+  const candidateId = review.candidateEvidence[0]!.candidateId;
+  const forged = structuredClone(review);
+  forged.candidateEvidence[0]!.statement = "Forged replacement under a stale candidate id";
+  assert.throws(
+    () => selectUnderstandingCandidateForAdoption(forged, candidateId),
+    /material-consistent candidate matching the selected id/,
   );
 });
 
