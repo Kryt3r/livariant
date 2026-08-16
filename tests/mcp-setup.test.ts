@@ -34,8 +34,10 @@ test("MCP setup parsing rejects ambiguous or unsupported setup requests", () => 
   );
 });
 
-test("server instructions describe context-return workflow without expanding the tool or Authority surface", async () => {
+test("server instructions expose autonomy guidance without expanding the MCP tool or Authority surface", async () => {
   assert.match(MCP_SERVER_INSTRUCTIONS, /livariant_provider_context first/);
+  assert.match(MCP_SERVER_INSTRUCTIONS, /livariant autonomy show --json/);
+  assert.match(MCP_SERVER_INSTRUCTIONS, /Autonomy policy is not Authority/);
   assert.match(MCP_SERVER_INSTRUCTIONS, /livariant_provider_return/);
   assert.match(MCP_SERVER_INSTRUCTIONS, /cannot create, discover, select, consume/);
   assert.match(MCP_SERVER_INSTRUCTIONS, /cannot perform canonical semantic mutation/);
