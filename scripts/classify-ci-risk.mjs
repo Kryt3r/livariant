@@ -13,6 +13,7 @@ function isClassD(path) {
   if (path === "package.json" || path === "package-lock.json") return true;
   if (path === "tsconfig.json") return true;
   if (path.startsWith("scripts/")) return true;
+  if (path.startsWith("src/external-knowledge/")) return true;
 
   const safetySegments = [
     "/distribution/",

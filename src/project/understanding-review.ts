@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { ExternalKnowledgeEvidenceBundle } from "../external-knowledge/index.js";
 import type { BootstrapDiscoveryAttention, BootstrapDiscoveryEvidence, BootstrapDiscoveryReport, DiscoveryConfidence } from "./bootstrap-discovery.js";
 
 export const UNDERSTANDING_REVIEW_SCHEMA_VERSION = 1 as const;
@@ -44,12 +45,15 @@ export interface UnderstandingReviewReport {
   uncertain: BootstrapDiscoveryEvidence[];
   attention: BootstrapDiscoveryAttention[];
   questions: UnderstandingReviewQuestion[];
+  externalEvidence?: ExternalKnowledgeEvidenceBundle[];
   candidateEvidence: UnderstandingReviewCandidateEvidence[];
   boundaries: {
     evidenceIsProjectTruth: false;
     candidateEvidenceIsProjectTruth: false;
     grantsAuthority: false;
     changesMade: 0;
+    externalEvidenceIsProjectTruth?: false;
+    externalEvidenceCanBeAdoptedDirectly?: false;
   };
 }
 
@@ -132,13 +136,17 @@ function normalizeCandidateEvidence(input: UnderstandingReviewInput | undefined,
   return result;
 }
 
-export function buildUnderstandingReview(discovery: BootstrapDiscoveryReport, input?: UnderstandingReviewInput): UnderstandingReviewReport {
+export function buildUnderstandingReview(
+  discovery: BootstrapDiscoveryReport,
+  input?: UnderstandingReviewInput,
+  externalEvidence: ExternalKnowledgeEvidenceBundle[] = [],
+): UnderstandingReviewReport {
   if (input && input.schemaVersion !== UNDERSTANDING_REVIEW_SCHEMA_VERSION) {
     throw new Error(`Unsupported understanding review schemaVersion: ${String(input.schemaVersion)}`);
   }
 
   const questions = buildQuestions(discovery.unknowns);
-  return {
+  const report: UnderstandingReviewReport = {
     schemaVersion: UNDERSTANDING_REVIEW_SCHEMA_VERSION,
     projectRoot: discovery.projectRoot,
     projectShape: discovery.projectShape,
@@ -155,4 +163,12 @@ export function buildUnderstandingReview(discovery: BootstrapDiscoveryReport, in
       changesMade: 0,
     },
   };
+
+  if (externalEvidence.length > 0) {
+    report.externalEvidence = externalEvidence;
+    report.boundaries.externalEvidenceIsProjectTruth = false;
+    report.boundaries.externalEvidenceCanBeAdoptedDirectly = false;
+  }
+
+  return report;
 }
