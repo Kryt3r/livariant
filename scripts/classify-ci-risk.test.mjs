@@ -18,18 +18,21 @@ test("classifies normal source and test changes as C", () => {
   assert.equal(classifyPaths(["tests/semantic-editing.test.ts"]).class, "C");
 });
 
-test("classifies workflow, packaging, authority, and external knowledge trust paths as D", () => {
+test("classifies workflow, packaging, authority, external knowledge, and first-run trust paths as D", () => {
   assert.equal(classifyPaths([".github/workflows/ci.yml"]).class, "D");
   assert.equal(classifyPaths(["scripts/package-smoke.mjs"]).class, "D");
   assert.equal(classifyPaths(["src/distribution/release-authorization.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/runtime/recovery.test.ts"]).class, "D");
   assert.equal(classifyPaths(["src/external-knowledge/local-directory-adapter.ts"]).class, "D");
+  assert.equal(classifyPaths(["src/cli/first-run-command.ts"]).class, "D");
+  assert.equal(classifyPaths(["tests/first-run-cli.test.ts"]).class, "D");
 });
 
 test("uses the highest class across mixed changes", () => {
   assert.equal(classifyPaths(["README.md", "src/cli/index.ts"]).class, "C");
   assert.equal(classifyPaths(["docs/quickstart.md", ".github/workflows/ci.yml"]).class, "D");
   assert.equal(classifyPaths(["src/cli/understand-command.ts", "src/external-knowledge/types.ts"]).class, "D");
+  assert.equal(classifyPaths(["README.md", "src/cli/first-run-command.ts"]).class, "D");
 });
 
 test("unknown and empty change sets fail safe to D", () => {

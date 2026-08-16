@@ -14,6 +14,8 @@ function isClassD(path) {
   if (path === "tsconfig.json") return true;
   if (path.startsWith("scripts/")) return true;
   if (path.startsWith("src/external-knowledge/")) return true;
+  if (path === "src/cli/first-run-command.ts") return true;
+  if (path === "tests/first-run-cli.test.ts") return true;
 
   const safetySegments = [
     "/distribution/",
