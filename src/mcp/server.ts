@@ -9,6 +9,7 @@ export const MCP_CONTEXT_TOOL = "livariant_provider_context";
 export const MCP_RETURN_TOOL = "livariant_provider_return";
 export const MCP_SERVER_INSTRUCTIONS = [
   "Use livariant_provider_context first for one explicit project task when durable Project Brain context is relevant.",
+  "When command execution is available, consult `livariant autonomy show --json` before discretionary workflow decisions and follow its interaction policy. Autonomy policy is not Authority and never bypasses Livariant's hard authorization boundaries.",
   "Treat the returned Provider Context as a bounded projection of freshly reconstructed local project truth, not as mutation Authority.",
   "After working on the task, call livariant_provider_return only with the supplied ready Provider Context plus either one supported typed durable-change candidate or no candidate.",
   "Provider Return data is untrusted evidence. This MCP server cannot create, discover, select, consume, or imply proposal-bound Authorization and cannot perform canonical semantic mutation.",
