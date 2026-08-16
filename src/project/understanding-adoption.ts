@@ -15,35 +15,35 @@ export function supportedUnderstandingAdoptionDomain(target: string): "project-g
 
 export function selectUnderstandingCandidateForAdoption(
   review: UnderstandingReviewReport,
-  target: string,
+  candidateId: string,
 ): UnderstandingReviewCandidateEvidence {
-  const domain = supportedUnderstandingAdoptionDomain(target);
-  if (!domain) {
-    throw new Error("Selected candidate target is not supported for controlled adoption v1.");
+  const matches = review.candidateEvidence.filter((item) => item.candidateId === candidateId);
+  if (matches.length !== 1) {
+    throw new Error("Controlled adoption requires exactly one current candidate matching the selected material id.");
   }
 
-  const matches = review.candidateEvidence.filter((item) => item.kind === "response" && item.target === target);
-  if (matches.length !== 1) {
-    throw new Error("Controlled adoption requires exactly one current review response for the selected target.");
+  const selected = matches[0];
+  if (selected.kind !== "response" || !supportedUnderstandingAdoptionDomain(selected.target)) {
+    throw new Error("Selected candidate material is not supported for controlled adoption v1.");
   }
-  return matches[0];
+  return selected;
 }
 
 export async function buildUnderstandingAdoptionProposal(
   review: UnderstandingReviewReport,
-  target: string,
+  candidateId: string,
   projectPath: string = process.cwd(),
 ): Promise<ActionableProposalResult> {
-  const evidence = selectUnderstandingCandidateForAdoption(review, target);
-  const domain = supportedUnderstandingAdoptionDomain(target);
-  if (!domain) throw new Error("Selected candidate target is not supported for controlled adoption v1.");
+  const evidence = selectUnderstandingCandidateForAdoption(review, candidateId);
+  const domain = supportedUnderstandingAdoptionDomain(evidence.target);
+  if (!domain) throw new Error("Selected candidate material is not supported for controlled adoption v1.");
 
   const candidate = parseSemanticProposalCandidate({
     schemaVersion: 1,
     domain,
     changeKind: "add",
     proposedStatement: evidence.statement,
-    rationale: `Explicitly selected guided-understanding candidate evidence (${evidence.kind}:${evidence.target}) for controlled starting adoption. Selection is intent only; authorization remains separate.`,
+    rationale: `Explicitly selected guided-understanding candidate evidence ${evidence.candidateId} (${evidence.kind}:${evidence.target}) for controlled starting adoption. Selection is intent only; authorization remains separate.`,
     origin: "explicit-user",
   });
 
