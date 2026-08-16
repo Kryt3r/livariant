@@ -164,6 +164,7 @@ async function resolveAutonomyProfile(parsed: FirstRunArgs): Promise<AutonomyPro
   }
 
   const current = await readAutonomyProfile(process.cwd());
+  if (current.source === "fail-closed") return current.profile;
   if (current.persisted) return current.profile;
   if (parsed.json || !process.stdin.isTTY || !process.stdout.isTTY) return DEFAULT_AUTONOMY_PROFILE;
 
