@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ProjectDiscovery } from "./discovery.js";
 
