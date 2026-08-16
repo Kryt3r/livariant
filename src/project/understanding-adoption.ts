@@ -1,5 +1,5 @@
 import { buildActionableProposal, type ActionableProposalResult } from "../runtime/actionable-proposal.js";
-import type { SemanticProposalCandidate } from "../runtime/semantic-proposal.js";
+import { parseSemanticProposalCandidate } from "../runtime/semantic-proposal.js";
 import type { UnderstandingReviewCandidateEvidence, UnderstandingReviewReport } from "./understanding-review.js";
 
 export const UNDERSTANDING_ADOPTION_SCHEMA_VERSION = 1 as const;
@@ -38,15 +38,14 @@ export async function buildUnderstandingAdoptionProposal(
   const domain = supportedUnderstandingAdoptionDomain(target);
   if (!domain) throw new Error("Selected candidate target is not supported for controlled adoption v1.");
 
-  const candidate: SemanticProposalCandidate = {
+  const candidate = parseSemanticProposalCandidate({
     schemaVersion: 1,
     domain,
     changeKind: "add",
     proposedStatement: evidence.statement,
     rationale: `Explicitly selected guided-understanding candidate evidence (${evidence.kind}:${evidence.target}) for controlled starting adoption. Selection is intent only; authorization remains separate.`,
-    originClaim: "explicit-user",
-    originVerified: false,
-  };
+    origin: "explicit-user",
+  });
 
   return buildActionableProposal(candidate, projectPath);
 }
