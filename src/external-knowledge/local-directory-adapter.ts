@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { lstat, open, readdir, realpath } from "node:fs/promises";
+import { lstat, open, opendir, realpath } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { extname, relative, resolve, sep } from "node:path";
 import type { ExternalKnowledgeAdapter } from "./adapter.js";
@@ -8,9 +8,12 @@ import type { ExternalKnowledgeEvidence, ExternalKnowledgeEvidenceBundle, Extern
 const MAX_FILE_BYTES = 64 * 1024;
 const MAX_TOTAL_BYTES = 2 * 1024 * 1024;
 const MAX_FILES = 200;
+const MAX_SCANNED_ENTRIES = 1000;
+const MAX_DIRECTORY_DEPTH = 32;
 const ALLOWED_EXTENSIONS = new Set([".md", ".mdx", ".txt"]);
 const SOURCE_ID_DOMAIN = "livariant:external-knowledge-source:v1";
 const EVIDENCE_ID_DOMAIN = "livariant:external-knowledge-evidence:v1";
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
 function hashParts(domain: string, parts: string[]): string {
   const hash = createHash("sha256");
@@ -34,9 +37,26 @@ function isWithinRoot(root: string, candidate: string): boolean {
 
 async function collectEntries(root: string): Promise<Array<{ path: string; materialPath: string; kind: "file" | "symlink" }>> {
   const result: Array<{ path: string; materialPath: string; kind: "file" | "symlink" }> = [];
+  let scannedEntries = 0;
 
-  async function walk(directory: string): Promise<void> {
-    const entries = await readdir(directory, { withFileTypes: true });
+  async function walk(directory: string, depth: number): Promise<void> {
+    if (depth > MAX_DIRECTORY_DEPTH) {
+      throw new Error(`External knowledge source exceeds maximum directory depth of ${MAX_DIRECTORY_DEPTH}.`);
+    }
+    const handle = await opendir(directory);
+    const entries = [];
+    try {
+      for await (const entry of handle) {
+        scannedEntries += 1;
+        if (scannedEntries > MAX_SCANNED_ENTRIES) {
+          throw new Error(`External knowledge source exceeds maximum scan entries of ${MAX_SCANNED_ENTRIES}.`);
+        }
+        entries.push(entry);
+      }
+    } finally {
+      await handle.close().catch(() => undefined);
+    }
+
     entries.sort((a, b) => a.name.localeCompare(b.name, "en"));
     for (const entry of entries) {
       const path = resolve(directory, entry.name);
@@ -47,14 +67,14 @@ async function collectEntries(root: string): Promise<Array<{ path: string; mater
         continue;
       }
       if (stat.isDirectory()) {
-        await walk(path);
+        await walk(path, depth + 1);
         continue;
       }
       if (stat.isFile()) result.push({ path, materialPath, kind: "file" });
     }
   }
 
-  await walk(root);
+  await walk(root, 0);
   return result;
 }
 
@@ -135,7 +155,13 @@ export class LocalDirectoryExternalKnowledgeAdapter implements ExternalKnowledge
         continue;
       }
 
-      const content = bytes.toString("utf8");
+      let content: string;
+      try {
+        content = UTF8_DECODER.decode(bytes);
+      } catch {
+        skipped.push({ materialPath: entry.materialPath, reason: "binary" });
+        continue;
+      }
       const contentSha256 = createHash("sha256").update(bytes).digest("hex");
       const evidenceId = `external-evidence-v1:${hashParts(EVIDENCE_ID_DOMAIN, [sourceId, entry.materialPath, contentSha256])}`;
       evidence.push({
