@@ -8,6 +8,7 @@ import test from "node:test";
 import { addConfirmedGoal, addConfirmedKnowledge, initializeProject, recordAcceptedDecision } from "../src/runtime/index.js";
 import { isStableProjectIdentity } from "../src/project-brain/identity.js";
 import { buildProviderContext, PROVIDER_CONTEXT_TASK_MAX_BYTES } from "../src/runtime/provider-context.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -38,9 +39,11 @@ async function captureManaged(path: string): Promise<Map<string, Buffer>> {
 
 test("provider context preserves canonical evidence, provider boundary, and read-only behavior", async () => {
   await withProject(async (path) => {
-    await addConfirmedGoal("Ship trustworthy provider context", path, { authorized: true });
-    await addConfirmedKnowledge("Provider-returned context is not canonical truth", path, { authorized: true });
-    await recordAcceptedDecision("Provider context remains read-only", path, { authorized: true });
+    await mutateAcceptedFixture(path, async () => {
+      await addConfirmedGoal("Ship trustworthy provider context", path, { authorized: true });
+      await addConfirmedKnowledge("Provider-returned context is not canonical truth", path, { authorized: true });
+      await recordAcceptedDecision("Provider context remains read-only", path, { authorized: true });
+    });
     const before = await captureManaged(path);
     const task = "Implement the next bounded slice";
 
@@ -91,7 +94,7 @@ test("material packet identity ignores generation time and changes with material
     assert.notEqual(first.packetId, taskChanged.packetId);
     assert.notEqual(first.packetId, providerChanged.packetId);
 
-    await addConfirmedGoal("Change provider context baseline", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Change provider context baseline", path, { authorized: true }));
     const baselineChanged = await buildProviderContext("codex", "task-a", path);
     assert.equal(baselineChanged.state, "ready");
     if (baselineChanged.state !== "ready") return;
