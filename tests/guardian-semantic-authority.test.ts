@@ -8,7 +8,6 @@ import {
   buildActionableProposal,
   initializeProject,
   parseSemanticProposalCandidate,
-  recordAcceptedDecision,
 } from "../src/runtime/index.js";
 
 const AUTH_A = "22222222-2222-4222-8222-222222222222";
@@ -82,11 +81,12 @@ test("semantic Guardian Authority binds project, physical root, operation, propo
     });
     assert.notEqual(first.materialSha256, differentScope.materialSha256);
 
-    await recordAcceptedDecision("Concurrent accepted decision", path, { authorized: true });
+    const differentBaselineProposal = structuredClone(firstProposal);
+    differentBaselineProposal.baseline.digest = "f".repeat(64);
     const differentBaseline = buildSemanticGuardianAuthorityRequest({
       authorizationId: AUTH_A,
       physicalProjectRoot: physical,
-      proposal: await proposal(path),
+      proposal: differentBaselineProposal,
     });
     assert.notEqual(first.materialSha256, differentBaseline.materialSha256);
   });
