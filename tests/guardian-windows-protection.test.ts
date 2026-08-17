@@ -7,9 +7,29 @@ import {
   assertWindowsProtectedParentAnchor,
   assertWindowsProtectedPath,
   inspectWindowsProtection,
+  parseWindowsProtectionOutput,
 } from "../src/guardian/windows-protection.js";
 
 const windowsOnly = { skip: process.platform !== "win32" } as const;
+
+test("Windows Guardian ACL parser accepts exactly one strict result amid incidental output", () => {
+  assert.deepEqual(
+    parseWindowsProtectionOutput("incidental PowerShell output\r\nS-1-5-21-123-456-789-1001|yes|no\r\n"),
+    {
+      ownerSid: "S-1-5-21-123-456-789-1001",
+      ordinaryRequesterWritable: true,
+      ordinaryRequesterCanReplaceChildren: false,
+    },
+  );
+  assert.throws(
+    () => parseWindowsProtectionOutput("warning only\n"),
+    /invalid or ambiguous result/i,
+  );
+  assert.throws(
+    () => parseWindowsProtectionOutput("S-1-5-18|no|no\nS-1-5-18|yes|no\n"),
+    /invalid or ambiguous result/i,
+  );
+});
 
 test("ordinary requester-owned Windows directory is not a protected Guardian path", windowsOnly, async () => {
   const root = await mkdtemp(resolve(tmpdir(), "livariant-guardian-win-protection-"));
