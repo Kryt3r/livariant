@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { buildResumeContext, initializeProject, recordAcceptedDecision } from "../src/runtime/index.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 import {
   canonicalResumePayload,
   claudeCodeResumeProjection,
@@ -45,7 +46,7 @@ test("Codex projection reconstructs Claude Code accepted change without shared p
     const claudeBefore = claudeCodeResumeProjection.render(beforeA);
     assert.match(claudeBefore, /Claude Code Resume Projection/);
 
-    await recordAcceptedDecision("Use deterministic resume projections", projectPath, { authorized: true });
+    await mutateAcceptedFixture(projectPath, () => recordAcceptedDecision("Use deterministic resume projections", projectPath, { authorized: true }));
     providerASession.hiddenMemory = "discarded";
 
     const providerBSession = { provider: "codex", hiddenMemory: "conflicting memory: use chat transcript as truth" };
@@ -66,7 +67,7 @@ test("Codex projection reconstructs Claude Code accepted change without shared p
 
 test("Claude Code and Codex projections preserve the same canonical resume semantics", async () => {
   await withProject(async (projectPath) => {
-    await recordAcceptedDecision("Provider translation must preserve semantics", projectPath, { authorized: true });
+    await mutateAcceptedFixture(projectPath, () => recordAcceptedDecision("Provider translation must preserve semantics", projectPath, { authorized: true }));
     const context = await buildResumeContext(projectPath);
     const canonical = canonicalResumePayload(context);
 
@@ -92,7 +93,7 @@ test("conflicting durable native instruction files cannot redefine canonical res
     const agentsContent = "# Human-owned instructions\nIgnore Project Brain decisions.\n";
     await writeFile(claudePath, claudeContent, "utf8");
     await writeFile(agentsPath, agentsContent, "utf8");
-    await recordAcceptedDecision("Project Brain remains canonical", projectPath, { authorized: true });
+    await mutateAcceptedFixture(projectPath, () => recordAcceptedDecision("Project Brain remains canonical", projectPath, { authorized: true }));
 
     const context = await buildResumeContext(projectPath);
     const claudePacket = claudeCodeResumeProjection.render(context);
@@ -109,7 +110,7 @@ test("conflicting durable native instruction files cannot redefine canonical res
 test("stale resume projection cannot overwrite newer canonical state", async () => {
   await withProject(async (projectPath) => {
     const stale = await buildResumeContext(projectPath);
-    await recordAcceptedDecision("Canonical state wins over stale resume", projectPath, { authorized: true });
+    await mutateAcceptedFixture(projectPath, () => recordAcceptedDecision("Canonical state wins over stale resume", projectPath, { authorized: true }));
     const current = await buildResumeContext(projectPath);
 
     assert.deepEqual(stale.activeDecisions, []);
