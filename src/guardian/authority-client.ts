@@ -10,6 +10,7 @@ import {
   type GuardianAuthorityMode,
   type GuardianAuthorityRecord,
 } from "./authority-record.js";
+import { parseProtectedGuardianRequest } from "./protected-helper.js";
 import { assertProductionGuardianRootReady, guardianLayoutPaths } from "./trust-root.js";
 
 export const GUARDIAN_AUTHORITY_REQUEST_KIND = "livariant-guardian-authority-request" as const;
@@ -81,16 +82,16 @@ export function buildGuardianAuthorityRequest(input: {
   mode: GuardianAuthorityMode;
   materialFields: readonly GuardianAuthorityMaterialField[];
 }): { request: GuardianAuthorityRequest; materialSha256: string } {
-  const materialFields = input.materialFields.map((field) => ({ label: field.label, value: field.value }));
-  const materialSha256 = guardianAuthorityMaterialDigest(input.consumer, materialFields);
+  const parsed = parseProtectedGuardianRequest({
+    schemaVersion: 1,
+    kind: GUARDIAN_AUTHORITY_REQUEST_KIND,
+    consumer: input.consumer,
+    mode: input.mode,
+    materialFields: input.materialFields.map((field) => ({ label: field.label, value: field.value })),
+  });
+  const materialSha256 = guardianAuthorityMaterialDigest(parsed.consumer, parsed.materialFields);
   return {
-    request: {
-      schemaVersion: 1,
-      kind: GUARDIAN_AUTHORITY_REQUEST_KIND,
-      consumer: input.consumer,
-      mode: input.mode,
-      materialFields,
-    },
+    request: parsed as GuardianAuthorityRequest,
     materialSha256,
   };
 }
