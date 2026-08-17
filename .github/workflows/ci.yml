@@ -121,6 +121,106 @@ jobs:
         if: needs.classify.outputs.run_executable == 'true'
         run: npm test
 
+      - name: Verify protected Guardian origin on Linux
+        if: needs.classify.outputs.run_full == 'true' && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          staging="$RUNNER_TEMP/livariant-guardian-fixture"
+          rm -rf "$staging"
+          mkdir -p "$staging"
+          node scripts/build-guardian-protected-fixture.mjs "$staging"
+
+          sudo rm -rf /var/lib/livariant-guardian
+          sudo install -d -o root -g root -m 0755 \
+            /var/lib/livariant-guardian \
+            /var/lib/livariant-guardian/v1 \
+            /var/lib/livariant-guardian/v1/records \
+            /var/lib/livariant-guardian/v1/records/semantic-mutation
+          sudo install -o root -g root -m 0555 "$staging/guardian-helper.js" /var/lib/livariant-guardian/v1/guardian-helper.js
+          sudo install -o root -g root -m 0444 "$staging/guardian-root.json" /var/lib/livariant-guardian/v1/guardian-root.json
+          sudo install -o root -g root -m 0444 \
+            "$staging/records/semantic-mutation/44444444-4444-4444-8444-444444444444.json" \
+            /var/lib/livariant-guardian/v1/records/semantic-mutation/44444444-4444-4444-8444-444444444444.json
+
+          node scripts/guardian-protected-origin-smoke.mjs "$staging/fixture.json"
+
+      - name: Clean protected Guardian fixture on Linux
+        if: always() && needs.classify.outputs.run_full == 'true' && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          sudo rm -rf /var/lib/livariant-guardian
+          rm -rf "$RUNNER_TEMP/livariant-guardian-fixture"
+
+      - name: Verify protected Guardian origin on Windows
+        if: needs.classify.outputs.run_full == 'true' && matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = Join-Path $env:RUNNER_TEMP 'livariant-guardian-fixture'
+          $root = 'C:\ProgramData\Livariant\Guardian\v1'
+          $livariant = 'C:\ProgramData\Livariant'
+          $guardian = 'C:\ProgramData\Livariant\Guardian'
+          $records = Join-Path $root 'records'
+          $consumer = Join-Path $records 'semantic-mutation'
+          Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          node scripts/build-guardian-protected-fixture.mjs $staging
+
+          Remove-Item -LiteralPath $livariant -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $consumer -Force | Out-Null
+
+          $system = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
+          $admins = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
+          $users = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-545')
+          $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+          $none = [System.Security.AccessControl.PropagationFlags]::None
+          $allow = [System.Security.AccessControl.AccessControlType]::Allow
+
+          function Set-ProtectedDirectory([string]$path) {
+            $acl = New-Object System.Security.AccessControl.DirectorySecurity
+            $acl.SetOwner($admins)
+            $acl.SetAccessRuleProtection($true, $false)
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $inherit, $none, $allow)))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $inherit, $none, $allow)))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $inherit, $none, $allow)))
+            [System.IO.Directory]::SetAccessControl($path, $acl)
+          }
+
+          function Set-ProtectedFile([string]$path) {
+            $acl = New-Object System.Security.AccessControl.FileSecurity
+            $acl.SetOwner($admins)
+            $acl.SetAccessRuleProtection($true, $false)
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $allow)))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $allow)))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $allow)))
+            [System.IO.File]::SetAccessControl($path, $acl)
+          }
+
+          foreach ($directory in @($livariant, $guardian, $root, $records, $consumer)) {
+            Set-ProtectedDirectory $directory
+          }
+
+          Copy-Item -LiteralPath (Join-Path $staging 'guardian-helper.js') -Destination (Join-Path $root 'guardian-helper.js')
+          Copy-Item -LiteralPath (Join-Path $staging 'guardian-root.json') -Destination (Join-Path $root 'guardian-root.json')
+          Copy-Item -LiteralPath (Join-Path $staging 'records\semantic-mutation\44444444-4444-4444-8444-444444444444.json') -Destination (Join-Path $consumer '44444444-4444-4444-8444-444444444444.json')
+          foreach ($file in @(
+            (Join-Path $root 'guardian-helper.js'),
+            (Join-Path $root 'guardian-root.json'),
+            (Join-Path $consumer '44444444-4444-4444-8444-444444444444.json')
+          )) {
+            Set-ProtectedFile $file
+          }
+
+          node scripts/guardian-protected-origin-smoke.mjs (Join-Path $staging 'fixture.json')
+
+      - name: Clean protected Guardian fixture on Windows
+        if: always() && needs.classify.outputs.run_full == 'true' && matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath 'C:\ProgramData\Livariant' -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'livariant-guardian-fixture') -Recurse -Force -ErrorAction SilentlyContinue
+
       - name: Pack, install, and execute clean-consumer smoke test
         if: needs.classify.outputs.run_full == 'true'
         run: npm run test:package
