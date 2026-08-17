@@ -307,7 +307,6 @@ async function assertProtectedInterpreter(): Promise<void> {
 }
 
 async function assertProtectedSelf(): Promise<{ root: string; records: string }> {
-  await assertProtectedInterpreter();
   const expectedRoot = productionRoot();
   const physicalSelf = await realpath(fileURLToPath(import.meta.url));
   const physicalRoot = await realpath(dirname(physicalSelf));
@@ -402,6 +401,7 @@ async function ensureConsumerDirectory(recordsRoot: string, consumer: ProtectedG
 async function issueAuthority(requestPath: string): Promise<void> {
   const { records } = await assertProtectedSelf();
   requirePrivilegedProcess();
+  await assertProtectedInterpreter();
   const request = parseProtectedGuardianRequest(JSON.parse(await readFile(requestPath, "utf8")) as unknown);
   const materialSha256 = protectedGuardianMaterialDigest(request.consumer, request.materialFields);
   await requireInteractiveIssuance(request, materialSha256);
@@ -445,6 +445,7 @@ async function inspectAuthority(consumer: ProtectedGuardianConsumer, recordId: s
 async function consumeAuthority(consumer: ProtectedGuardianConsumer, recordId: string, expectedMaterialSha256: string): Promise<void> {
   const { records } = await assertProtectedSelf();
   requirePrivilegedProcess();
+  await assertProtectedInterpreter();
   if (!validSha256(expectedMaterialSha256)) throw new Error("Guardian Authority expected material digest is invalid.");
   const { path, raw, record } = await readRecord(records, consumer, recordId);
   if (record.mode !== "one-shot") throw new Error("Persistent Guardian Authority cannot be consumed as a one-shot capability.");
