@@ -39,6 +39,11 @@ export interface GuardianRootInspection {
   limitations: string[];
 }
 
+export interface GuardianDiagnosticOptions {
+  /** Diagnostic/test-only reference. Authority consumers never expose this override. */
+  requesterHomePath?: string;
+}
+
 function errno(error: unknown, ...codes: string[]): boolean {
   return error instanceof Error && "code" in error && codes.includes(String((error as NodeJS.ErrnoException).code));
 }
@@ -201,10 +206,16 @@ function report(state: GuardianInspectionState, platform: NodeJS.Platform, root:
 
 /**
  * Diagnostic core for a concrete root. Authority consumers must use
- * assertProductionGuardianRootReady(), which fixes the production location.
- * This function exists so path/layout behavior can be attacked directly in tests.
+ * assertProductionGuardianRootReady(), which fixes both production root and real OS home.
+ * The optional requester-home reference exists only so platform path behavior can be
+ * attacked deterministically in tests; it does not create Authority.
  */
-export async function inspectGuardianRootAt(root: string, projectPath: string, platform: NodeJS.Platform = process.platform): Promise<GuardianRootInspection> {
+export async function inspectGuardianRootAt(
+  root: string,
+  projectPath: string,
+  platform: NodeJS.Platform = process.platform,
+  options: GuardianDiagnosticOptions = {},
+): Promise<GuardianRootInspection> {
   if (!isGuardianPlatform(platform)) return report("unsupported-platform", platform, null, "Guardian v1 supports Windows and Linux only.");
   if (!isAbsolute(root)) return report("unsafe", platform, root, "Guardian root must be an absolute fixed system path.");
 
@@ -216,10 +227,11 @@ export async function inspectGuardianRootAt(root: string, projectPath: string, p
   }
 
   try {
+    const homeReference = options.requesterHomePath ?? homedir();
     const [physicalRoot, physicalProject, physicalHome] = await Promise.all([
       realpath(root),
       realpath(projectPath),
-      realpath(homedir()),
+      realpath(homeReference),
     ]);
     if (pathIsWithin(physicalProject, physicalRoot) || pathIsWithin(physicalRoot, physicalProject)) {
       throw new Error("Guardian root must not overlap the current project directory.");
