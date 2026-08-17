@@ -6,6 +6,8 @@ import test from "node:test";
 import {
   buildGuardianRootDescriptor,
   inspectGuardianRootAt,
+  isProtectedPosixOwner,
+  isProtectedWindowsOwnerSid,
   productionGuardianRoot,
 } from "../src/guardian/trust-root.js";
 
@@ -48,6 +50,14 @@ test("production Guardian roots are fixed platform locations and do not use envi
     if (oldProgramData === undefined) delete process.env.ProgramData;
     else process.env.ProgramData = oldProgramData;
   }
+});
+
+test("protected ownership rules accept only root/SYSTEM/built-in Administrators", () => {
+  assert.equal(isProtectedPosixOwner(0), true);
+  assert.equal(isProtectedPosixOwner(1000), false);
+  assert.equal(isProtectedWindowsOwnerSid("S-1-5-18"), true);
+  assert.equal(isProtectedWindowsOwnerSid("S-1-5-32-544"), true);
+  assert.equal(isProtectedWindowsOwnerSid("S-1-5-21-123-456-789-1001"), false);
 });
 
 test("missing Guardian root is unavailable and makes zero changes", async () => {
@@ -138,7 +148,7 @@ test("symlinked Guardian root is rejected", { skip: process.platform === "win32"
   }
 });
 
-test("read-only protected Guardian layout can be recognized as ready on Linux", { skip: process.platform === "win32" }, async () => {
+test("read-only but requester-owned Guardian layout remains unsafe on Linux", { skip: process.platform === "win32" }, async () => {
   await withTemp(async (root, project) => {
     await writeValidLayout(root, "linux");
     await chmod(resolve(root, "guardian-root.json"), 0o444);
@@ -147,8 +157,8 @@ test("read-only protected Guardian layout can be recognized as ready on Linux", 
     await chmod(root, 0o555);
 
     const inspection = await inspectGuardianRootAt(root, project, "linux");
-    assert.equal(inspection.state, "ready");
-    assert.equal(inspection.guardianReady, true);
-    assert.equal(inspection.changesMade, 0);
+    assert.equal(inspection.state, "unsafe");
+    assert.equal(inspection.guardianReady, false);
+    assert.match(inspection.reason, /not owned by the protected root principal/i);
   });
 });
