@@ -10,7 +10,6 @@ import {
   inspectAuthorizationAudit,
   parseSemanticProposalCandidate,
 } from "../src/runtime/index.js";
-import { ProjectBrainStore } from "../src/project-brain/store.js";
 import type { ActionableProposal } from "../src/runtime/actionable-proposal.js";
 
 const AUTH_ID = "66666666-6666-4666-8666-666666666666";
@@ -47,7 +46,7 @@ function goalCandidate(statement: string) {
     domain: "project-goal",
     changeKind: "add",
     proposedStatement: statement,
-    rationale: "Verify exact same-process managed delta",
+    rationale: "Verify Guardian gate precedes post-consumption delta hooks",
     origin: "explicit-user",
   });
 }
@@ -59,7 +58,7 @@ async function prepare(path: string, statement: string): Promise<ActionablePropo
   return result.proposal;
 }
 
-async function seedAuthorizedEvidence(path: string, proposal: ActionableProposal): Promise<void> {
+async function seedSameUserEvidence(path: string, proposal: ActionableProposal): Promise<void> {
   const authorizedAt = new Date().toISOString();
   const binding = {
     authorizationId: AUTH_ID,
@@ -70,86 +69,30 @@ async function seedAuthorizedEvidence(path: string, proposal: ActionableProposal
     mutationScope: proposal.mutationScope,
     baseline: proposal.baseline,
   };
-
   const projectRoot = resolve(path, ".project-brain", ".authorizations");
   await mkdir(resolve(projectRoot, "history"), { recursive: true });
-  await writeFile(resolve(projectRoot, "active.json"), `${JSON.stringify({
-    ...binding,
-    schemaVersion: 1,
-    kind: "semantic-mutation-authorization-audit",
-    state: "authorized",
-    authorizedAt,
-  }, null, 2)}\n`, "utf8");
-
+  await writeFile(resolve(projectRoot, "active.json"), `${JSON.stringify({ ...binding, schemaVersion: 1, kind: "semantic-mutation-authorization-audit", state: "authorized", authorizedAt }, null, 2)}\n`, "utf8");
   const root = machineRoot(proposal.stableProjectIdentity);
   await mkdir(root, { recursive: true });
-  await writeFile(resolve(root, `${AUTH_ID}.json`), `${JSON.stringify({
-    ...binding,
-    schemaVersion: 1,
-    kind: "semantic-mutation-authorization",
-    state: "authorized",
-    authorizedAt,
-  }, null, 2)}\n`, "utf8");
+  await writeFile(resolve(root, `${AUTH_ID}.json`), `${JSON.stringify({ ...binding, schemaVersion: 1, kind: "semantic-mutation-authorization", state: "authorized", authorizedAt }, null, 2)}\n`, "utf8");
 }
 
-async function machineState(proposal: ActionableProposal): Promise<string> {
-  const receipt = JSON.parse(await readFile(resolve(machineRoot(proposal.stableProjectIdentity), `${AUTH_ID}.json`), "utf8")) as { state: string };
-  return receipt.state;
-}
-
-async function assertFailedTerminal(path: string, proposal: ActionableProposal): Promise<void> {
-  const audit = await inspectAuthorizationAudit(path);
-  assert.equal(audit.active, null);
-  assert.ok(audit.history.some((record) => record.authorizationId === AUTH_ID && record.state === "failed-recovery-required"));
-  assert.equal(await machineState(proposal), "failed-recovery-required");
-}
-
-async function injectLowLevelKnowledge(path: string, fact: string): Promise<void> {
-  const store = new ProjectBrainStore(path);
-  const current = await store.readKnowledgeDocument();
-  const marker = "## Confirmed project knowledge";
-  const candidate = current.includes(marker)
-    ? `${current.trimEnd()}\n- ${fact}\n`
-    : `${current.trimEnd()}\n\n${marker}\n\n- ${fact}\n`;
-  await store.replaceKnowledgeDocument(current, candidate);
-}
-
-test("unrelated managed change after authorized promote blocks completion", async () => {
-  await withProject(async (path) => {
-    const proposal = await prepare(path, "Only this goal is authorized");
-    await seedAuthorizedEvidence(path, proposal);
-
-    await assert.rejects(
-      applyActionableProposal(AUTH_ID, proposal, path, {
-        afterPromoteBeforeVerify: async () => {
-          await injectLowLevelKnowledge(path, "Concurrent unrelated managed fact");
-        },
-      }),
-      /unrelated managed Project Brain change|recovery-required/i,
-    );
-
-    assert.match(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Only this goal is authorized/);
-    assert.match(await readFile(resolve(path, ".project-brain", "knowledge.md"), "utf8"), /Concurrent unrelated managed fact/);
-    await assertFailedTerminal(path, proposal);
+for (const hook of ["afterPromoteBeforeVerify", "beforeComplete"] as const) {
+  test(`${hook} cannot be reached from same-user evidence without Guardian consumption`, async () => {
+    await withProject(async (path) => {
+      const statement = `Guardian must precede ${hook}`;
+      const proposal = await prepare(path, statement);
+      await seedSameUserEvidence(path, proposal);
+      let reached = false;
+      await assert.rejects(
+        applyActionableProposal(AUTH_ID, proposal, path, {
+          [hook]: async () => { reached = true; },
+        }),
+        /Protected Livariant Guardian is not ready|Matching active protected Guardian Semantic Authority is missing/i,
+      );
+      assert.equal(reached, false);
+      assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), new RegExp(statement));
+      assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
+    });
   });
-});
-
-test("managed state change after semantic verification blocks terminal completion", async () => {
-  await withProject(async (path) => {
-    const proposal = await prepare(path, "Verify before completing Authority");
-    await seedAuthorizedEvidence(path, proposal);
-
-    await assert.rejects(
-      applyActionableProposal(AUTH_ID, proposal, path, {
-        beforeComplete: async () => {
-          await injectLowLevelKnowledge(path, "Changed after semantic verification");
-        },
-      }),
-      /changed after Semantic Apply verification|recovery-required/i,
-    );
-
-    assert.match(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Verify before completing Authority/);
-    assert.match(await readFile(resolve(path, ".project-brain", "knowledge.md"), "utf8"), /Changed after semantic verification/);
-    await assertFailedTerminal(path, proposal);
-  });
-});
+}
