@@ -116,10 +116,10 @@ export function buildGuardianAuthorityRecord(input: {
   if (!validSha256(input.materialSha256)) throw new Error("Guardian Authority material digest is invalid.");
   const issuedAt = input.issuedAt ?? new Date().toISOString();
   if (!validTimestamp(issuedAt)) throw new Error("Guardian Authority issued timestamp is invalid.");
-  if (input.mode === "persistent" && input.expiresAt !== undefined) {
-    throw new Error("Persistent Guardian Authority must not use one-shot expiry semantics.");
-  }
-  if (input.expiresAt !== undefined) {
+  if (input.mode === "persistent") {
+    if (input.expiresAt !== undefined) throw new Error("Persistent Guardian Authority must not use one-shot expiry semantics.");
+  } else {
+    if (input.expiresAt === undefined) throw new Error("One-shot Guardian Authority requires an expiry timestamp.");
     if (!validTimestamp(input.expiresAt)) throw new Error("Guardian Authority expiry timestamp is invalid.");
     if (Date.parse(input.expiresAt) <= Date.parse(issuedAt)) throw new Error("Guardian Authority expiry must be later than issuance.");
   }
@@ -160,11 +160,15 @@ export function parseGuardianAuthorityRecord(value: unknown): GuardianAuthorityR
       throw new Error("Persistent Guardian Authority record has one-shot state fields.");
     }
   } else {
-    if (value.expiresAt !== undefined && Date.parse(value.expiresAt) <= Date.parse(value.issuedAt)) {
+    if (value.expiresAt === undefined) throw new Error("One-shot Guardian Authority record requires an expiry timestamp.");
+    if (Date.parse(value.expiresAt) <= Date.parse(value.issuedAt)) {
       throw new Error("Guardian Authority expiry must be later than issuance.");
     }
     if (value.state === "active" && value.consumedAt !== undefined) throw new Error("Active Guardian Authority must not have a consumed timestamp.");
     if (value.state === "consumed" && value.consumedAt === undefined) throw new Error("Consumed Guardian Authority requires a consumed timestamp.");
+    if (value.consumedAt !== undefined && Date.parse(value.consumedAt) < Date.parse(value.issuedAt)) {
+      throw new Error("Guardian Authority cannot be consumed before it was issued.");
+    }
   }
   return value as unknown as GuardianAuthorityRecord;
 }
@@ -178,6 +182,7 @@ export function assertGuardianAuthorityMatches(
   if (record.mode !== expected.mode) throw new Error("Guardian Authority record mode does not match the required operation semantics.");
   if (record.materialSha256 !== expected.materialSha256) throw new Error("Guardian Authority record does not match the exact consequential material.");
   if (record.state !== "active") throw new Error("Guardian Authority record has already been consumed.");
+  if (record.mode === "one-shot" && record.expiresAt === undefined) throw new Error("One-shot Guardian Authority record has no expiry timestamp.");
   if (record.expiresAt !== undefined && Date.parse(record.expiresAt) <= now.getTime()) throw new Error("Guardian Authority record has expired.");
 }
 
@@ -186,5 +191,6 @@ export function consumeGuardianAuthorityRecord(record: GuardianAuthorityRecord, 
   if (record.state !== "active") throw new Error("Guardian Authority record has already been consumed.");
   if (!validTimestamp(consumedAt)) throw new Error("Guardian Authority consumed timestamp is invalid.");
   if (Date.parse(consumedAt) < Date.parse(record.issuedAt)) throw new Error("Guardian Authority cannot be consumed before it was issued.");
+  if (record.expiresAt === undefined || Date.parse(record.expiresAt) <= Date.parse(consumedAt)) throw new Error("Guardian Authority record is expired and cannot be consumed.");
   return { ...record, state: "consumed", consumedAt };
 }
