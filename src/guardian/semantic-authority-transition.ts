@@ -1,7 +1,10 @@
 import { realpath } from "node:fs/promises";
 import { discoverProject } from "../project/discovery.js";
 import type { ActionableProposal } from "../runtime/actionable-proposal.js";
-import { findMatchingActiveGuardianAuthority } from "./authority-client.js";
+import {
+  findMatchingActiveGuardianAuthority,
+  findMatchingConsumedGuardianAuthority,
+} from "./authority-client.js";
 import { consumeGuardianAuthority, issueGuardianAuthority } from "./authority-transitions.js";
 import { buildSemanticGuardianAuthorityRequest } from "./semantic-authority.js";
 
@@ -52,4 +55,22 @@ export async function consumeSemanticGuardianAuthority(
     projectPath,
   });
   return { material, record: consumed };
+}
+
+export async function assertSemanticGuardianAuthorityWasConsumed(
+  authorizationId: string,
+  proposal: ActionableProposal,
+  projectPath: string = process.cwd(),
+) {
+  const material = await semanticRequest(authorizationId, proposal, projectPath);
+  const record = await findMatchingConsumedGuardianAuthority({
+    consumer: "semantic-mutation",
+    mode: "one-shot",
+    materialSha256: material.materialSha256,
+    projectPath,
+  });
+  if (!record) {
+    throw new Error("Protected Guardian does not contain an exact consumed Semantic Authority record for this authorization; local applying evidence is not sufficient for recovery.");
+  }
+  return { material, record };
 }
