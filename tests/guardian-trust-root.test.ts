@@ -85,6 +85,16 @@ test("syntactically perfect Guardian files in a requester-writable directory are
   });
 });
 
+test("Windows Guardian readiness rejects a syntactically valid requester-owned/DACL-writable root", { skip: process.platform !== "win32" }, async () => {
+  await withTemp(async (root, project, requesterHome) => {
+    await writeValidLayout(root, "win32");
+    const inspection = await inspectFixture(root, project, requesterHome, "win32");
+    assert.equal(inspection.state, "unsafe");
+    assert.equal(inspection.guardianReady, false);
+    assert.match(inspection.reason, /not owned by SYSTEM|write-capable ACL rights/i);
+  });
+});
+
 test("Guardian root overlapping the project is rejected before it can become trust", async () => {
   const base = await mkdtemp(resolve(tmpdir(), "livariant-guardian-overlap-"));
   const project = resolve(base, "project");
