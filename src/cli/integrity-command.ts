@@ -1,3 +1,5 @@
+import { createInterface } from "node:readline/promises";
+import { stdin, stderr } from "node:process";
 import { inspectProjectBrainIntegrity, recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import { runDoctor } from "../runtime/doctor.js";
 
@@ -36,20 +38,31 @@ async function inspect(args: string[]): Promise<void> {
   if (state.state === "mismatch" || state.state === "invalid") process.exitCode = 3;
 }
 
-async function acceptCurrent(args: string[]): Promise<void> {
-  validateArgs(args, new Set(["--acknowledge-current-state", "--json"]));
-  const json = hasFlag(args, "--json");
-  if (!hasFlag(args, "--acknowledge-current-state")) {
-    throw new Error("Establishing the initial Project Brain integrity checkpoint requires --acknowledge-current-state after reviewing the current bytes/state.");
+async function requireInteractiveBootstrapConfirmation(digest: string): Promise<void> {
+  if (!stdin.isTTY || !stderr.isTTY) {
+    throw new Error("Initial Project Brain integrity acceptance requires an interactive local terminal. Non-interactive agents, providers, scripts, redirected input, and CI cannot establish trusted-current material.");
   }
+  const phrase = `ACCEPT PROJECT BRAIN ${digest.slice(0, 12)}`;
+  stderr.write("Project Brain integrity bootstrap review\n");
+  stderr.write(`Current material digest: ${digest}\n`);
+  stderr.write("This accepts the current managed Project Brain semantic bytes as the starting canonical material state.\n");
+  stderr.write("Do not continue if these bytes were changed by an agent or other process without your review.\n");
+  stderr.write(`Type exactly: ${phrase}\n`);
+  const terminal = createInterface({ input: stdin, output: stderr });
+  try {
+    const answer = await terminal.question("> ");
+    if (answer !== phrase) throw new Error("Project Brain integrity bootstrap confirmation did not match the exact material challenge.");
+  } finally {
+    terminal.close();
+  }
+}
 
+async function acceptCurrent(args: string[]): Promise<void> {
+  validateArgs(args, new Set<string>());
   const state = await inspectProjectBrainIntegrity();
   if (state.state === "match") {
-    if (json) console.log(JSON.stringify({ state: "already-established", baseline: state.current, changesMade: 0 }));
-    else {
-      console.log("Project Brain integrity checkpoint is already established for the current material state.");
-      console.log("Changes made: 0");
-    }
+    console.log("Project Brain integrity checkpoint is already established for the current material state.");
+    console.log("Changes made: 0");
     return;
   }
   if (state.state !== "missing") {
@@ -63,17 +76,8 @@ async function acceptCurrent(args: string[]): Promise<void> {
     throw new Error(`Initial integrity acceptance requires an otherwise healthy Project Brain: ${reason}`);
   }
 
+  await requireInteractiveBootstrapConfirmation(state.current.digest);
   const receipt = await recordAcceptedProjectBrainState(process.cwd(), "manual-bootstrap");
-  if (json) {
-    console.log(JSON.stringify({
-      state: "established",
-      baseline: receipt.baseline,
-      stableProjectIdentity: receipt.stableProjectIdentity,
-      sameUserAgentResistantAuthority: false,
-      changesMade: 0,
-    }));
-    return;
-  }
   console.log("Initial machine-local Project Brain integrity checkpoint established.");
   console.log(`Accepted material: ${receipt.baseline.algorithm}:${receipt.baseline.digest}`);
   console.log("This checkpoint detects later project-local/direct-writer drift. It is not a same-user Agent-resistant Authority boundary.");
@@ -91,5 +95,5 @@ export async function handleIntegrityCommand(args: string[]): Promise<void> {
     await acceptCurrent(rest);
     return;
   }
-  throw new Error("Integrity command supports 'inspect [--json]' or 'accept-current --acknowledge-current-state [--json]'.");
+  throw new Error("Integrity command supports 'inspect [--json]' or interactive 'accept-current'.");
 }
