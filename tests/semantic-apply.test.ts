@@ -13,6 +13,7 @@ import {
 } from "../src/runtime/index.js";
 import type { ActionableProposal } from "../src/runtime/actionable-proposal.js";
 import { parseDecisionsMarkdown } from "../src/project-brain/decisions.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const FIXED_AUTH_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -125,7 +126,10 @@ test("semantic apply supports confirmed goal and knowledge add with exact author
 
 test("semantic apply supports exact decision supersession and preserves history", async () => {
   await withProject(async (path) => {
-    const existing = await recordAcceptedDecision("Use passwords", path, { authorized: true });
+    let existing!: Awaited<ReturnType<typeof recordAcceptedDecision>>;
+    await mutateAcceptedFixture(path, async () => {
+      existing = await recordAcceptedDecision("Use passwords", path, { authorized: true });
+    });
     const proposal = await prepare(path, {
       schemaVersion: 1,
       domain: "project-decision",
