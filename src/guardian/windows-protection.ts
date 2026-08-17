@@ -2,12 +2,13 @@ import { spawnSync } from "node:child_process";
 
 const WINDOWS_POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
 const WINDOWS_ACL_TARGET_ENV = "LIVARIANT_GUARDIAN_ACL_TARGET";
+const WINDOWS_RESULT_PREFIX = "LIVARIANT_GUARDIAN_ACL_RESULT|";
 const WINDOWS_SYSTEM_SID = "S-1-5-18";
 const WINDOWS_ADMINISTRATORS_SID = "S-1-5-32-544";
 const WINDOWS_EVERYONE_SID = "S-1-1-0";
 const WINDOWS_AUTHENTICATED_USERS_SID = "S-1-5-11";
 const WINDOWS_USERS_SID = "S-1-5-32-545";
-const WINDOWS_PROTECTION_RESULT = /^(S-1-[0-9-]+)\|(yes|no)\|(yes|no)$/iu;
+const WINDOWS_PROTECTION_RESULT = /^LIVARIANT_GUARDIAN_ACL_RESULT\|(S-1-[0-9-]+)\|(yes|no)\|(yes|no)$/iu;
 
 export interface WindowsProtectionInspection {
   ownerSid: string;
@@ -24,7 +25,7 @@ export function parseWindowsProtectionOutput(stdout: string): WindowsProtectionI
   const matches = stdout
     .split(/\r?\n/u)
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line.startsWith(WINDOWS_RESULT_PREFIX))
     .map((line) => WINDOWS_PROTECTION_RESULT.exec(line))
     .filter((match): match is RegExpExecArray => match !== null);
 
@@ -52,6 +53,7 @@ export function parseWindowsProtectionOutput(stdout: string): WindowsProtectionI
  */
 export function inspectWindowsProtection(path: string): WindowsProtectionInspection {
   const script = [
+    "$ErrorActionPreference='Stop'",
     `$target=$env:${WINDOWS_ACL_TARGET_ENV}`,
     "if([string]::IsNullOrEmpty($target)){throw 'Guardian ACL target is missing'}",
     "$acl=Get-Acl -LiteralPath $target",
@@ -66,7 +68,9 @@ export function inspectWindowsProtection(path: string): WindowsProtectionInspect
     "$unsafeWrite=$false",
     "$unsafeReplace=$false",
     "foreach($rule in $acl.Access){ try{$sid=$rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{continue}; if($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or $blocked -notcontains $sid){continue}; if(($rule.FileSystemRights -band $writeDanger) -ne 0){$unsafeWrite=$true}; if(($rule.FileSystemRights -band $replaceChildDanger) -ne 0){$unsafeReplace=$true} }",
-    "[Console]::Out.WriteLine(($owner + '|' + $(if($unsafeWrite){'yes'}else{'no'}) + '|' + $(if($unsafeReplace){'yes'}else{'no'})))",
+    "$writeResult=if($unsafeWrite){'yes'}else{'no'}",
+    "$replaceResult=if($unsafeReplace){'yes'}else{'no'}",
+    `[Console]::Out.WriteLine('${WINDOWS_RESULT_PREFIX}' + $owner + '|' + $writeResult + '|' + $replaceResult)`,
   ].join("; ");
   const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script], {
     encoding: "utf8",
