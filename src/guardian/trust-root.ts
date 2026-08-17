@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { constants } from "node:fs";
 import { access, lstat, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -11,6 +12,9 @@ export const GUARDIAN_HELPER_FILE = "guardian-helper.js" as const;
 export const GUARDIAN_DESCRIPTOR_FILE = "guardian-root.json" as const;
 export const GUARDIAN_RECORDS_DIRECTORY = "records" as const;
 const MAX_HELPER_BYTES = 256 * 1024;
+const WINDOWS_POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+const WINDOWS_SYSTEM_SID = "S-1-5-18";
+const WINDOWS_ADMINISTRATORS_SID = "S-1-5-32-544";
 
 export type GuardianPlatform = "win32" | "linux";
 export type GuardianInspectionState = "ready" | "unavailable" | "unsafe" | "unsupported-platform";
@@ -79,6 +83,15 @@ export function buildGuardianRootDescriptor(helperBytes: Uint8Array, physicalRoo
   };
 }
 
+export function isProtectedPosixOwner(uid: number): boolean {
+  return uid === 0;
+}
+
+export function isProtectedWindowsOwnerSid(sid: string): boolean {
+  const normalized = sid.trim().toUpperCase();
+  return normalized === WINDOWS_SYSTEM_SID || normalized === WINDOWS_ADMINISTRATORS_SID;
+}
+
 function strictDescriptor(value: unknown, expectedPlatform: GuardianPlatform): GuardianRootDescriptor {
   if (typeof value !== "object" || value === null || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) {
     throw new Error("Guardian root descriptor is invalid.");
@@ -137,6 +150,32 @@ async function assertDirectoryNotWritableByRequester(path: string, label: string
   }
   try { await rm(probe, { force: true }); } catch { /* root is already unsafe; leave diagnosis fail-closed */ }
   throw new Error(`${label} is writable by the ordinary Livariant requester principal.`);
+}
+
+function windowsOwnerSid(path: string): string {
+  const script = "$acl=Get-Acl -LiteralPath $args[0]; $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value";
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script, path], {
+    encoding: "utf8",
+    shell: false,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
+    throw new Error(`Guardian Windows owner could not be verified: ${detail.trim()}`);
+  }
+  const sid = result.stdout.trim();
+  if (!/^S-1-[0-9-]+$/iu.test(sid)) throw new Error("Guardian Windows owner verification returned an invalid SID.");
+  return sid;
+}
+
+async function assertProtectedOwnership(path: string, platform: GuardianPlatform, label: string): Promise<void> {
+  if (platform === "linux") {
+    const stats = await lstat(path);
+    if (!isProtectedPosixOwner(Number(stats.uid))) throw new Error(`${label} is not owned by the protected root principal.`);
+    return;
+  }
+  const sid = windowsOwnerSid(path);
+  if (!isProtectedWindowsOwnerSid(sid)) throw new Error(`${label} is not owned by SYSTEM or the built-in Administrators principal.`);
 }
 
 function baseLimitations(): string[] {
@@ -208,12 +247,19 @@ export async function inspectGuardianRootAt(root: string, projectPath: string, p
       throw new Error("Guardian root does not match its protected physical-location binding.");
     }
 
+    // Writability is checked before ownership so user-controlled test roots fail
+    // as soon as possible. Production readiness requires both properties.
     await assertDirectoryNotWritableByRequester(physicalRoot, "Guardian root");
     await assertDirectoryNotWritableByRequester(recordsPath, "Guardian records root");
     await assertFileNotWritableByRequester(descriptorPath, "Guardian descriptor");
     await assertFileNotWritableByRequester(helperPath, "Guardian helper");
 
-    return report("ready", platform, physicalRoot, "Guardian root is present, internally consistent, physically bound, and not writable by the ordinary requester principal.");
+    await assertProtectedOwnership(physicalRoot, platform, "Guardian root");
+    await assertProtectedOwnership(recordsPath, platform, "Guardian records root");
+    await assertProtectedOwnership(descriptorPath, platform, "Guardian descriptor");
+    await assertProtectedOwnership(helperPath, platform, "Guardian helper");
+
+    return report("ready", platform, physicalRoot, "Guardian root is present, internally consistent, physically bound, protected-owned, and not writable by the ordinary requester principal.");
   } catch (error) {
     return report("unsafe", platform, root, error instanceof Error ? error.message : "Guardian root verification failed.");
   }
