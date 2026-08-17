@@ -7,10 +7,9 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 export const GUARDIAN_ROOT_SCHEMA_VERSION = 1 as const;
 export const GUARDIAN_VERSION = 1 as const;
 export const GUARDIAN_ROOT_KIND = "livariant-guardian-root" as const;
-
-const HELPER_FILE = "guardian-helper.js" as const;
-const DESCRIPTOR_FILE = "guardian-root.json" as const;
-const RECORDS_DIRECTORY = "records" as const;
+export const GUARDIAN_HELPER_FILE = "guardian-helper.js" as const;
+export const GUARDIAN_DESCRIPTOR_FILE = "guardian-root.json" as const;
+export const GUARDIAN_RECORDS_DIRECTORY = "records" as const;
 const MAX_HELPER_BYTES = 256 * 1024;
 
 export type GuardianPlatform = "win32" | "linux";
@@ -22,6 +21,7 @@ export interface GuardianRootDescriptor {
   guardianVersion: typeof GUARDIAN_VERSION;
   platform: GuardianPlatform;
   helperSha256: string;
+  rootBindingSha256: string;
 }
 
 export interface GuardianRootInspection {
@@ -54,12 +54,37 @@ export function productionGuardianRoot(platform: NodeJS.Platform = process.platf
   return null;
 }
 
+export function guardianLayoutPaths(root: string): { descriptor: string; helper: string; records: string } {
+  const normalized = resolve(root);
+  return {
+    descriptor: resolve(normalized, GUARDIAN_DESCRIPTOR_FILE),
+    helper: resolve(normalized, GUARDIAN_HELPER_FILE),
+    records: resolve(normalized, GUARDIAN_RECORDS_DIRECTORY),
+  };
+}
+
+export function guardianRootBinding(root: string, platform: GuardianPlatform): string {
+  const material = platform === "win32" ? resolve(root).toLowerCase() : resolve(root);
+  return createHash("sha256").update(`livariant:guardian-root:v1\0${platform}\0${material}`, "utf8").digest("hex");
+}
+
+export function buildGuardianRootDescriptor(helperBytes: Uint8Array, physicalRoot: string, platform: GuardianPlatform): GuardianRootDescriptor {
+  return {
+    schemaVersion: GUARDIAN_ROOT_SCHEMA_VERSION,
+    kind: GUARDIAN_ROOT_KIND,
+    guardianVersion: GUARDIAN_VERSION,
+    platform,
+    helperSha256: createHash("sha256").update(helperBytes).digest("hex"),
+    rootBindingSha256: guardianRootBinding(physicalRoot, platform),
+  };
+}
+
 function strictDescriptor(value: unknown, expectedPlatform: GuardianPlatform): GuardianRootDescriptor {
   if (typeof value !== "object" || value === null || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) {
     throw new Error("Guardian root descriptor is invalid.");
   }
   const record = value as Record<string, unknown>;
-  const allowed = new Set(["schemaVersion", "kind", "guardianVersion", "platform", "helperSha256"]);
+  const allowed = new Set(["schemaVersion", "kind", "guardianVersion", "platform", "helperSha256", "rootBindingSha256"]);
   for (const key of Object.keys(record)) if (!allowed.has(key)) throw new Error("Guardian root descriptor contains an unsupported field.");
   for (const key of allowed) if (!(key in record)) throw new Error(`Guardian root descriptor is missing required field: ${key}.`);
   if (record.schemaVersion !== GUARDIAN_ROOT_SCHEMA_VERSION || record.kind !== GUARDIAN_ROOT_KIND || record.guardianVersion !== GUARDIAN_VERSION) {
@@ -69,12 +94,16 @@ function strictDescriptor(value: unknown, expectedPlatform: GuardianPlatform): G
   if (typeof record.helperSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(record.helperSha256)) {
     throw new Error("Guardian root descriptor helper digest is invalid.");
   }
+  if (typeof record.rootBindingSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(record.rootBindingSha256)) {
+    throw new Error("Guardian root descriptor root binding is invalid.");
+  }
   return {
     schemaVersion: GUARDIAN_ROOT_SCHEMA_VERSION,
     kind: GUARDIAN_ROOT_KIND,
     guardianVersion: GUARDIAN_VERSION,
     platform: expectedPlatform,
     helperSha256: record.helperSha256,
+    rootBindingSha256: record.rootBindingSha256,
   };
 }
 
@@ -160,9 +189,7 @@ export async function inspectGuardianRootAt(root: string, projectPath: string, p
       throw new Error("Guardian root must not overlap the ordinary operating-system user home directory.");
     }
 
-    const descriptorPath = resolve(physicalRoot, DESCRIPTOR_FILE);
-    const helperPath = resolve(physicalRoot, HELPER_FILE);
-    const recordsPath = resolve(physicalRoot, RECORDS_DIRECTORY);
+    const { descriptor: descriptorPath, helper: helperPath, records: recordsPath } = guardianLayoutPaths(physicalRoot);
     if (!pathIsWithin(physicalRoot, descriptorPath) || !pathIsWithin(physicalRoot, helperPath) || !pathIsWithin(physicalRoot, recordsPath)) {
       throw new Error("Guardian layout resolves outside its protected root.");
     }
@@ -177,13 +204,16 @@ export async function inspectGuardianRootAt(root: string, projectPath: string, p
     const descriptor = strictDescriptor(JSON.parse(await readFile(descriptorPath, "utf8")) as unknown, platform);
     const helperSha256 = createHash("sha256").update(helperBytes).digest("hex");
     if (helperSha256 !== descriptor.helperSha256) throw new Error("Guardian helper bytes do not match the protected descriptor digest.");
+    if (guardianRootBinding(physicalRoot, platform) !== descriptor.rootBindingSha256) {
+      throw new Error("Guardian root does not match its protected physical-location binding.");
+    }
 
     await assertDirectoryNotWritableByRequester(physicalRoot, "Guardian root");
     await assertDirectoryNotWritableByRequester(recordsPath, "Guardian records root");
     await assertFileNotWritableByRequester(descriptorPath, "Guardian descriptor");
     await assertFileNotWritableByRequester(helperPath, "Guardian helper");
 
-    return report("ready", platform, physicalRoot, "Guardian root is present, internally consistent, and not writable by the ordinary requester principal.");
+    return report("ready", platform, physicalRoot, "Guardian root is present, internally consistent, physically bound, and not writable by the ordinary requester principal.");
   } catch (error) {
     return report("unsafe", platform, root, error instanceof Error ? error.message : "Guardian root verification failed.");
   }
