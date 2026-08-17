@@ -11,10 +11,11 @@ import {
 } from "../src/guardian/windows-protection.js";
 
 const windowsOnly = { skip: process.platform !== "win32" } as const;
+const resultPrefix = "LIVARIANT_GUARDIAN_ACL_RESULT|";
 
-test("Windows Guardian ACL parser accepts exactly one strict result amid incidental output", () => {
+test("Windows Guardian ACL parser accepts exactly one sentinel-bound strict result amid incidental output", () => {
   assert.deepEqual(
-    parseWindowsProtectionOutput("incidental PowerShell output\r\nS-1-5-21-123-456-789-1001|yes|no\r\n"),
+    parseWindowsProtectionOutput(`incidental PowerShell output\r\n${resultPrefix}S-1-5-21-123-456-789-1001|yes|no\r\n`),
     {
       ownerSid: "S-1-5-21-123-456-789-1001",
       ordinaryRequesterWritable: true,
@@ -23,8 +24,13 @@ test("Windows Guardian ACL parser accepts exactly one strict result amid inciden
   );
   assert.throws(() => parseWindowsProtectionOutput("warning only\n"), /invalid or ambiguous result/i);
   assert.throws(
-    () => parseWindowsProtectionOutput("S-1-5-18|no|no\nS-1-5-18|yes|no\n"),
+    () => parseWindowsProtectionOutput(`${resultPrefix}S-1-5-18|no|no\n${resultPrefix}S-1-5-18|yes|no\n`),
     /invalid or ambiguous result/i,
+  );
+  assert.throws(
+    () => parseWindowsProtectionOutput("S-1-5-18|no|no\n"),
+    /invalid or ambiguous result/i,
+    "unmarked output must never be accepted as Guardian ACL evidence",
   );
 });
 
