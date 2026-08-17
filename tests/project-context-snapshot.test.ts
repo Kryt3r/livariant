@@ -38,11 +38,9 @@ async function withProject(run: (path: string) => Promise<void>): Promise<void> 
 
 test("healthy snapshot exposes provenance-aware canonical context and remains read-only", async () => {
   await withProject(async (path) => {
-    await mutateAcceptedFixture(path, async () => {
-      await addConfirmedGoal("Ship coherent project context", path, { authorized: true });
-      await addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true });
-      await recordAcceptedDecision("Context projection is read-only", path, { authorized: true });
-    });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Ship coherent project context", path, { authorized: true }));
+    await mutateAcceptedFixture(path, () => addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true }));
+    await mutateAcceptedFixture(path, () => recordAcceptedDecision("Context projection is read-only", path, { authorized: true }));
 
     const managed = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"];
     const before = new Map(await Promise.all(managed.map(async (name) => [name, await readFile(resolve(path, ".project-brain", name))] as const)));
