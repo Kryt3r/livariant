@@ -13,6 +13,7 @@ import {
   recordAcceptedDecision,
 } from "../src/runtime/index.js";
 import { isStableProjectIdentity } from "../src/project-brain/identity.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -37,9 +38,11 @@ async function withProject(run: (path: string) => Promise<void>): Promise<void> 
 
 test("healthy snapshot exposes provenance-aware canonical context and remains read-only", async () => {
   await withProject(async (path) => {
-    await addConfirmedGoal("Ship coherent project context", path, { authorized: true });
-    await addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true });
-    await recordAcceptedDecision("Context projection is read-only", path, { authorized: true });
+    await mutateAcceptedFixture(path, async () => {
+      await addConfirmedGoal("Ship coherent project context", path, { authorized: true });
+      await addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true });
+      await recordAcceptedDecision("Context projection is read-only", path, { authorized: true });
+    });
 
     const managed = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"];
     const before = new Map(await Promise.all(managed.map(async (name) => [name, await readFile(resolve(path, ".project-brain", name))] as const)));
@@ -65,7 +68,7 @@ test("healthy snapshot exposes provenance-aware canonical context and remains re
   });
 });
 
-test("material baseline is stable across unchanged reads and changes with managed bytes", async () => {
+test("material baseline is stable across unchanged reads and changes with accepted managed bytes", async () => {
   await withProject(async (path) => {
     const first = await buildProjectContextSnapshot(path);
     const second = await buildProjectContextSnapshot(path);
@@ -76,7 +79,7 @@ test("material baseline is stable across unchanged reads and changes with manage
     assert.equal(first.stableProjectIdentity, second.stableProjectIdentity);
     assert.notEqual(first.generatedAt, "");
 
-    await addConfirmedGoal("Change the material baseline", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Change the material baseline", path, { authorized: true }));
     const changed = await buildProjectContextSnapshot(path);
     assert.equal(changed.safetyState, "clear");
     if (changed.safetyState !== "clear") return;
@@ -120,7 +123,7 @@ test("missing Project Brain produces structured blocked JSON with non-zero proce
 
 test("human and JSON CLI preserve authority distinctions and derived-output warning", async () => {
   await withProject(async (path) => {
-    await addConfirmedGoal("Make agent context trustworthy", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Make agent context trustworthy", path, { authorized: true }));
 
     const human = runCli(path, ["context"]);
     assert.equal(human.status, 0, human.stderr);
