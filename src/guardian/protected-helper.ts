@@ -3,7 +3,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, parse, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { stderr, stdin } from "node:process";
@@ -17,6 +17,14 @@ const GUARDIAN_DESCRIPTOR_FILE = "guardian-root.json" as const;
 const GUARDIAN_RECORDS_DIRECTORY = "records" as const;
 const ONE_SHOT_TTL_MS = 10 * 60 * 1000;
 const WINDOWS_POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+const WINDOWS_INTERPRETER_TARGET_ENV = "LIVARIANT_GUARDIAN_HELPER_INTERPRETER_TARGET";
+const WINDOWS_INTERPRETER_RESULT_PREFIX = "LIVARIANT_GUARDIAN_HELPER_INTERPRETER|";
+const WINDOWS_SYSTEM_SID = "S-1-5-18";
+const WINDOWS_ADMINISTRATORS_SID = "S-1-5-32-544";
+const WINDOWS_EVERYONE_SID = "S-1-1-0";
+const WINDOWS_AUTHENTICATED_USERS_SID = "S-1-5-11";
+const WINDOWS_USERS_SID = "S-1-5-32-545";
+const WINDOWS_INTERPRETER_RESULT = /^LIVARIANT_GUARDIAN_HELPER_INTERPRETER\|(S-1-[0-9-]+)\|(yes|no)\|(yes|no)$/iu;
 
 export type ProtectedGuardianConsumer =
   | "semantic-mutation"
@@ -51,6 +59,12 @@ export interface ProtectedGuardianAuthorityRecord {
   issuedAt: string;
   expiresAt?: string;
   consumedAt?: string;
+}
+
+interface WindowsInterpreterProtection {
+  ownerSid: string;
+  ordinaryRequesterWritable: boolean;
+  ordinaryRequesterCanReplaceChildren: boolean;
 }
 
 function plainObject(value: unknown): value is Record<string, unknown> {
@@ -174,6 +188,7 @@ function parseAuthorityRecord(value: unknown): ProtectedGuardianAuthorityRecord 
     if (value.state === "active" && value.consumedAt !== undefined) throw new Error("Active Guardian Authority record must not have a consumed timestamp.");
     if (value.state === "consumed" && value.consumedAt === undefined) throw new Error("Consumed Guardian Authority record requires a consumed timestamp.");
     if (value.consumedAt !== undefined && Date.parse(value.consumedAt) < Date.parse(value.issuedAt)) throw new Error("Guardian Authority record was consumed before issuance.");
+    if (value.consumedAt !== undefined && Date.parse(value.consumedAt) > Date.parse(value.expiresAt)) throw new Error("Guardian Authority record was consumed after expiry.");
   }
   return value as unknown as ProtectedGuardianAuthorityRecord;
 }
@@ -194,7 +209,105 @@ async function assertRealDirectory(path: string, label: string): Promise<void> {
   if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error(`${label} must be a real directory and must not be a symbolic link or junction.`);
 }
 
+async function assertLinuxProtectedInterpreter(): Promise<void> {
+  const interpreter = await realpath(process.execPath);
+  const filesystemRoot = parse(interpreter).root;
+  let current = interpreter;
+  while (true) {
+    const stats = await lstat(current);
+    if (stats.isSymbolicLink()) throw new Error("Guardian protected helper interpreter path encountered a symbolic link after canonicalization.");
+    if (Number(stats.uid) !== 0) throw new Error(`Guardian protected helper interpreter path is not root-owned: ${current}`);
+    if ((Number(stats.mode) & 0o022) !== 0) throw new Error(`Guardian protected helper interpreter path is writable by group or other principals: ${current}`);
+    if (resolve(current) === resolve(filesystemRoot)) break;
+    current = dirname(current);
+  }
+}
+
+function parseWindowsInterpreterProtection(stdout: string): WindowsInterpreterProtection {
+  const matches = stdout
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith(WINDOWS_INTERPRETER_RESULT_PREFIX))
+    .map((line) => WINDOWS_INTERPRETER_RESULT.exec(line))
+    .filter((match): match is RegExpExecArray => match !== null);
+  if (matches.length !== 1) throw new Error("Guardian protected helper Windows interpreter ACL verification returned an invalid or ambiguous result.");
+  const [, ownerSid, unsafeWrite, unsafeReplace] = matches[0];
+  return {
+    ownerSid,
+    ordinaryRequesterWritable: unsafeWrite.toLowerCase() === "yes",
+    ordinaryRequesterCanReplaceChildren: unsafeReplace.toLowerCase() === "yes",
+  };
+}
+
+function inspectWindowsInterpreterProtection(path: string): WindowsInterpreterProtection {
+  const script = [
+    "$ErrorActionPreference='Stop'",
+    `$target=$env:${WINDOWS_INTERPRETER_TARGET_ENV}`,
+    "if([string]::IsNullOrEmpty($target)){throw 'Guardian interpreter ACL target is missing'}",
+    "$acl=if([System.IO.Directory]::Exists($target)){[System.IO.Directory]::GetAccessControl($target)}elseif([System.IO.File]::Exists($target)){[System.IO.File]::GetAccessControl($target)}else{throw 'Guardian interpreter ACL target does not exist'}",
+    "$identity=[System.Security.Principal.WindowsIdentity]::GetCurrent()",
+    "$owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value",
+    `$protected=@('${WINDOWS_SYSTEM_SID}','${WINDOWS_ADMINISTRATORS_SID}')`,
+    `$blocked=@('${WINDOWS_EVERYONE_SID}','${WINDOWS_AUTHENTICATED_USERS_SID}','${WINDOWS_USERS_SID}',$identity.User.Value)`,
+    "foreach($group in $identity.Groups){try{$sid=$group.Value}catch{continue};if($protected -notcontains $sid){$blocked += $sid}}",
+    "$blocked=@($blocked | Select-Object -Unique)",
+    "$writeDanger=[System.Security.AccessControl.FileSystemRights]::WriteData -bor [System.Security.AccessControl.FileSystemRights]::AppendData -bor [System.Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor [System.Security.AccessControl.FileSystemRights]::WriteAttributes -bor [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [System.Security.AccessControl.FileSystemRights]::Delete -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
+    "$replaceChildDanger=[System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [System.Security.AccessControl.FileSystemRights]::Delete -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
+    "$unsafeWrite=$false",
+    "$unsafeReplace=$false",
+    "$rules=$acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])",
+    "foreach($rule in $rules){try{$sid=$rule.IdentityReference.Value}catch{continue};if($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or $blocked -notcontains $sid){continue};if(($rule.FileSystemRights -band $writeDanger) -ne 0){$unsafeWrite=$true};if(($rule.FileSystemRights -band $replaceChildDanger) -ne 0){$unsafeReplace=$true}}",
+    "$writeResult=if($unsafeWrite){'yes'}else{'no'}",
+    "$replaceResult=if($unsafeReplace){'yes'}else{'no'}",
+    `[Console]::Out.WriteLine('${WINDOWS_INTERPRETER_RESULT_PREFIX}' + $owner + '|' + $writeResult + '|' + $replaceResult)`,
+  ].join("; ");
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script], {
+    encoding: "utf8",
+    shell: false,
+    windowsHide: true,
+    env: { ...process.env, [WINDOWS_INTERPRETER_TARGET_ENV]: path },
+  });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
+    throw new Error(`Guardian protected helper Windows interpreter ACL could not be verified: ${String(detail).trim()}`);
+  }
+  return parseWindowsInterpreterProtection(result.stdout);
+}
+
+function protectedWindowsOwner(ownerSid: string): boolean {
+  const normalized = ownerSid.trim().toUpperCase();
+  return normalized === WINDOWS_SYSTEM_SID || normalized === WINDOWS_ADMINISTRATORS_SID;
+}
+
+async function assertWindowsProtectedInterpreter(): Promise<void> {
+  const interpreter = await realpath(process.execPath);
+  const parent = dirname(interpreter);
+  const anchor = dirname(parent);
+  for (const [path, label] of [[interpreter, "interpreter"], [parent, "interpreter directory"]] as const) {
+    const protection = inspectWindowsInterpreterProtection(path);
+    if (!protectedWindowsOwner(protection.ownerSid)) throw new Error(`Guardian protected helper ${label} is not owned by SYSTEM or built-in Administrators.`);
+    if (protection.ordinaryRequesterWritable) throw new Error(`Guardian protected helper ${label} grants write-capable ACL rights to an ordinary requester principal or one of its enabled groups.`);
+  }
+  const anchorProtection = inspectWindowsInterpreterProtection(anchor);
+  if (anchorProtection.ordinaryRequesterCanReplaceChildren) {
+    throw new Error("Guardian protected helper interpreter parent anchor allows an ordinary requester principal or one of its groups to replace protected child paths.");
+  }
+}
+
+async function assertProtectedInterpreter(): Promise<void> {
+  if (process.platform === "linux") {
+    await assertLinuxProtectedInterpreter();
+    return;
+  }
+  if (process.platform === "win32") {
+    await assertWindowsProtectedInterpreter();
+    return;
+  }
+  throw new Error("Guardian Authority helper supports Windows and Linux only.");
+}
+
 async function assertProtectedSelf(): Promise<{ root: string; records: string }> {
+  await assertProtectedInterpreter();
   const expectedRoot = productionRoot();
   const physicalSelf = await realpath(fileURLToPath(import.meta.url));
   const physicalRoot = await realpath(dirname(physicalSelf));
