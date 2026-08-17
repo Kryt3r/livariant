@@ -9,6 +9,7 @@ import {
   recordAcceptedDecision,
   supersedeAcceptedDecision,
 } from "../src/runtime/index.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {
   const path = await mkdtemp(join(tmpdir(), "pbf-decision-serialization-"));
@@ -35,7 +36,10 @@ test("multiline decision text cannot inject an additional canonical record", asy
 
 test("multiline supersession reason or replacement cannot alter decision structure", async () => {
   await withProject(async (path) => {
-    const original = await recordAcceptedDecision("Keep original truth", path, { authorized: true });
+    let original!: Awaited<ReturnType<typeof recordAcceptedDecision>>;
+    await mutateAcceptedFixture(path, async () => {
+      original = await recordAcceptedDecision("Keep original truth", path, { authorized: true });
+    });
     const decisionsPath = resolve(path, ".project-brain", "decisions.md");
     const before = await readFile(decisionsPath, "utf8");
 
