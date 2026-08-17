@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { buildSemanticProposal, initializeProject, parseSemanticProposalCandidate } from "../src/runtime/index.js";
+import { acceptFixtureProjectBrain } from "./accepted-project-brain-fixture.js";
 
 test("goal match outside confirmed region is a scope conflict", async () => {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-goal-scope-"));
   try {
     await initializeProject(path, { authorized: true });
     await writeFile(resolve(path, ".project-brain", "goals.md"), "# Goals\n\n- Confirmed goal\n\n## Notes\n\n- Candidate text\n", "utf8");
+    await acceptFixtureProjectBrain(path);
     const candidate = parseSemanticProposalCandidate({ schemaVersion: 1, domain: "project-goal", changeKind: "add", proposedStatement: "Candidate text", rationale: "Review goal placement", origin: "project-evidence" });
     const result = await buildSemanticProposal(candidate, path);
     assert.equal(result.state, "proposal");
