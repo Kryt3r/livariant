@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const WINDOWS_POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+const WINDOWS_ACL_TARGET_ENV = "LIVARIANT_GUARDIAN_ACL_TARGET";
 const WINDOWS_SYSTEM_SID = "S-1-5-18";
 const WINDOWS_ADMINISTRATORS_SID = "S-1-5-32-544";
 const WINDOWS_EVERYONE_SID = "S-1-1-0";
@@ -44,10 +45,16 @@ export function parseWindowsProtectionOutput(stdout: string): WindowsProtectionI
  * token identity and group SIDs. SYSTEM and built-in Administrators are excluded
  * from the requester set because compromise/elevation to those principals is
  * explicitly outside the WP-026 threat boundary.
+ *
+ * The target path is passed as process data through an environment variable,
+ * never concatenated into PowerShell source. This keeps valid Windows path
+ * metacharacters inert and avoids -Command argument parsing ambiguity.
  */
 export function inspectWindowsProtection(path: string): WindowsProtectionInspection {
   const script = [
-    "$acl=Get-Acl -LiteralPath $args[0]",
+    `$target=$env:${WINDOWS_ACL_TARGET_ENV}`,
+    "if([string]::IsNullOrEmpty($target)){throw 'Guardian ACL target is missing'}",
+    "$acl=Get-Acl -LiteralPath $target",
     "$identity=[System.Security.Principal.WindowsIdentity]::GetCurrent()",
     "$owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value",
     `$protected=@('${WINDOWS_SYSTEM_SID}','${WINDOWS_ADMINISTRATORS_SID}')`,
@@ -61,10 +68,11 @@ export function inspectWindowsProtection(path: string): WindowsProtectionInspect
     "foreach($rule in $acl.Access){ try{$sid=$rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{continue}; if($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or $blocked -notcontains $sid){continue}; if(($rule.FileSystemRights -band $writeDanger) -ne 0){$unsafeWrite=$true}; if(($rule.FileSystemRights -band $replaceChildDanger) -ne 0){$unsafeReplace=$true} }",
     "[Console]::Out.WriteLine(($owner + '|' + $(if($unsafeWrite){'yes'}else{'no'}) + '|' + $(if($unsafeReplace){'yes'}else{'no'})))",
   ].join("; ");
-  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script, path], {
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script], {
     encoding: "utf8",
     shell: false,
     windowsHide: true,
+    env: { ...process.env, [WINDOWS_ACL_TARGET_ENV]: path },
   });
   if (result.error || result.status !== 0) {
     const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
