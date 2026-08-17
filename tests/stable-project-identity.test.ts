@@ -8,6 +8,7 @@ import { buildProjectContextSnapshot } from "../src/runtime/context-snapshot.js"
 import { buildProviderContext } from "../src/runtime/provider-context-build.js";
 import { runDoctor } from "../src/runtime/doctor.js";
 import { isStableProjectIdentity } from "../src/project-brain/identity.js";
+import { recordAcceptedProjectBrainState } from "../src/project-brain/integrity.js";
 import { ProjectBrainStore } from "../src/project-brain/store.js";
 
 async function freshProject(prefix: string): Promise<string> {
@@ -43,7 +44,7 @@ test("fresh schema-2 initialization mints one canonical stable logical project i
   }
 });
 
-test("moving or copying a Project Brain does not rotate or pretend to uniquify logical identity", async () => {
+test("moving or copying a Project Brain preserves logical identity but not physical-location integrity acceptance", async () => {
   const parent = await mkdtemp(join(tmpdir(), "livariant-id-copy-parent-"));
   const original = join(parent, "original");
   const moved = join(parent, "moved");
@@ -54,14 +55,21 @@ test("moving or copying a Project Brain does not rotate or pretend to uniquify l
     const identity = await readProjectId(original);
 
     await rename(original, moved);
-    const movedSnapshot = await buildProjectContextSnapshot(moved);
-    assert.equal(movedSnapshot.safetyState, "clear");
-    assert.equal(movedSnapshot.stableProjectIdentity, identity);
+    assert.equal(await readProjectId(moved), identity);
+    const movedBeforeAcceptance = await buildProjectContextSnapshot(moved);
+    assert.equal(movedBeforeAcceptance.safetyState, "blocked");
+    assert.ok(movedBeforeAcceptance.findings.some((finding) => finding.code === "project-brain-integrity-unestablished"));
+
+    await recordAcceptedProjectBrainState(moved, "manual-bootstrap");
+    const movedAfterAcceptance = await buildProjectContextSnapshot(moved);
+    assert.equal(movedAfterAcceptance.safetyState, "clear");
+    assert.equal(movedAfterAcceptance.stableProjectIdentity, identity);
 
     await cp(moved, copied, { recursive: true });
-    const copiedSnapshot = await buildProjectContextSnapshot(copied);
-    assert.equal(copiedSnapshot.safetyState, "clear");
-    assert.equal(copiedSnapshot.stableProjectIdentity, identity);
+    assert.equal(await readProjectId(copied), identity);
+    const copiedBeforeAcceptance = await buildProjectContextSnapshot(copied);
+    assert.equal(copiedBeforeAcceptance.safetyState, "blocked");
+    assert.ok(copiedBeforeAcceptance.findings.some((finding) => finding.code === "project-brain-integrity-unestablished"));
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
