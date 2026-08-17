@@ -13,6 +13,10 @@ import {
   recordAcceptedDecision,
 } from "../src/runtime/index.js";
 import type { ActionableProposal } from "../src/runtime/actionable-proposal.js";
+import {
+  reconcileFailedAuthorizationApplication,
+  reconcilePreMutationAuthorization,
+} from "../src/runtime/semantic-apply-reconciliation.js";
 
 type ProjectState = "authorized" | "applying";
 type MachineState = "authorized" | "applying" | "completed" | "failed-recovery-required";
@@ -51,7 +55,7 @@ function goalCandidate(statement = "Ship exact semantic apply") {
     domain: "project-goal",
     changeKind: "add",
     proposedStatement: statement,
-    rationale: "Exercise interrupted Authority state",
+    rationale: "Exercise interrupted local audit state",
     origin: "explicit-user",
   });
 }
@@ -109,41 +113,46 @@ async function machineState(path: string, proposal: ActionableProposal): Promise
   return receipt.state;
 }
 
-test("authorized/applying split with exact pre-state advances forward and applies exactly once", async () => {
+test("local authorized/applying split may align audit evidence forward but does not itself apply semantic state", async () => {
   await withProject(async (path) => {
     const proposal = await prepare(path);
     await seedSplit(path, proposal, "authorized", "applying");
-    const result = await applyActionableProposal(AUTH_ID, proposal, path);
-    assert.equal(result.state, "completed");
-    assert.equal(result.semanticChangesMade, 1);
-    assert.match(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /- Ship exact semantic apply/);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
-    assert.ok(audit.history.some((item) => item.authorizationId === AUTH_ID && item.state === "completed"));
-    assert.equal(await machineState(path, proposal), "completed");
+    assert.equal(await reconcilePreMutationAuthorization(AUTH_ID, proposal, path), "applying");
+    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "applying");
+    assert.equal(await machineState(path, proposal), "applying");
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Ship exact semantic apply/);
   });
 });
 
-test("applying/applying split with exact pre-state resumes one authorized mutation", async () => {
+test("local applying/applying split is idempotent audit recovery only", async () => {
   await withProject(async (path) => {
     const proposal = await prepare(path, "Resume exact pre-state");
     await seedSplit(path, proposal, "applying", "applying");
-    const result = await applyActionableProposal(AUTH_ID, proposal, path);
-    assert.equal(result.semanticChangesMade, 1);
-    assert.match(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /- Resume exact pre-state/);
-    assert.equal(await machineState(path, proposal), "completed");
+    assert.equal(await reconcilePreMutationAuthorization(AUTH_ID, proposal, path), "applying");
+    assert.equal(await machineState(path, proposal), "applying");
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Resume exact pre-state/);
   });
 });
 
-test("authorized/applying split refuses reconciliation after unrelated canonical baseline change", async () => {
+test("guarded apply refuses local authorized/applying recovery when protected consumed Guardian evidence is absent", async () => {
+  await withProject(async (path) => {
+    const proposal = await prepare(path, "Local recovery is not Authority");
+    await seedSplit(path, proposal, "authorized", "applying");
+    await assert.rejects(
+      applyActionableProposal(AUTH_ID, proposal, path),
+      /Protected Livariant Guardian is not ready|consumed Semantic Authority|Guardian-bound reconciliation/i,
+    );
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Local recovery is not Authority/);
+  });
+});
+
+test("authorized/applying split refuses stale canonical baseline before Guardian-bound recovery", async () => {
   await withProject(async (path) => {
     const proposal = await prepare(path, "Do not replay stale Authority");
     await seedSplit(path, proposal, "authorized", "applying");
     await recordAcceptedDecision("Concurrent unrelated decision", path, { authorized: true });
-    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /not safely consumable|reconciliation refused|changed/i);
+    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /not safely recoverable|changed|reconciliation refused/i);
     assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Do not replay stale Authority/);
-    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
-    assert.equal(await machineState(path, proposal), "applying");
   });
 });
 
@@ -152,66 +161,48 @@ test("applying/applying with changed baseline refuses replay even when desired s
     const proposal = await prepare(path, "Postcondition alone is not recovery proof");
     await seedSplit(path, proposal, "applying", "applying");
     await addConfirmedGoal("Postcondition alone is not recovery proof", path, { authorized: true });
-    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /not safely consumable|reconciliation refused|changed/i);
+    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /not safely recoverable|changed|reconciliation refused/i);
     assert.equal((await inspectAuthorizationAudit(path)).active?.state, "applying");
-    assert.equal(await machineState(path, proposal), "applying");
   });
 });
 
-test("machine completed/project applying never infers crash-time success from desired semantic postcondition", async () => {
-  await withProject(async (path) => {
-    const proposal = await prepare(path, "Completed receipt is not complete post-state proof");
-    await seedSplit(path, proposal, "applying", "completed");
-    await addConfirmedGoal("Completed receipt is not complete post-state proof", path, { authorized: true });
-    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /not safely consumable|reconciliation refused|post-state|recovery/i);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active?.state, "applying");
-    assert.equal(audit.history.some((item) => item.authorizationId === AUTH_ID && item.state === "completed"), false);
-    assert.equal(await machineState(path, proposal), "completed");
-  });
-});
-
-test("machine failed/project applying aligns project evidence forward to terminal failure without mutation", async () => {
+test("local failed/applying evidence may be aligned to terminal failure without becoming Authority", async () => {
   await withProject(async (path) => {
     const proposal = await prepare(path, "Never resurrect failed Authority");
     await seedSplit(path, proposal, "applying", "failed-recovery-required");
-    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /failed-recovery-required|cannot be reused|recovery/i);
+    const failed = await reconcileFailedAuthorizationApplication(AUTH_ID, proposal, path);
+    assert.equal(failed.state, "failed-recovery-required");
     assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Never resurrect failed Authority/);
     const audit = await inspectAuthorizationAudit(path);
     assert.equal(audit.active, null);
     assert.ok(audit.history.some((item) => item.authorizationId === AUTH_ID && item.state === "failed-recovery-required"));
-    assert.equal(await machineState(path, proposal), "failed-recovery-required");
   });
 });
 
-test("unsupported authorized/completed state pair remains fail-closed", async () => {
+test("unsupported authorized/completed local state pair remains fail-closed", async () => {
   await withProject(async (path) => {
     const proposal = await prepare(path, "Unsupported state pair");
     await seedSplit(path, proposal, "authorized", "completed");
-    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /reconciliation refused|not eligible|not safely consumable/i);
+    await assert.rejects(reconcilePreMutationAuthorization(AUTH_ID, proposal, path), /not eligible/i);
     assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
-    assert.equal(await machineState(path, proposal), "completed");
   });
 });
 
-test("active machine transition lock blocks pre-mutation reconciliation", async () => {
+test("active machine transition lock blocks local reconciliation", async () => {
   await withProject(async (path) => {
     const proposal = await prepare(path, "Respect active machine lock");
     await seedSplit(path, proposal, "authorized", "applying");
     await mkdir(resolve(machineRoot(proposal.stableProjectIdentity), `${AUTH_ID}.lock`));
-    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /transition lock|reconciliation refused/i);
-    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
-    assert.equal(await machineState(path, proposal), "applying");
+    await assert.rejects(reconcilePreMutationAuthorization(AUTH_ID, proposal, path), /transition lock/i);
   });
 });
 
-test("reconciliation rejects machine receipt with unsupported nested scope material", async () => {
+test("local reconciliation rejects machine receipt with unsupported nested scope material", async () => {
   await withProject(async (path) => {
     const proposal = await prepare(path, "Reject loose machine receipt");
     await seedSplit(path, proposal, "authorized", "applying", (receipt) => {
       receipt.mutationScope = { ...(receipt.mutationScope as Record<string, unknown>), injectedAuthority: true };
     });
-    await assert.rejects(applyActionableProposal(AUTH_ID, proposal, path), /scope.*shape|unsupported|reconciliation refused/i);
-    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
+    await assert.rejects(reconcilePreMutationAuthorization(AUTH_ID, proposal, path), /scope.*shape|unsupported/i);
   });
 });
