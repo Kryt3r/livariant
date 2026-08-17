@@ -68,7 +68,7 @@ function stableFindingId(ruleId: string, evidence: ProjectFindingEvidence[]): st
     .map((item) => `${item.path}:${item.detail}`)
     .sort()
     .join("|");
-  return createHash("sha256").update(`${ruleId}|${canonicalEvidence}`, "utf8").digest("hex").slice(0, 16);
+  return `finding-v1:${createHash("sha256").update(`${ruleId}|${canonicalEvidence}`, "utf8").digest("hex")}`;
 }
 
 function finding(input: Omit<ProjectFinding, "id">): ProjectFinding {
@@ -206,10 +206,14 @@ function explicitlyIgnoredSensitiveFiles(root: string, present: readonly string[
   const lines = readFileSync(ignorePath, "utf8").split(/\r?\n/u);
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line || line.startsWith("#") || line.startsWith("!")) continue;
-    const normalized = line.startsWith("/") ? line.slice(1) : line;
+    if (!line || line.startsWith("#")) continue;
+    const negated = line.startsWith("!");
+    const pattern = negated ? line.slice(1) : line;
+    const normalized = pattern.startsWith("/") ? pattern.slice(1) : pattern;
     for (const name of present) {
-      if (normalized === name) ignored.add(name);
+      if (normalized !== name) continue;
+      if (negated) ignored.delete(name);
+      else ignored.add(name);
     }
   }
   return ignored;
@@ -232,7 +236,7 @@ function inspectSensitiveRepositoryRoot(root: string): ProjectFinding[] {
       ? "present but not a regular non-symlink file"
       : (ignoreState.size ?? 0) > MAX_GITIGNORE_BYTES
         ? `exceeds bounded inspection limit of ${MAX_GITIGNORE_BYTES} bytes`
-        : "does not explicitly ignore every reported sensitive root file";
+        : "does not end with an effective exact ignore rule for every reported sensitive root file";
 
   return [finding({
     ruleId: "LV-FND-SEC-003",
@@ -240,12 +244,12 @@ function inspectSensitiveRepositoryRoot(root: string): ProjectFinding[] {
     severity: "high",
     confidence: "moderate",
     title: "Sensitive root file lacks an explicit repository-local ignore guard",
-    explanation: "A commonly sensitive regular file is present in a Git workspace and Livariant could not confirm an exact root-level .gitignore entry for every reported file. This does not prove the file is committed or exposed; v1 intentionally recognizes only simple exact ignore entries instead of pretending to implement the full gitignore language.",
+    explanation: "A commonly sensitive regular file is present in a Git workspace and Livariant could not confirm an effective exact root-level .gitignore rule for every reported file. This does not prove the file is committed or exposed; v1 intentionally recognizes only simple exact ignore and negation entries instead of pretending to implement the full gitignore language.",
     evidence: [
-      ...unguarded.map((path) => ({ path, detail: "sensitive filename present; file contents were not read; no exact root .gitignore entry confirmed" })),
+      ...unguarded.map((path) => ({ path, detail: "sensitive filename present; file contents were not read; no effective exact root .gitignore rule confirmed" })),
       { path: ".gitignore", detail: ignoreDetail },
     ],
-    nextStep: "Verify whether each reported file is tracked or staged, add an intentional ignore rule where appropriate, and rotate any secret that may already have been exposed.",
+    nextStep: "Verify whether each reported file is tracked or staged, add an intentional effective ignore rule where appropriate, and rotate any secret that may already have been exposed.",
   })];
 }
 
@@ -297,7 +301,7 @@ export function scanProjectFindings(projectPath: string = process.cwd()): Projec
     summary,
     limitations: [
       "v1 uses a deliberately small deterministic high-signal rule set and is not a complete security audit.",
-      "The sensitive-file rule recognizes only exact root-level .gitignore entries, not the full gitignore pattern language.",
+      "The sensitive-file rule recognizes only exact root-level .gitignore ignore/negation entries, not the full gitignore pattern language.",
       "No finding grants mutation, Runtime, or Release Authority.",
       "Absence of findings does not prove absence of vulnerabilities or quality defects.",
     ],
