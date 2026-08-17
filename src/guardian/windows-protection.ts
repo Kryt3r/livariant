@@ -48,15 +48,17 @@ export function parseWindowsProtectionOutput(stdout: string): WindowsProtectionI
  * explicitly outside the WP-026 threat boundary.
  *
  * The target path is passed as process data through an environment variable,
- * never concatenated into PowerShell source. This keeps valid Windows path
- * metacharacters inert and avoids -Command argument parsing ambiguity.
+ * never concatenated into PowerShell source. The descriptor is read through
+ * .NET filesystem ACL APIs instead of Get-Acl so Guardian readiness does not
+ * depend on PowerShell module autoloading. Valid Windows path metacharacters
+ * therefore remain inert data.
  */
 export function inspectWindowsProtection(path: string): WindowsProtectionInspection {
   const script = [
     "$ErrorActionPreference='Stop'",
     `$target=$env:${WINDOWS_ACL_TARGET_ENV}`,
     "if([string]::IsNullOrEmpty($target)){throw 'Guardian ACL target is missing'}",
-    "$acl=Get-Acl -LiteralPath $target",
+    "$acl=if([System.IO.Directory]::Exists($target)){[System.IO.Directory]::GetAccessControl($target)}elseif([System.IO.File]::Exists($target)){[System.IO.File]::GetAccessControl($target)}else{throw 'Guardian ACL target does not exist'}",
     "$identity=[System.Security.Principal.WindowsIdentity]::GetCurrent()",
     "$owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value",
     `$protected=@('${WINDOWS_SYSTEM_SID}','${WINDOWS_ADMINISTRATORS_SID}')`,
@@ -67,7 +69,8 @@ export function inspectWindowsProtection(path: string): WindowsProtectionInspect
     "$replaceChildDanger=[System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
     "$unsafeWrite=$false",
     "$unsafeReplace=$false",
-    "foreach($rule in $acl.Access){ try{$sid=$rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{continue}; if($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or $blocked -notcontains $sid){continue}; if(($rule.FileSystemRights -band $writeDanger) -ne 0){$unsafeWrite=$true}; if(($rule.FileSystemRights -band $replaceChildDanger) -ne 0){$unsafeReplace=$true} }",
+    "$rules=$acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])",
+    "foreach($rule in $rules){ try{$sid=$rule.IdentityReference.Value}catch{continue}; if($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or $blocked -notcontains $sid){continue}; if(($rule.FileSystemRights -band $writeDanger) -ne 0){$unsafeWrite=$true}; if(($rule.FileSystemRights -band $replaceChildDanger) -ne 0){$unsafeReplace=$true} }",
     "$writeResult=if($unsafeWrite){'yes'}else{'no'}",
     "$replaceResult=if($unsafeReplace){'yes'}else{'no'}",
     `[Console]::Out.WriteLine('${WINDOWS_RESULT_PREFIX}' + $owner + '|' + $writeResult + '|' + $replaceResult)`,
