@@ -24,8 +24,24 @@ async function delegateToActiveRuntime(): Promise<boolean> {
   return true;
 }
 
+function blocksLegacySemanticApply(command: string | undefined, args: string[]): boolean {
+  return (command === "goals" || command === "knowledge" || command === "decisions") && args.includes("--apply");
+}
+
+function renderLegacySemanticApplyRetirement(): void {
+  console.error("Legacy semantic --apply is retired and does not create mutation Authority.");
+  console.error("Use the guarded flow: propose/review -> prepare -> authorize -> apply, or use maintain to reach authorization-required first.");
+  console.error("Changes made: 0");
+}
+
 async function entry(): Promise<void> {
   const command = process.argv[2];
+  const args = process.argv.slice(3);
+  if (blocksLegacySemanticApply(command, args)) {
+    renderLegacySemanticApplyRetirement();
+    process.exitCode = 3;
+    return;
+  }
   if (command !== "first-run" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
@@ -46,6 +62,8 @@ async function entry(): Promise<void> {
       console.log("  maintain --input <candidate.json> [--authorization <authorization-id>] [--json]");
       console.log("  mcp");
       console.log("  mcp setup --provider <claude-code|codex> [--json]");
+      console.log("");
+      console.log("Legacy goals/knowledge/decisions commands are plan/list surfaces only; their --apply mutation path is retired.");
     }
     return;
   }
