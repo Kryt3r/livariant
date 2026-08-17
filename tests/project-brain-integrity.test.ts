@@ -11,7 +11,6 @@ import {
   inspectProjectBrainIntegrity,
   recordAcceptedProjectBrainState,
 } from "../src/project-brain/integrity.js";
-import { addConfirmedKnowledge } from "../src/runtime/canonical-knowledge-change.js";
 import { runDoctor } from "../src/runtime/doctor.js";
 import { FRAMEWORK_VERSION } from "../src/lifecycle/state.js";
 
@@ -137,16 +136,16 @@ test("corrupt integrity evidence fails closed", async () => {
 
 test("restoring stale previously accepted semantic bytes is detected", async () => {
   await withEnvironment(async (project, home) => {
-    await initialize(project);
+    const store = await initialize(project);
     await establish(project, home);
-    const knowledgePath = resolve(project, ".project-brain", "knowledge.md");
-    const oldBytes = await readFile(knowledgePath);
+    const oldBytes = await store.readKnowledgeDocument();
+    const newBytes = `${oldBytes.trimEnd()}\n\n## Confirmed project knowledge\n\n- new accepted state\n`;
 
-    await addConfirmedKnowledge("new accepted state", project, { authorized: true });
+    await store.replaceKnowledgeDocument(oldBytes, newBytes);
     await recordAcceptedProjectBrainState(project, "semantic-apply", { homeDir: home });
     assert.equal((await inspectProjectBrainIntegrity(project, { homeDir: home })).state, "match");
 
-    await writeFile(knowledgePath, oldBytes);
+    await store.replaceKnowledgeDocument(newBytes, oldBytes);
     assert.equal((await inspectProjectBrainIntegrity(project, { homeDir: home })).state, "mismatch");
   });
 });
@@ -176,10 +175,10 @@ test("copying a complete different Project Brain into the same physical project 
 
 test("direct low-level writer mutation is detected before canonical health is restored", async () => {
   await withEnvironment(async (project, home) => {
-    await initialize(project);
+    const store = await initialize(project);
     await establish(project, home);
-
-    await addConfirmedKnowledge("low-level writer bypass", project, { authorized: true });
+    const current = await store.readKnowledgeDocument();
+    await store.replaceKnowledgeDocument(current, `${current.trimEnd()}\n\n## Confirmed project knowledge\n\n- low-level writer bypass\n`);
 
     const integrity = await inspectProjectBrainIntegrity(project, { homeDir: home });
     assert.equal(integrity.state, "mismatch");
