@@ -109,6 +109,17 @@ async function classifyApplyFailure(
       };
     }
 
+    if (active?.authorizationId === authorizationId && active.state === "authorized") {
+      return {
+        state: "blocked",
+        phase: "apply",
+        message,
+        recoveryRequired: false,
+        mutationOutcome: "not-applied",
+        semanticChangesMade: 0,
+      };
+    }
+
     if (!active && !terminal) {
       return {
         state: "blocked",
