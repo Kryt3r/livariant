@@ -44,7 +44,7 @@ test("guardian status is read-only structured diagnostics", async () => {
   });
 });
 
-test("guardian bootstrap cannot be performed by a non-interactive agent or ordinary unprivileged process", async () => {
+test("guardian bootstrap cannot use requester-controlled package bytes as privileged source", async () => {
   await withProject(async (project) => {
     const result = spawnSync(process.execPath, [cliPath, "guardian", "bootstrap", "--json"], {
       cwd: project,
@@ -55,7 +55,7 @@ test("guardian bootstrap cannot be performed by a non-interactive agent or ordin
     assert.notEqual(result.status, 0);
     assert.match(
       `${result.stdout}\n${result.stderr}`,
-      /already privileged root terminal|already elevated Administrator terminal|local interactive terminal/i,
+      /protected Guardian bootstrap source is not provisioned|refuses requester-controlled code/i,
     );
   });
 });
