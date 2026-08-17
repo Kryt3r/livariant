@@ -10,6 +10,7 @@ const WINDOWS_USERS_SID = "S-1-5-32-545";
 export interface WindowsProtectionInspection {
   ownerSid: string;
   ordinaryRequesterWritable: boolean;
+  ordinaryRequesterCanReplaceChildren: boolean;
 }
 
 export function isProtectedWindowsOwnerSid(sid: string): boolean {
@@ -17,16 +18,27 @@ export function isProtectedWindowsOwnerSid(sid: string): boolean {
   return normalized === WINDOWS_SYSTEM_SID || normalized === WINDOWS_ADMINISTRATORS_SID;
 }
 
+/**
+ * Inspect a Windows security descriptor against the ordinary requester's current
+ * token identity and group SIDs. SYSTEM and built-in Administrators are excluded
+ * from the requester set because compromise/elevation to those principals is
+ * explicitly outside the WP-026 threat boundary.
+ */
 export function inspectWindowsProtection(path: string): WindowsProtectionInspection {
   const script = [
     "$acl=Get-Acl -LiteralPath $args[0]",
+    "$identity=[System.Security.Principal.WindowsIdentity]::GetCurrent()",
     "$owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value",
-    "$current=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
-    `$blocked=@('${WINDOWS_EVERYONE_SID}','${WINDOWS_AUTHENTICATED_USERS_SID}','${WINDOWS_USERS_SID}',$current)`,
-    "$danger=[System.Security.AccessControl.FileSystemRights]::Write -bor [System.Security.AccessControl.FileSystemRights]::Modify -bor [System.Security.AccessControl.FileSystemRights]::FullControl -bor [System.Security.AccessControl.FileSystemRights]::Delete -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
-    "$unsafe=$false",
-    "foreach($rule in $acl.Access){ try{$sid=$rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{continue}; if($rule.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow -and $blocked -contains $sid -and (($rule.FileSystemRights -band $danger) -ne 0)){$unsafe=$true;break} }",
-    "Write-Output ($owner + '|' + $(if($unsafe){'yes'}else{'no'}))",
+    `$protected=@('${WINDOWS_SYSTEM_SID}','${WINDOWS_ADMINISTRATORS_SID}')`,
+    `$blocked=@('${WINDOWS_EVERYONE_SID}','${WINDOWS_AUTHENTICATED_USERS_SID}','${WINDOWS_USERS_SID}',$identity.User.Value)`,
+    "foreach($group in $identity.Groups){ try{$sid=$group.Value}catch{continue}; if($protected -notcontains $sid){$blocked += $sid} }",
+    "$blocked=@($blocked | Select-Object -Unique)",
+    "$writeDanger=[System.Security.AccessControl.FileSystemRights]::Write -bor [System.Security.AccessControl.FileSystemRights]::Modify -bor [System.Security.AccessControl.FileSystemRights]::FullControl -bor [System.Security.AccessControl.FileSystemRights]::Delete -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
+    "$replaceChildDanger=[System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
+    "$unsafeWrite=$false",
+    "$unsafeReplace=$false",
+    "foreach($rule in $acl.Access){ try{$sid=$rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{continue}; if($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or $blocked -notcontains $sid){continue}; if(($rule.FileSystemRights -band $writeDanger) -ne 0){$unsafeWrite=$true}; if(($rule.FileSystemRights -band $replaceChildDanger) -ne 0){$unsafeReplace=$true} }",
+    "Write-Output ($owner + '|' + $(if($unsafeWrite){'yes'}else{'no'}) + '|' + $(if($unsafeReplace){'yes'}else{'no'}))",
   ].join("; ");
   const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script, path], {
     encoding: "utf8",
@@ -37,11 +49,20 @@ export function inspectWindowsProtection(path: string): WindowsProtectionInspect
     const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
     throw new Error(`Guardian Windows ACL could not be verified: ${detail.trim()}`);
   }
-  const [ownerSid, unsafe] = result.stdout.trim().split("|");
-  if (!ownerSid || !/^S-1-[0-9-]+$/iu.test(ownerSid) || (unsafe !== "yes" && unsafe !== "no")) {
+  const [ownerSid, unsafeWrite, unsafeReplace] = result.stdout.trim().split("|");
+  if (
+    !ownerSid ||
+    !/^S-1-[0-9-]+$/iu.test(ownerSid) ||
+    (unsafeWrite !== "yes" && unsafeWrite !== "no") ||
+    (unsafeReplace !== "yes" && unsafeReplace !== "no")
+  ) {
     throw new Error("Guardian Windows ACL verification returned an invalid result.");
   }
-  return { ownerSid, ordinaryRequesterWritable: unsafe === "yes" };
+  return {
+    ownerSid,
+    ordinaryRequesterWritable: unsafeWrite === "yes",
+    ordinaryRequesterCanReplaceChildren: unsafeReplace === "yes",
+  };
 }
 
 export function assertWindowsProtectedPath(path: string, label: string): void {
@@ -50,6 +71,19 @@ export function assertWindowsProtectedPath(path: string, label: string): void {
     throw new Error(`${label} is not owned by SYSTEM or the built-in Administrators principal.`);
   }
   if (protection.ordinaryRequesterWritable) {
-    throw new Error(`${label} grants write-capable ACL rights to an ordinary requester principal.`);
+    throw new Error(`${label} grants write-capable ACL rights to an ordinary requester principal or one of its enabled groups.`);
+  }
+}
+
+/**
+ * System anchors such as ProgramData/Program Files may legitimately allow
+ * bounded creation rights. What matters for Guardian substitution is that the
+ * ordinary requester cannot delete/replace protected descendants or take over
+ * the anchor's security descriptor.
+ */
+export function assertWindowsProtectedParentAnchor(path: string, label: string): void {
+  const protection = inspectWindowsProtection(path);
+  if (protection.ordinaryRequesterCanReplaceChildren) {
+    throw new Error(`${label} allows an ordinary requester principal or one of its groups to replace protected child paths.`);
   }
 }
