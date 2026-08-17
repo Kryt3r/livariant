@@ -198,6 +198,29 @@ function inspectPackageManifest(root: string): ProjectFinding[] {
   return result;
 }
 
+function inspectUnsafeSensitiveRootPaths(root: string): ProjectFinding[] {
+  if (!isRegularNonSymlinkDirectory(resolve(root, ".git"))) return [];
+  const unsafe = SENSITIVE_ROOT_FILES.flatMap((name) => {
+    const path = resolve(root, name);
+    if (!existsSync(path)) return [];
+    const state = fileState(path);
+    if (state.regular) return [];
+    return [{ path: name, detail: state.symlink ? "sensitive root path is a symbolic link; target was not followed" : "sensitive root path is not a regular file; contents were not read" }];
+  });
+  if (unsafe.length === 0) return [];
+
+  return [finding({
+    ruleId: "LV-FND-SEC-004",
+    category: "security",
+    severity: "high",
+    confidence: "strong",
+    title: "Sensitive root path is not a regular local file",
+    explanation: "A commonly sensitive root path exists as a symlink or another unsupported file type. Livariant did not follow or read it. Indirection at a sensitive path can make tooling or contributors operate on bytes outside the expected project-local boundary.",
+    evidence: unsafe,
+    nextStep: "Confirm why the sensitive path is indirect or non-regular and replace it with the intended project-local file or remove the unexpected path before relying on it.",
+  })];
+}
+
 function explicitlyIgnoredSensitiveFiles(root: string, present: readonly string[]): Set<string> {
   const ignorePath = resolve(root, ".gitignore");
   if (!isRegularNonSymlinkFile(ignorePath, MAX_GITIGNORE_BYTES)) return new Set();
@@ -286,6 +309,7 @@ export function scanProjectFindings(projectPath: string = process.cwd()): Projec
 
   const findings = [
     ...inspectPackageManifest(root),
+    ...inspectUnsafeSensitiveRootPaths(root),
     ...inspectSensitiveRepositoryRoot(root),
     ...inspectAgentGuidance(root),
   ].sort((a, b) => severityRank[a.severity] - severityRank[b.severity] || a.ruleId.localeCompare(b.ruleId) || a.id.localeCompare(b.id));
