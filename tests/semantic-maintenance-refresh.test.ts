@@ -13,17 +13,16 @@ import {
 import type { ActionableProposal } from "../src/runtime/actionable-proposal.js";
 
 const AUTH_ID = "88888888-8888-4888-8888-888888888888";
-const AUTH_THROW = "99999999-9999-4999-8999-999999999999";
 
 async function projectId(path: string): Promise<string> {
   const metadata = JSON.parse(await readFile(resolve(path, ".project-brain", "metadata.json"), "utf8")) as { projectBrain: { projectId: string } };
   return metadata.projectBrain.projectId;
 }
 
-async function seedAuthorized(path: string, proposal: ActionableProposal, authorizationId: string): Promise<void> {
+async function seedSameUserEvidence(path: string, proposal: ActionableProposal): Promise<void> {
   const authorizedAt = new Date().toISOString();
   const binding = {
-    authorizationId,
+    authorizationId: AUTH_ID,
     stableProjectIdentity: proposal.stableProjectIdentity,
     actionableProposalId: proposal.actionableProposalId,
     actionableProposalVersion: 1,
@@ -36,7 +35,7 @@ async function seedAuthorized(path: string, proposal: ActionableProposal, author
   await writeFile(resolve(projectRoot, "active.json"), `${JSON.stringify({ ...binding, schemaVersion: 1, kind: "semantic-mutation-authorization-audit", state: "authorized", authorizedAt }, null, 2)}\n`, "utf8");
   const machineRoot = resolve(userInfo().homedir, ".livariant", "trust", "semantic-authorizations", proposal.stableProjectIdentity);
   await mkdir(machineRoot, { recursive: true });
-  await writeFile(resolve(machineRoot, `${authorizationId}.json`), `${JSON.stringify({ ...binding, schemaVersion: 1, kind: "semantic-mutation-authorization", state: "authorized", authorizedAt }, null, 2)}\n`, "utf8");
+  await writeFile(resolve(machineRoot, `${AUTH_ID}.json`), `${JSON.stringify({ ...binding, schemaVersion: 1, kind: "semantic-mutation-authorization", state: "authorized", authorizedAt }, null, 2)}\n`, "utf8");
 }
 
 function candidate(statement: string) {
@@ -58,80 +57,39 @@ async function prepare(path: string, statement: string): Promise<{ candidate: Re
   return { candidate: parsed, proposal: prepared.proposal };
 }
 
-test("completed mutation with blocked post-apply context is reported truthfully and Authority remains terminal", async () => {
-  const path = await mkdtemp(resolve(tmpdir(), "livariant-maintenance-refresh-"));
-  let machineProjectId: string | null = null;
-  try {
-    await initializeProject(path, { authorized: true });
-    machineProjectId = await projectId(path);
-    const { candidate: parsed, proposal } = await prepare(path, "Refresh failure must not make completed Authority replayable");
-    await seedAuthorized(path, proposal, AUTH_ID);
+for (const behavior of ["block-context", "throw-refresh"] as const) {
+  test(`post-apply refresh ${behavior} cannot be reached from same-user evidence without Guardian`, async () => {
+    const path = await mkdtemp(resolve(tmpdir(), "livariant-maintenance-refresh-"));
+    let machineProjectId: string | null = null;
+    try {
+      await initializeProject(path, { authorized: true });
+      machineProjectId = await projectId(path);
+      const statement = `Guardian precedes post-apply refresh ${behavior}`;
+      const { candidate: parsed, proposal } = await prepare(path, statement);
+      await seedSameUserEvidence(path, proposal);
+      let refreshHookReached = false;
 
-    const metadataPath = resolve(path, ".project-brain", "metadata.json");
-    const originalMetadata = await readFile(metadataPath, "utf8");
-    const result = await maintainSemanticProjectState(parsed, AUTH_ID, path, {
-      afterApplyBeforeRefresh: async () => {
-        const metadata = JSON.parse(originalMetadata) as { projectBrain: { schemaVersion: number; projectId?: string } };
-        delete metadata.projectBrain.projectId;
-        await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
-      },
-    });
+      const result = await maintainSemanticProjectState(parsed, AUTH_ID, path, {
+        afterApplyBeforeRefresh: async () => {
+          refreshHookReached = true;
+          if (behavior === "throw-refresh") throw new Error("unreachable simulated refresh failure");
+        },
+      });
 
-    assert.equal(result.state, "completed-context-blocked");
-    if (result.state !== "completed-context-blocked") throw new Error("expected completed-context-blocked");
-    assert.equal(result.semanticChangesMade, 1);
-    assert.ok(result.context);
-    assert.equal(result.context?.safetyState, "blocked");
-    assert.match(await readFile(resolve(path, ".project-brain", "knowledge.md"), "utf8"), /Refresh failure must not make completed Authority replayable/);
-
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
-    assert.ok(audit.history.some((record) => record.authorizationId === AUTH_ID && record.state === "completed"));
-
-    await writeFile(metadataPath, originalMetadata, "utf8");
-    const replay = await maintainSemanticProjectState(parsed, AUTH_ID, path);
-    assert.equal(replay.state, "review-required");
-  } finally {
-    if (machineProjectId) {
-      await rm(resolve(userInfo().homedir, ".livariant", "trust", "semantic-authorizations", machineProjectId), { recursive: true, force: true });
+      assert.equal(result.state, "blocked");
+      if (result.state !== "blocked") throw new Error("expected blocked");
+      assert.equal(result.recoveryRequired, false);
+      assert.equal(result.mutationOutcome, "not-applied");
+      assert.equal(result.semanticChangesMade, 0);
+      assert.equal(refreshHookReached, false);
+      assert.match(result.message, /Guardian/i);
+      assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "knowledge.md"), "utf8"), new RegExp(statement));
+      assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
+    } finally {
+      if (machineProjectId) {
+        await rm(resolve(userInfo().homedir, ".livariant", "trust", "semantic-authorizations", machineProjectId), { recursive: true, force: true });
+      }
+      await rm(path, { recursive: true, force: true });
     }
-    await rm(path, { recursive: true, force: true });
-  }
-});
-
-test("thrown post-apply refresh failure remains completed-context-blocked and never becomes a zero-write input error", async () => {
-  const path = await mkdtemp(resolve(tmpdir(), "livariant-maintenance-refresh-throw-"));
-  let machineProjectId: string | null = null;
-  try {
-    await initializeProject(path, { authorized: true });
-    machineProjectId = await projectId(path);
-    const statement = "Thrown refresh failure must preserve completed mutation truth";
-    const { candidate: parsed, proposal } = await prepare(path, statement);
-    await seedAuthorized(path, proposal, AUTH_THROW);
-
-    const result = await maintainSemanticProjectState(parsed, AUTH_THROW, path, {
-      afterApplyBeforeRefresh: () => {
-        throw new Error("simulated refresh transport/read failure");
-      },
-    });
-
-    assert.equal(result.state, "completed-context-blocked");
-    if (result.state !== "completed-context-blocked") throw new Error("expected completed-context-blocked");
-    assert.equal(result.semanticChangesMade, 1);
-    assert.equal(result.context, null);
-    assert.match(result.refreshError ?? "", /simulated refresh transport\/read failure/);
-    assert.match(await readFile(resolve(path, ".project-brain", "knowledge.md"), "utf8"), new RegExp(statement));
-
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
-    assert.ok(audit.history.some((record) => record.authorizationId === AUTH_THROW && record.state === "completed"));
-
-    const replay = await maintainSemanticProjectState(parsed, AUTH_THROW, path);
-    assert.equal(replay.state, "review-required");
-  } finally {
-    if (machineProjectId) {
-      await rm(resolve(userInfo().homedir, ".livariant", "trust", "semantic-authorizations", machineProjectId), { recursive: true, force: true });
-    }
-    await rm(path, { recursive: true, force: true });
-  }
-});
+  });
+}
