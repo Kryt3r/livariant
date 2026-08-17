@@ -111,7 +111,7 @@ async function actionable(path: string, candidate: SemanticProposalCandidate): P
   return result.proposal;
 }
 
-async function seedAuthorizedEvidence(path: string, proposal: ActionableProposal): Promise<void> {
+async function seedSameUserEvidence(path: string, proposal: ActionableProposal): Promise<void> {
   const authorizedAt = new Date().toISOString();
   const binding = {
     authorizationId: AUTH_ID,
@@ -144,11 +144,11 @@ async function seedAuthorizedEvidence(path: string, proposal: ActionableProposal
   }, null, 2)}\n`, "utf8");
 }
 
-test("provider return never consumes matching existing Authority without an explicit selector", async () => {
+test("provider return never consumes matching same-user evidence without an explicit selector", async () => {
   await withProject(async (path) => {
     const candidate = goalCandidate("Require explicit roundtrip authorization selector");
     const context = await readyContext(path);
-    await seedAuthorizedEvidence(path, await actionable(path, candidate));
+    await seedSameUserEvidence(path, await actionable(path, candidate));
 
     const result = await processProviderReturn(context, providerReturn(context, candidate), undefined, path);
     assert.equal(result.state, "candidate-received");
@@ -162,41 +162,39 @@ test("provider return never consumes matching existing Authority without an expl
   });
 });
 
-test("provider return with the exact explicit selector completes only through existing Semantic Apply", async () => {
+test("provider return with an exact local selector is blocked without protected Guardian Authority", async () => {
   await withProject(async (path) => {
     const candidate = goalCandidate("Complete exact provider roundtrip mutation");
     const context = await readyContext(path);
-    await seedAuthorizedEvidence(path, await actionable(path, candidate));
+    await seedSameUserEvidence(path, await actionable(path, candidate));
 
     const result = await processProviderReturn(context, providerReturn(context, candidate), AUTH_ID, path);
-    assert.equal(result.state, "candidate-received");
-    if (result.state !== "candidate-received") return;
-    assert.equal(result.maintenance.state, "completed");
-    assert.equal(result.semanticChangesMade, 1);
-    assert.match(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Complete exact provider roundtrip mutation/);
-
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
-    assert.ok(audit.history.some((record) => record.authorizationId === AUTH_ID && record.state === "completed"));
+    assert.equal(result.state, "blocked");
+    if (result.state !== "blocked") return;
+    assert.equal(result.phase, "maintenance");
+    assert.equal(result.recoveryRequired, false);
+    assert.equal(result.semanticChangesMade, 0);
+    assert.match(result.message, /Guardian/i);
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Complete exact provider roundtrip mutation/);
+    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
   });
 });
 
-test("terminal Authority cannot be replayed through provider return", async () => {
+test("repeated provider return cannot promote same-user evidence into Authority", async () => {
   await withProject(async (path) => {
     const candidate = goalCandidate("Provider roundtrip applies once");
     const context = await readyContext(path);
-    await seedAuthorizedEvidence(path, await actionable(path, candidate));
+    await seedSameUserEvidence(path, await actionable(path, candidate));
 
     const first = await processProviderReturn(context, providerReturn(context, candidate), AUTH_ID, path);
-    assert.equal(first.state, "candidate-received");
-    assert.equal(first.semanticChangesMade, 1);
+    assert.equal(first.state, "blocked");
+    assert.equal(first.semanticChangesMade, 0);
 
     const second = await processProviderReturn(context, providerReturn(context, candidate), AUTH_ID, path);
-    assert.equal(second.state, "stale-context");
+    assert.equal(second.state, "blocked");
     assert.equal(second.semanticChangesMade, 0);
-
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.history.filter((record) => record.authorizationId === AUTH_ID && record.state === "completed").length, 1);
+    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Provider roundtrip applies once/);
   });
 });
 
