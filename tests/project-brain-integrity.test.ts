@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ import {
   inspectProjectBrainIntegrity,
   recordAcceptedProjectBrainState,
 } from "../src/project-brain/integrity.js";
+import { addConfirmedKnowledge } from "../src/runtime/canonical-knowledge-change.js";
 import { runDoctor } from "../src/runtime/doctor.js";
 import { FRAMEWORK_VERSION } from "../src/lifecycle/state.js";
 
@@ -45,6 +46,11 @@ async function establish(project: string, home: string): Promise<void> {
   await recordAcceptedProjectBrainState(project, "manual-bootstrap", { homeDir: home });
   const state = await inspectProjectBrainIntegrity(project, { homeDir: home });
   assert.equal(state.state, "match");
+}
+
+async function integrityReceiptPath(project: string, home: string): Promise<string> {
+  const locator = createHash("sha256").update(await realpath(project), "utf8").digest("hex");
+  return resolve(home, ".livariant", "integrity", "project-brain", `${locator}.json`);
 }
 
 for (const [file, injected] of [
@@ -112,6 +118,91 @@ test("missing integrity evidence blocks doctor from declaring schema-2 Project B
     const doctor = await runDoctor(project, { integrityStorage: { homeDir: home } });
     assert.equal(doctor.state, "drift-detected");
     assert.ok(doctor.findings.some((finding) => finding.code === "project-brain-integrity-unestablished"));
+  });
+});
+
+test("corrupt integrity evidence fails closed", async () => {
+  await withEnvironment(async (project, home) => {
+    await initialize(project);
+    await establish(project, home);
+    await writeFile(await integrityReceiptPath(project, home), "{not-json\n");
+
+    const integrity = await inspectProjectBrainIntegrity(project, { homeDir: home });
+    assert.equal(integrity.state, "invalid");
+    const doctor = await runDoctor(project, { integrityStorage: { homeDir: home } });
+    assert.equal(doctor.state, "drift-detected");
+    assert.ok(doctor.findings.some((finding) => finding.code === "project-brain-integrity-evidence-invalid"));
+  });
+});
+
+test("restoring stale previously accepted semantic bytes is detected", async () => {
+  await withEnvironment(async (project, home) => {
+    await initialize(project);
+    await establish(project, home);
+    const knowledgePath = resolve(project, ".project-brain", "knowledge.md");
+    const oldBytes = await readFile(knowledgePath);
+
+    await addConfirmedKnowledge("new accepted state", project, { authorized: true });
+    await recordAcceptedProjectBrainState(project, "semantic-apply", { homeDir: home });
+    assert.equal((await inspectProjectBrainIntegrity(project, { homeDir: home })).state, "match");
+
+    await writeFile(knowledgePath, oldBytes);
+    assert.equal((await inspectProjectBrainIntegrity(project, { homeDir: home })).state, "mismatch");
+  });
+});
+
+test("copying a complete different Project Brain into the same physical project is detected", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "livariant-brain-copy-"));
+  const projectA = resolve(root, "project-a");
+  const projectB = resolve(root, "project-b");
+  const home = resolve(root, "home");
+  await mkdir(projectA);
+  await mkdir(projectB);
+  await mkdir(home);
+  try {
+    await initialize(projectA);
+    await initialize(projectB);
+    await establish(projectA, home);
+
+    await rm(resolve(projectA, ".project-brain"), { recursive: true, force: true });
+    await cp(resolve(projectB, ".project-brain"), resolve(projectA, ".project-brain"), { recursive: true });
+
+    const integrity = await inspectProjectBrainIntegrity(projectA, { homeDir: home });
+    assert.equal(integrity.state, "mismatch");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("direct low-level writer mutation is detected before canonical health is restored", async () => {
+  await withEnvironment(async (project, home) => {
+    await initialize(project);
+    await establish(project, home);
+
+    await addConfirmedKnowledge("low-level writer bypass", project, { authorized: true });
+
+    const integrity = await inspectProjectBrainIntegrity(project, { homeDir: home });
+    assert.equal(integrity.state, "mismatch");
+    const doctor = await runDoctor(project, { integrityStorage: { homeDir: home } });
+    assert.equal(doctor.state, "drift-detected");
+  });
+});
+
+test("concurrent Project Brain change cannot be committed as accepted integrity evidence", async () => {
+  await withEnvironment(async (project, home) => {
+    await initialize(project);
+    const goalsPath = resolve(project, ".project-brain", "goals.md");
+    await assert.rejects(
+      recordAcceptedProjectBrainState(project, "manual-bootstrap", {
+        homeDir: home,
+        beforeCommit: async () => {
+          await writeFile(goalsPath, `${await readFile(goalsPath, "utf8")}\n- concurrent agent goal\n`);
+        },
+      }),
+      /changed while accepted integrity evidence was being committed/i,
+    );
+    const integrity = await inspectProjectBrainIntegrity(project, { homeDir: home });
+    assert.equal(integrity.state, "missing");
   });
 });
 
