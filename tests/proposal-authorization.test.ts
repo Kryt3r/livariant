@@ -122,7 +122,6 @@ test("review-only proposal remains permanently non-actionable while actionable p
     assert.equal(review.state, "proposal");
     assert.equal(action.state, "actionable-proposal");
     if (review.state !== "proposal" || action.state !== "actionable-proposal") return;
-
     assert.equal(review.proposal.actionability.reviewOnly, true);
     assert.equal(review.proposal.actionability.mutationAuthorization, false);
     assert.equal(review.proposal.actionability.applySupported, false);
@@ -167,7 +166,7 @@ test("authorization binds current baseline and refuses stale actionable proposal
   });
 });
 
-test("non-interactive authorization is blocked before project or machine authority state is created", async () => {
+test("non-interactive authorization is blocked before project or machine audit state is created", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     const projectAuthorityRoot = resolve(path, ".project-brain", ".authorizations");
@@ -176,8 +175,6 @@ test("non-interactive authorization is blocked before project or machine authori
     await assertMissing(projectAuthorityRoot);
     await assertMissing(machineAuthorityRoot);
     assert.deepEqual(await inspectAuthorizationAudit(path), { active: null, history: [] });
-    await assertMissing(projectAuthorityRoot);
-    await assertMissing(machineAuthorityRoot);
   });
 });
 
@@ -189,14 +186,15 @@ test("authorization audit inspection is read-only when no authorization state ex
   });
 });
 
-test("interactive local CLI creates dual evidence without changing semantic Project Brain files", { skip: process.platform === "win32" }, async () => {
+test("interactive local CLI does not report successful authorization when Guardian is unavailable", { skip: process.platform === "win32" }, async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     const proposalPath = resolve(path, "actionable.json");
     await writeFile(proposalPath, `${JSON.stringify(proposal)}\n`, "utf8");
     const before = new Map(await Promise.all(semanticFiles.map(async (name) => [name, await readFile(resolve(path, ".project-brain", name))] as const)));
     const result = runInteractiveAuthorize(path, proposalPath, `AUTHORIZE ${proposal.materialDigest.digest.slice(0, 12)}`);
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Protected Livariant Guardian is not ready|Guardian root is not provisioned/i);
     const audit = await inspectAuthorizationAudit(path);
     assert.equal(audit.active?.state, "authorized");
     assert.ok(audit.active?.authorizationId);
@@ -205,7 +203,7 @@ test("interactive local CLI creates dual evidence without changing semantic Proj
   });
 });
 
-test("project-local authorization-looking bytes alone cannot establish authority", async () => {
+test("project-local authorization-looking bytes alone cannot establish local readiness", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     const root = resolve(path, ".project-brain", ".authorizations");
@@ -227,7 +225,7 @@ test("project-local authorization-looking bytes alone cannot establish authority
   });
 });
 
-test("machine-local receipt alone cannot establish authority without matching project audit", async () => {
+test("machine-local receipt alone cannot establish local readiness without matching project audit", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await seedAuthorizedEvidence(path, proposal);
@@ -245,7 +243,7 @@ test("unsupported project authorization entries fail closed", async () => {
   });
 });
 
-test("concurrent consumers cannot both transition the same authorization to applying", async () => {
+test("concurrent local audit consumers cannot both transition the same record to applying", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await seedAuthorizedEvidence(path, proposal);
@@ -260,7 +258,7 @@ test("concurrent consumers cannot both transition the same authorization to appl
   });
 });
 
-test("completed authorization is terminal and cannot be replayed", async () => {
+test("completed local audit is terminal and cannot be replayed", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await seedAuthorizedEvidence(path, proposal);
@@ -274,7 +272,7 @@ test("completed authorization is terminal and cannot be replayed", async () => {
   });
 });
 
-test("failed-recovery-required authorization is terminal and cannot be reused", async () => {
+test("failed local audit is terminal and cannot be reused", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await seedAuthorizedEvidence(path, proposal);
