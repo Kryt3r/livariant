@@ -94,6 +94,16 @@ async function entry(): Promise<void> {
     await import("./legacy-main.js");
     return;
   }
+
+  // Guardian bootstrap/status are part of the protected trust-root foundation.
+  // They must never be delegated into a project-selected active Runtime whose
+  // existing same-user trust is exactly what S-03 is remediating.
+  if (command === "guardian") {
+    const { handleGuardianCommand } = await import("./guardian-command.js");
+    await handleGuardianCommand(process.argv.slice(3));
+    return;
+  }
+
   if (await delegateToActiveRuntime()) return;
   if (command === "first-run") {
     const { handleFirstRunCommand } = await import("./first-run-command.js");
@@ -103,11 +113,6 @@ async function entry(): Promise<void> {
   if (command === "integrity") {
     const { handleIntegrityCommand } = await import("./integrity-command.js");
     await handleIntegrityCommand(process.argv.slice(3));
-    return;
-  }
-  if (command === "guardian") {
-    const { handleGuardianCommand } = await import("./guardian-command.js");
-    await handleGuardianCommand(process.argv.slice(3));
     return;
   }
   if (command === "autonomy") {
