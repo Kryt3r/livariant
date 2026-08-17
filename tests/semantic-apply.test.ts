@@ -12,8 +12,6 @@ import {
   recordAcceptedDecision,
 } from "../src/runtime/index.js";
 import type { ActionableProposal } from "../src/runtime/actionable-proposal.js";
-import { parseDecisionsMarkdown } from "../src/project-brain/decisions.js";
-import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const FIXED_AUTH_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -39,15 +37,25 @@ async function withProject(run: (path: string) => Promise<void>): Promise<void> 
   }
 }
 
-async function prepare(path: string, input: unknown): Promise<ActionableProposal> {
-  const candidate = parseSemanticProposalCandidate(input);
-  const result = await buildActionableProposal(candidate, path);
+function decisionCandidate(statement = "Use passkeys") {
+  return parseSemanticProposalCandidate({
+    schemaVersion: 1,
+    domain: "project-decision",
+    changeKind: "add",
+    proposedStatement: statement,
+    rationale: "WP-027 Guardian migration boundary test",
+    origin: "explicit-user",
+  });
+}
+
+async function prepare(path: string, statement?: string): Promise<ActionableProposal> {
+  const result = await buildActionableProposal(decisionCandidate(statement), path);
   assert.equal(result.state, "actionable-proposal");
   if (result.state !== "actionable-proposal") throw new Error("expected actionable proposal");
   return result.proposal;
 }
 
-async function seedAuthorizedEvidence(path: string, proposal: ActionableProposal, authorizationId = FIXED_AUTH_ID): Promise<void> {
+async function seedSameUserAuthorization(path: string, proposal: ActionableProposal, authorizationId = FIXED_AUTH_ID): Promise<void> {
   const authorizedAt = new Date().toISOString();
   const binding = {
     authorizationId,
@@ -79,103 +87,60 @@ async function seedAuthorizedEvidence(path: string, proposal: ActionableProposal
   }, null, 2)}\n`, "utf8");
 }
 
-function candidate(domain: "project-decision" | "project-goal" | "project-knowledge", proposedStatement: string) {
-  return {
-    schemaVersion: 1,
-    domain,
-    changeKind: "add",
-    proposedStatement,
-    rationale: "WP-009 semantic apply test",
-    origin: "explicit-user",
-  };
-}
-
-test("semantic apply consumes exact authority and completes decision add once", async () => {
+test("same-user project and machine authorization evidence cannot establish Semantic Apply Authority without Guardian", async () => {
   await withProject(async (path) => {
-    const proposal = await prepare(path, candidate("project-decision", "Use passkeys"));
-    await seedAuthorizedEvidence(path, proposal);
-    const result = await applyActionableProposal(FIXED_AUTH_ID, proposal, path);
-    assert.equal(result.state, "completed");
-    assert.equal(result.semanticChangesMade, 1);
-    assert.equal(result.mutationAuthorizationConsumed, true);
+    const proposal = await prepare(path);
+    await seedSameUserAuthorization(path, proposal);
+    const before = await readFile(resolve(path, ".project-brain", "decisions.md"));
 
-    const decisions = parseDecisionsMarkdown(await readFile(resolve(path, ".project-brain", "decisions.md"), "utf8"));
-    assert.equal(decisions.issues.length, 0);
-    assert.equal(decisions.records.filter((record) => record.status === "active" && record.text === "Use passkeys").length, 1);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
-    assert.equal(audit.history.filter((record) => record.authorizationId === FIXED_AUTH_ID && record.state === "completed").length, 1);
+    await assert.rejects(
+      applyActionableProposal(FIXED_AUTH_ID, proposal, path),
+      /Protected Livariant Guardian is not ready|Matching active protected Guardian Semantic Authority is missing/i,
+    );
 
-    await assert.rejects(applyActionableProposal(FIXED_AUTH_ID, proposal, path), /No active project-local authorization audit|no longer matches|cannot reproduce/i);
+    assert.deepEqual(await readFile(resolve(path, ".project-brain", "decisions.md")), before);
+    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
   });
 });
 
-test("semantic apply supports confirmed goal and knowledge add with exact authority", async () => {
+test("same-user authorization cannot exploit beforeConsume to bypass missing Guardian", async () => {
   await withProject(async (path) => {
-    const goal = await prepare(path, candidate("project-goal", "Ship bounded Semantic Apply"));
-    await seedAuthorizedEvidence(path, goal);
-    await applyActionableProposal(FIXED_AUTH_ID, goal, path);
-    assert.match(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /- Ship bounded Semantic Apply/);
-
-    const knowledge = await prepare(path, candidate("project-knowledge", "Semantic Apply consumes WP-008 Authority"));
-    await seedAuthorizedEvidence(path, knowledge, "44444444-4444-4444-8444-444444444444");
-    await applyActionableProposal("44444444-4444-4444-8444-444444444444", knowledge, path);
-    assert.match(await readFile(resolve(path, ".project-brain", "knowledge.md"), "utf8"), /- Semantic Apply consumes WP-008 Authority/);
-  });
-});
-
-test("semantic apply supports exact decision supersession and preserves history", async () => {
-  await withProject(async (path) => {
-    let existing!: Awaited<ReturnType<typeof recordAcceptedDecision>>;
-    await mutateAcceptedFixture(path, async () => {
-      existing = await recordAcceptedDecision("Use passwords", path, { authorized: true });
-    });
-    const proposal = await prepare(path, {
-      schemaVersion: 1,
-      domain: "project-decision",
-      changeKind: "supersede",
-      targetDecisionId: existing.id,
-      proposedStatement: "Use passkeys",
-      rationale: "Replace accepted authentication direction",
-      origin: "explicit-user",
-    });
-    await seedAuthorizedEvidence(path, proposal);
-    await applyActionableProposal(FIXED_AUTH_ID, proposal, path);
-
-    const decisions = parseDecisionsMarkdown(await readFile(resolve(path, ".project-brain", "decisions.md"), "utf8"));
-    const target = decisions.records.find((record) => record.id === existing.id);
-    assert.equal(target?.status, "superseded");
-    const replacement = decisions.records.find((record) => record.id === target?.supersededBy);
-    assert.equal(replacement?.status, "active");
-    assert.equal(replacement?.text, "Use passkeys");
-  });
-});
-
-test("stale baseline is refused before Authority consumption and semantic mutation", async () => {
-  await withProject(async (path) => {
-    const proposal = await prepare(path, candidate("project-decision", "Use passkeys"));
-    await seedAuthorizedEvidence(path, proposal);
-    await recordAcceptedDecision("Concurrent durable decision", path, { authorized: true });
-    await assert.rejects(applyActionableProposal(FIXED_AUTH_ID, proposal, path), /no longer matches|cannot reproduce/i);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active?.state, "authorized");
-    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "decisions.md"), "utf8"), /Use passkeys/);
-  });
-});
-
-test("failure before semantic promote after Authority consumption becomes terminal recovery-required", async () => {
-  await withProject(async (path) => {
-    const proposal = await prepare(path, candidate("project-goal", "Never promote stale apply"));
-    await seedAuthorizedEvidence(path, proposal);
+    const proposal = await prepare(path, "Do not trust local receipts");
+    await seedSameUserAuthorization(path, proposal);
+    let reachedBoundary = false;
     await assert.rejects(
       applyActionableProposal(FIXED_AUTH_ID, proposal, path, {
-        beforePromote: async () => { throw new Error("injected pre-promote failure"); },
+        beforeConsume: () => { reachedBoundary = true; },
       }),
-      /recovery-required/i,
+      /Protected Livariant Guardian is not ready|Matching active protected Guardian Semantic Authority is missing/i,
     );
-    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Never promote stale apply/);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
-    assert.ok(audit.history.some((record) => record.authorizationId === FIXED_AUTH_ID && record.state === "failed-recovery-required"));
+    assert.equal(reachedBoundary, true);
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "decisions.md"), "utf8"), /Do not trust local receipts/);
+  });
+});
+
+test("stale baseline is refused before any Guardian Authority can be consumed", async () => {
+  await withProject(async (path) => {
+    const proposal = await prepare(path, "Never spend stale Authority");
+    await seedSameUserAuthorization(path, proposal);
+    await recordAcceptedDecision("Concurrent durable decision", path, { authorized: true });
+
+    await assert.rejects(
+      applyActionableProposal(FIXED_AUTH_ID, proposal, path),
+      /no longer matches|cannot reproduce|stale|current trusted Project Brain baseline/i,
+    );
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "decisions.md"), "utf8"), /Never spend stale Authority/);
+  });
+});
+
+test("wrong local authorization id cannot reach the Guardian consumption boundary", async () => {
+  await withProject(async (path) => {
+    const proposal = await prepare(path, "Exact operation only");
+    await seedSameUserAuthorization(path, proposal);
+    await assert.rejects(
+      applyActionableProposal("44444444-4444-4444-8444-444444444444", proposal, path),
+      /not safely recoverable|not valid for this exact proposal|authorization/i,
+    );
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "decisions.md"), "utf8"), /Exact operation only/);
   });
 });
