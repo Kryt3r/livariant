@@ -39,11 +39,9 @@ async function captureManaged(path: string): Promise<Map<string, Buffer>> {
 
 test("provider context preserves canonical evidence, provider boundary, and read-only behavior", async () => {
   await withProject(async (path) => {
-    await mutateAcceptedFixture(path, async () => {
-      await addConfirmedGoal("Ship trustworthy provider context", path, { authorized: true });
-      await addConfirmedKnowledge("Provider-returned context is not canonical truth", path, { authorized: true });
-      await recordAcceptedDecision("Provider context remains read-only", path, { authorized: true });
-    });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Ship trustworthy provider context", path, { authorized: true }));
+    await mutateAcceptedFixture(path, () => addConfirmedKnowledge("Provider-returned context is not canonical truth", path, { authorized: true }));
+    await mutateAcceptedFixture(path, () => recordAcceptedDecision("Provider context remains read-only", path, { authorized: true }));
     const before = await captureManaged(path);
     const task = "Implement the next bounded slice";
 
