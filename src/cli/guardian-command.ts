@@ -1,20 +1,39 @@
+import { bootstrapProductionGuardian } from "../guardian/bootstrap.js";
 import { inspectProductionGuardianRoot } from "../guardian/trust-root.js";
 
 function jsonRequested(args: string[]): boolean {
   return args.includes("--json");
 }
 
-function unknownArgs(args: string[]): string[] {
-  return args.filter((arg) => arg !== "status" && arg !== "--json");
+function validateArgs(args: string[], subcommand: "status" | "bootstrap"): void {
+  const unknown = args.filter((arg) => arg !== subcommand && arg !== "--json");
+  if (unknown.length > 0) throw new Error(`Guardian ${subcommand} contains unsupported argument: ${unknown[0]}.`);
 }
 
 export async function handleGuardianCommand(args: string[]): Promise<void> {
   const [subcommand] = args;
-  if (subcommand !== "status") {
-    throw new Error("Guardian command requires: guardian status [--json].");
+  if (subcommand !== "status" && subcommand !== "bootstrap") {
+    throw new Error("Guardian command requires: guardian status [--json] or guardian bootstrap [--json].");
   }
-  const unknown = unknownArgs(args);
-  if (unknown.length > 0) throw new Error(`Guardian status contains unsupported argument: ${unknown[0]}.`);
+  validateArgs(args, subcommand);
+
+  if (subcommand === "bootstrap") {
+    const result = await bootstrapProductionGuardian();
+    if (jsonRequested(args)) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      return;
+    }
+    console.log("Livariant Guardian bootstrap");
+    console.log(`State: ${result.state}`);
+    console.log(`Platform: ${result.platform}`);
+    console.log(`Root: ${result.root}`);
+    console.log(`Helper SHA-256: ${result.helperSha256}`);
+    console.log("Authority issued: no");
+    console.log(`Changes made: ${result.changesMade}`);
+    console.log(`Next: ${result.nextStep}`);
+    console.log(`Bootstrap trust assumption: ${result.bootstrapTrustAssumption}`);
+    return;
+  }
 
   const inspection = await inspectProductionGuardianRoot(process.cwd());
   if (jsonRequested(args)) {
