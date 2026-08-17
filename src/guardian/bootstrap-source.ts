@@ -35,6 +35,19 @@ export function bootstrapSourcePathAllowed(path: string, platform: GuardianPlatf
   return pathWithin(productionGuardianBootstrapSourceRoot(platform), path, platform);
 }
 
+export function ancestorDirectories(path: string, platform: GuardianPlatform): string[] {
+  const pathApi = pathApiFor(platform);
+  const directories: string[] = [];
+  let current = pathApi.dirname(pathApi.resolve(path));
+  while (true) {
+    directories.push(current);
+    const parent = pathApi.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return directories;
+}
+
 async function assertRealDirectory(path: string, label: string): Promise<void> {
   const stats = await lstat(path);
   if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error(`${label} must be a real directory and must not be a symbolic link or junction.`);
@@ -73,6 +86,23 @@ async function assertProtectedSourceChain(sourceRoot: string, platform: Guardian
   assertWindowsProtectedPath(livariantParent, "Guardian bootstrap Livariant parent");
   assertWindowsProtectedPath(bootstrapParent, "Guardian bootstrap parent");
   assertWindowsProtectedPath(sourceRoot, "Guardian bootstrap source root");
+}
+
+async function assertProtectedInterpreterChain(nodeExecutable: string, platform: GuardianPlatform): Promise<void> {
+  if (platform === "linux") {
+    await assertLinuxProtected(nodeExecutable, "Guardian bootstrap Node executable");
+    for (const directory of ancestorDirectories(nodeExecutable, platform)) {
+      await assertRealDirectory(directory, "Guardian bootstrap Node ancestor");
+      await assertLinuxProtected(directory, "Guardian bootstrap Node ancestor");
+    }
+    return;
+  }
+
+  assertWindowsProtectedPath(nodeExecutable, "Guardian bootstrap Node executable");
+  for (const directory of ancestorDirectories(nodeExecutable, platform)) {
+    await assertRealDirectory(directory, "Guardian bootstrap Node ancestor");
+    assertWindowsProtectedParentAnchor(directory, "Guardian bootstrap Node ancestor");
+  }
 }
 
 export interface GuardianBootstrapSourceInspection {
@@ -119,12 +149,11 @@ export async function assertProtectedGuardianBootstrapSource(
   if (platform === "linux") {
     await assertLinuxProtected(physicalBootstrap, "Guardian bootstrap module");
     await assertLinuxProtected(physicalHelper, "Guardian bootstrap helper source");
-    await assertLinuxProtected(physicalNode, "Guardian bootstrap Node executable");
   } else {
     assertWindowsProtectedPath(physicalBootstrap, "Guardian bootstrap module");
     assertWindowsProtectedPath(physicalHelper, "Guardian bootstrap helper source");
-    assertWindowsProtectedPath(physicalNode, "Guardian bootstrap Node executable");
   }
+  await assertProtectedInterpreterChain(physicalNode, platform);
 
   return {
     sourceRoot: physicalRoot,
