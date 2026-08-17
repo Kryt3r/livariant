@@ -45,7 +45,7 @@ function renderHelp(): void {
   console.log("  propose --input <candidate.json> [--json]");
   console.log("  init [--apply]");
   console.log("  integrity inspect [--json]");
-  console.log("  integrity accept-current --acknowledge-current-state [--json]");
+  console.log("  integrity accept-current  # interactive local bootstrap only");
   console.log("  goals [list] | goals add <goal>  # plan only");
   console.log("  knowledge [list] | knowledge add <fact>  # plan only");
   console.log("  decisions [list] | decisions add <decision>  # plan only");
