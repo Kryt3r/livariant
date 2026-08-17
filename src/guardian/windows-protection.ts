@@ -6,6 +6,7 @@ const WINDOWS_ADMINISTRATORS_SID = "S-1-5-32-544";
 const WINDOWS_EVERYONE_SID = "S-1-1-0";
 const WINDOWS_AUTHENTICATED_USERS_SID = "S-1-5-11";
 const WINDOWS_USERS_SID = "S-1-5-32-545";
+const WINDOWS_PROTECTION_RESULT = /^(S-1-[0-9-]+)\|(yes|no)\|(yes|no)$/iu;
 
 export interface WindowsProtectionInspection {
   ownerSid: string;
@@ -16,6 +17,26 @@ export interface WindowsProtectionInspection {
 export function isProtectedWindowsOwnerSid(sid: string): boolean {
   const normalized = sid.trim().toUpperCase();
   return normalized === WINDOWS_SYSTEM_SID || normalized === WINDOWS_ADMINISTRATORS_SID;
+}
+
+export function parseWindowsProtectionOutput(stdout: string): WindowsProtectionInspection {
+  const matches = stdout
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => WINDOWS_PROTECTION_RESULT.exec(line))
+    .filter((match): match is RegExpExecArray => match !== null);
+
+  if (matches.length !== 1) {
+    throw new Error("Guardian Windows ACL verification returned an invalid or ambiguous result.");
+  }
+
+  const [, ownerSid, unsafeWrite, unsafeReplace] = matches[0];
+  return {
+    ownerSid,
+    ordinaryRequesterWritable: unsafeWrite.toLowerCase() === "yes",
+    ordinaryRequesterCanReplaceChildren: unsafeReplace.toLowerCase() === "yes",
+  };
 }
 
 /**
@@ -38,7 +59,7 @@ export function inspectWindowsProtection(path: string): WindowsProtectionInspect
     "$unsafeWrite=$false",
     "$unsafeReplace=$false",
     "foreach($rule in $acl.Access){ try{$sid=$rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value}catch{continue}; if($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or $blocked -notcontains $sid){continue}; if(($rule.FileSystemRights -band $writeDanger) -ne 0){$unsafeWrite=$true}; if(($rule.FileSystemRights -band $replaceChildDanger) -ne 0){$unsafeReplace=$true} }",
-    "Write-Output ($owner + '|' + $(if($unsafeWrite){'yes'}else{'no'}) + '|' + $(if($unsafeReplace){'yes'}else{'no'}))",
+    "[Console]::Out.WriteLine(($owner + '|' + $(if($unsafeWrite){'yes'}else{'no'}) + '|' + $(if($unsafeReplace){'yes'}else{'no'})))",
   ].join("; ");
   const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script, path], {
     encoding: "utf8",
@@ -49,20 +70,7 @@ export function inspectWindowsProtection(path: string): WindowsProtectionInspect
     const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
     throw new Error(`Guardian Windows ACL could not be verified: ${detail.trim()}`);
   }
-  const [ownerSid, unsafeWrite, unsafeReplace] = result.stdout.trim().split("|");
-  if (
-    !ownerSid ||
-    !/^S-1-[0-9-]+$/iu.test(ownerSid) ||
-    (unsafeWrite !== "yes" && unsafeWrite !== "no") ||
-    (unsafeReplace !== "yes" && unsafeReplace !== "no")
-  ) {
-    throw new Error("Guardian Windows ACL verification returned an invalid result.");
-  }
-  return {
-    ownerSid,
-    ordinaryRequesterWritable: unsafeWrite === "yes",
-    ordinaryRequesterCanReplaceChildren: unsafeReplace === "yes",
-  };
+  return parseWindowsProtectionOutput(result.stdout);
 }
 
 export function assertWindowsProtectedPath(path: string, label: string): void {
