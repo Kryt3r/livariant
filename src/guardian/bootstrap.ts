@@ -12,6 +12,7 @@ import {
   productionGuardianRoot,
   type GuardianPlatform,
 } from "./trust-root.js";
+import { assertWindowsProtectedParentAnchor } from "./windows-protection.js";
 
 const WINDOWS_POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
 const WINDOWS_ICACLS = "C:\\Windows\\System32\\icacls.exe";
@@ -35,14 +36,19 @@ function errno(error: unknown, code: string): boolean {
   return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
 }
 
-async function requireRootAbsent(root: string): Promise<void> {
+async function requireAbsent(path: string, label: string): Promise<void> {
   try {
-    await lstat(root);
+    await lstat(path);
   } catch (error) {
     if (errno(error, "ENOENT")) return;
     throw error;
   }
-  throw new Error("Guardian production root already exists. Fresh bootstrap refuses to replace, repair, or bless pre-existing state.");
+  throw new Error(`${label} already exists. Fresh bootstrap refuses to replace, repair, or bless pre-existing state.`);
+}
+
+async function assertRealDirectory(path: string, label: string): Promise<void> {
+  const stats = await lstat(path);
+  if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error(`${label} must be a real directory and must not be a symbolic link or junction.`);
 }
 
 function windowsProcessIsElevated(): boolean {
@@ -97,19 +103,24 @@ function runIcacls(args: string[]): void {
   }
 }
 
+async function hardenLinuxDirectory(path: string): Promise<void> {
+  await chown(path, 0, 0);
+  await chmod(path, 0o755);
+}
+
 async function hardenLinux(root: string): Promise<void> {
+  const parent = dirname(root);
   const { descriptor, helper, records } = guardianLayoutPaths(root);
-  await chown(root, 0, 0);
-  await chown(records, 0, 0);
+  await hardenLinuxDirectory(parent);
+  await hardenLinuxDirectory(root);
+  await hardenLinuxDirectory(records);
   await chown(descriptor, 0, 0);
   await chown(helper, 0, 0);
-  await chmod(root, 0o755);
-  await chmod(records, 0o755);
   await chmod(descriptor, 0o444);
   await chmod(helper, 0o555);
 }
 
-function hardenWindows(root: string): void {
+function hardenWindowsTree(root: string): void {
   // Remove inherited DACLs and replace explicit grants recursively. Users get
   // read/execute only; SYSTEM and built-in Administrators retain full control.
   runIcacls([
@@ -124,6 +135,31 @@ function hardenWindows(root: string): void {
     "/Q",
   ]);
   runIcacls([root, "/setowner", WINDOWS_ADMINISTRATORS_SID, "/T", "/C", "/Q"]);
+}
+
+async function createProtectedProductionParent(root: string, platform: GuardianPlatform): Promise<void> {
+  if (platform === "linux") {
+    const parent = dirname(root); // /var/lib/livariant-guardian
+    const anchor = dirname(parent); // /var/lib
+    await assertRealDirectory(anchor, "Guardian Linux system anchor");
+    await requireAbsent(parent, "Guardian Linux parent root");
+    await mkdir(parent, { recursive: false, mode: 0o755 });
+    await hardenLinuxDirectory(parent);
+    return;
+  }
+
+  const guardianParent = dirname(root); // ...\Livariant\Guardian
+  const livariantParent = dirname(guardianParent); // ...\Livariant
+  const anchor = dirname(livariantParent); // C:\ProgramData
+  await assertRealDirectory(anchor, "Guardian Windows ProgramData anchor");
+  assertWindowsProtectedParentAnchor(anchor, "Guardian Windows ProgramData anchor");
+  await requireAbsent(livariantParent, "Guardian Windows Livariant parent");
+
+  // Create only the top application parent first, immediately remove inherited
+  // requester write rights, and only then create Guardian descendants beneath it.
+  await mkdir(livariantParent, { recursive: false });
+  hardenWindowsTree(livariantParent);
+  await mkdir(guardianParent, { recursive: false });
 }
 
 export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapResult> {
@@ -147,12 +183,12 @@ export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapRe
   const helperBytes = await readFile(helperSource);
   const helperSha256 = createHash("sha256").update(helperBytes).digest("hex");
 
-  await requireRootAbsent(root);
+  await requireAbsent(root, "Guardian production root");
   requirePrivilegedProcess(platform);
   await requireInteractiveBootstrap(root, helperSource, helperSha256);
-  await requireRootAbsent(root);
+  await requireAbsent(root, "Guardian production root");
 
-  await mkdir(dirname(root), { recursive: true });
+  await createProtectedProductionParent(root, platform);
   await mkdir(root, { recursive: false });
   const physicalRoot = await realpath(root);
   const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
@@ -166,7 +202,7 @@ export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapRe
   await writeFile(descriptor, `${JSON.stringify(rootDescriptor, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
 
   if (platform === "linux") await hardenLinux(physicalRoot);
-  else hardenWindows(physicalRoot);
+  else hardenWindowsTree(dirname(dirname(physicalRoot))); // harden ...\ProgramData\Livariant recursively
 
   return {
     schemaVersion: 1,
@@ -175,8 +211,8 @@ export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapRe
     root: physicalRoot,
     helperSha256,
     authorityIssued: false,
-    changesMade: 4,
-    nextStep: "Close the privileged terminal and run `livariant guardian status` from an ordinary user terminal to verify requester write exclusion.",
+    changesMade: 5,
+    nextStep: "Close the privileged terminal and run `livariant guardian status` from an ordinary user terminal to verify requester write exclusion and protected parent-chain integrity.",
     bootstrapTrustAssumption: "Before Guardian bootstrap, exact Livariant release material must be provisioned into the fixed protected bootstrap source root by a separate privileged installation step outside normal agent-autonomous flow. WP-026 does not claim that requester-controlled bytes can self-bootstrap trust.",
   };
 }
