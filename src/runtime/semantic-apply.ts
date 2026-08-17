@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { discoverProject } from "../project/discovery.js";
+import { recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import {
   buildActionableProposal,
   parseActionableProposal,
@@ -303,6 +304,7 @@ export async function applyActionableProposal(
   const proposal = parseActionableProposal(proposalInput);
   const project = discoverProject(projectPath);
   let consumed = false;
+  let authorityCompleted = false;
 
   try {
     await enterApplyingState(authorizationId, proposal, project.root, options);
@@ -330,6 +332,8 @@ export async function applyActionableProposal(
     }
 
     await completeAuthorizationApplication(authorizationId, project.root);
+    authorityCompleted = true;
+    await recordAcceptedProjectBrainState(project.root, "semantic-apply");
     return {
       state: "completed",
       authorizationId,
@@ -340,6 +344,9 @@ export async function applyActionableProposal(
       semanticChangesMade: 1,
     };
   } catch (error) {
+    if (authorityCompleted) {
+      throw new Error(`Semantic apply mutation and Authority completion succeeded, but the accepted Project Brain integrity checkpoint could not be advanced. Canonical reads must remain blocked until integrity is repaired: ${error instanceof Error ? error.message : "unknown integrity checkpoint failure"}`);
+    }
     if (!consumed) throw error;
     try {
       await terminalizeFailure(authorizationId, proposal, project.root);
