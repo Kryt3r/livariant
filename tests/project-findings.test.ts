@@ -108,6 +108,20 @@ test("sensitive root-file rule never reads or exposes the secret contents", asyn
   });
 });
 
+test("non-regular sensitive root path is reported without being interpreted", async () => {
+  await withProject(async (projectPath) => {
+    await mkdir(resolve(projectPath, ".git"));
+    await mkdir(resolve(projectPath, ".env"));
+
+    const report = scanProjectFindings(projectPath);
+    const item = report.findings.find((candidate) => candidate.ruleId === "LV-FND-SEC-004");
+    assert.ok(item);
+    assert.equal(item.severity, "high");
+    assert.equal(item.confidence, "strong");
+    assert.ok(item.evidence.some((evidence) => evidence.path === ".env" && /not a regular file/u.test(evidence.detail)));
+  });
+});
+
 test("empty gitignore does not suppress a sensitive-file finding", async () => {
   await withProject(async (projectPath) => {
     await mkdir(resolve(projectPath, ".git"));
