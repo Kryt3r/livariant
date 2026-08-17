@@ -151,4 +151,5 @@ test("strict Guardian Authority parsing rejects extra fields and malformed consu
   assert.throws(() => parseGuardianAuthorityRecord({ ...record, attacker: true }), /unsupported field/u);
   assert.throws(() => parseGuardianAuthorityRecord({ ...record, state: "consumed" }), /requires a consumed timestamp/u);
   assert.throws(() => parseGuardianAuthorityRecord({ ...record, state: "consumed", consumedAt: "2026-08-17T16:59:59.000Z" }), /before it was issued/u);
+  assert.throws(() => parseGuardianAuthorityRecord({ ...record, state: "consumed", consumedAt: "2026-08-17T18:00:00.000Z" }), /after its expiry/u);
 });
