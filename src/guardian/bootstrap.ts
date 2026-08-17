@@ -69,16 +69,16 @@ async function assertLinuxProtectedStatic(path: string, label: string): Promise<
 
 async function assertProtectedProductionParent(root: string, platform: GuardianPlatform): Promise<void> {
   if (platform === "linux") {
-    const parent = dirname(root); // /var/lib/livariant-guardian
-    const anchor = dirname(parent); // /var/lib
+    const parent = dirname(root);
+    const anchor = dirname(parent);
     await assertLinuxProtectedStatic(anchor, "Guardian Linux system anchor");
     await assertLinuxProtectedStatic(parent, "Guardian Linux parent root");
     return;
   }
 
-  const guardianParent = dirname(root); // C:\ProgramData\Livariant\Guardian
-  const livariantParent = dirname(guardianParent); // C:\ProgramData\Livariant
-  const anchor = dirname(livariantParent); // C:\ProgramData
+  const guardianParent = dirname(root);
+  const livariantParent = dirname(guardianParent);
+  const anchor = dirname(livariantParent);
   await assertRealDirectory(anchor, "Guardian Windows ProgramData anchor");
   await assertRealDirectory(livariantParent, "Guardian Windows Livariant parent");
   await assertRealDirectory(guardianParent, "Guardian Windows parent root");
@@ -110,8 +110,12 @@ function requirePrivilegedProcess(platform: GuardianPlatform): void {
   }
 }
 
+export function guardianBootstrapHasInteractiveTerminal(inputIsTTY: boolean | undefined, outputIsTTY: boolean | undefined): boolean {
+  return inputIsTTY === true && outputIsTTY === true;
+}
+
 async function requireInteractiveBootstrap(root: string, helperSource: string, helperSha256: string): Promise<void> {
-  if (!stdin.isTTY || !stderr.isTTY) {
+  if (!guardianBootstrapHasInteractiveTerminal(stdin.isTTY, stderr.isTTY)) {
     throw new Error("Guardian bootstrap requires a local interactive terminal. Non-interactive agents, scripts, redirected input, and CI cannot provision the production Guardian.");
   }
   const phrase = `BOOTSTRAP GUARDIAN ${helperSha256.slice(0, 12)}`;
@@ -177,9 +181,6 @@ export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapRe
   const bootstrapModule = fileURLToPath(import.meta.url);
   const helperSource = fileURLToPath(new URL("./protected-helper.js", import.meta.url));
 
-  // Critical bootstrap boundary: requester-controlled npm/npx/project/cache bytes
-  // may not be elevated into Guardian trust. The executing bootstrap module,
-  // helper source, and Node executable must already be OS-protected.
   await assertProtectedGuardianBootstrapSource(platform, helperSource, bootstrapModule, process.execPath);
   await assertProtectedProductionParent(root, platform);
 
@@ -194,8 +195,6 @@ export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapRe
   await assertProtectedProductionParent(root, platform);
   await requireAbsent(root, "Guardian production root");
 
-  // Stage A already protected the parent, so v1 is created directly beneath a
-  // requester-nonwritable directory; there is no create-then-harden parent race.
   await mkdir(root, { recursive: false });
   const physicalRoot = await realpath(root);
   const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
