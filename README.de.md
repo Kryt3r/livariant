@@ -1,4 +1,4 @@
-<img width="1376" height="682" alt="Livariant | Living software framework for coherent AI-assisted development" src="https://github.com/user-attachments/assets/16f5afee-a10a-4c79-8bc9-89d23135e0e9" />
+<img width="1376" height="682" alt="Livariant | Zuverlässigkeit und Governance für KI-gestützte Softwareentwicklung" src="https://github.com/user-attachments/assets/16f5afee-a10a-4c79-8bc9-89d23135e0e9" />
 
 <p align="center">
   <a href="README.md">English</a> · <strong>Deutsch</strong>
@@ -6,19 +6,97 @@
 
 # Livariant
 
-**Ein Living Software Framework für KI-gestützte Entwicklung, das dem Projekt ein eigenes dauerhaftes Gedächtnis, Entscheidungen, Richtung und Sicherheitsgrenzen gibt.**
+**Eine projekt-eigene Zuverlässigkeits- und Governance-Schicht für ernsthafte KI-gestützte Softwareentwicklung.**
 
-KI beim Programmieren verliert viel von ihrem Nutzen, wenn das Projekt nur im aktuellen Chat existiert.
+KI-Coding-Agenten sind mächtig, aber weiterhin probabilistische Systeme. Sie können Kontext verlieren, Projektfakten halluzinieren, frühere Entscheidungen vergessen, anderen Agenten widersprechen, Fertigstellung zu früh behaupten, auf veralteten Informationen handeln oder lokal plausible Änderungen machen, die dem Projekt langfristig schaden.
 
-Du triffst mit einem Agenten eine Architekturentscheidung. Eine Woche später schlägt eine neue Sitzung wieder den alten Weg vor. Du erklärst denselben Kontext zum fünften Mal. Claude Code kennt eine Version deines Projekts, Codex eine andere, und wichtige Entscheidungen verschwinden langsam in verteilten Chatverläufen.
+Livariant folgt deshalb einer einfachen Idee:
 
-Livariant wird dafür gebaut, dass das Projekt selbst zur dauerhaften Quelle für Kontinuität wird und nicht eine einzelne KI-Sitzung.
+> **Die KI darf falsch liegen. Dein Projekt sollte den Fehler nicht automatisch übernehmen.**
 
-Der aktuelle Kandidat `0.1.0-rc.3` ist der **Foundation-Preview-Kandidat**. Er stellt den sicheren, projekt-eigenen Kern bereit. Die nächste Schicht soll diesen Kern im normalen Arbeitsalltag deutlich aktiver und intuitiver machen.
+Statt ein einzelnes Modell unfehlbar machen zu wollen, gibt Livariant dem **Projekt selbst** dauerhafte Wahrheit, Kontinuität, kontrollierte Änderungspfade, Sicherheitsgrenzen, Verifikationsevidenz und Recovery-Semantik, die einzelne Chats, Agenten, Tools und Provider überdauern.
 
-## Die Idee in einer Minute
+## Was Livariant konkret macht
 
-Heute gibt Livariant deinem Projekt ein **Project Brain**:
+Livariant sitzt zwischen KI-gestützter Entwicklung und dem dauerhaften Zustand deines Softwareprojekts.
+
+```text
+KI-Agent
+   ↓
+Beobachtung / Vorschlag / geplante Änderung
+   ↓
+Livariant
+├─ rekonstruiert den aktuellen Projektkontext
+├─ bewahrt dauerhafte Ziele, Entscheidungen und Wissen
+├─ erkennt Konflikte und veraltete Baselines
+├─ trennt Evidenz von akzeptierter Wahrheit
+├─ trennt technische Fähigkeit von Autorität
+├─ bereitet klar begrenzte Projektänderungen vor
+├─ verlangt die passende Autorisierung
+├─ verifiziert den resultierenden Zustand
+└─ bewahrt Historie, Lifecycle-Evidenz und Recovery-Pfade
+   ↓
+Projekt
+```
+
+Zu den Kernregeln gehören:
+
+```text
+Evidenz != Wahrheit
+Fähigkeit != Autorität
+Vorschlag != Autorisierung
+Persistenz != Vertrauen
+Vorhandensein != Aktualität
+Abgeleiteter Zustand != kanonischer Zustand
+Unklarer Zustand -> Fail Closed
+```
+
+Diese Regeln existieren, weil eine KI-Antwort nützlich sein kann, ohne automatisch korrekt, aktuell, vertrauenswürdig, autorisiert oder sicher dauerhaft speicherbar zu sein.
+
+## Ist Livariant ein Second Brain?
+
+**Nein.**
+
+Ein Second Brain speichert und findet vor allem Informationen wieder. Livariant nutzt ebenfalls dauerhaftes Projektwissen, aber seine Aufgabe ist breiter: Es steuert, wie KI-Agenten Projektzustand **interpretieren, vertrauen, nutzen und verändern**.
+
+Livariant beschäftigt sich mit Fragen wie:
+
+- Woher stammt diese Information?
+- Ist sie bestätigte Projektwahrheit, Evidenz, Historie oder eine KI-Inferenz?
+- Ist sie noch aktuell?
+- Widerspricht sie einer bestehenden Entscheidung?
+- Darf der Agent daraus eine dauerhafte Projektänderung machen?
+- Was würde sich konkret ändern?
+- Wurde die Änderung tatsächlich verifiziert?
+- Kann das Projekt sich erholen, wenn etwas schiefläuft?
+
+Externe Wissenssysteme wie Obsidian sollen nicht durch Livariant ersetzt werden müssen. Langfristig sollen bestehende Wissensquellen dort bleiben können, wo sie sind, während Livariant sie als **provenienzbewusste externe Evidenz** nutzt, ohne sie still in kanonische Project Truth umzuwandeln.
+
+## Welches Problem Livariant angeht
+
+Livariant soll projektweite KI-Fehlermuster reduzieren, zum Beispiel:
+
+- Kontextverlust zwischen Chats und Sessions;
+- vergessene oder ersetzte Architekturentscheidungen;
+- halluzinierte oder veraltete Projektfakten, die zu dauerhaften Annahmen werden;
+- unterschiedliche Agenten mit unterschiedlichen Versionen der Projektwirklichkeit;
+- Architekturdrift durch viele einzeln vernünftig wirkende Änderungen;
+- nicht vertrauenswürdiger Repository- oder externer Kontext, der Agenten beeinflusst;
+- Verwechslung von technischer Fähigkeit mit Nutzerautorisierung;
+- unterbrochene Updates oder Migrationen mit unklarem Zustand;
+- Agenten, die Arbeit ohne ausreichende Verifikation als fertig melden;
+- persistierter KI-Zustand, der einen früheren Fehler verstärkt;
+- wiederholte Fehler, die das Projekt immer wieder neu macht.
+
+Livariant behauptet **nicht**, Halluzinationen, Bugs, Prompt Injection oder falsches Denken im Modell selbst zu eliminieren.
+
+Das Ziel ist ein anderes:
+
+> **Das Softwareprojekt soll kohärent, nachvollziehbar, wiederherstellbar und kontrolliert bleiben, auch wenn einzelne KI-Agenten Fehler machen.**
+
+## Projekt-eigene Kontinuität
+
+Livariant führt lokal ein **Project Brain**:
 
 ```text
 .project-brain/
@@ -29,143 +107,176 @@ Heute gibt Livariant deinem Projekt ein **Project Brain**:
   metadata.json
 ```
 
-Darin liegen bestätigte Ziele, Wissen, Entscheidungen, Projektidentität und Lifecycle-Zustand in einer Form, die dem Projekt gehört.
+Damit besitzt das Projekt einen dauerhaften Zustand, der nicht einem einzelnen Chat oder KI-Provider gehört.
 
-So kann eine spätere KI-Sitzung den aktuellen Projektstand rekonstruieren, ohne von einem alten Chat oder dem Gedächtnis eines einzelnen Providers abhängig zu sein.
+Ein kopierter Satz, ein zurückgegebenes KI-Ergebnis, ein veraltetes Kontextpaket, eine externe Notiz oder eine rekonstruierte Zusammenfassung wird nicht automatisch vertrauenswürdiger Projektzustand, nur weil es existiert.
 
-Ein einfaches Beispiel:
+## Active Project Intelligence
 
-```text
-Montag
-Du entscheidest mit Claude Code, dass die Anmeldung nach Ansatz A gebaut wird.
-Du hältst die akzeptierte Entscheidung über Livariant fest, nachdem du den Plan geprüft hast.
+Die veröffentlichte `v0.1.0-rc.3` Foundation Preview hat die ursprüngliche projekt-eigene Kontinuitäts- und Lifecycle-Basis geschaffen.
 
-Freitag
-Du startest eine neue Codex-Sitzung.
-Livariant rekonstruiert den aktuellen Projektkontext aus dem Project Brain.
-Codex kann sehen, dass Ansatz A die aktive Entscheidung ist, ohne den alten Claude-Code-Chat zu brauchen.
-```
+Das Repository ist inzwischen deutlich weiter. Der aktuelle `main` enthält Post-RC3-Funktionen aus dem Bereich **Active Project Intelligence**, darunter:
 
-Der wichtige Punkt ist nicht nur, Text abzulegen. Livariant behandelt Projektwahrheit als verwalteten Zustand. Änderungen werden geplant, bevor sie angewendet werden. Alte Entscheidungen können als Historie erhalten bleiben, wenn sie ersetzt werden. Unklare oder unsichere Zustände werden nicht still geraten.
+- kohärente Project-Context-Snapshots;
+- semantische Änderungsvorschläge;
+- Konflikt-/Drift-Bewertung;
+- providerbezogene Kontext-Erzeugung;
+- Provider-Return-Intake als nicht vertrauenswürdige Evidenz;
+- proposal-gebundene Authorization- und Semantic-Apply-Pfade;
+- providerneutrale Semantic-Maintenance-Komposition;
+- lokale MCP-Grundlagen und native Setup-Unterstützung für kompatible Agent-Umgebungen;
+- read-only Projekt-Discovery;
+- geführtes Projektverständnis mit kontrollierter Übernahme;
+- eine External-Knowledge-Source-Foundation;
+- First-Run-Komposition;
+- Autonomy Profiles.
 
-## Was heute bereits funktioniert
-
-Die Foundation Preview unterstützt schon einen echten wiederholten Arbeitsablauf:
-
-```text
-Projekt prüfen
--> Project Brain bewusst initialisieren
--> Ziele, Wissen und Entscheidungen festhalten
--> aktuellen Kontext in einer späteren Sitzung wieder aufnehmen
--> veraltete Entscheidungen ersetzen, ohne Historie zu löschen
--> Probleme diagnostizieren
--> Updates und Recovery über kontrollierte Lifecycle-Pfade ausführen
-```
-
-Nützliche Befehle sind:
+Repräsentative Oberflächen sind:
 
 ```bash
-livariant status
-livariant doctor
-livariant init
-livariant goals
-livariant knowledge
-livariant decisions
-livariant resume
-livariant update
-livariant recover
+livariant context
+livariant propose --input candidate.json
+livariant drift --input observation.json
+livariant provider-context --provider claude-code --task task.txt
+livariant provider-return --context provider-context.json --input provider-return.json
+livariant maintain --input candidate.json
+livariant mcp
+livariant discover
+livariant understand
+livariant adopt-understanding
+livariant external-source
+livariant first-run
+livariant autonomy
 ```
 
-Ändernde Operationen sind plan-first. Zum Beispiel:
+Die Architekturregel bleibt dabei gleich: **KI-/Provider-Ausgabe ist Evidenz oder Projektion, bis sie einen ausdrücklich unterstützten Authority-Pfad durchläuft.**
 
-```bash
-livariant decisions add "Passkeys für die Anmeldung verwenden"
-```
+## Bestehende Projekte zuerst
 
-zeigt zuerst die geplante Änderung. Geschrieben wird erst, wenn du denselben Befehl ausdrücklich mit `--apply` wiederholst.
+Livariant verlangt kein spezielles Projekt-Template. Es ist für bestehende Softwareprojekte gedacht.
 
-Die aktuelle Preview enthält außerdem:
-
-- projekt-eigenen kanonischen Zustand statt Provider-Memory als Hauptquelle;
-- Resume-Handoff für Claude Code und Codex;
-- preservation-first Übernahme bestehender Projekte;
-- Entscheidungsverlauf und Supersession;
-- Schutz vor konkurrierenden Writes und unsicheren Pfaden bei verwaltetem Wissen;
-- gehärtete Grenzen für Update, Migration, Recovery, Runtime-Trust und Release-Authority;
-- lokalen Betrieb ohne Livariant-Telemetrie, automatischen Project-Brain-Upload oder verpflichtendes Livariant-Cloud-Konto.
-
-## Wohin Livariant geht
-
-Die Foundation Preview ist bewusst der sichere Kern und nicht das Ende des Produkts.
-
-Die nächste große Schicht ist **Active Project Intelligence**.
-
-Das Ziel ist, Livariant während normaler Arbeit mit einem KI-Coding-Agenten nützlich zu machen, ohne dass du jedes wichtige Projektereignis manuell in einen CLI-Befehl übersetzen musst.
-
-Ein zukünftiger Livariant-unterstützter Ablauf soll eher so aussehen:
+Die Übernahme folgt einem preservation-first Modell:
 
 ```text
-Du: "Wir ersetzen Passwort-Login durch Passkeys."
-
-Agent + Livariant:
-- erkennt, dass daraus dauerhafte Projektwahrheit entstehen könnte;
-- prüft bestehende Ziele, Entscheidungen, Wissen und Begriffe;
-- erkennt Konflikte oder betroffene Annahmen;
-- erstellt einen semantischen Änderungsvorschlag;
-- zeigt, was sich ändern würde und warum;
-- wartet auf deine Zustimmung;
-- übernimmt die bestätigte Project-Brain-Änderung über Livariant;
-- verifiziert anschließend den neuen Zustand.
+prüfen
+-> entdecken
+-> verstehen
+-> reviewen
+-> bewusst übernehmen
 ```
 
-Zu dieser Richtung gehören unter anderem:
+Livariant soll ein bestehendes Projekt nicht still umschreiben, nur weil eine KI glaubt, das Repository verstanden zu haben.
 
-- semantische Änderungsvorschläge aus normaler Agent-Arbeit;
-- Konflikt- und Drift-Erkennung gegenüber bestehender Projektwahrheit;
-- agentenunterstützte Pflege des Project Brain statt manueller Buchhaltung;
-- Verwaltung von Projektbegriffen und provisorischen Arbeitsnamen;
-- sicherere Fortsetzung zwischen unterschiedlichen Coding-Agents;
-- reichhaltigere Integrationen auf Basis des bestehenden Authority- und Recovery-Modells.
+## Externes Wissen
 
-Diese Punkte sind **Produkt-Richtung und keine aktuellen RC3-Funktionsversprechen**. Der Sinn der Foundation Preview ist gerade, zuerst einen vertrauenswürdigen dauerhaften Kern zu haben, bevor mehr Automatisierung darauf handeln darf.
+Livariant besitzt bereits eine Grundlage, um externes Wissen als getrennte Evidenzquelle zu behandeln.
 
-## Warum zuerst das Fundament?
-
-Ein KI-Agent kann heute schon Dateien bearbeiten. Mehr Automatisierung hinzuzufügen ist leicht.
-
-Mehr Automatisierung hinzuzufügen, **ohne Projektwahrheit zu verlieren, menschliche Arbeit zu überschreiben, projektkontrolliertem ausführbarem Code zu vertrauen oder beschädigten Zustand zu erraten**, ist deutlich schwieriger.
-
-Livariant trennt deshalb:
+Das Zielmodell ist:
 
 ```text
-Prüfen -> Planen -> Autorisieren -> Ändern -> Verifizieren
-                                      |
-                                      +-> bei Abbruch gezielt wiederherstellen
+Obsidian / Markdown / andere Wissensquelle
+        ↓
+read-only Source Adapter
+        ↓
+provenienzbewusste Evidenz
+        ↓
+Retrieval / Understanding
+        ↓
+Review
+        ↓
+kontrollierte Übernahme, wenn etwas Project Truth werden soll
 ```
 
-> [!IMPORTANT]
-> **Fähigkeit ist nicht Autorität.**
+Externes Wissen bleibt externes Wissen. Künftige Retrieval-, Relationship-, Graph- und Token-Effizienz-Funktionen sollen auf expliziter Provenienz und Freshness-Semantik aufbauen, statt versteckte zweite Wahrheitsspeicher zu erzeugen.
 
-Je aktiver Livariant später wird, desto wichtiger wird genau diese Regel.
+## Autorität und sichere Änderungen
 
-Das tiefere Modell erklärt [Architektur & Sicherheit](docs/de/architecture-and-safety.md).
+Eine der zentralen Livariant-Regeln lautet:
 
-## Fünf-Minuten-Start
+> **Etwas tun zu können bedeutet nicht, es tun zu dürfen.**
 
-Voraussetzungen für den aktuellen Preview-Kandidaten:
+Livariant trennt:
+
+```text
+Prüfen
+   ↓
+Verstehen
+   ↓
+Vorschlagen
+   ↓
+Autorisieren
+   ↓
+Ändern
+   ↓
+Verifizieren
+```
+
+Das wird umso wichtiger, je mehr Coding-Agenten auf Dateisystem, Shell, Git, Netzwerk oder Deployment-Systeme zugreifen können.
+
+## Self-Integrity
+
+Livariant wendet seine eigene Philosophie auch auf sich selbst an.
+
+Ein System, das KI-Fehler eindämmen soll, darf dieselben Fehler nicht schleichend in seinem eigenen Gedächtnis, seiner abgeleiteten Intelligenz, seinem Authority-Modell oder Agent-Handoffs institutionalisieren.
+
+Langfristige Integritätsrisiken sind beispielsweise:
+
+```text
+Halluzination -> dauerhafter Zustand
+veraltete Information -> aktuelle Wahrheit
+KI-Inferenz -> Autorität
+verlustbehaftete Zusammenfassung -> akzeptierter Projektglaube
+falscher persistenter Zustand -> wiederholtes Retrieval -> scheinbare Gewissheit
+abgeleiteter Graph/Index -> versteckte zweite Wahrheit
+agentenveränderte Guardrail -> schwächere zukünftige Absicherung
+```
+
+Wo praktikabel, sollen kritische Invarianten durch deterministische Software und explizite Zustandsübergänge erzwungen werden, statt darauf zu vertrauen, dass ein KI-Modell eine Regel korrekt erinnert.
+
+## Guardian-Authority-Hardening
+
+Der aktuelle `main` enthält inzwischen die nach RC3 eingeführte geschützte Guardian-Trust-Root-Foundation.
+
+Der nächste Hardening-Schritt migriert entscheidende Trust-Consumer auf Guardian-origin Authority, damit normal nutzerbeschreibbare Records nicht länger als unabhängige harte Autorität gelten.
+
+Diese Migration befindet sich **noch in aktiver Entwicklung und Acceptance**. Sie ist noch kein abgeschlossenes Release-Versprechen.
+
+Repository-Existenz ist daher nicht dasselbe wie Release-Qualifikation.
+
+## Veröffentlichtes Release vs. aktuelle Entwicklung
+
+### Veröffentlichtes Release
+
+`v0.1.0-rc.3` ist die unveränderliche **Foundation Preview**.
+
+### Aktueller Repository-`main`
+
+Enthält umfangreiche Post-RC3-Funktionen sowie zusätzliche Guardian-/Self-Integrity-Härtung, die nicht Teil von RC3 sind.
+
+### Aktive Entwicklung
+
+Weitere Guardian-Consumer-Migration und Self-Integrity-Remediation werden noch implementiert und adversarial geprüft, bevor daraus der nächste qualifizierte Release wird.
+
+### Nächster qualifizierter Release
+
+Erhält eine eigene Exact-Candidate-CI-/Security-Qualifikation, einen releaseweiten Review und eine ausdrückliche Release-Autorisierung.
+
+## Fünf-Minuten-Start mit der Foundation Preview
+
+Voraussetzungen:
 
 - Node.js 20 oder neuer;
 - ein lokales Softwareprojekt;
-- der verifizierte Livariant-Preview-Release-Tarball aus dem kanonischen GitHub Release, sobald RC3 veröffentlicht ist.
+- das offizielle `v0.1.0-rc.3`-Release-Artefakt.
 
-Installiere Livariant als Tool für deinen Rechner oder Benutzeraccount. Livariant wird nicht als Claude-Code- oder Codex-Plugin installiert und nicht in die `package.json` deines Projekts eingetragen.
+Installiere Livariant als Rechner-/Benutzer-Tool und nicht als normale Anwendungsabhängigkeit:
 
 ```bash
 npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
 livariant version
 ```
 
-Öffne den Projektordner und prüfe zuerst den Zustand:
+Im Projekt:
 
 ```bash
 livariant status
@@ -173,127 +284,75 @@ livariant doctor
 livariant init
 ```
 
-`livariant init` ist standardmäßig read-only. Wenn der Plan korrekt ist:
-
-```bash
-livariant init --apply
-```
-
-Danach kannst du dauerhafte Projektwahrheit festhalten. Ohne `--apply` wird jeweils nur ein Plan erstellt:
-
-```bash
-livariant goals add "Die erste Public Preview veröffentlichen"
-livariant knowledge add "Die Preview wird über GitHub Releases verteilt"
-livariant decisions add "GitHub Releases für die Preview-Distribution verwenden"
-```
-
-Nach Prüfung wiederholst du den passenden Befehl mit `--apply`.
-
-Um später den aktuellen Projektkontext wieder aufzunehmen:
+Um später den aktuellen Project-Brain-Kontext zu rekonstruieren:
 
 ```bash
 livariant resume
 ```
 
-Für Claude Code oder Codex gezielt:
+Für den vollständigen unterstützten Release-Workflow:
 
-```bash
-LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
-LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
-```
+- [Installation & erstes Projekt](docs/de/installation.md)
+- [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
+- [Leitfaden für bestehende Projekte](docs/de/existing-projects.md)
 
-Unter [Installation & erstes Projekt](docs/de/installation.md) findest du den vollständigen Einstieg. Der [Fünf-Minuten-Schnellstart](docs/de/quickstart.md) ist die kürzere Arbeitsreferenz.
+## Local-first als Standard
 
-## Wie die normale Nutzung aussieht
+Der aktuelle Livariant-Betrieb ist local-first ausgelegt:
 
-Die aktuelle Foundation Preview beobachtet nicht automatisch jedes Gespräch. Du entscheidest, welcher bestätigte Zustand in das Project Brain gehört.
-
-Ein normaler Zyklus ist:
-
-```text
-1. Projekt öffnen.
-2. Bei Bedarf den aktuellen Project-Brain-Kontext wieder aufnehmen.
-3. Normal mit dem Coding-Agent arbeiten.
-4. Ein bestätigtes Ziel, einen Fakt oder eine akzeptierte Entscheidung als dauerhafte Projektwahrheit festhalten.
-5. Livariants Plan prüfen.
-6. Änderung ausdrücklich anwenden.
-7. In einer späteren Sitzung oder bei einem anderen unterstützten Provider den aktualisierten Stand wieder aufnehmen.
-```
-
-Unterstützte semantische Operationen sind:
-
-```text
-livariant goals [list]
-livariant goals add <goal> [--apply]
-livariant knowledge [list]
-livariant knowledge add <fact> [--apply]
-livariant decisions [list]
-livariant decisions add <decision> [--apply]
-livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
-```
-
-Beim Superseden bleibt die alte Entscheidung als Historie erhalten, statt still gelöscht zu werden.
-
-## Bestehende Projekte
-
-Livariant verlangt weder ein neues Repository noch ein bevorzugtes Projekt-Template.
-
-Starte direkt im bestehenden Projekt:
-
-```bash
-livariant status
-livariant doctor
-livariant init
-```
-
-Bestehende projekt-eigene Dateien sind standardmäßig geschützt. Unklarer Zustand führt zu Diagnose statt zu geratenem Umschreiben.
-
-Mehr dazu im [Leitfaden für bestehende Projekte](docs/de/existing-projects.md).
-
-## Updates und Wiederherstellung
-
-Der Livariant-Lifecycle ist bewusst strenger als das manuelle Kopieren oder Ersetzen verwalteter Dateien.
-
-Zuerst prüfen:
-
-```bash
-livariant update --manifest ./release-manifest.json
-livariant recover
-```
-
-Anwenden erst nach Prüfung und nur, wenn Livariant einen unterstützten Pfad meldet.
-
-Für ausführbare Updates ist zusätzlich eine unabhängige rechnerlokale Autorität für das exakte Release-Artefakt nötig, bevor Candidate-Runtime-Code ausgeführt werden darf. Projektkontrollierte Dateien können diese Autorität nicht selbst für sich erzeugen.
-
-Mehr dazu unter [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-guide.md).
-
-## Datenschutz
-
-Die aktuelle Runtime ist für lokale Projektarbeit ausgelegt:
-
-- keine Livariant-Analytics oder Nutzungs-Telemetrie;
+- kein Livariant-Cloud-Konto für normale lokale Nutzung erforderlich;
 - kein automatischer Upload des Project Brain;
-- kein Livariant-Cloud-Konto für lokale Nutzung erforderlich;
-- kein automatischer Remote-Update-Check;
-- Resume-Ausgabe wird lokal erzeugt.
+- keine Livariant-Nutzungstelemetrie in der aktuellen Runtime;
+- kein automatischer Remote-Update-Check.
 
-Wenn du Resume-Kontext an einen externen KI-Provider weitergibst, gelten dessen eigene Bedingungen und Einstellungen.
+Wenn Projektkontext an einen externen KI-Provider gesendet wird, gelten dessen eigene Bedingungen, Aufbewahrungseinstellungen und Sicherheitsmodelle.
 
-Mehr dazu unter [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md).
+Mehr unter [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md).
 
-## Foundation-Preview-Status
+## Updates, Lifecycle und Recovery
 
-`0.1.0-rc.3` ist der aktuelle Foundation-Preview-Kandidat.
+Livariant behandelt Software-Lifecycle-Operationen getrennt von normalen Projektkontext-Änderungen.
 
-Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz und nicht der aktuelle Kandidat.
+Update, Migration, Runtime-Aktivierung, Recovery, Release-Identität, Artefaktintegrität und Autorisierung sind unterschiedliche Anliegen.
 
-Die unterstützte Baseline wird in CI auf Ubuntu und Windows geprüft. Preview bedeutet, dass das unterstützte Verhalten durch Evidenz abgesichert ist, während sich Oberflächen und Produktumfang vor 1.0 noch weiterentwickeln können.
+Das Projekt wurde bereits gezielt gegen unterbrochene Migrationen, Recovery-Checkpoint-Substitution, stranded Lifecycle State, Runtime Trust, Release-Artefaktidentität, Windows-Shell-Ausführung, stale Semantic Baselines und proposal-gebundene Autorisierung gehärtet.
 
-Bekannte Datenverlust-, Autoritätseskalations-, Migrationsintegritäts- oder Release-Trust-Bypässe auf unterstützten Pfaden gelten nicht als akzeptable Preview-Einschränkungen.
+Die aktuelle Guardian-Arbeit stärkt die unabhängige Authority-Grenze weiter.
 
-Die größere Active-Project-Intelligence-Richtung wird bewusst nicht als bereits implementiertes RC3-Verhalten dargestellt.
+Mehr unter [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-guide.md) und [Architektur & Sicherheit](docs/de/architecture-and-safety.md).
 
-Mehr dazu unter [Public-Preview-Support & Stabilität](docs/de/preview-support-and-stability.md) und [Public-Preview-Umfang & Einschränkungen](docs/de/preview-scope.md).
+## Wohin Livariant geht
+
+Livariants langfristige Richtung ist nicht einfach „mehr Kontext speichern“. Die Architektur entwickelt sich um sechs miteinander verbundene Säulen:
+
+- **Memory** — validierte Projekterfahrung über Agenten und Sessions hinweg bewahren.
+- **Epistemics** — wissen, warum das Projekt etwas glaubt, woher es stammt und ob es aktuell, abgeleitet, stale oder umstritten ist.
+- **Relationships** — relevante Abhängigkeiten zwischen Entscheidungen, Requirements, Komponenten, Evidenz und Änderungen darstellen.
+- **Governance** — Fähigkeit, Autorität, Risiko und irreversible Aktionen getrennt halten.
+- **Verification** — Completion- und Safety-Claims auf Evidenz statt Agenten-Selbstvertrauen stützen.
+- **Learning** — validierte Fehler in dauerhaftes Projektwissen und Regression-Schutz verwandeln.
+
+Künftige Funktionen wie tiefere External-Knowledge-Integration, graphgestütztes Retrieval, Context-Budget-Optimierung, Change-Impact-Analyse, risk-adaptive Autonomy und Multi-Agent-Koordination sollen erst dann auf diesen Fundamenten aufbauen, wenn ihre Voraussetzungen und ein realer Produktbedarf gegeben sind.
+
+## Warum das wichtig ist
+
+KI-Entwicklungstools werden immer besser darin, Software zu erzeugen und zu verändern. Damit kann aber auch eine falsche Annahme einen größeren Blast Radius bekommen.
+
+Livariant folgt der Idee, dass ernsthafte KI-gestützte Entwicklung etwas braucht zwischen:
+
+```text
+"Das Modell hat das vorgeschlagen"
+```
+
+und:
+
+```text
+"Das Projekt glaubt das jetzt und handelt danach"
+```
+
+Diese Schicht soll Kontext erhalten, Annahmen hinterfragen, Autorität begrenzen, Änderungen verifizieren, Historie bewahren und dem Projekt helfen, aus früheren Fehlern zu lernen.
+
+Für ein Hobbyprojekt kann das weniger verwirrende Neustarts und weniger versehentliche Fehler bedeuten. Für professionelle Software können dieselben Prinzipien stärkere Nachvollziehbarkeit, Governance, Sicherheit und Release-Vertrauen schaffen.
 
 ## Dokumentation
 
@@ -317,11 +376,11 @@ Die englische Dokumentation beginnt unter [README.md](README.md).
 
 ## Lizenz, Sicherheit und Beiträge
 
-Livariant ist source-available und kein OSI-zertifiziertes Open-Source-Projekt. Die Standardlizenz ist die [PolyForm Perimeter License 1.0.1](LICENSE).
+Livariant ist source-available und kein OSI-zertifiziertes Open-Source-Projekt. Es steht unter der [PolyForm Perimeter License 1.0.1](LICENSE).
 
 Veröffentliche vermutete Sicherheitslücken nicht als öffentliches Issue. Folge stattdessen [SECURITY.md](SECURITY.md).
 
-Externe Code-Beiträge sind derzeit ausgesetzt, bis Contributor-Rechte mit dem source-available und zukünftigen kommerziellen Lizenzmodell sauber geregelt sind. Bugreports, Dokumentationsfeedback, Fragen und Design-Diskussionen sind über die Community-Wege des Repositorys willkommen.
+Externe Code-Beiträge sind derzeit eingeschränkt, solange Contributor-Rechte passend zum source-available und zukünftigen kommerziellen Lizenzmodell finalisiert werden. Bugreports, Dokumentationsfeedback, Fragen und Design-Diskussionen sind willkommen.
 
 - [Lizenzierung](LICENSING.md)
 - [Security Policy](SECURITY.md)
@@ -330,4 +389,4 @@ Externe Code-Beiträge sind derzeit ausgesetzt, bis Contributor-Rechte mit dem s
 
 ---
 
-**Livariant beginnt mit einer einfachen Regel: Das Projekt selbst soll die Wahrheit besitzen, die nötig ist, um seine Arbeit fortzusetzen. Der nächste Schritt ist, diese Wahrheit während der Entwicklung aktiv nutzbar zu machen.**
+> **Livariant braucht keine perfekte KI. Das Projekt muss vertrauenswürdig bleiben, wenn die KI es nicht ist.**
