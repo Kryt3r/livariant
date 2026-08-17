@@ -26,6 +26,27 @@ test("clean locked Node project returns no supported v1 findings", async () => {
   });
 });
 
+test("package manifest without declared install dependencies does not create lockfile noise", async () => {
+  await withProject(async (projectPath) => {
+    await writeFile(resolve(projectPath, "package.json"), JSON.stringify({ name: "manifest-only", scripts: { test: "node --test" } }));
+
+    const report = scanProjectFindings(projectPath);
+    assert.ok(!report.findings.some((candidate) => candidate.ruleId === "LV-FND-QUAL-003"));
+  });
+});
+
+test("declared dependencies without a lockfile are surfaced", async () => {
+  await withProject(async (projectPath) => {
+    await writeFile(resolve(projectPath, "package.json"), JSON.stringify({ name: "unlocked", dependencies: { react: "^19.0.0" } }));
+
+    const report = scanProjectFindings(projectPath);
+    const item = report.findings.find((candidate) => candidate.ruleId === "LV-FND-QUAL-003");
+    assert.ok(item);
+    assert.equal(item.severity, "medium");
+    assert.equal(item.confidence, "strong");
+  });
+});
+
 test("dangerous package download-and-execute script is a strong security finding", async () => {
   await withProject(async (projectPath) => {
     await writeFile(resolve(projectPath, "package.json"), JSON.stringify({
@@ -79,6 +100,44 @@ test("sensitive root-file rule never reads or exposes the secret contents", asyn
     assert.ok(item);
     assert.equal(item.confidence, "moderate");
     assert.doesNotMatch(JSON.stringify(report), new RegExp(secret));
+  });
+});
+
+test("empty gitignore does not suppress a sensitive-file finding", async () => {
+  await withProject(async (projectPath) => {
+    await mkdir(resolve(projectPath, ".git"));
+    await writeFile(resolve(projectPath, ".env"), "TOKEN=hidden\n");
+    await writeFile(resolve(projectPath, ".gitignore"), "# intentionally empty\n");
+
+    const report = scanProjectFindings(projectPath);
+    assert.ok(report.findings.some((candidate) => candidate.ruleId === "LV-FND-SEC-003"));
+  });
+});
+
+test("exact root gitignore entry suppresses only the explicitly guarded sensitive file", async () => {
+  await withProject(async (projectPath) => {
+    await mkdir(resolve(projectPath, ".git"));
+    await writeFile(resolve(projectPath, ".env"), "TOKEN=hidden\n");
+    await writeFile(resolve(projectPath, "credentials.json"), "do-not-read\n");
+    await writeFile(resolve(projectPath, ".gitignore"), "/.env\n");
+
+    const report = scanProjectFindings(projectPath);
+    const item = report.findings.find((candidate) => candidate.ruleId === "LV-FND-SEC-003");
+    assert.ok(item);
+    assert.ok(item.evidence.some((evidence) => evidence.path === "credentials.json"));
+    assert.ok(!item.evidence.some((evidence) => evidence.path === ".env"));
+  });
+});
+
+test("all sensitive files with exact root ignore entries do not create the hygiene finding", async () => {
+  await withProject(async (projectPath) => {
+    await mkdir(resolve(projectPath, ".git"));
+    await writeFile(resolve(projectPath, ".env"), "TOKEN=hidden\n");
+    await writeFile(resolve(projectPath, "credentials.json"), "do-not-read\n");
+    await writeFile(resolve(projectPath, ".gitignore"), ".env\n/credentials.json\n");
+
+    const report = scanProjectFindings(projectPath);
+    assert.ok(!report.findings.some((candidate) => candidate.ruleId === "LV-FND-SEC-003"));
   });
 });
 
