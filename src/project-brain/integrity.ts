@@ -86,8 +86,8 @@ async function safeIntegrityBase(
   const base = integrityBase(home);
   if (create) {
     const livariantRoot = resolve(home, ".livariant");
-    const integrityRoot = resolve(livarianRoot, "integrity");
-    if (!await assertRealDirectory(livarianRoot, "Machine-local Livariant root")) await mkdir(livarianRoot, { recursive: false });
+    const integrityRoot = resolve(livariantRoot, "integrity");
+    if (!await assertRealDirectory(livariantRoot, "Machine-local Livariant root")) await mkdir(livariantRoot, { recursive: false });
     await ensureRealDirectory(integrityRoot, "Machine-local integrity root");
     await ensureRealDirectory(base, "Machine-local Project Brain integrity root");
   } else if (!await assertRealDirectory(base, "Machine-local Project Brain integrity root")) {
