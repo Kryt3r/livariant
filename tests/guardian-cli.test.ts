@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
+const helperPath = fileURLToPath(new URL("../src/guardian/protected-helper.js", import.meta.url));
 
 async function withProject(run: (project: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(resolve(tmpdir(), "livariant-guardian-cli-"));
@@ -43,6 +44,43 @@ test("guardian status is read-only structured diagnostics", async () => {
   });
 });
 
+test("guardian bootstrap cannot be performed by a non-interactive agent or ordinary unprivileged process", async () => {
+  await withProject(async (project) => {
+    const result = spawnSync(process.execPath, [cliPath, "guardian", "bootstrap", "--json"], {
+      cwd: project,
+      encoding: "utf8",
+      shell: false,
+      env: { ...process.env, PBF_RUNTIME_DELEGATION_BYPASS: "1" },
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(
+      `${result.stdout}\n${result.stderr}`,
+      /already privileged root terminal|already elevated Administrator terminal|local interactive terminal/i,
+    );
+  });
+});
+
+test("protected Guardian helper exposes only a non-authorizing foundation version surface", () => {
+  const version = spawnSync(process.execPath, [helperPath, "version"], { encoding: "utf8", shell: false });
+  assert.equal(version.status, 0, version.stderr);
+  const parsed = JSON.parse(version.stdout) as {
+    schemaVersion: number;
+    kind: string;
+    guardianVersion: number;
+    authorityIssuanceSupported: boolean;
+  };
+  assert.deepEqual(parsed, {
+    schemaVersion: 1,
+    kind: "livariant-guardian-helper",
+    guardianVersion: 1,
+    authorityIssuanceSupported: false,
+  });
+
+  const issue = spawnSync(process.execPath, [helperPath, "issue-authority"], { encoding: "utf8", shell: false });
+  assert.notEqual(issue.status, 0);
+  assert.match(`${issue.stdout}\n${issue.stderr}`, /does not issue Authority/i);
+});
+
 test("guardian command refuses unsupported mutating-looking subcommands", async () => {
   await withProject(async (project) => {
     const result = spawnSync(process.execPath, [cliPath, "guardian", "install"], {
@@ -52,6 +90,6 @@ test("guardian command refuses unsupported mutating-looking subcommands", async 
       env: { ...process.env, PBF_RUNTIME_DELEGATION_BYPASS: "1" },
     });
     assert.notEqual(result.status, 0);
-    assert.match(`${result.stdout}\n${result.stderr}`, /requires: guardian status/i);
+    assert.match(`${result.stdout}\n${result.stderr}`, /guardian status.*guardian bootstrap/i);
   });
 });
