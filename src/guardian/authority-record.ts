@@ -169,6 +169,9 @@ export function parseGuardianAuthorityRecord(value: unknown): GuardianAuthorityR
     if (value.consumedAt !== undefined && Date.parse(value.consumedAt) < Date.parse(value.issuedAt)) {
       throw new Error("Guardian Authority cannot be consumed before it was issued.");
     }
+    if (value.consumedAt !== undefined && Date.parse(value.consumedAt) >= Date.parse(value.expiresAt)) {
+      throw new Error("Guardian Authority cannot be consumed after its expiry.");
+    }
   }
   return value as unknown as GuardianAuthorityRecord;
 }
