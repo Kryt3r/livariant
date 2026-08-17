@@ -34,62 +34,38 @@ async function withProject(run: (path: string) => Promise<void>): Promise<void> 
   }
 }
 
-test("goal, knowledge, and decision changes are plan-first and require explicit apply", async () => {
+test("legacy goal, knowledge, and decision commands remain plan-first while direct --apply is retired", async () => {
   await withProject(async (path) => {
     const goalsPath = resolve(path, ".project-brain", "goals.md");
-    const beforeGoals = await readFile(goalsPath, "utf8");
+    const knowledgePath = resolve(path, ".project-brain", "knowledge.md");
+    const decisionsPath = resolve(path, ".project-brain", "decisions.md");
+    const before = {
+      goals: await readFile(goalsPath, "utf8"),
+      knowledge: await readFile(knowledgePath, "utf8"),
+      decisions: await readFile(decisionsPath, "utf8"),
+    };
 
     const goalPlan = runCli(path, ["goals", "add", "Ship a safe public preview"]);
     assert.equal(goalPlan.status, 0, goalPlan.stderr);
     assert.match(goalPlan.stdout, /Canonical knowledge change plan/);
     assert.match(goalPlan.stdout, /Changes made: 0/);
     assert.match(goalPlan.stdout, /No changes applied/);
-    assert.equal(await readFile(goalsPath, "utf8"), beforeGoals);
 
-    const goalApply = runCli(path, ["goals", "add", "Ship a safe public preview", "--apply"]);
-    assert.equal(goalApply.status, 0, goalApply.stderr);
-    assert.match(goalApply.stdout, /recorded and verified/);
+    for (const args of [
+      ["goals", "add", "Ship a safe public preview", "--apply"],
+      ["knowledge", "add", "The public preview is distributed through GitHub Releases", "--apply"],
+      ["decisions", "add", "Use GitHub Releases for preview distribution", "--apply"],
+      ["decisions", "supersede", "D-00000000-0000-4000-8000-000000000000", "Use signed release infrastructure", "--apply"],
+    ]) {
+      const result = runCli(path, args);
+      assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
+      assert.match(`${result.stdout}\n${result.stderr}`, /Legacy semantic --apply is retired/);
+      assert.match(`${result.stdout}\n${result.stderr}`, /Changes made: 0/);
+    }
 
-    const knowledgeApply = runCli(path, ["knowledge", "add", "The public preview is distributed through GitHub Releases", "--apply"]);
-    assert.equal(knowledgeApply.status, 0, knowledgeApply.stderr);
-    assert.match(knowledgeApply.stdout, /recorded and verified/);
-
-    const decisionApply = runCli(path, ["decisions", "add", "Use GitHub Releases for preview distribution", "--apply"]);
-    assert.equal(decisionApply.status, 0, decisionApply.stderr);
-    const decisionId = /verified: (D-[A-Za-z0-9-]+)/.exec(decisionApply.stdout)?.[1];
-    assert.ok(decisionId, decisionApply.stdout);
-
-    const context = await buildResumeContext(path);
-    assert.deepEqual(context.confirmedGoals, ["Ship a safe public preview"]);
-    assert.ok(context.knownFacts.includes("The public preview is distributed through GitHub Releases"));
-    assert.deepEqual(context.activeDecisions, ["Use GitHub Releases for preview distribution"]);
-
-    const resume = runCli(path, ["resume"]);
-    assert.equal(resume.status, 0, resume.stderr);
-    assert.match(resume.stdout, /Confirmed goals:/);
-    assert.match(resume.stdout, /Ship a safe public preview/);
-    assert.match(resume.stdout, /Known facts:/);
-    assert.match(resume.stdout, /GitHub Releases/);
-
-    const providerResume = runCli(
-      path,
-      ["resume", "--provider", "claude-code"],
-      { LIVARIANT_PROVIDER_ENV: "claude-code" },
-    );
-    assert.equal(providerResume.status, 0, providerResume.stderr);
-    assert.match(providerResume.stdout, /Ship a safe public preview/);
-    assert.match(providerResume.stdout, /The public preview is distributed through GitHub Releases/);
-    assert.match(providerResume.stdout, /Use GitHub Releases for preview distribution/);
-
-    const supersedePlan = runCli(path, ["decisions", "supersede", decisionId, "Use signed release infrastructure", "--reason", "Distribution model changed"]);
-    assert.equal(supersedePlan.status, 0, supersedePlan.stderr);
-    assert.match(supersedePlan.stdout, /Changes made: 0/);
-    assert.deepEqual((await buildResumeContext(path)).activeDecisions, ["Use GitHub Releases for preview distribution"]);
-
-    const supersedeApply = runCli(path, ["decisions", "supersede", decisionId, "Use signed release infrastructure", "--reason", "Distribution model changed", "--apply"]);
-    assert.equal(supersedeApply.status, 0, supersedeApply.stderr);
-    assert.match(supersedeApply.stdout, /superseded by/);
-    assert.deepEqual((await buildResumeContext(path)).activeDecisions, ["Use signed release infrastructure"]);
+    assert.equal(await readFile(goalsPath, "utf8"), before.goals);
+    assert.equal(await readFile(knowledgePath, "utf8"), before.knowledge);
+    assert.equal(await readFile(decisionsPath, "utf8"), before.decisions);
   });
 });
 
