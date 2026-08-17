@@ -46,6 +46,7 @@ function renderHelp(): void {
   console.log("  init [--apply]");
   console.log("  integrity inspect [--json]");
   console.log("  integrity accept-current  # interactive local bootstrap only");
+  console.log("  guardian status [--json]  # read-only protected-root diagnostics");
   console.log("  goals [list] | goals add <goal>  # plan only");
   console.log("  knowledge [list] | knowledge add <fact>  # plan only");
   console.log("  decisions [list] | decisions add <decision>  # plan only");
@@ -72,6 +73,7 @@ function renderHelp(): void {
   console.log("Legacy goals/knowledge/decisions commands are list/plan surfaces only; their --apply mutation path is retired.");
   console.log("Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
   console.log("Project Brain integrity checkpoints detect unaccepted managed-byte drift but are not same-user Agent-resistant Authority.");
+  console.log("Guardian status is diagnostic only; Guardian foundation readiness does not itself grant Authority.");
 }
 
 async function entry(): Promise<void> {
@@ -87,7 +89,7 @@ async function entry(): Promise<void> {
     process.exitCode = 3;
     return;
   }
-  if (command !== "first-run" && command !== "integrity" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     await import("./legacy-main.js");
     return;
   }
@@ -100,6 +102,11 @@ async function entry(): Promise<void> {
   if (command === "integrity") {
     const { handleIntegrityCommand } = await import("./integrity-command.js");
     await handleIntegrityCommand(process.argv.slice(3));
+    return;
+  }
+  if (command === "guardian") {
+    const { handleGuardianCommand } = await import("./guardian-command.js");
+    await handleGuardianCommand(process.argv.slice(3));
     return;
   }
   if (command === "autonomy") {
