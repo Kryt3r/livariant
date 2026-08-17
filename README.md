@@ -325,12 +325,12 @@ See [Updates, Migrations & Recovery](docs/lifecycle-guide.md) and [Architecture 
 
 Livariant's long-term direction is not simply "store more context." The architecture is converging around six mutually reinforcing pillars:
 
-- **Memory** — preserve validated project experience across agents and sessions.
-- **Epistemics** — know why the project believes something, where it came from, and whether it is current, inferred, stale, or disputed.
-- **Relationships** — represent meaningful dependencies between decisions, requirements, components, evidence, and changes.
-- **Governance** — keep capability, Authority, risk, and irreversible action separate.
-- **Verification** — make completion and safety claims traceable to evidence rather than agent confidence.
-- **Learning** — turn validated failures into durable project knowledge and regression protection.
+- **Memory** - preserve validated project experience across agents and sessions.
+- **Epistemics** - know why the project believes something, where it came from, and whether it is current, inferred, stale, or disputed.
+- **Relationships** - represent meaningful dependencies between decisions, requirements, components, evidence, and changes.
+- **Governance** - keep capability, Authority, risk, and irreversible action separate.
+- **Verification** - make completion and safety claims traceable to evidence rather than agent confidence.
+- **Learning** - turn validated failures into durable project knowledge and regression protection.
 
 Future capabilities such as richer external knowledge integration, graph-assisted retrieval, context-budget optimization, change-impact analysis, risk-adaptive autonomy, and multi-agent coordination are intended to build on these foundations when their prerequisites and real product need justify them.
 
