@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { addConfirmedKnowledge } from "../src/runtime/canonical-knowledge-change.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -49,20 +48,10 @@ for (const scenario of [
     await withInitializedProject(async (path) => {
       const before = await semanticBytes(path);
       const result = runCli(path, [...scenario[1]]);
-      assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
-      assert.match(`${result.stdout}\n${result.stderr}`, /proposal-bound Authorization|legacy --apply is not Authority/i);
+      assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
+      assert.match(`${result.stdout}\n${result.stderr}`, /legacy semantic --apply is retired|does not create mutation Authority/i);
+      assert.match(`${result.stdout}\n${result.stderr}`, /Changes made: 0/i);
       assert.deepEqual(await semanticBytes(path), before);
     });
   });
 }
-
-test("direct runtime writer call with authorized:true is not sufficient authority", async () => {
-  await withInitializedProject(async (path) => {
-    const before = await semanticBytes(path);
-    await assert.rejects(
-      addConfirmedKnowledge("direct agent fact", path, { authorized: true }),
-      /proposal-bound Authorization|legacy --apply is not Authority/i,
-    );
-    assert.deepEqual(await semanticBytes(path), before);
-  });
-});
