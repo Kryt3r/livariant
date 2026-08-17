@@ -9,12 +9,13 @@ import {
   initializeProject,
   parseSemanticProposalCandidate,
 } from "../src/runtime/index.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 test("goal proposal detects exact confirmed duplicate without writing", async () => {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-goal-proposal-"));
   try {
     await initializeProject(path, { authorized: true });
-    await addConfirmedGoal("Ship offline snapshots", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Ship offline snapshots", path, { authorized: true }));
     const goalsPath = resolve(path, ".project-brain", "goals.md");
     const before = await readFile(goalsPath);
     const candidate = parseSemanticProposalCandidate({

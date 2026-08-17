@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { addConfirmedGoal, initializeProject } from "../src/runtime/index.js";
 import { buildConflictDriftAssessment, parseDriftObservation } from "../src/runtime/drift-assessment.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>) {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-drift-goal-"));
@@ -18,7 +19,7 @@ function observation(statement: string) {
 
 test("goal exact match and different text stay distinct", async () => {
   await withProject(async (path) => {
-    await addConfirmedGoal("Ship a safe preview", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Ship a safe preview", path, { authorized: true }));
     const exact = await buildConflictDriftAssessment(observation("Ship a safe preview"), path);
     const different = await buildConflictDriftAssessment(observation("Ship a public beta"), path);
     assert.equal(exact.state, "assessment");

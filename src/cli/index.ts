@@ -44,6 +44,8 @@ function renderHelp(): void {
   console.log("  context [--json]");
   console.log("  propose --input <candidate.json> [--json]");
   console.log("  init [--apply]");
+  console.log("  integrity inspect [--json]");
+  console.log("  integrity accept-current  # interactive local bootstrap only");
   console.log("  goals [list] | goals add <goal>  # plan only");
   console.log("  knowledge [list] | knowledge add <fact>  # plan only");
   console.log("  decisions [list] | decisions add <decision>  # plan only");
@@ -69,6 +71,7 @@ function renderHelp(): void {
   console.log("");
   console.log("Legacy goals/knowledge/decisions commands are list/plan surfaces only; their --apply mutation path is retired.");
   console.log("Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
+  console.log("Project Brain integrity checkpoints detect unaccepted managed-byte drift but are not same-user Agent-resistant Authority.");
 }
 
 async function entry(): Promise<void> {
@@ -84,7 +87,7 @@ async function entry(): Promise<void> {
     process.exitCode = 3;
     return;
   }
-  if (command !== "first-run" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "first-run" && command !== "integrity" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     await import("./legacy-main.js");
     return;
   }
@@ -92,6 +95,11 @@ async function entry(): Promise<void> {
   if (command === "first-run") {
     const { handleFirstRunCommand } = await import("./first-run-command.js");
     await handleFirstRunCommand(process.argv.slice(3));
+    return;
+  }
+  if (command === "integrity") {
+    const { handleIntegrityCommand } = await import("./integrity-command.js");
+    await handleIntegrityCommand(process.argv.slice(3));
     return;
   }
   if (command === "autonomy") {

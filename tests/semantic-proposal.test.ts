@@ -13,6 +13,7 @@ import {
   SEMANTIC_PROPOSAL_CANDIDATE_FILE_MAX_BYTES,
   supersedeAcceptedDecision,
 } from "../src/runtime/index.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -48,7 +49,7 @@ function addCandidate(statement: string, origin = "explicit-user") {
 
 test("read-only add proposal is deterministic, baseline-bound, and permanently non-actionable", async () => {
   await withProject(async (path) => {
-    await recordAcceptedDecision("Keep authentication local", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => recordAcceptedDecision("Keep authentication local", path, { authorized: true }));
     const candidate = addCandidate("Use passkeys for authentication");
     const managed = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"];
     const before = new Map(await Promise.all(managed.map(async (name) => [name, await readFile(resolve(path, ".project-brain", name))] as const)));
@@ -91,7 +92,7 @@ test("material candidate change changes proposal digest while identical material
 
 test("exact active duplicate is surfaced without creating another decision", async () => {
   await withProject(async (path) => {
-    await recordAcceptedDecision("Use passkeys", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => recordAcceptedDecision("Use passkeys", path, { authorized: true }));
     const before = await readFile(resolve(path, ".project-brain", "decisions.md"));
     const result = await buildSemanticProposal(addCandidate("Use passkeys"), path);
     assert.equal(result.state, "proposal");
@@ -103,7 +104,10 @@ test("exact active duplicate is surfaced without creating another decision", asy
 
 test("supersede proposal binds the exact active target", async () => {
   await withProject(async (path) => {
-    const target = await recordAcceptedDecision("Use passwords", path, { authorized: true });
+    let target!: Awaited<ReturnType<typeof recordAcceptedDecision>>;
+    await mutateAcceptedFixture(path, async () => {
+      target = await recordAcceptedDecision("Use passwords", path, { authorized: true });
+    });
     const candidate = parseSemanticProposalCandidate({
       schemaVersion: 1,
       domain: "project-decision",
@@ -136,8 +140,11 @@ test("missing or superseded target fails closed", async () => {
     });
     assert.equal((await buildSemanticProposal(missing, path)).state, "blocked");
 
-    const target = await recordAcceptedDecision("Old", path, { authorized: true });
-    await supersedeAcceptedDecision({ decisionId: target.id, replacement: "Current" }, path, { authorized: true });
+    let target!: Awaited<ReturnType<typeof recordAcceptedDecision>>;
+    await mutateAcceptedFixture(path, async () => {
+      target = await recordAcceptedDecision("Old", path, { authorized: true });
+    });
+    await mutateAcceptedFixture(path, () => supersedeAcceptedDecision({ decisionId: target.id, replacement: "Current" }, path, { authorized: true }));
     const stale = parseSemanticProposalCandidate({
       schemaVersion: 1,
       domain: "project-decision",

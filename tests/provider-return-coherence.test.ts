@@ -6,6 +6,7 @@ import test from "node:test";
 import { addConfirmedGoal, initializeProject } from "../src/runtime/index.js";
 import { buildProviderContext } from "../src/runtime/provider-context.js";
 import { processProviderReturn, providerReturnTaskDigest } from "../src/runtime/provider-return.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-provider-return-coherence-"));
@@ -17,7 +18,7 @@ async function withProject(run: (path: string) => Promise<void>): Promise<void> 
   }
 }
 
-test("provider return candidate is not rebound when Project Brain changes after current-context check", async () => {
+test("provider return candidate is not rebound when accepted Project Brain changes after current-context check", async () => {
   await withProject(async (path) => {
     const context = await buildProviderContext("codex", "Review one candidate", path);
     assert.equal(context.state, "ready");
@@ -43,7 +44,7 @@ test("provider return candidate is not rebound when Project Brain changes after 
 
     const result = await processProviderReturn(context, returned, undefined, path, {
       afterCurrentContextCheckBeforeMaintenance: async () => {
-        await addConfirmedGoal("Concurrent canonical goal", path, { authorized: true });
+        await mutateAcceptedFixture(path, () => addConfirmedGoal("Concurrent canonical goal", path, { authorized: true }));
       },
     });
 

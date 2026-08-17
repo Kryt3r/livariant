@@ -1,8 +1,27 @@
 import { discoverProject } from "../project/discovery.js";
+import { recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { FRAMEWORK_VERSION, UPDATE_CHANNEL, type LifecycleState } from "../lifecycle/state.js";
-import { readMigrationJournal } from "../lifecycle/migration.js";
-import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
+import {
+  applyMigrationUpdate as applyMigrationUpdateCore,
+  planMigrationUpdate,
+  readMigrationJournal,
+  type ApplyMigrationOptions,
+  type MigrationContract,
+  type MigrationExecutionState,
+  type MigrationJournal,
+  type MigrationPlan,
+  type MigrationStepState,
+} from "../lifecycle/migration.js";
+import {
+  applyRecovery as applyRecoveryCore,
+  findStrandedLifecycleArtifacts,
+  inspectRecovery,
+  planRecovery,
+  type ApplyRecoveryOptions,
+  type RecoveryInspection,
+  type RecoveryPlan,
+} from "../lifecycle/recovery.js";
 import { compareSemver } from "../lifecycle/update.js";
 import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
 export { initializeProject, inspectInitialization } from "./initialization.js";
@@ -83,10 +102,38 @@ export { runDoctor } from "./doctor.js";
 export type { DoctorFinding, DoctorReport, DoctorState } from "./doctor.js";
 export { applyNormalUpdate, checkForUpdate, compareSemver, planNormalUpdate } from "../lifecycle/update.js";
 export type { ApplyUpdateOptions, ReleaseDescriptor, UpdateCheck, UpdatePlan } from "../lifecycle/update.js";
-export { applyMigrationUpdate, planMigrationUpdate, readMigrationJournal } from "../lifecycle/migration.js";
-export type { ApplyMigrationOptions, MigrationContract, MigrationExecutionState, MigrationJournal, MigrationPlan, MigrationStepState } from "../lifecycle/migration.js";
-export { applyRecovery, findStrandedLifecycleArtifacts, inspectRecovery, planRecovery } from "../lifecycle/recovery.js";
-export type { ApplyRecoveryOptions, RecoveryInspection, RecoveryPlan } from "../lifecycle/recovery.js";
+export { planMigrationUpdate, readMigrationJournal };
+export type { ApplyMigrationOptions, MigrationContract, MigrationExecutionState, MigrationJournal, MigrationPlan, MigrationStepState };
+export { findStrandedLifecycleArtifacts, inspectRecovery, planRecovery };
+export type { ApplyRecoveryOptions, RecoveryInspection, RecoveryPlan };
+
+async function refreshIntegrityAfterLifecycleIfApplicable(projectPath: string): Promise<void> {
+  const store = new ProjectBrainStore(projectPath);
+  const inspection = await store.inspect();
+  if (inspection.health !== "valid") return;
+  const metadata = await store.readMetadata();
+  if (metadata.projectBrain.schemaVersion === 2) {
+    await recordAcceptedProjectBrainState(projectPath, "lifecycle");
+  }
+}
+
+export async function applyMigrationUpdate(
+  projectPath: string,
+  plan: MigrationPlan,
+  options: ApplyMigrationOptions,
+): Promise<void> {
+  await applyMigrationUpdateCore(projectPath, plan, options);
+  await refreshIntegrityAfterLifecycleIfApplicable(projectPath);
+}
+
+export async function applyRecovery(
+  projectPath: string,
+  plan: RecoveryPlan,
+  options: ApplyRecoveryOptions,
+): Promise<void> {
+  await applyRecoveryCore(projectPath, plan, options);
+  await refreshIntegrityAfterLifecycleIfApplicable(projectPath);
+}
 
 export interface VersionInfo {
   frameworkVersion: string;

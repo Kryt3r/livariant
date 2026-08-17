@@ -9,6 +9,7 @@ import {
   recordAcceptedDecision,
   supersedeAcceptedDecision,
 } from "../src/runtime/index.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {
   const path = await mkdtemp(join(tmpdir(), "pbf-stale-knowledge-"));
@@ -22,11 +23,11 @@ async function withProject(run: (path: string) => Promise<void>): Promise<void> 
 
 test("superseded canonical decision remains historical but is no longer active resume truth", async () => {
   await withProject(async (path) => {
-    const original = await recordAcceptedDecision("Use architecture A", path, { authorized: true });
+    const original = await mutateAcceptedFixture(path, () => recordAcceptedDecision("Use architecture A", path, { authorized: true }));
     const staleResume = await buildResumeContext(path);
     assert.deepEqual(staleResume.activeDecisions, ["Use architecture A"]);
 
-    const result = await supersedeAcceptedDecision(
+    const result = await mutateAcceptedFixture(path, () => supersedeAcceptedDecision(
       {
         decisionId: original.id,
         replacement: "Use architecture B",
@@ -34,7 +35,7 @@ test("superseded canonical decision remains historical but is no longer active r
       },
       path,
       { authorized: true },
-    );
+    ));
 
     const currentResume = await buildResumeContext(path);
     assert.deepEqual(currentResume.activeDecisions, ["Use architecture B"]);

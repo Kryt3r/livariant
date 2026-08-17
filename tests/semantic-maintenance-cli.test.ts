@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { addConfirmedGoal, initializeProject } from "../src/runtime/index.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -62,7 +63,7 @@ test("maintain CLI returns authorization-required as distinct non-mutating exit 
 
 test("maintain CLI exact duplicate returns review-required and zero mutation", async () => {
   await withProject(async (path) => {
-    await addConfirmedGoal("Already canonical through CLI", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Already canonical through CLI", path, { authorized: true }));
     const input = await candidateFile(path, "Already canonical through CLI");
     const result = runCli(path, ["maintain", "--input", input, "--json"]);
     assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);

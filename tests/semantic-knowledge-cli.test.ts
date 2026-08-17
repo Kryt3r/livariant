@@ -12,6 +12,7 @@ import {
   initializeProject,
   recordAcceptedDecision,
 } from "../src/runtime/index.js";
+import { acceptFixtureProjectBrain, mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 
@@ -78,8 +79,8 @@ test("semantic knowledge APIs reject mutation without explicit authorization", a
 
 test("duplicate goal and knowledge changes fail instead of silently rewriting canonical state", async () => {
   await withProject(async (path) => {
-    await addConfirmedGoal("Keep project state coherent", path, { authorized: true });
-    await addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Keep project state coherent", path, { authorized: true }));
+    await mutateAcceptedFixture(path, () => addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true }));
 
     await assert.rejects(addConfirmedGoal("Keep project state coherent", path, { authorized: true }), /identical confirmed goal/i);
     await assert.rejects(addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true }), /identical confirmed project knowledge/i);
@@ -93,9 +94,10 @@ test("goal and knowledge additions preserve unrelated human-authored canonical c
 
     await writeFile(goalsPath, "# Goals\n\nHuman context that must remain.\n\n- Existing goal\n\n## Notes\n\nDo not rewrite this paragraph.\n\n- This is a note, not a goal\n", "utf8");
     await writeFile(knowledgePath, "# Knowledge\n\n## Verified discovery evidence\n\n- package-name:example\n\nHuman explanation that must remain.\n\n## Known unknowns\n\n- deployment target\n", "utf8");
+    await acceptFixtureProjectBrain(path);
 
-    await addConfirmedGoal("New goal", path, { authorized: true });
-    await addConfirmedKnowledge("New confirmed fact", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("New goal", path, { authorized: true }));
+    await mutateAcceptedFixture(path, () => addConfirmedKnowledge("New confirmed fact", path, { authorized: true }));
 
     const goals = await readFile(goalsPath, "utf8");
     assert.match(goals, /Human context that must remain/);
@@ -130,6 +132,10 @@ test("semantic writes reject concurrent project-owned changes instead of overwri
     );
     assert.match(await readFile(goalsPath, "utf8"), /Human concurrent goal/);
     assert.doesNotMatch(await readFile(goalsPath, "utf8"), /New goal/);
+
+    // The first concurrency attack deliberately left a different Project Brain on disk.
+    // Accept it only as the fixture baseline for the independent decision concurrency attack below.
+    await acceptFixtureProjectBrain(path);
 
     await assert.rejects(
       recordAcceptedDecision("Runtime decision", path, {

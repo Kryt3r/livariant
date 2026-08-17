@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { buildSemanticProposal, initializeProject, parseSemanticProposalCandidate } from "../src/runtime/index.js";
+import { acceptFixtureProjectBrain } from "./accepted-project-brain-fixture.js";
 
 test("knowledge candidate matching unresolved region stays noncanonical", async () => {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-knowledge-region-"));
@@ -11,6 +12,7 @@ test("knowledge candidate matching unresolved region stays noncanonical", async 
     await initializeProject(path, { authorized: true });
     const knowledgePath = resolve(path, ".project-brain", "knowledge.md");
     await writeFile(knowledgePath, "# Knowledge\n\n## Confirmed project knowledge\n\n- Existing fact\n\n## Known unknowns\n\n- Future location\n", "utf8");
+    await acceptFixtureProjectBrain(path);
     const candidate = parseSemanticProposalCandidate({ schemaVersion: 1, domain: "project-knowledge", changeKind: "add", proposedStatement: "Future location", rationale: "Review current classification", origin: "project-evidence" });
     const result = await buildSemanticProposal(candidate, path);
     assert.equal(result.state, "proposal");
