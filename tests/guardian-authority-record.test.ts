@@ -29,7 +29,7 @@ test("Guardian Authority material rejects duplicate labels", () => {
   );
 });
 
-test("one-shot Guardian Authority is exact-material-bound and non-reusable", () => {
+test("one-shot Guardian Authority is exact-material-bound, expiring, and non-reusable", () => {
   const materialSha256 = guardianAuthorityMaterialDigest("semantic-mutation", [
     { label: "project", value: "project-1" },
     { label: "proposal", value: "proposal-1" },
@@ -57,6 +57,18 @@ test("one-shot Guardian Authority is exact-material-bound and non-reusable", () 
     materialSha256,
   }), /already been consumed/u);
   assert.throws(() => consumeGuardianAuthorityRecord(consumed), /already been consumed/u);
+  assert.throws(() => consumeGuardianAuthorityRecord(record, "2026-08-17T18:00:00.000Z"), /expired/u);
+});
+
+test("one-shot Guardian Authority cannot be created without bounded expiry", () => {
+  const materialSha256 = guardianAuthorityMaterialDigest("release-authorization", [
+    { label: "artifact", value: "a" },
+  ]);
+  assert.throws(() => buildGuardianAuthorityRecord({
+    consumer: "release-authorization",
+    mode: "one-shot",
+    materialSha256,
+  }), /requires an expiry timestamp/u);
 });
 
 test("Guardian Authority refuses cross-consumer and material substitution", () => {
@@ -67,6 +79,8 @@ test("Guardian Authority refuses cross-consumer and material substitution", () =
     consumer: "release-authorization",
     mode: "one-shot",
     materialSha256,
+    issuedAt: "2026-08-17T17:00:00.000Z",
+    expiresAt: "2026-08-17T18:00:00.000Z",
     recordId: "123e4567-e89b-42d3-a456-426614174001",
   });
 
@@ -129,9 +143,12 @@ test("strict Guardian Authority parsing rejects extra fields and malformed consu
     consumer: "project-brain-integrity",
     mode: "one-shot",
     materialSha256,
+    issuedAt: "2026-08-17T17:00:00.000Z",
+    expiresAt: "2026-08-17T18:00:00.000Z",
     recordId: "123e4567-e89b-42d3-a456-426614174004",
   });
 
   assert.throws(() => parseGuardianAuthorityRecord({ ...record, attacker: true }), /unsupported field/u);
   assert.throws(() => parseGuardianAuthorityRecord({ ...record, state: "consumed" }), /requires a consumed timestamp/u);
+  assert.throws(() => parseGuardianAuthorityRecord({ ...record, state: "consumed", consumedAt: "2026-08-17T16:59:59.000Z" }), /before it was issued/u);
 });
