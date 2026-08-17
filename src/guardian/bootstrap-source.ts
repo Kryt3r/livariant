@@ -13,6 +13,10 @@ const WINDOWS_EVERYONE_SID = "S-1-1-0";
 const WINDOWS_AUTHENTICATED_USERS_SID = "S-1-5-11";
 const WINDOWS_USERS_SID = "S-1-5-32-545";
 
+function errno(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
+}
+
 export function productionGuardianBootstrapSourceRoot(platform: GuardianPlatform): string {
   return platform === "win32"
     ? "C:\\Program Files\\Livariant\\Bootstrap\\v1"
@@ -96,8 +100,17 @@ export async function assertProtectedGuardianBootstrapSource(
   nodeExecutable: string = process.execPath,
 ): Promise<GuardianBootstrapSourceInspection> {
   const sourceRoot = productionGuardianBootstrapSourceRoot(platform);
-  const [physicalRoot, physicalHelper, physicalBootstrap, physicalNode] = await Promise.all([
-    realpath(sourceRoot),
+  let physicalRoot: string;
+  try {
+    physicalRoot = await realpath(sourceRoot);
+  } catch (error) {
+    if (errno(error, "ENOENT")) {
+      throw new Error(`Protected Guardian bootstrap source is not provisioned at ${sourceRoot}. Install exact release material into the protected system location before Guardian bootstrap.`);
+    }
+    throw error;
+  }
+
+  const [physicalHelper, physicalBootstrap, physicalNode] = await Promise.all([
     realpath(helperSource),
     realpath(bootstrapModule),
     realpath(nodeExecutable),
