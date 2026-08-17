@@ -37,6 +37,7 @@ export type ProjectBrainIntegrityState =
 
 export interface ProjectBrainIntegrityStorageOptions {
   homeDir?: string;
+  beforeCommit?: () => void | Promise<void>;
 }
 
 function errno(error: unknown, code: string): boolean {
@@ -248,6 +249,11 @@ export async function recordAcceptedProjectBrainState(
   };
   await writeFile(temp, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
   try {
+    await options.beforeCommit?.();
+    const revalidated = await currentMaterial(projectRoot);
+    if (revalidated.stableProjectIdentity !== current.stableProjectIdentity || !sameBaseline(revalidated.baseline, current.baseline)) {
+      throw new Error("Project Brain changed while accepted integrity evidence was being committed; refusing a stale integrity checkpoint.");
+    }
     await rename(temp, path);
   } catch (error) {
     await rm(temp, { force: true });
