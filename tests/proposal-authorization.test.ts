@@ -268,7 +268,7 @@ test("completed local audit is terminal and cannot be replayed", async () => {
     const audit = await inspectAuthorizationAudit(path);
     assert.equal(audit.active, null);
     assert.ok(audit.history.some((record) => record.authorizationId === FIXED_AUTH_ID && record.state === "completed"));
-    await assert.rejects(beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path), /No active authorization exists/);
+    await assert.rejects(beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path), /No active authorization audit exists/);
   });
 });
 
