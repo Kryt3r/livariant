@@ -2,8 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { access, lstat, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { isAbsolute, relative, resolve, sep } from "node:path";
-import { assertWindowsProtectedPath, isProtectedWindowsOwnerSid } from "./windows-protection.js";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { assertWindowsProtectedParentAnchor, assertWindowsProtectedPath } from "./windows-protection.js";
 
 export { isProtectedWindowsOwnerSid } from "./windows-protection.js";
 
@@ -156,6 +156,12 @@ async function assertLinuxProtectedOwnership(path: string, label: string): Promi
   if (!isProtectedPosixOwner(Number(stats.uid))) throw new Error(`${label} is not owned by the protected root principal.`);
 }
 
+async function assertLinuxProtectedDirectory(path: string, label: string): Promise<void> {
+  await assertRealDirectory(path, label);
+  await assertLinuxDirectoryNotWritableByRequester(path, label);
+  await assertLinuxProtectedOwnership(path, label);
+}
+
 function baseLimitations(): string[] {
   return [
     "Guardian foundation readiness does not by itself grant mutation, Runtime, integrity, or release Authority.",
@@ -178,10 +184,9 @@ function report(state: GuardianInspectionState, platform: NodeJS.Platform, root:
 }
 
 /**
- * Diagnostic core for a concrete root. Authority consumers must use
- * assertProductionGuardianRootReady(), which fixes both production root and real OS home.
- * The optional requester-home reference exists only so platform path behavior can be
- * attacked deterministically in tests; it does not create Authority.
+ * Diagnostic core for a concrete root. This verifies the root itself. Production
+ * readiness additionally verifies the fixed system parent chain so a protected
+ * child cannot be replaced through a requester-writable ancestor.
  */
 export async function inspectGuardianRootAt(
   root: string,
@@ -256,10 +261,34 @@ export async function inspectGuardianRootAt(
   }
 }
 
+async function assertProductionProtectionChain(root: string, platform: GuardianPlatform): Promise<void> {
+  if (platform === "linux") {
+    const guardianParent = dirname(root);
+    const systemAnchor = dirname(guardianParent);
+    await assertLinuxProtectedDirectory(systemAnchor, "Guardian Linux system anchor");
+    await assertLinuxProtectedDirectory(guardianParent, "Guardian Linux parent root");
+    return;
+  }
+
+  const guardianParent = dirname(root);
+  const livariantParent = dirname(guardianParent);
+  const systemAnchor = dirname(livariantParent);
+  assertWindowsProtectedParentAnchor(systemAnchor, "Guardian Windows ProgramData anchor");
+  assertWindowsProtectedPath(livariantParent, "Guardian Windows Livariant parent");
+  assertWindowsProtectedPath(guardianParent, "Guardian Windows parent root");
+}
+
 export async function inspectProductionGuardianRoot(projectPath: string = process.cwd()): Promise<GuardianRootInspection> {
   const root = productionGuardianRoot(process.platform);
   if (!root) return report("unsupported-platform", process.platform, null, "Guardian v1 supports Windows and Linux only.");
-  return inspectGuardianRootAt(root, projectPath, process.platform);
+  const inspection = await inspectGuardianRootAt(root, projectPath, process.platform);
+  if (inspection.state !== "ready") return inspection;
+  try {
+    await assertProductionProtectionChain(inspection.root ?? root, process.platform as GuardianPlatform);
+    return inspection;
+  } catch (error) {
+    return report("unsafe", process.platform, inspection.root ?? root, error instanceof Error ? error.message : "Guardian production parent-chain verification failed.");
+  }
 }
 
 export async function assertProductionGuardianRootReady(projectPath: string = process.cwd()): Promise<GuardianRootInspection & { state: "ready"; guardianReady: true }> {
