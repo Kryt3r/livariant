@@ -4,32 +4,36 @@ import { userInfo } from "node:os";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { isStableProjectIdentity } from "./identity.js";
 import { ProjectBrainStore } from "./store.js";
-import {
-  buildProjectContextBaseline,
-  readProjectContextManagedInputs,
-  type ProjectContextBaseline,
-} from "../runtime/project-context-material.js";
+import { frameHashField, readProjectContextManagedInputs } from "../runtime/project-context-material.js";
 
 export const PROJECT_BRAIN_INTEGRITY_SCHEMA_VERSION = 1;
 export const PROJECT_BRAIN_INTEGRITY_KIND = "livariant-project-brain-integrity" as const;
+export const PROJECT_BRAIN_INTEGRITY_DOMAIN = "livariant:project-brain-integrity-material:v1" as const;
 
 export type ProjectBrainIntegritySource = "initialization" | "semantic-apply" | "lifecycle" | "manual-bootstrap";
+
+export interface ProjectBrainIntegrityBaseline {
+  algorithm: "sha256";
+  domain: typeof PROJECT_BRAIN_INTEGRITY_DOMAIN;
+  digest: string;
+  schemaVersion: 2;
+}
 
 interface PersistedProjectBrainIntegrity {
   schemaVersion: 1;
   kind: typeof PROJECT_BRAIN_INTEGRITY_KIND;
   projectLocatorDigest: string;
   stableProjectIdentity: string;
-  baseline: ProjectContextBaseline;
+  baseline: ProjectBrainIntegrityBaseline;
   source: ProjectBrainIntegritySource;
   acceptedAt: string;
 }
 
 export type ProjectBrainIntegrityState =
-  | { state: "match"; current: ProjectContextBaseline; receipt: PersistedProjectBrainIntegrity }
-  | { state: "missing"; current: ProjectContextBaseline; stableProjectIdentity: string }
-  | { state: "mismatch"; current: ProjectContextBaseline; receipt: PersistedProjectBrainIntegrity; reason: string }
-  | { state: "invalid"; current: ProjectContextBaseline | null; reason: string };
+  | { state: "match"; current: ProjectBrainIntegrityBaseline; receipt: PersistedProjectBrainIntegrity }
+  | { state: "missing"; current: ProjectBrainIntegrityBaseline; stableProjectIdentity: string }
+  | { state: "mismatch"; current: ProjectBrainIntegrityBaseline; receipt: PersistedProjectBrainIntegrity; reason: string }
+  | { state: "invalid"; current: ProjectBrainIntegrityBaseline | null; reason: string };
 
 export interface ProjectBrainIntegrityStorageOptions {
   homeDir?: string;
@@ -82,8 +86,8 @@ async function safeIntegrityBase(
   const base = integrityBase(home);
   if (create) {
     const livariantRoot = resolve(home, ".livariant");
-    const integrityRoot = resolve(livariantRoot, "integrity");
-    if (!await assertRealDirectory(livariantRoot, "Machine-local Livariant root")) await mkdir(livariantRoot, { recursive: false });
+    const integrityRoot = resolve(livarianRoot, "integrity");
+    if (!await assertRealDirectory(livarianRoot, "Machine-local Livariant root")) await mkdir(livarianRoot, { recursive: false });
     await ensureRealDirectory(integrityRoot, "Machine-local integrity root");
     await ensureRealDirectory(base, "Machine-local Project Brain integrity root");
   } else if (!await assertRealDirectory(base, "Machine-local Project Brain integrity root")) {
@@ -102,7 +106,7 @@ async function safeIntegrityBase(
   return physicalBase;
 }
 
-function sameBaseline(left: ProjectContextBaseline, right: ProjectContextBaseline): boolean {
+function sameBaseline(left: ProjectBrainIntegrityBaseline, right: ProjectBrainIntegrityBaseline): boolean {
   return left.algorithm === right.algorithm
     && left.domain === right.domain
     && left.digest === right.digest
@@ -121,8 +125,8 @@ function parseReceipt(value: unknown): PersistedProjectBrainIntegrity {
   if (typeof record.source !== "string" || !new Set<ProjectBrainIntegritySource>(["initialization", "semantic-apply", "lifecycle", "manual-bootstrap"]).has(record.source as ProjectBrainIntegritySource)) throw new Error("Project Brain integrity source is invalid.");
   if (typeof record.acceptedAt !== "string" || Number.isNaN(Date.parse(record.acceptedAt))) throw new Error("Project Brain integrity timestamp is invalid.");
 
-  const baseline = record.baseline as Partial<ProjectContextBaseline> | undefined;
-  if (!baseline || baseline.algorithm !== "sha256" || typeof baseline.domain !== "string" || typeof baseline.digest !== "string" || !/^[a-f0-9]{64}$/.test(baseline.digest) || !Number.isInteger(baseline.schemaVersion)) {
+  const baseline = record.baseline as Partial<ProjectBrainIntegrityBaseline> | undefined;
+  if (!baseline || baseline.algorithm !== "sha256" || baseline.domain !== PROJECT_BRAIN_INTEGRITY_DOMAIN || typeof baseline.digest !== "string" || !/^[a-f0-9]{64}$/.test(baseline.digest) || baseline.schemaVersion !== 2) {
     throw new Error("Project Brain integrity baseline is invalid.");
   }
 
@@ -131,13 +135,34 @@ function parseReceipt(value: unknown): PersistedProjectBrainIntegrity {
     kind: PROJECT_BRAIN_INTEGRITY_KIND,
     projectLocatorDigest: record.projectLocatorDigest,
     stableProjectIdentity: record.stableProjectIdentity,
-    baseline: baseline as ProjectContextBaseline,
+    baseline: baseline as ProjectBrainIntegrityBaseline,
     source: record.source as ProjectBrainIntegritySource,
     acceptedAt: record.acceptedAt,
   };
 }
 
-async function currentMaterial(projectRoot: string): Promise<{ stableProjectIdentity: string; baseline: ProjectContextBaseline }> {
+function buildIntegrityBaseline(
+  stableProjectIdentity: string,
+  inputs: ReadonlyMap<string, Buffer>,
+): ProjectBrainIntegrityBaseline {
+  const hash = createHash("sha256");
+  frameHashField(hash, "domain", Buffer.from(PROJECT_BRAIN_INTEGRITY_DOMAIN, "utf8"));
+  frameHashField(hash, "schema-version", Buffer.from("2", "utf8"));
+  frameHashField(hash, "stable-project-identity", Buffer.from(stableProjectIdentity, "utf8"));
+  for (const name of ["project.md", "goals.md", "decisions.md", "knowledge.md"] as const) {
+    const bytes = inputs.get(name);
+    if (!bytes) throw new Error(`Project Brain integrity material is missing ${name}.`);
+    frameHashField(hash, `managed:${name}`, bytes);
+  }
+  return {
+    algorithm: "sha256",
+    domain: PROJECT_BRAIN_INTEGRITY_DOMAIN,
+    digest: hash.digest("hex"),
+    schemaVersion: 2,
+  };
+}
+
+async function currentMaterial(projectRoot: string): Promise<{ stableProjectIdentity: string; baseline: ProjectBrainIntegrityBaseline }> {
   const store = new ProjectBrainStore(projectRoot);
   const inspection = await store.inspect();
   if (inspection.health !== "valid") throw new Error("Project Brain integrity requires a valid Project Brain.");
@@ -148,7 +173,7 @@ async function currentMaterial(projectRoot: string): Promise<{ stableProjectIden
   const inputs = await readProjectContextManagedInputs(inspection.path);
   return {
     stableProjectIdentity: metadata.projectBrain.projectId,
-    baseline: buildProjectContextBaseline(inputs, metadata.projectBrain.schemaVersion),
+    baseline: buildIntegrityBaseline(metadata.projectBrain.projectId, inputs),
   };
 }
 
@@ -197,7 +222,7 @@ export async function inspectProjectBrainIntegrity(
   const locator = await projectLocatorDigest(projectRoot);
   if (receipt.projectLocatorDigest !== locator) return { state: "mismatch", current: current.baseline, receipt, reason: "Project Brain integrity evidence does not match the current physical project location." };
   if (receipt.stableProjectIdentity !== current.stableProjectIdentity) return { state: "mismatch", current: current.baseline, receipt, reason: "Project Brain stable identity differs from the last accepted machine-local integrity state." };
-  if (!sameBaseline(receipt.baseline, current.baseline)) return { state: "mismatch", current: current.baseline, receipt, reason: "Managed Project Brain bytes differ from the last accepted canonical material baseline." };
+  if (!sameBaseline(receipt.baseline, current.baseline)) return { state: "mismatch", current: current.baseline, receipt, reason: "Managed Project Brain semantic bytes differ from the last accepted canonical material state." };
   return { state: "match", current: current.baseline, receipt };
 }
 
