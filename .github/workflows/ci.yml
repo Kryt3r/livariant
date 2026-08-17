@@ -183,7 +183,7 @@ jobs:
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $inherit, $none, $allow)))
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $inherit, $none, $allow)))
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $inherit, $none, $allow)))
-            Set-Acl -LiteralPath $path -AclObject $acl
+            [System.IO.FileSystemAclExtensions]::SetAccessControl((Get-Item -LiteralPath $path), $acl)
           }
 
           function Set-ProtectedFile([string]$path) {
@@ -193,7 +193,7 @@ jobs:
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $allow)))
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $allow)))
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $allow)))
-            Set-Acl -LiteralPath $path -AclObject $acl
+            [System.IO.FileSystemAclExtensions]::SetAccessControl((Get-Item -LiteralPath $path), $acl)
           }
 
           foreach ($directory in @($livariant, $guardian, $root, $records, $consumer)) {
