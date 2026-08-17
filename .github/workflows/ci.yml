@@ -87,8 +87,6 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-      # Keep these matrix check names during the ruleset migration so the
-      # existing required checks continue to resolve safely.
       - name: Lightweight compatibility check
         if: needs.classify.outputs.run_executable != 'true' && matrix.os == 'windows-latest'
         shell: pwsh
@@ -121,7 +119,7 @@ jobs:
         if: needs.classify.outputs.run_executable == 'true'
         run: npm test
 
-      - name: Verify protected Guardian origin on Linux
+      - name: Verify protected Guardian origin and consumed Semantic Authority on Linux
         if: needs.classify.outputs.run_full == 'true' && matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
@@ -144,6 +142,7 @@ jobs:
             /var/lib/livariant-guardian/v1/records/semantic-mutation/44444444-4444-4444-8444-444444444444.json
 
           node scripts/guardian-protected-origin-smoke.mjs "$staging/fixture.json"
+          node scripts/guardian-semantic-consumed-smoke.mjs
 
       - name: Clean protected Guardian fixture on Linux
         if: always() && needs.classify.outputs.run_full == 'true' && matrix.os == 'ubuntu-latest'
@@ -152,7 +151,7 @@ jobs:
           sudo rm -rf /var/lib/livariant-guardian
           rm -rf "$RUNNER_TEMP/livariant-guardian-fixture"
 
-      - name: Verify protected Guardian origin on Windows
+      - name: Verify protected Guardian origin and consumed Semantic Authority on Windows
         if: needs.classify.outputs.run_full == 'true' && matrix.os == 'windows-latest'
         shell: pwsh
         run: |
@@ -213,6 +212,7 @@ jobs:
           }
 
           node scripts/guardian-protected-origin-smoke.mjs (Join-Path $staging 'fixture.json')
+          node scripts/guardian-semantic-consumed-smoke.mjs
 
       - name: Clean protected Guardian fixture on Windows
         if: always() && needs.classify.outputs.run_full == 'true' && matrix.os == 'windows-latest'
