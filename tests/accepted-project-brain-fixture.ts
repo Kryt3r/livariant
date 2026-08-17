@@ -9,10 +9,11 @@ export async function acceptFixtureProjectBrain(projectPath: string): Promise<vo
   await recordAcceptedProjectBrainState(projectPath, "manual-bootstrap");
 }
 
-export async function mutateAcceptedFixture(
+export async function mutateAcceptedFixture<T>(
   projectPath: string,
-  mutation: () => void | Promise<void>,
-): Promise<void> {
-  await mutation();
+  mutation: () => T | Promise<T>,
+): Promise<T> {
+  const result = await mutation();
   await acceptFixtureProjectBrain(projectPath);
+  return result;
 }
