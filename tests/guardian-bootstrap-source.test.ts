@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ancestorDirectories,
   bootstrapSourcePathAllowed,
   isProtectedPosixMode,
   productionGuardianBootstrapSourceRoot,
@@ -25,6 +26,14 @@ test("requester-controlled Windows package/cache/project paths cannot qualify as
   assert.equal(bootstrapSourcePathAllowed("C:\\Users\\Robin\\AppData\\Roaming\\npm\\node_modules\\livariant\\bootstrap.js", "win32"), false);
   assert.equal(bootstrapSourcePathAllowed("D:\\project\\node_modules\\livariant\\bootstrap.js", "win32"), false);
   assert.equal(bootstrapSourcePathAllowed("C:\\Program Files\\Livariant\\Bootstrap\\v1-evil\\bootstrap.js", "win32"), false);
+});
+
+test("bootstrap interpreter protection walks every ancestor to the filesystem root", () => {
+  assert.deepEqual(ancestorDirectories("/usr/bin/node", "linux"), ["/usr/bin", "/usr", "/"]);
+  assert.deepEqual(
+    ancestorDirectories("C:\\Program Files\\nodejs\\node.exe", "win32"),
+    ["C:\\Program Files\\nodejs", "C:\\Program Files", "C:\\"],
+  );
 });
 
 test("Linux bootstrap source mode forbids group/other write while allowing protected execute/read modes", () => {
