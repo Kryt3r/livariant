@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { addConfirmedKnowledge, initializeProject } from "../src/runtime/index.js";
 import { buildConflictDriftAssessment, parseDriftObservation } from "../src/runtime/drift-assessment.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>) {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-drift-knowledge-"));
@@ -18,7 +19,7 @@ function observation(statement: string) {
 
 test("knowledge matching stays deterministic", async () => {
   await withProject(async (path) => {
-    await addConfirmedKnowledge("Runtime uses Node", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedKnowledge("Runtime uses Node", path, { authorized: true }));
     const exact = await buildConflictDriftAssessment(observation("Runtime uses Node"), path);
     const different = await buildConflictDriftAssessment(observation("Runtime uses another engine"), path);
     assert.equal(exact.state, "assessment");
