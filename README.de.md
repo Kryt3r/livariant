@@ -323,14 +323,14 @@ Mehr unter [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-guide.md
 
 ## Wohin Livariant geht
 
-Livariants langfristige Richtung ist nicht einfach „mehr Kontext speichern“. Die Architektur entwickelt sich um sechs miteinander verbundene Säulen:
+Livariants langfristige Richtung ist nicht einfach "mehr Kontext speichern". Die Architektur entwickelt sich um sechs miteinander verbundene Säulen:
 
-- **Memory** — validierte Projekterfahrung über Agenten und Sessions hinweg bewahren.
-- **Epistemics** — wissen, warum das Projekt etwas glaubt, woher es stammt und ob es aktuell, abgeleitet, stale oder umstritten ist.
-- **Relationships** — relevante Abhängigkeiten zwischen Entscheidungen, Requirements, Komponenten, Evidenz und Änderungen darstellen.
-- **Governance** — Fähigkeit, Autorität, Risiko und irreversible Aktionen getrennt halten.
-- **Verification** — Completion- und Safety-Claims auf Evidenz statt Agenten-Selbstvertrauen stützen.
-- **Learning** — validierte Fehler in dauerhaftes Projektwissen und Regression-Schutz verwandeln.
+- **Memory** - validierte Projekterfahrung über Agenten und Sessions hinweg bewahren.
+- **Epistemics** - wissen, warum das Projekt etwas glaubt, woher es stammt und ob es aktuell, abgeleitet, stale oder umstritten ist.
+- **Relationships** - relevante Abhängigkeiten zwischen Entscheidungen, Requirements, Komponenten, Evidenz und Änderungen darstellen.
+- **Governance** - Fähigkeit, Autorität, Risiko und irreversible Aktionen getrennt halten.
+- **Verification** - Completion- und Safety-Claims auf Evidenz statt Agenten-Selbstvertrauen stützen.
+- **Learning** - validierte Fehler in dauerhaftes Projektwissen und Regression-Schutz verwandeln.
 
 Künftige Funktionen wie tiefere External-Knowledge-Integration, graphgestütztes Retrieval, Context-Budget-Optimierung, Change-Impact-Analyse, risk-adaptive Autonomy und Multi-Agent-Koordination sollen erst dann auf diesen Fundamenten aufbauen, wenn ihre Voraussetzungen und ein realer Produktbedarf gegeben sind.
 
