@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,18 @@ async function withProject(run: (project: string) => Promise<void>): Promise<voi
     await rm(root, { recursive: true, force: true });
   }
 }
+
+test("Guardian routing remains local before any active Runtime delegation", async () => {
+  const builtCli = await readFile(cliPath, "utf8");
+  const guardianRoute = builtCli.indexOf('if (command === "guardian")');
+  const delegation = builtCli.indexOf("await delegateToActiveRuntime()");
+  assert.notEqual(guardianRoute, -1, "compiled CLI must contain the Guardian local route");
+  assert.notEqual(delegation, -1, "compiled CLI must contain active Runtime delegation for non-Guardian commands");
+  assert.ok(
+    guardianRoute < delegation,
+    "Guardian status/bootstrap must be handled by the current protected CLI before any active Runtime can intercept the command",
+  );
+});
 
 test("guardian status is read-only structured diagnostics", async () => {
   await withProject(async (project) => {
