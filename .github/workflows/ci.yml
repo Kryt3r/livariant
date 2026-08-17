@@ -153,7 +153,7 @@ jobs:
 
       - name: Verify protected Guardian origin and consumed Semantic Authority on Windows
         if: needs.classify.outputs.run_full == 'true' && matrix.os == 'windows-latest'
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $staging = Join-Path $env:RUNNER_TEMP 'livariant-guardian-fixture'
@@ -183,7 +183,7 @@ jobs:
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $inherit, $none, $allow)))
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $inherit, $none, $allow)))
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $inherit, $none, $allow)))
-            [System.IO.FileSystemAclExtensions]::SetAccessControl((Get-Item -LiteralPath $path), $acl)
+            [System.IO.Directory]::SetAccessControl($path, $acl)
           }
 
           function Set-ProtectedFile([string]$path) {
@@ -193,7 +193,7 @@ jobs:
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $allow)))
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $allow)))
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $allow)))
-            [System.IO.FileSystemAclExtensions]::SetAccessControl((Get-Item -LiteralPath $path), $acl)
+            [System.IO.File]::SetAccessControl($path, $acl)
           }
 
           foreach ($directory in @($livariant, $guardian, $root, $records, $consumer)) {
