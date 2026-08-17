@@ -4,13 +4,13 @@ import { tmpdir, userInfo } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import {
-  addConfirmedKnowledge,
   applyActionableProposal,
   buildActionableProposal,
   initializeProject,
   inspectAuthorizationAudit,
   parseSemanticProposalCandidate,
 } from "../src/runtime/index.js";
+import { ProjectBrainStore } from "../src/project-brain/store.js";
 import type { ActionableProposal } from "../src/runtime/actionable-proposal.js";
 
 const AUTH_ID = "66666666-6666-4666-8666-666666666666";
@@ -104,6 +104,16 @@ async function assertFailedTerminal(path: string, proposal: ActionableProposal):
   assert.equal(await machineState(proposal), "failed-recovery-required");
 }
 
+async function injectLowLevelKnowledge(path: string, fact: string): Promise<void> {
+  const store = new ProjectBrainStore(path);
+  const current = await store.readKnowledgeDocument();
+  const marker = "## Confirmed project knowledge";
+  const candidate = current.includes(marker)
+    ? `${current.trimEnd()}\n- ${fact}\n`
+    : `${current.trimEnd()}\n\n${marker}\n\n- ${fact}\n`;
+  await store.replaceKnowledgeDocument(current, candidate);
+}
+
 test("unrelated managed change after authorized promote blocks completion", async () => {
   await withProject(async (path) => {
     const proposal = await prepare(path, "Only this goal is authorized");
@@ -112,7 +122,7 @@ test("unrelated managed change after authorized promote blocks completion", asyn
     await assert.rejects(
       applyActionableProposal(AUTH_ID, proposal, path, {
         afterPromoteBeforeVerify: async () => {
-          await addConfirmedKnowledge("Concurrent unrelated managed fact", path, { authorized: true });
+          await injectLowLevelKnowledge(path, "Concurrent unrelated managed fact");
         },
       }),
       /unrelated managed Project Brain change|recovery-required/i,
@@ -132,7 +142,7 @@ test("managed state change after semantic verification blocks terminal completio
     await assert.rejects(
       applyActionableProposal(AUTH_ID, proposal, path, {
         beforeComplete: async () => {
-          await addConfirmedKnowledge("Changed after semantic verification", path, { authorized: true });
+          await injectLowLevelKnowledge(path, "Changed after semantic verification");
         },
       }),
       /changed after Semantic Apply verification|recovery-required/i,
