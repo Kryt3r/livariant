@@ -47,6 +47,7 @@ function renderHelp(): void {
   console.log("  integrity inspect [--json]");
   console.log("  integrity accept-current  # interactive local bootstrap only");
   console.log("  guardian status [--json]  # read-only protected-root diagnostics");
+  console.log("  guardian bootstrap [--json]  # already-privileged local interactive bootstrap; no Authority issued");
   console.log("  goals [list] | goals add <goal>  # plan only");
   console.log("  knowledge [list] | knowledge add <fact>  # plan only");
   console.log("  decisions [list] | decisions add <decision>  # plan only");
@@ -73,7 +74,7 @@ function renderHelp(): void {
   console.log("Legacy goals/knowledge/decisions commands are list/plan surfaces only; their --apply mutation path is retired.");
   console.log("Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
   console.log("Project Brain integrity checkpoints detect unaccepted managed-byte drift but are not same-user Agent-resistant Authority.");
-  console.log("Guardian status is diagnostic only; Guardian foundation readiness does not itself grant Authority.");
+  console.log("Guardian foundation bootstrap establishes only an OS-protected trust seam; it does not itself issue Authority.");
 }
 
 async function entry(): Promise<void> {
