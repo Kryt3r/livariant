@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { guardianBootstrapHasInteractiveTerminal } from "../src/guardian/bootstrap.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 const helperPath = fileURLToPath(new URL("../src/guardian/protected-helper.js", import.meta.url));
@@ -30,6 +31,15 @@ test("Guardian routing remains local before any active Runtime delegation", asyn
     guardianRoute < delegation,
     "Guardian status/bootstrap must be handled by the current protected CLI before any active Runtime can intercept the command",
   );
+});
+
+test("Guardian bootstrap requires both input and output to be interactive terminals", () => {
+  assert.equal(guardianBootstrapHasInteractiveTerminal(true, true), true);
+  assert.equal(guardianBootstrapHasInteractiveTerminal(false, true), false);
+  assert.equal(guardianBootstrapHasInteractiveTerminal(true, false), false);
+  assert.equal(guardianBootstrapHasInteractiveTerminal(false, false), false);
+  assert.equal(guardianBootstrapHasInteractiveTerminal(undefined, true), false);
+  assert.equal(guardianBootstrapHasInteractiveTerminal(true, undefined), false);
 });
 
 test("guardian status is read-only structured diagnostics", async () => {
