@@ -35,6 +35,7 @@ export interface ProjectFindingsReport {
 
 const MAX_PACKAGE_BYTES = 256 * 1024;
 const MAX_AGENT_GUIDANCE_BYTES = 128 * 1024;
+const MAX_GITIGNORE_BYTES = 128 * 1024;
 const LOCKFILES = ["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"] as const;
 const SENSITIVE_ROOT_FILES = [".env", ".env.local", "credentials.json"] as const;
 const severityRank: Record<ProjectFindingSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -53,6 +54,15 @@ function isRegularNonSymlinkFile(path: string, maxBytes?: number): boolean {
   return state.regular && (maxBytes === undefined || (state.size ?? Number.POSITIVE_INFINITY) <= maxBytes);
 }
 
+function isRegularNonSymlinkDirectory(path: string): boolean {
+  try {
+    const stat = lstatSync(path);
+    return stat.isDirectory() && !stat.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
 function stableFindingId(ruleId: string, evidence: ProjectFindingEvidence[]): string {
   const canonicalEvidence = evidence
     .map((item) => `${item.path}:${item.detail}`)
@@ -67,6 +77,14 @@ function finding(input: Omit<ProjectFinding, "id">): ProjectFinding {
 
 function hashFile(path: string): string {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function hasDeclaredInstallDependencies(parsed: Record<string, unknown>): boolean {
+  for (const key of ["dependencies", "devDependencies", "optionalDependencies"] as const) {
+    const value = parsed[key];
+    if (typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).length > 0) return true;
+  }
+  return false;
 }
 
 function inspectPackageManifest(root: string): ProjectFinding[] {
@@ -128,18 +146,19 @@ function inspectPackageManifest(root: string): ProjectFinding[] {
     })];
   }
 
+  const manifest = parsed as Record<string, unknown>;
   const result: ProjectFinding[] = [];
   const lockfiles = LOCKFILES.filter((name) => isRegularNonSymlinkFile(resolve(root, name)));
-  if (lockfiles.length === 0) {
+  if (lockfiles.length === 0 && hasDeclaredInstallDependencies(manifest)) {
     result.push(finding({
       ruleId: "LV-FND-QUAL-003",
       category: "quality",
       severity: "medium",
       confidence: "strong",
-      title: "Node dependency resolution is not locked",
-      explanation: "A package.json is present but Livariant found no supported Node lockfile. Fresh installs can therefore resolve different dependency versions over time or across machines.",
-      evidence: [{ path: "package.json", detail: "manifest present while no supported Node lockfile is present" }],
-      nextStep: "If this project installs Node dependencies, generate and commit the lockfile for the package manager the project intentionally uses.",
+      title: "Declared Node dependencies are not locked",
+      explanation: "package.json declares installable dependencies but Livariant found no supported Node lockfile. Fresh installs can therefore resolve different dependency versions over time or across machines.",
+      evidence: [{ path: "package.json", detail: "installable dependencies declared while no supported Node lockfile is present" }],
+      nextStep: "Generate and commit the lockfile for the package manager the project intentionally uses, unless the project has an explicit documented reason not to lock installations.",
     }));
   } else if (lockfiles.length > 1) {
     result.push(finding({
@@ -154,7 +173,7 @@ function inspectPackageManifest(root: string): ProjectFinding[] {
     }));
   }
 
-  const scripts = (parsed as { scripts?: unknown }).scripts;
+  const scripts = manifest.scripts;
   if (typeof scripts === "object" && scripts !== null && !Array.isArray(scripts)) {
     for (const [name, command] of Object.entries(scripts as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) {
       if (typeof command !== "string") continue;
@@ -179,27 +198,54 @@ function inspectPackageManifest(root: string): ProjectFinding[] {
   return result;
 }
 
+function explicitlyIgnoredSensitiveFiles(root: string, present: readonly string[]): Set<string> {
+  const ignorePath = resolve(root, ".gitignore");
+  if (!isRegularNonSymlinkFile(ignorePath, MAX_GITIGNORE_BYTES)) return new Set();
+
+  const ignored = new Set<string>();
+  const lines = readFileSync(ignorePath, "utf8").split(/\r?\n/u);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#") || line.startsWith("!")) continue;
+    const normalized = line.startsWith("/") ? line.slice(1) : line;
+    for (const name of present) {
+      if (normalized === name) ignored.add(name);
+    }
+  }
+  return ignored;
+}
+
 function inspectSensitiveRepositoryRoot(root: string): ProjectFinding[] {
-  if (!existsSync(resolve(root, ".git"))) return [];
-  const present = SENSITIVE_ROOT_FILES.filter((name) => existsSync(resolve(root, name)));
+  if (!isRegularNonSymlinkDirectory(resolve(root, ".git"))) return [];
+  const present = SENSITIVE_ROOT_FILES.filter((name) => isRegularNonSymlinkFile(resolve(root, name)));
   if (present.length === 0) return [];
+
+  const explicitlyIgnored = explicitlyIgnoredSensitiveFiles(root, present);
+  const unguarded = present.filter((name) => !explicitlyIgnored.has(name));
+  if (unguarded.length === 0) return [];
 
   const ignorePath = resolve(root, ".gitignore");
   const ignoreState = existsSync(ignorePath) ? fileState(ignorePath) : undefined;
-  if (ignoreState?.regular) return [];
+  const ignoreDetail = !ignoreState
+    ? "not present"
+    : !ignoreState.regular
+      ? "present but not a regular non-symlink file"
+      : (ignoreState.size ?? 0) > MAX_GITIGNORE_BYTES
+        ? `exceeds bounded inspection limit of ${MAX_GITIGNORE_BYTES} bytes`
+        : "does not explicitly ignore every reported sensitive root file";
 
   return [finding({
     ruleId: "LV-FND-SEC-003",
     category: "security",
     severity: "high",
     confidence: "moderate",
-    title: "Sensitive root file has no visible repository-local ignore guard",
-    explanation: "A commonly sensitive file is present in a Git workspace and Livariant found no regular project-root .gitignore file. This does not prove the sensitive file is committed or exposed, but it removes a common repository-local guard against accidental inclusion.",
+    title: "Sensitive root file lacks an explicit repository-local ignore guard",
+    explanation: "A commonly sensitive regular file is present in a Git workspace and Livariant could not confirm an exact root-level .gitignore entry for every reported file. This does not prove the file is committed or exposed; v1 intentionally recognizes only simple exact ignore entries instead of pretending to implement the full gitignore language.",
     evidence: [
-      ...present.map((path) => ({ path, detail: "sensitive filename present; file contents were not read" })),
-      { path: ".gitignore", detail: ignoreState ? "present but not a regular non-symlink file" : "not present" },
+      ...unguarded.map((path) => ({ path, detail: "sensitive filename present; file contents were not read; no exact root .gitignore entry confirmed" })),
+      { path: ".gitignore", detail: ignoreDetail },
     ],
-    nextStep: "Verify whether the sensitive file is tracked or staged, confirm the repository's intended ignore policy, and rotate any secret that may already have been exposed.",
+    nextStep: "Verify whether each reported file is tracked or staged, add an intentional ignore rule where appropriate, and rotate any secret that may already have been exposed.",
   })];
 }
 
@@ -230,15 +276,8 @@ function inspectAgentGuidance(root: string): ProjectFinding[] {
 
 export function scanProjectFindings(projectPath: string = process.cwd()): ProjectFindingsReport {
   const root = resolve(projectPath);
-  const rootState = fileState(root);
-  if (!rootState.regular) {
-    try {
-      const stat = lstatSync(root);
-      if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Project findings require a regular local project directory.");
-    } catch (error) {
-      if (error instanceof Error && error.message === "Project findings require a regular local project directory.") throw error;
-      throw new Error("Project findings require an existing local project directory.");
-    }
+  if (!isRegularNonSymlinkDirectory(root)) {
+    throw new Error("Project findings require an existing regular non-symlink local project directory.");
   }
 
   const findings = [
@@ -258,6 +297,7 @@ export function scanProjectFindings(projectPath: string = process.cwd()): Projec
     summary,
     limitations: [
       "v1 uses a deliberately small deterministic high-signal rule set and is not a complete security audit.",
+      "The sensitive-file rule recognizes only exact root-level .gitignore entries, not the full gitignore pattern language.",
       "No finding grants mutation, Runtime, or Release Authority.",
       "Absence of findings does not prove absence of vulnerabilities or quality defects.",
     ],
