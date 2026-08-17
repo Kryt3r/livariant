@@ -13,6 +13,7 @@ import {
   type ReleaseDescriptor,
   type UpdatePlan,
 } from "../runtime/index.js";
+import { recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import type { LocalReleaseArtifact } from "../distribution/release-integrity.js";
 
 function optionValues(args: string[], name: string): string[] {
@@ -126,6 +127,7 @@ export async function handleUpdate(args: string[]): Promise<void> {
 
   if (plan.migrationRequired) {
     await applyMigrationUpdate(process.cwd(), plan, { authorized: true, artifact, trustedSourceIds });
+    await recordAcceptedProjectBrainState(process.cwd(), "lifecycle");
   } else {
     await applyNormalUpdate(process.cwd(), plan, { authorized: true, artifact, trustedSourceIds });
   }
