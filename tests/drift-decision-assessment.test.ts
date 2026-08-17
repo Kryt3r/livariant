@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { initializeProject, recordAcceptedDecision, supersedeAcceptedDecision } from "../src/runtime/index.js";
 import { buildConflictDriftAssessment, parseDriftObservation } from "../src/runtime/drift-assessment.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-drift-decision-"));
@@ -18,7 +19,10 @@ function input(statement: string, evidenceClass: "dependent-current" | "historic
 
 test("active decision assessment is deterministic and read-only", async () => {
   await withProject(async (path) => {
-    const decision = await recordAcceptedDecision("Use passkeys", path, { authorized: true });
+    let decision!: Awaited<ReturnType<typeof recordAcceptedDecision>>;
+    await mutateAcceptedFixture(path, async () => {
+      decision = await recordAcceptedDecision("Use passkeys", path, { authorized: true });
+    });
     const observation = input(decision.text, "dependent-current", decision.id);
     const before = await readFile(resolve(path, ".project-brain", "decisions.md"));
     const first = await buildConflictDriftAssessment(observation, path);
@@ -37,8 +41,11 @@ test("active decision assessment is deterministic and read-only", async () => {
 
 test("superseded decision separates current drift, history, and provider evidence", async () => {
   await withProject(async (path) => {
-    const old = await recordAcceptedDecision("Use passwords", path, { authorized: true });
-    await supersedeAcceptedDecision({ decisionId: old.id, replacement: "Use passkeys" }, path, { authorized: true });
+    let old!: Awaited<ReturnType<typeof recordAcceptedDecision>>;
+    await mutateAcceptedFixture(path, async () => {
+      old = await recordAcceptedDecision("Use passwords", path, { authorized: true });
+    });
+    await mutateAcceptedFixture(path, () => supersedeAcceptedDecision({ decisionId: old.id, replacement: "Use passkeys" }, path, { authorized: true }));
     const current = await buildConflictDriftAssessment(input(old.text, "dependent-current", old.id), path);
     const historical = await buildConflictDriftAssessment(input(old.text, "historical", old.id), path);
     const provider = await buildConflictDriftAssessment(input(old.text, "provider-observation", old.id), path);
