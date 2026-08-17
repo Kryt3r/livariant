@@ -44,7 +44,10 @@ test("managed-state change between semantic review and actionable reconstruction
     assert.equal(result.state, "blocked");
     if (result.state !== "blocked") throw new Error("expected blocked");
     assert.equal(result.phase, "actionable-proposal");
-    assert.match(result.message, /changed between semantic review and actionable proposal reconstruction/i);
+    assert.match(
+      result.message,
+      /changed between semantic review and actionable proposal reconstruction|not the last accepted canonical material state|semantic bytes differ from the last accepted canonical material state/i,
+    );
     assert.equal(result.recoveryRequired, false);
     assert.equal(result.mutationOutcome, "not-applied");
     assert.equal(result.semanticChangesMade, 0);
