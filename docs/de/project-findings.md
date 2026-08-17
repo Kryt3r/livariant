@@ -44,18 +44,20 @@ Das bewusst kleine v1-Regelwerk konzentriert sich auf hochsignalige Bedingungen,
 - eine `package.json`, die keine reguläre projektlokale Datei ist;
 - fehlerhafte oder ungewöhnlich große Paket-Manifeste, die nicht sicher geprüft werden können;
 - mehrere Node-Paketmanager-Lockfiles;
-- ein Node-Projekt ohne unterstütztes Lockfile;
+- deklarierte installierbare Node-Abhängigkeiten ohne unterstütztes Lockfile;
 - Package-Skripte, die Inhalte deterministisch herunterladen und unmittelbar über eine Shell oder einen PowerShell-Ausdruck ausführen;
-- üblicherweise sensible Dateien im Projektstamm eines Git-Workspaces, wenn keine reguläre projektlokale `.gitignore`-Absicherung sichtbar ist;
+- üblicherweise sensible reguläre Dateien im Projektstamm eines echten lokalen Git-Workspaces, wenn Livariant keinen einfachen exakten Root-Eintrag in `.gitignore` für die gemeldete Datei bestätigen kann;
 - unterschiedliche Bytes in `CLAUDE.md` und `AGENTS.md`, als Review-Hinweis statt als automatisch behaupteter Konflikt.
 
-Die Inhalte sensibler Dateien werden von der Sensitive-Root-File-Regel nicht gelesen. Native Agent-Regeln werden in der Evidenz über Hashes repräsentiert, statt deren Inhalt in den Report zu kopieren.
+Ein Package-Manifest ohne deklarierte installierbare Abhängigkeiten erhält nicht allein wegen der Existenz von `package.json` ein Missing-Lockfile-Finding.
+
+Die Inhalte sensibler Dateien werden von der Sensitive-Root-File-Regel nicht gelesen. v1 erkennt absichtlich nur einfache exakte Root-Einträge wie `.env` oder `/.env` und behauptet nicht, die vollständige gitignore-Pattern-Sprache zu implementieren. Native Agent-Regeln werden in der Evidenz über Hashes repräsentiert, statt deren Inhalt in den Report zu kopieren.
 
 ## Begrenzte Prüfung
 
 v1 führt bewusst keinen rekursiven Scan des gesamten Repositories aus.
 
-Geprüft wird nur eine kleine Menge bekannter Root-Signale. Für `package.json` und native Agent-Regeln gelten feste Größenobergrenzen. Symlinks oder nicht unterstützte Dateitypen werden nicht als vertrauenswürdige lokale Evidenz verfolgt.
+Geprüft wird nur eine kleine Menge bekannter Root-Signale. Für `package.json`, `.gitignore` und native Agent-Regeln gelten feste Größenobergrenzen. Symlinks oder nicht unterstützte Dateitypen werden nicht als vertrauenswürdige lokale Evidenz verfolgt. Die Sensitive-File-Regel wird nur aktiviert, wenn `.git` ein reguläres lokales Verzeichnis und keine beliebige Datei oder ein Symlink ist.
 
 Dadurch bleibt die erste Findings-Schicht vorhersehbar und reduziert sowohl Ressourcenmissbrauch als auch schwache Fehlalarme.
 
@@ -65,7 +67,7 @@ Severity beschreibt die mögliche Auswirkung der Bedingung.
 
 Confidence beschreibt, wie direkt die lokale Evidenz Livariants Einordnung stützt.
 
-Beispiel: Eine sensible `.env`-Datei ohne sichtbare Root-`.gitignore` ist ein ernstes Hygieneproblem, beweist aber nicht, dass die Datei committed oder veröffentlicht wurde. Diese Regel ist deshalb `high` Severity mit `moderate` Confidence.
+Beispiel: Eine sensible `.env`-Datei ohne bestätigten einfachen exakten Root-Ignore-Eintrag ist ein ernstes Hygieneproblem, beweist aber nicht, dass die Datei committed oder veröffentlicht wurde. Diese Regel ist deshalb `high` Severity mit `moderate` Confidence.
 
 ## Authority-Grenze
 
