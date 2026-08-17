@@ -1,7 +1,5 @@
 import { discoverProject } from "../project/discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
-import type { ActionableProposalScope } from "./actionable-proposal.js";
-import { assertApplyingCanonicalMutationAuthority } from "./canonical-mutation-authority.js";
 import { runDoctor } from "./doctor.js";
 
 export interface CanonicalKnowledgeChangeOptions {
@@ -82,10 +80,6 @@ function renderKnowledge(current: string, knowledge: string): string {
     : `${before}\n- ${knowledge}\n`;
 }
 
-async function requireApplyingAuthority(scope: ActionableProposalScope, projectPath: string): Promise<void> {
-  await assertApplyingCanonicalMutationAuthority(scope, discoverProject(projectPath).root);
-}
-
 export async function addConfirmedGoal(
   goal: string,
   projectPath: string = process.cwd(),
@@ -93,7 +87,6 @@ export async function addConfirmedGoal(
 ): Promise<CanonicalKnowledgeChangeResult> {
   if (!options.authorized) throw new Error("Recording a confirmed goal requires explicit authorization.");
   const normalized = normalizedScalar(goal, "Confirmed goal");
-  await requireApplyingAuthority({ domain: "project-goal", changeKind: "add", proposedStatement: normalized }, projectPath);
   const store = await loadWritableStore(projectPath);
   const current = await store.readGoalsDocument();
   const candidate = renderGoals(current, normalized);
@@ -111,7 +104,6 @@ export async function addConfirmedKnowledge(
 ): Promise<CanonicalKnowledgeChangeResult> {
   if (!options.authorized) throw new Error("Recording confirmed project knowledge requires explicit authorization.");
   const normalized = normalizedScalar(knowledge, "Confirmed project knowledge");
-  await requireApplyingAuthority({ domain: "project-knowledge", changeKind: "add", proposedStatement: normalized }, projectPath);
   const store = await loadWritableStore(projectPath);
   const current = await store.readKnowledgeDocument();
   const candidate = renderKnowledge(current, normalized);
