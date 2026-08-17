@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import {
-  GUARDIAN_ROOT_KIND,
-  GUARDIAN_ROOT_SCHEMA_VERSION,
-  GUARDIAN_VERSION,
+  buildGuardianRootDescriptor,
   inspectGuardianRootAt,
   productionGuardianRoot,
 } from "../src/guardian/trust-root.js";
@@ -30,15 +27,14 @@ async function withTemp(run: (root: string, project: string) => Promise<void>): 
 
 async function writeValidLayout(root: string, platform: "win32" | "linux"): Promise<void> {
   await mkdir(resolve(root, "records"), { recursive: true });
-  const helper = "// protected Livariant Guardian helper fixture\n";
+  const helper = Buffer.from("// protected Livariant Guardian helper fixture\n", "utf8");
   await writeFile(resolve(root, "guardian-helper.js"), helper);
-  await writeFile(resolve(root, "guardian-root.json"), `${JSON.stringify({
-    schemaVersion: GUARDIAN_ROOT_SCHEMA_VERSION,
-    kind: GUARDIAN_ROOT_KIND,
-    guardianVersion: GUARDIAN_VERSION,
-    platform,
-    helperSha256: createHash("sha256").update(helper).digest("hex"),
-  }, null, 2)}\n`);
+  const physicalRoot = await realpath(root);
+  await writeFile(resolve(root, "guardian-root.json"), `${JSON.stringify(
+    buildGuardianRootDescriptor(helper, physicalRoot, platform),
+    null,
+    2,
+  )}\n`);
 }
 
 test("production Guardian roots are fixed platform locations and do not use environment overrides", () => {
@@ -106,6 +102,23 @@ test("Guardian helper substitution is detected by the protected descriptor diges
     assert.equal(inspection.state, "unsafe");
     assert.match(inspection.reason, /helper bytes do not match/i);
   });
+});
+
+test("copying a valid Guardian layout to another physical root invalidates its trust binding", async () => {
+  const base = await mkdtemp(resolve(tmpdir(), "livariant-guardian-relocation-"));
+  const rootA = resolve(base, "guardian-a");
+  const rootB = resolve(base, "guardian-b");
+  const project = resolve(base, "project");
+  await mkdir(project);
+  try {
+    await writeValidLayout(rootA, "linux");
+    await cp(rootA, rootB, { recursive: true });
+    const inspection = await inspectGuardianRootAt(rootB, project, "linux");
+    assert.equal(inspection.state, "unsafe");
+    assert.match(inspection.reason, /physical-location binding/i);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
 });
 
 test("symlinked Guardian root is rejected", { skip: process.platform === "win32" }, async () => {
