@@ -2,8 +2,6 @@
 
 import { spawnSync } from "node:child_process";
 import {
-  addConfirmedGoal,
-  addConfirmedKnowledge,
   buildProjectContextSnapshot,
   buildResumeContext,
   buildSemanticProposal,
@@ -13,9 +11,7 @@ import {
   inspectInitialization,
   listAcceptedDecisions,
   readSemanticProposalCandidateFile,
-  recordAcceptedDecision,
   runDoctor,
-  supersedeAcceptedDecision,
   type SemanticProposalFinding,
 } from "../runtime/index.js";
 import { getPreviewResumeAdapter } from "../adapters/provider-resume-adapter.js";
@@ -359,6 +355,13 @@ function printChangePlan(kind: string, text: string): void {
   console.log("Changes made: 0");
 }
 
+function rejectLegacySemanticApply(): void {
+  console.error("Legacy semantic --apply is retired and does not create mutation Authority.");
+  console.error("Use the guarded flow: propose/review -> prepare -> authorize -> apply, or use maintain to reach authorization-required first.");
+  console.error("Changes made: 0");
+  process.exitCode = 3;
+}
+
 async function handleGoals(args: string[]): Promise<void> {
   const action = args[0] ?? "list";
   if (action === "list") {
@@ -367,17 +370,16 @@ async function handleGoals(args: string[]): Promise<void> {
     console.log(context.confirmedGoals.length ? context.confirmedGoals.map((item) => `- ${item}`).join("\n") : "- none confirmed");
     return;
   }
-  if (action !== "add") throw new Error("Goals command supports 'list' or 'add <goal> [--apply]'.");
+  if (action !== "add") throw new Error("Goals command supports 'list' or plan-only 'add <goal>'.");
   const text = textBeforeFlags(args, 1, ["--apply"]);
   printChangePlan("goal", text);
-  if (!args.includes("--apply")) {
+  if (args.includes("--apply")) {
     console.log("");
-    console.log("No changes applied. Add --apply to authorize this goal.");
+    rejectLegacySemanticApply();
     return;
   }
-  await addConfirmedGoal(text, process.cwd(), { authorized: true });
   console.log("");
-  console.log("Confirmed goal recorded and verified.");
+  console.log("No changes applied. Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
 }
 
 async function handleKnowledge(args: string[]): Promise<void> {
@@ -388,17 +390,16 @@ async function handleKnowledge(args: string[]): Promise<void> {
     console.log(context.knownFacts.length ? context.knownFacts.map((item) => `- ${item}`).join("\n") : "- none confirmed");
     return;
   }
-  if (action !== "add") throw new Error("Knowledge command supports 'list' or 'add <fact> [--apply]'.");
+  if (action !== "add") throw new Error("Knowledge command supports 'list' or plan-only 'add <fact>'.");
   const text = textBeforeFlags(args, 1, ["--apply"]);
   printChangePlan("knowledge", text);
-  if (!args.includes("--apply")) {
+  if (args.includes("--apply")) {
     console.log("");
-    console.log("No changes applied. Add --apply to authorize this knowledge change.");
+    rejectLegacySemanticApply();
     return;
   }
-  await addConfirmedKnowledge(text, process.cwd(), { authorized: true });
   console.log("");
-  console.log("Confirmed project knowledge recorded and verified.");
+  console.log("No changes applied. Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
 }
 
 async function handleDecisions(args: string[]): Promise<void> {
@@ -414,14 +415,13 @@ async function handleDecisions(args: string[]): Promise<void> {
   if (action === "add") {
     const text = textBeforeFlags(args, 1, ["--apply"]);
     printChangePlan("decision", text);
-    if (!args.includes("--apply")) {
+    if (args.includes("--apply")) {
       console.log("");
-      console.log("No changes applied. Add --apply to authorize this decision.");
+      rejectLegacySemanticApply();
       return;
     }
-    const record = await recordAcceptedDecision(text, process.cwd(), { authorized: true });
     console.log("");
-    console.log(`Accepted decision recorded and verified: ${record.id}`);
+    console.log("No changes applied. Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
     return;
   }
 
@@ -433,18 +433,17 @@ async function handleDecisions(args: string[]): Promise<void> {
     printChangePlan("decision supersession", replacement);
     console.log(`Supersedes: ${decisionId}`);
     if (reason) console.log(`Reason: ${reason}`);
-    if (!args.includes("--apply")) {
+    if (args.includes("--apply")) {
       console.log("");
-      console.log("No changes applied. Add --apply to authorize this supersession.");
+      rejectLegacySemanticApply();
       return;
     }
-    const result = await supersedeAcceptedDecision({ decisionId, replacement, reason }, process.cwd(), { authorized: true });
     console.log("");
-    console.log(`Decision ${result.superseded.id} superseded by ${result.replacement.id} and verified.`);
+    console.log("No changes applied. Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
     return;
   }
 
-  throw new Error("Decisions command supports 'list', 'add <decision> [--apply]', or 'supersede <id> <replacement> [--reason <reason>] [--apply]'.");
+  throw new Error("Decisions command supports 'list', plan-only 'add <decision>', or plan-only 'supersede <id> <replacement> [--reason <reason>]'.");
 }
 
 async function main(): Promise<void> {
@@ -477,12 +476,14 @@ async function main(): Promise<void> {
       console.log("  context [--json]");
       console.log("  propose --input <candidate.json> [--json]");
       console.log("  init [--apply]");
-      console.log("  goals [list] | goals add <goal> [--apply]");
-      console.log("  knowledge [list] | knowledge add <fact> [--apply]");
-      console.log("  decisions [list] | decisions add <decision> [--apply]");
-      console.log("  decisions supersede <id> <replacement> [--reason <reason>] [--apply]");
+      console.log("  goals [list] | goals add <goal>  # plan only");
+      console.log("  knowledge [list] | knowledge add <fact>  # plan only");
+      console.log("  decisions [list] | decisions add <decision>  # plan only");
+      console.log("  decisions supersede <id> <replacement> [--reason <reason>]  # plan only");
       console.log("  update --manifest <release-manifest.json> [--apply --artifact <runtime.tgz> --trusted-source <source-id>]");
       console.log("  recover [--apply]");
+      console.log("");
+      console.log("Legacy semantic --apply is retired. Use proposal-bound prepare/authorize/apply or maintain for canonical semantic mutation.");
       return;
     default:
       console.error(`Unknown command: ${command}`);
