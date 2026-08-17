@@ -21,10 +21,7 @@ test("Windows Guardian ACL parser accepts exactly one strict result amid inciden
       ordinaryRequesterCanReplaceChildren: false,
     },
   );
-  assert.throws(
-    () => parseWindowsProtectionOutput("warning only\n"),
-    /invalid or ambiguous result/i,
-  );
+  assert.throws(() => parseWindowsProtectionOutput("warning only\n"), /invalid or ambiguous result/i);
   assert.throws(
     () => parseWindowsProtectionOutput("S-1-5-18|no|no\nS-1-5-18|yes|no\n"),
     /invalid or ambiguous result/i,
@@ -42,6 +39,18 @@ test("ordinary requester-owned Windows directory is not a protected Guardian pat
     );
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Windows Guardian ACL inspection treats valid path metacharacters as data", windowsOnly, async () => {
+  const base = await mkdtemp(resolve(tmpdir(), "livariant-guardian-win-meta-"));
+  const root = resolve(base, "guardian & (acl) ! fixture");
+  await mkdir(root);
+  try {
+    const protection = inspectWindowsProtection(root);
+    assert.equal(protection.ordinaryRequesterWritable, true);
+  } finally {
+    await rm(base, { recursive: true, force: true });
   }
 });
 
