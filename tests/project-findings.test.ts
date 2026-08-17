@@ -35,15 +35,20 @@ test("package manifest without declared install dependencies does not create loc
   });
 });
 
-test("declared dependencies without a lockfile are surfaced", async () => {
+test("declared dependencies without a lockfile are surfaced with stable material-bound identity", async () => {
   await withProject(async (projectPath) => {
     await writeFile(resolve(projectPath, "package.json"), JSON.stringify({ name: "unlocked", dependencies: { react: "^19.0.0" } }));
 
-    const report = scanProjectFindings(projectPath);
-    const item = report.findings.find((candidate) => candidate.ruleId === "LV-FND-QUAL-003");
+    const first = scanProjectFindings(projectPath);
+    const second = scanProjectFindings(projectPath);
+    const item = first.findings.find((candidate) => candidate.ruleId === "LV-FND-QUAL-003");
+    const repeated = second.findings.find((candidate) => candidate.ruleId === "LV-FND-QUAL-003");
     assert.ok(item);
+    assert.ok(repeated);
     assert.equal(item.severity, "medium");
     assert.equal(item.confidence, "strong");
+    assert.match(item.id, /^finding-v1:[a-f0-9]{64}$/u);
+    assert.equal(item.id, repeated.id);
   });
 });
 
@@ -129,7 +134,18 @@ test("exact root gitignore entry suppresses only the explicitly guarded sensitiv
   });
 });
 
-test("all sensitive files with exact root ignore entries do not create the hygiene finding", async () => {
+test("later exact gitignore negation re-opens the sensitive-file finding", async () => {
+  await withProject(async (projectPath) => {
+    await mkdir(resolve(projectPath, ".git"));
+    await writeFile(resolve(projectPath, ".env"), "TOKEN=hidden\n");
+    await writeFile(resolve(projectPath, ".gitignore"), ".env\n!.env\n");
+
+    const report = scanProjectFindings(projectPath);
+    assert.ok(report.findings.some((candidate) => candidate.ruleId === "LV-FND-SEC-003"));
+  });
+});
+
+test("all sensitive files with effective exact root ignore entries do not create the hygiene finding", async () => {
   await withProject(async (projectPath) => {
     await mkdir(resolve(projectPath, ".git"));
     await writeFile(resolve(projectPath, ".env"), "TOKEN=hidden\n");
