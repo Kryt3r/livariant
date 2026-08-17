@@ -3,6 +3,7 @@ import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
 import { buildBootstrapDiscovery, type BootstrapDiscoveryReport } from "../project/bootstrap-discovery.js";
 import { discoverProject } from "../project/discovery.js";
 import { generateStableProjectIdentity } from "../project-brain/identity.js";
+import { recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import { ProjectBrainStore, type BootstrapOptions } from "../project-brain/store.js";
 import type { ProjectBrainHealth, ProjectBrainMetadata } from "../project-brain/types.js";
 
@@ -150,6 +151,7 @@ export async function initializeProject(
     },
     bootstrapOptions,
   );
+  await recordAcceptedProjectBrainState(plan.projectRoot, "initialization");
 
   return { plan, projectBrainPath };
 }
