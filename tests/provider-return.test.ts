@@ -9,6 +9,7 @@ import {
   processProviderReturn,
   providerReturnTaskDigest,
 } from "../src/runtime/provider-return.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-provider-return-"));
@@ -72,10 +73,10 @@ test("matching typed provider candidate without authorization reaches maintenanc
   });
 });
 
-test("stale provider context is classified before returned candidate is rebound", async () => {
+test("stale provider context is classified against a newer accepted canonical state before returned candidate is rebound", async () => {
   await withProject(async (path) => {
     const context = await readyContext(path);
-    await addConfirmedGoal("Concurrent canonical change", path, { authorized: true });
+    await mutateAcceptedFixture(path, () => addConfirmedGoal("Concurrent canonical change", path, { authorized: true }));
     const returned = { ...noCandidateReturn(context), candidate: goalCandidate("Stale agent candidate") };
     const result = await processProviderReturn(context, returned, undefined, path);
     assert.equal(result.state, "stale-context");
