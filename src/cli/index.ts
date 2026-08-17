@@ -34,37 +34,58 @@ function renderLegacySemanticApplyRetirement(): void {
   console.error("Changes made: 0");
 }
 
+function renderHelp(): void {
+  console.log("Livariant");
+  console.log("Commands:");
+  console.log("  version [--json]");
+  console.log("  status");
+  console.log("  doctor");
+  console.log("  resume [--provider claude-code|codex]");
+  console.log("  context [--json]");
+  console.log("  propose --input <candidate.json> [--json]");
+  console.log("  init [--apply]");
+  console.log("  goals [list] | goals add <goal>  # plan only");
+  console.log("  knowledge [list] | knowledge add <fact>  # plan only");
+  console.log("  decisions [list] | decisions add <decision>  # plan only");
+  console.log("  decisions supersede <id> <replacement> [--reason <reason>]  # plan only");
+  console.log("  update --manifest <release-manifest.json> [--apply --artifact <runtime.tgz> --trusted-source <source-id>]");
+  console.log("  recover [--apply]");
+  console.log("  first-run [--language <preferred-language>] [--autonomy-profile <ask-always|ask-important|continue-without-confirmation>] [--acknowledge-autonomy-risk] [--external-source-type <local-directory> --external-source <source-path>] [--provider <claude-code|codex>] [--json]");
+  console.log("  autonomy show [--json]");
+  console.log("  autonomy set --profile <ask-always|ask-important|continue-without-confirmation> [--acknowledge-risk] [--json]");
+  console.log("  discover [--json]");
+  console.log("  external-source inspect --type <local-directory> --path <source-path> [--json]");
+  console.log("  understand [--input <review.json>] [--external-source-type <local-directory> --external-source <source-path>] [--json]");
+  console.log("  adopt-understanding --input <review.json> --select <candidate-id> [--json]");
+  console.log("  drift --input <observation.json> [--json]");
+  console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
+  console.log("  provider-return --context <provider-context.json> --input <provider-return.json> [--authorization <authorization-id>] [--json]");
+  console.log("  prepare --input <candidate.json> [--json]");
+  console.log("  authorize --input <actionable-proposal.json> [--json]");
+  console.log("  apply --authorization <authorization-id> --input <actionable-proposal.json> [--json]");
+  console.log("  maintain --input <candidate.json> [--authorization <authorization-id>] [--json]");
+  console.log("  mcp");
+  console.log("  mcp setup --provider <claude-code|codex> [--json]");
+  console.log("");
+  console.log("Legacy goals/knowledge/decisions commands are list/plan surfaces only; their --apply mutation path is retired.");
+  console.log("Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
+}
+
 async function entry(): Promise<void> {
   const command = process.argv[2];
   const args = process.argv.slice(3);
+  const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
+  if (showsHelp) {
+    renderHelp();
+    return;
+  }
   if (blocksLegacySemanticApply(command, args)) {
     renderLegacySemanticApplyRetirement();
     process.exitCode = 3;
     return;
   }
   if (command !== "first-run" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
-    const showsHelp = command === undefined || ["help", "--help", "-h"].includes(command);
     await import("./legacy-main.js");
-    if (showsHelp) {
-      console.log("  first-run [--language <preferred-language>] [--autonomy-profile <ask-always|ask-important|continue-without-confirmation>] [--acknowledge-autonomy-risk] [--external-source-type <local-directory> --external-source <source-path>] [--provider <claude-code|codex>] [--json]");
-      console.log("  autonomy show [--json]");
-      console.log("  autonomy set --profile <ask-always|ask-important|continue-without-confirmation> [--acknowledge-risk] [--json]");
-      console.log("  discover [--json]");
-      console.log("  external-source inspect --type <local-directory> --path <source-path> [--json]");
-      console.log("  understand [--input <review.json>] [--external-source-type <local-directory> --external-source <source-path>] [--json]");
-      console.log("  adopt-understanding --input <review.json> --select <candidate-id> [--json]");
-      console.log("  drift --input <observation.json> [--json]");
-      console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
-      console.log("  provider-return --context <provider-context.json> --input <provider-return.json> [--authorization <authorization-id>] [--json]");
-      console.log("  prepare --input <candidate.json> [--json]");
-      console.log("  authorize --input <actionable-proposal.json> [--json]");
-      console.log("  apply --authorization <authorization-id> --input <actionable-proposal.json> [--json]");
-      console.log("  maintain --input <candidate.json> [--authorization <authorization-id>] [--json]");
-      console.log("  mcp");
-      console.log("  mcp setup --provider <claude-code|codex> [--json]");
-      console.log("");
-      console.log("Legacy goals/knowledge/decisions commands are plan/list surfaces only; their --apply mutation path is retired.");
-    }
     return;
   }
   if (await delegateToActiveRuntime()) return;
