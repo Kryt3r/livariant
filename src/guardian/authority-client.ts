@@ -153,10 +153,11 @@ async function readConsumerRecords(
   return records;
 }
 
-export async function findMatchingActiveGuardianAuthority(input: {
+async function findMatchingByState(input: {
   consumer: GuardianAuthorityConsumer;
   mode: GuardianAuthorityMode;
   materialSha256: string;
+  state: "active" | "consumed";
   projectPath?: string;
   now?: Date;
 }): Promise<GuardianAuthorityRecord | null> {
@@ -164,18 +165,45 @@ export async function findMatchingActiveGuardianAuthority(input: {
   const now = input.now ?? new Date();
   const records = await readConsumerRecords(support, input.consumer);
   const matching = records.filter((record) => {
-    if (record.mode !== input.mode || record.materialSha256 !== input.materialSha256 || record.state !== "active") return false;
-    if (record.expiresAt !== undefined && Date.parse(record.expiresAt) <= now.getTime()) return false;
+    if (record.mode !== input.mode || record.materialSha256 !== input.materialSha256 || record.state !== input.state) return false;
+    if (input.state === "active" && record.expiresAt !== undefined && Date.parse(record.expiresAt) <= now.getTime()) return false;
     return true;
   });
   if (matching.length === 0) return null;
-  if (matching.length > 1) throw new Error("Multiple active Guardian Authority records match the same exact material; refusing ambiguous Authority.");
-  assertGuardianAuthorityMatches(matching[0], {
-    consumer: input.consumer,
-    mode: input.mode,
-    materialSha256: input.materialSha256,
-  }, now);
-  return matching[0];
+  if (matching.length > 1) throw new Error(`Multiple ${input.state} Guardian Authority records match the same exact material; refusing ambiguous Authority.`);
+  const record = matching[0];
+  if (record.consumer !== input.consumer || record.mode !== input.mode || record.materialSha256 !== input.materialSha256) {
+    throw new Error("Guardian Authority protected state does not match the exact requested material.");
+  }
+  if (input.state === "active") {
+    assertGuardianAuthorityMatches(record, {
+      consumer: input.consumer,
+      mode: input.mode,
+      materialSha256: input.materialSha256,
+    }, now);
+  } else if (record.state !== "consumed" || record.consumedAt === undefined) {
+    throw new Error("Guardian Authority recovery state is not a valid protected consumed record.");
+  }
+  return record;
+}
+
+export async function findMatchingActiveGuardianAuthority(input: {
+  consumer: GuardianAuthorityConsumer;
+  mode: GuardianAuthorityMode;
+  materialSha256: string;
+  projectPath?: string;
+  now?: Date;
+}): Promise<GuardianAuthorityRecord | null> {
+  return findMatchingByState({ ...input, state: "active" });
+}
+
+export async function findMatchingConsumedGuardianAuthority(input: {
+  consumer: GuardianAuthorityConsumer;
+  mode: GuardianAuthorityMode;
+  materialSha256: string;
+  projectPath?: string;
+}): Promise<GuardianAuthorityRecord | null> {
+  return findMatchingByState({ ...input, state: "consumed" });
 }
 
 export async function readGuardianAuthorityById(input: {
