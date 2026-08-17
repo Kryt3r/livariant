@@ -6,8 +6,6 @@ import {
   renderDecisionsMarkdown,
   type DecisionRecord,
 } from "../project-brain/decisions.js";
-import type { ActionableProposalScope } from "./actionable-proposal.js";
-import { assertApplyingCanonicalMutationAuthority } from "./canonical-mutation-authority.js";
 import { runDoctor } from "./doctor.js";
 
 export interface CanonicalDecisionChangeOptions {
@@ -75,10 +73,6 @@ async function persistDecisionState(
   if (verify.issues.length > 0) throw new Error(`Decision verification failed after persistence: ${verify.issues.join("; ")}`);
 }
 
-async function requireApplyingAuthority(scope: ActionableProposalScope, projectPath: string): Promise<void> {
-  await assertApplyingCanonicalMutationAuthority(scope, discoverProject(projectPath).root);
-}
-
 export async function listAcceptedDecisions(projectPath: string = process.cwd()): Promise<DecisionRecord[]> {
   const state = await loadWritableDecisionState(projectPath);
   return state.records.map((record) => ({ ...record }));
@@ -91,7 +85,6 @@ export async function recordAcceptedDecision(
 ): Promise<DecisionRecord> {
   if (!options.authorized) throw new Error("Recording an accepted decision requires explicit authorization.");
   const normalized = normalizedScalar(decision, "Accepted decision");
-  await requireApplyingAuthority({ domain: "project-decision", changeKind: "add", proposedStatement: normalized }, projectPath);
 
   const state = await loadWritableDecisionState(projectPath);
   if (state.records.some((record) => record.status === "active" && record.text === normalized)) {
@@ -120,12 +113,6 @@ export async function supersedeAcceptedDecision(
   if (!options.authorized) throw new Error("Decision supersession requires explicit authorization.");
   const replacementText = normalizedScalar(input.replacement, "Replacement decision");
   const reason = input.reason === undefined ? undefined : normalizedScalar(input.reason, "Supersession reason");
-  await requireApplyingAuthority({
-    domain: "project-decision",
-    changeKind: "supersede",
-    proposedStatement: replacementText,
-    targetDecisionId: input.decisionId,
-  }, projectPath);
 
   const state = await loadWritableDecisionState(projectPath);
   const matches = state.records.filter((record) => record.id === input.decisionId);
