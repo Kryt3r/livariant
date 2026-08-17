@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { resolve } from "node:path";
 import {
@@ -120,7 +120,7 @@ try {
 
   const material = buildSemanticGuardianAuthorityRequest({
     authorizationId: AUTH_ID,
-    physicalProjectRoot: project,
+    physicalProjectRoot: await realpath(project),
     proposal,
   });
   const issuedAt = new Date(Date.now() - 60_000).toISOString();
