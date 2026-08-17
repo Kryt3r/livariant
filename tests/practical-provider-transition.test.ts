@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { initializeProject, recordAcceptedDecision } from "../src/runtime/index.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 import {
   claudeCodePreviewResumeAdapter,
   codexPreviewResumeAdapter,
@@ -63,11 +64,11 @@ test("Claude Code to Codex transition reconstructs canonical state across isolat
     await writeFile(claudeInstructions, claudeOwned, "utf8");
     await writeFile(codexInstructions, codexOwned, "utf8");
 
-    const accepted = await recordAcceptedDecision(
+    const accepted = await mutateAcceptedFixture(projectPath, () => recordAcceptedDecision(
       "Provider handoff must reconstruct canonical Project Brain state",
       projectPath,
       { authorized: true },
-    );
+    ));
     assert.equal(accepted.status, "active");
 
     const claude = runProvider(projectPath, "claude-code", "CLAUDE-SESSION-ONLY-SECRET");
