@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { chmod, chown, copyFile, lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { stderr, stdin } from "node:process";
+import { assertProtectedGuardianBootstrapSource } from "./bootstrap-source.js";
 import {
   buildGuardianRootDescriptor,
   guardianLayoutPaths,
@@ -74,10 +75,10 @@ async function requireInteractiveBootstrap(root: string, helperSource: string, h
   const phrase = `BOOTSTRAP GUARDIAN ${helperSha256.slice(0, 12)}`;
   stderr.write("Livariant Guardian bootstrap\n");
   stderr.write(`Protected root: ${root}\n`);
-  stderr.write(`Helper source: ${helperSource}\n`);
+  stderr.write(`Protected helper source: ${helperSource}\n`);
   stderr.write(`Helper SHA-256: ${helperSha256}\n`);
   stderr.write("This establishes only the protected Guardian foundation. It issues NO mutation, Runtime, integrity, or release Authority.\n");
-  stderr.write("Bootstrap trust assumption: you are explicitly trusting these displayed helper bytes for this installation.\n");
+  stderr.write("Bootstrap prerequisite: these executing Livariant/Node bytes were already provisioned into a protected system installation from exact release material outside normal agent-autonomous flow.\n");
   stderr.write(`Type exactly: ${phrase}\n`);
   const terminal = createInterface({ input: stdin, output: stderr });
   try {
@@ -133,10 +134,14 @@ export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapRe
   const root = productionGuardianRoot(platform);
   if (!root) throw new Error("Guardian production root is unavailable for this platform.");
 
-  // The source path resolves inside the installed/current Livariant package.
-  // WP-026 deliberately records this as an explicit bootstrap trust assumption;
-  // later release signing/attestation can strengthen how these bytes are sourced.
+  const bootstrapModule = fileURLToPath(import.meta.url);
   const helperSource = fileURLToPath(new URL("./protected-helper.js", import.meta.url));
+
+  // Critical bootstrap boundary: requester-controlled npm/npx/project/cache bytes
+  // may not be elevated into Guardian trust. The executing bootstrap module,
+  // helper source, and Node executable must already be OS-protected.
+  await assertProtectedGuardianBootstrapSource(platform, helperSource, bootstrapModule, process.execPath);
+
   const helperStats = await lstat(helperSource);
   if (!helperStats.isFile() || helperStats.isSymbolicLink()) throw new Error("Guardian bootstrap helper source must be a regular non-symlink file.");
   const helperBytes = await readFile(helperSource);
@@ -172,6 +177,6 @@ export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapRe
     authorityIssued: false,
     changesMade: 4,
     nextStep: "Close the privileged terminal and run `livariant guardian status` from an ordinary user terminal to verify requester write exclusion.",
-    bootstrapTrustAssumption: "The user explicitly trusted the displayed current Livariant protected-helper bytes during this local privileged bootstrap; release-signing/attestation hardening remains a later release-quality enhancement.",
+    bootstrapTrustAssumption: "Before Guardian bootstrap, exact Livariant release material must be provisioned into the fixed protected bootstrap source root by a separate privileged installation step outside normal agent-autonomous flow. WP-026 does not claim that requester-controlled bytes can self-bootstrap trust.",
   };
 }
