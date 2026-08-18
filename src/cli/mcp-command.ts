@@ -7,6 +7,7 @@ import {
   type JsonRpcResponse,
 } from "../mcp/server.js";
 import { buildMcpSetupPlan, parseMcpSetupArgs, renderMcpSetupPlan } from "./mcp-setup.js";
+import { requireProtectedCanonicalProject } from "./protected-project-gate.js";
 
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -33,6 +34,7 @@ export async function handleMcpCommand(args: readonly string[]): Promise<void> {
     throw new Error("Usage: livariant mcp | livariant mcp setup --provider <claude-code|codex> [--json]");
   }
 
+  await requireProtectedCanonicalProject();
   const session = createMcpSession(process.cwd());
   let pending = Buffer.alloc(0);
   let droppingOversize = false;
