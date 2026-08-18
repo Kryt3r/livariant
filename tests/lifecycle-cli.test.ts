@@ -41,7 +41,7 @@ async function writeManifest(projectPath: string, release: ReleaseDescriptor): P
   return path;
 }
 
-test("Livariant update CLI plans read-only and fails closed without protected Runtime trust", async () => {
+test("Livariant update CLI plans read-only and fails closed without protected lifecycle Authority", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-cli-update-"));
   const targetVersion = NORMAL_TARGET_VERSION;
   const fixture = await createRuntimePackageFixture(targetVersion);
@@ -76,7 +76,7 @@ test("Livariant update CLI plans read-only and fails closed without protected Ru
       "--trusted-source", sourceId,
     ]);
     assert.notEqual(blocked.status, 0);
-    assert.match(blocked.stderr, /Guardian|protected.*Runtime trust|not ready/i);
+    assert.match(blocked.stderr, /Guardian|lifecycle Authority|--apply expresses intent/i);
     assert.equal((await getStatus(projectPath)).frameworkVersion, TEST_SOURCE_VERSION);
     assert.deepEqual(await readFile(resolve(projectPath, ".project-brain", "metadata.json")), beforeMetadata);
   } finally {
@@ -85,7 +85,7 @@ test("Livariant update CLI plans read-only and fails closed without protected Ru
   }
 });
 
-test("schema-changing update CLI fails closed before migration without protected Runtime trust", async () => {
+test("schema-changing update CLI fails closed before migration without protected lifecycle Authority", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-cli-migration-guidance-"));
   const targetVersion = MIGRATION_TARGET_VERSION;
   const fixture = await createRuntimePackageFixture(targetVersion);
@@ -109,7 +109,7 @@ test("schema-changing update CLI fails closed before migration without protected
     ]);
     assert.notEqual(blocked.status, 0);
     assert.match(blocked.stdout, /Migration required: yes/);
-    assert.match(blocked.stderr, /Guardian|protected.*Runtime trust|not ready/i);
+    assert.match(blocked.stderr, /Guardian|lifecycle Authority|--apply expresses intent/i);
     assert.deepEqual(await readFile(resolve(projectPath, ".project-brain", "metadata.json")), beforeMetadata);
   } finally {
     await fixture.cleanup();
@@ -117,7 +117,7 @@ test("schema-changing update CLI fails closed before migration without protected
   }
 });
 
-test("Livariant recover CLI inspects first and only rolls back after explicit apply", async () => {
+test("Livariant recover CLI inspects first and bare --apply cannot authorize rollback", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-cli-recover-"));
   const targetVersion = MIGRATION_TARGET_VERSION;
   const fixture = await createRuntimePackageFixture(targetVersion);
@@ -148,14 +148,11 @@ test("Livariant recover CLI inspects first and only rolls back after explicit ap
     assert.match(inspect.stdout, /No changes applied/);
     assert.equal((await getStatus(projectPath)).lifecycle, "recovery-required");
 
-    const applied = runCli(projectPath, ["recover", "--apply"]);
-    assert.equal(applied.status, 0, applied.stderr);
-    assert.match(applied.stdout, /Recovery completed/);
-    assert.match(applied.stdout, /Protected integrity: inspect the restored Project Brain/i);
-    assert.match(applied.stdout, /integrity accept-current/i);
+    const blocked = runCli(projectPath, ["recover", "--apply"]);
+    assert.notEqual(blocked.status, 0);
+    assert.match(blocked.stderr, /Guardian|lifecycle Authority|--apply expresses intent/i);
     const status = await getStatus(projectPath);
-    assert.equal(status.lifecycle, "initialized");
-    assert.equal(status.frameworkVersion, TEST_SOURCE_VERSION);
+    assert.equal(status.lifecycle, "recovery-required");
   } finally {
     await fixture.cleanup();
     await rm(projectPath, { recursive: true, force: true });

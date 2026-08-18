@@ -66,6 +66,14 @@ Diese Ausgabe soll später Guided-Onboarding- und Evidence-Adoption-Workflows er
 
 ## Verhältnis zu `livariant init`
 
-`livariant init` bleibt plan-first und ohne `--apply` read-only.
+`livariant init` bleibt standardmäßig plan-first und read-only. Der aktuelle Lifecycle-Ablauf trennt Review, Autorisierung und Mutation:
 
-Die Initialization-Assessment-Ausgabe stellt denselben read-only Bootstrap-Discovery-Report bereit, aber WP-014 verändert bewusst nicht, welche Unknowns bei einem ausdrücklich autorisierten Bootstrap geschrieben werden. Discovery ergänzt damit Beobachtung, ohne Initialization-, Lifecycle-, Authority-, Runtime-Trust-, Recovery- oder Project-Brain-Mutationssemantik zu verändern.
+```text
+livariant init
+→ livariant init --authorize
+→ livariant init --apply
+```
+
+Der erste Befehl zeigt die Initialization Assessment und denselben read-only Bootstrap-Discovery-Report. `--authorize` fordert kurzlebige, exakt materialgebundene geschützte Guardian Lifecycle Authority an und verändert weiterhin keine Projektdateien. `--apply` kann nur initialisieren, wenn für denselben aktuellen Plan passende unverbrauchte Authority vorhanden ist.
+
+Ein nacktes `--apply`-Flag ist keine Autorisierung. Ändert sich Projektmaterial zwischen Autorisierung und Anwendung, passt die Authority nicht mehr. Discovery bleibt damit reine Beobachtung und vergibt selbst keine Initialization-, Lifecycle-, Runtime-, Recovery- oder Project-Brain-Mutation-Authority.

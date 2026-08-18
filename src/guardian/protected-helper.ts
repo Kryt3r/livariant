@@ -30,7 +30,8 @@ export type ProtectedGuardianConsumer =
   | "semantic-mutation"
   | "project-brain-integrity"
   | "runtime-trust"
-  | "release-authorization";
+  | "release-authorization"
+  | "lifecycle-mutation";
 
 export type ProtectedGuardianMode = "one-shot" | "persistent";
 
@@ -88,7 +89,8 @@ function validConsumer(value: unknown): value is ProtectedGuardianConsumer {
   return value === "semantic-mutation"
     || value === "project-brain-integrity"
     || value === "runtime-trust"
-    || value === "release-authorization";
+    || value === "release-authorization"
+    || value === "lifecycle-mutation";
 }
 
 function validMode(value: unknown): value is ProtectedGuardianMode {

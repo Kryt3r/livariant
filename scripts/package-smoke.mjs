@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -61,6 +61,15 @@ function assertProtectedBlocked(output, label) {
   }
 }
 
+async function assertMissing(path, label) {
+  try {
+    await access(path);
+  } catch {
+    return;
+  }
+  throw new Error(`${label} unexpectedly exists: ${path}`);
+}
+
 try {
   const packDir = resolve(temp, "pack");
   const installDir = resolve(temp, "install");
@@ -81,6 +90,7 @@ try {
   const required = [
     "package.json",
     "dist/src/cli/index.js",
+    "dist/src/cli/init-command.js",
     "dist/src/cli/lifecycle.js",
     "dist/src/cli/maintenance-command.js",
     "dist/src/cli/provider-return-command.js",
@@ -94,6 +104,8 @@ try {
     "dist/src/lifecycle/update.js",
     "dist/src/lifecycle/recovery.js",
     "dist/src/distribution/release-integrity.js",
+    "dist/src/guardian/lifecycle-authority.js",
+    "dist/src/guardian/lifecycle-authority-transition.js",
     "dist/src/adapters/resume-provider.js",
     "dist/src/adapters/provider-resume-adapter.js",
   ];
@@ -127,10 +139,20 @@ try {
     throw new Error(`Installed CLI returned unexpected channel output:\n${cli.stdout}`);
   }
 
-  const init = run(process.execPath, [cliPath, "init", "--apply"], { cwd: installDir });
-  if (!/Project Brain initialized:/.test(init.stdout)) {
-    throw new Error(`Installed CLI did not initialize Project Brain:\n${init.stdout}`);
+  const blockedInit = run(process.execPath, [cliPath, "init", "--apply"], {
+    cwd: installDir,
+    expectedStatus: 1,
+  });
+  if (!/Guardian|lifecycle Authority|--apply expresses intent/i.test(`${blockedInit.stdout}\n${blockedInit.stderr}`)) {
+    throw new Error(`Installed CLI did not explain protected lifecycle Authority for bare init --apply:\n${blockedInit.stdout}\n${blockedInit.stderr}`);
   }
+  await assertMissing(resolve(installDir, ".project-brain"), "Project Brain before lifecycle Authority");
+
+  // Internal package-smoke fixture setup only. The installed public CLI boundary
+  // above proves that requester-controlled --apply cannot initialize by itself.
+  const runtimeModulePath = resolve(packageRoot, "dist", "src", "runtime", "index.js");
+  const runtimeModule = await import(pathToFileURL(runtimeModulePath).href);
+  await runtimeModule.initializeProject(installDir, { authorized: true });
 
   const maintenanceCandidate = resolve(installDir, "maintenance-candidate.json");
   await writeFile(maintenanceCandidate, `${JSON.stringify({
@@ -173,8 +195,6 @@ try {
     throw new Error(`Installed provider-context CLI did not fail closed before protected integrity acceptance:\n${providerContextResult.stdout}`);
   }
 
-  // Build a structurally valid local-only context through the installed low-level module
-  // so the packaged Provider Return CLI is exercised at the protected current-project gate.
   const providerContextModulePath = resolve(packageRoot, "dist", "src", "runtime", "provider-context.js");
   const { buildProviderContext } = await import(pathToFileURL(providerContextModulePath).href);
   const localOnlyContext = await buildProviderContext("codex", "Check whether durable truth changed", installDir);
@@ -235,7 +255,7 @@ try {
     throw new Error("Installed package does not expose the expected Livariant package and CLI identity");
   }
 
-  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed and globally/project-locally installed from the release tarball, initialized a Project Brain, verified protected-integrity fail-closed behavior for installed maintain/provider-context/provider-return/resume surfaces before Guardian acceptance, and exposed read-only update/recovery inspection.`);
+  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed and globally/project-locally installed from the release tarball, verified bare lifecycle init --apply fails closed without Guardian Authority, seeded an internal fixture, verified protected-integrity fail-closed behavior for installed maintain/provider-context/provider-return/resume surfaces, and exposed read-only update/recovery inspection.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

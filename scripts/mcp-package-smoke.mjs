@@ -1,6 +1,7 @@
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
@@ -77,17 +78,26 @@ try {
   const filename = packResult?.[0]?.filename;
   if (typeof filename !== "string") throw new Error("npm pack did not return a package filename");
   const entries = packResult[0]?.files?.map((file) => file.path) ?? [];
-  for (const required of ["dist/src/cli/mcp-command.js", "dist/src/cli/mcp-setup.js", "dist/src/mcp/server.js"]) {
-    if (!entries.includes(required)) throw new Error(`Packed artifact is missing MCP file: ${required}`);
+  for (const required of ["dist/src/cli/mcp-command.js", "dist/src/cli/mcp-setup.js", "dist/src/mcp/server.js", "dist/src/guardian/lifecycle-authority.js"]) {
+    if (!entries.includes(required)) throw new Error(`Packed artifact is missing MCP/lifecycle file: ${required}`);
   }
 
   const tarball = resolve(packDir, filename);
   runNpm(["init", "-y"], { cwd: installDir });
   runNpm(["install", "--ignore-scripts", tarball], { cwd: installDir });
-  const cliPath = resolve(installDir, "node_modules", "livariant", "dist", "src", "cli", "index.js");
+  const packageRoot = resolve(installDir, "node_modules", "livariant");
+  const cliPath = resolve(packageRoot, "dist", "src", "cli", "index.js");
 
-  const init = run(process.execPath, [cliPath, "init", "--apply"], { cwd: installDir });
-  if (!/Project Brain initialized:/.test(init.stdout)) throw new Error(`MCP smoke could not initialize Project Brain:\n${init.stdout}`);
+  const blockedInit = run(process.execPath, [cliPath, "init", "--apply"], { cwd: installDir, expectedStatus: 1 });
+  if (!/Guardian|lifecycle Authority|--apply expresses intent/i.test(`${blockedInit.stdout}\n${blockedInit.stderr}`)) {
+    throw new Error(`Installed CLI did not fail closed on bare lifecycle init --apply:\n${blockedInit.stdout}\n${blockedInit.stderr}`);
+  }
+  await assertMissing(resolve(installDir, ".project-brain"), "Project Brain before lifecycle Authority");
+
+  // Internal fixture setup only. The public installed CLI boundary above proves
+  // that requester-controlled --apply cannot initialize without Guardian Authority.
+  const runtimeModule = await import(pathToFileURL(resolve(packageRoot, "dist", "src", "runtime", "index.js")).href);
+  await runtimeModule.initializeProject(installDir, { authorized: true });
 
   const setup = run(process.execPath, [cliPath, "mcp", "setup", "--provider", "codex", "--json"], { cwd: installDir });
   if (setup.stderr !== "") throw new Error(`Installed MCP setup helper wrote unexpected stderr:\n${setup.stderr}`);
@@ -123,8 +133,8 @@ try {
   }
   await assertManagedUnchanged(installDir, before);
 
-  const packageJson = JSON.parse(await readFile(resolve(installDir, "node_modules", "livariant", "package.json"), "utf8"));
-  console.log(`MCP package smoke passed for Livariant ${packageJson.version}: installed tarball rendered read-only native setup guidance and refused valid stdio session startup without protected Guardian Project Brain acceptance while preserving project bytes.`);
+  const packageJson = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
+  console.log(`MCP package smoke passed for Livariant ${packageJson.version}: installed tarball refused bare lifecycle initialization without Guardian Authority, rendered read-only native setup guidance, and refused valid stdio session startup without protected Guardian Project Brain acceptance while preserving project bytes.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

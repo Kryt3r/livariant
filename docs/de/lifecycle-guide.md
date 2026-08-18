@@ -4,32 +4,75 @@
   <a href="../lifecycle-guide.md">English</a> · <strong>Deutsch</strong>
 </p>
 
-Livariant führt Updates und Wiederherstellung über die installierte `livariant`-CLI aus. Dabei gilt immer dieselbe Grundregel: zuerst prüfen und planen, erst danach mit `--apply` eine Änderung ausdrücklich erlauben.
+Livariant führt Updates, Schema-Migrationen und Wiederherstellung über die installierte `livariant`-CLI aus. Konsequenzreiche Lifecycle-Änderungen sind plan-first und benötigen unabhängige geschützte Guardian Authority.
+
+`--apply` drückt die Absicht aus, eine bereits geprüfte Lifecycle-Operation auszuführen. Das Flag ist **nicht** selbst Lifecycle Authority.
+
+## Der Lifecycle-Autorisierungsablauf
+
+Für Initialisierung, Updates/Migrationen und Recovery gelten drei getrennte Phasen:
+
+```text
+planen / prüfen
+→ --authorize
+→ --apply
+```
+
+`--authorize` und `--apply` dürfen nicht in derselben Invocation kombiniert werden.
+
+`--authorize` fordert den betriebssystemgeschützten Livariant Guardian auf, einen kurzlebigen One-Shot-Authority-Record auszustellen. Er ist an das exakte physische Projekt, die Lifecycle-Operation und das aktuelle Operationsmaterial gebunden. Die Ausstellung verlangt unabhängige lokale Benutzerpräsenz über die geschützte Elevation-Grenze.
+
+`--apply` verlangt und verbraucht anschließend den exakt passenden Record, bevor der konsequenzreiche Mutationspfad fortgesetzt werden kann. Fehlende, abgelaufene, bereits verbrauchte, projektfremde, operationsfremde oder veraltete Authority führt zu einem geschlossenen Abbruch.
+
+Release Authorization und Runtime Trust bleiben getrennte Voraussetzungen. Ein vertrauenswürdiges Artefakt bedeutet niemals automatisch, dass auch die Lifecycle-Mutation autorisiert wurde.
+
+## Initialisierung
+
+Prüfe zuerst den aktuellen Initialisierungsplan:
+
+```bash
+livariant init
+```
+
+Fordere erst nach der Prüfung exakte Lifecycle Authority an:
+
+```bash
+livariant init --authorize
+```
+
+Wende danach den unveränderten Plan an, solange die One-Shot-Authority gültig ist:
+
+```bash
+livariant init --apply
+```
+
+Ändert sich der Projektzustand zwischen Autorisierung und Anwendung, passt das gebundene Material nicht mehr und Livariant bricht ab, statt veraltete Authority wiederzuverwenden.
 
 ## Update zuerst planen
 
-Verwende das Release-Manifest aus der vertrauenswürdigen Livariant-Preview-Quelle:
+Verwende das Release-Manifest aus der kanonischen Livariant-Release-Quelle:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-Der Plan zeigt unter anderem:
+Der Plan zeigt Quell- und Zielversion, Update-Channel, Source-ID, Artefaktidentität und SHA-256, Auswirkungen auf das Projekt sowie den Bedarf an Migration oder Checkpoint. Während der Planung werden keine Änderungen angewendet.
 
-- Quell- und Zielversion;
-- Update-Channel;
-- Release-Source-ID;
-- Artefaktidentität und SHA-256;
-- ob eine Migration nötig ist;
-- Auswirkungen auf das Projekt;
-- ob ein Checkpoint benötigt wird;
-- welche Autorisierung fehlt oder erforderlich ist.
+## Geprüftes Update autorisieren
 
-Ohne `--apply` wird kein Update ausgeführt.
+Nach Prüfung des exakten Update-Plans fordere mit demselben Manifest geschützte Lifecycle Authority an:
 
-## Geprüftes Update anwenden
+```bash
+livariant update \
+  --manifest ./release-manifest.json \
+  --authorize
+```
 
-Wenn der Plan korrekt ist, gib exakt das im Plan identifizierte Artefakt an und nenne die Release-Quelle, der du ausdrücklich vertraust:
+Dabei findet keine Lifecycle-Mutation statt. Der Guardian-Review bindet das exakte `normal-update`- oder `migration-update`-Material an dieses physische Projekt.
+
+## Autorisiertes Update anwenden
+
+Danach gib das passende Artefakt an und nenne ausdrücklich die Release-Quelle, der du vertraust:
 
 ```bash
 livariant update \
@@ -39,153 +82,105 @@ livariant update \
   --trusted-source <source-id>
 ```
 
-Das Release-Manifest kann seine eigene Source-ID nicht selbst vertrauenswürdig machen. Die angegebene vertrauenswürdige Quelle wird separat geprüft. Das Artefakt muss außerdem zur Release-Identität und zum SHA-256 im Manifest passen.
+Das Release-Manifest kann seine eigene Source-ID nicht vertrauenswürdig machen. `--trusted-source` wird separat geprüft; die Artefaktbytes müssen weiterhin zur Release-Identität und zum SHA-256 des Manifests passen.
 
-Für ausführbare Updates gibt es noch eine zusätzliche Sicherheitsgrenze: Der exakte Artefakt-Digest muss bereits durch eine unabhängige rechnerlokale Release-Authority außerhalb des ausgewählten Projekts autorisiert sein.
+Ausführbare Updates benötigen zusätzlich die bestehenden geschützten Release-/Runtime-Trust-Grenzen. Projektdateien, Manifest, `--trusted-source`, Lifecycle Authority und die projektseitige CLI können beliebige Candidate-Runtime-Bytes nicht selbst vertrauenswürdig machen.
 
-Projektdateien, Release-Manifeste, `--trusted-source` und die projektseitige Livariant-CLI können diese Authority weder erzeugen noch verändern. Fehlt die passende Digest-Autorisierung, stoppt das Update, bevor Candidate-Runtime-Code installiert oder ausgeführt wird.
-
-Einen projektseitigen `authorize-runtime`-Befehl gibt es absichtlich nicht.
-
-## Was bei einem ausführbaren Update passiert
-
-Der sichere normale Ablauf ist:
+Der sichere normale Ablauf ist konzeptionell:
 
 ```text
-Zielrelease auflösen
--> Release-Identität und Trusted-Source-Beziehung prüfen
--> Artefakt-SHA-256 prüfen
--> Kompatibilität und Channel prüfen
--> explizite --apply-Autorisierung verlangen
--> bereits vorhandene unabhängige rechnerlokale Artefakt-Authority verlangen
--> Ziel-Runtime ohne Lifecycle-Skripte installieren
--> gebundene Release-Evidenz schreiben und prüfen
--> installierten Runtime-Baum messen
--> rechnerlokalen Runtime-Trust herstellen und erneut prüfen
--> erst dann Candidate-Runtime-Attestation ausführen
--> Preservation- und Lifecycle-Bedingungen erneut prüfen
--> kanonischen Project-Brain-Framework-Pin committen
+Zielrelease auflösen und prüfen
+→ exakte geschützte Lifecycle Authority ausstellen
+→ denselben Plan erneut auflösen
+→ exakte Lifecycle Authority verbrauchen
+→ Release-Identität und Trusted Source prüfen
+→ Artefakt-SHA-256 sowie geschützte Release-/Runtime-Trust-Grenzen prüfen
+→ Ziel-Runtime ohne Lifecycle-Skripte installieren
+→ gebundene Release-Evidence schreiben und prüfen
+→ installierten Runtime-Baum messen
+→ Candidate-Runtime-Attestation erst nach Trust ausführen
+→ Lifecycle- und Preservation-Bedingungen erneut prüfen
+→ kanonischen Project-Brain-Framework-Pin committen
 ```
 
 Der Framework-Pin im Project Brain ist die finale Aktivierungsentscheidung. Eine neuere Runtime ist nicht automatisch aktiv, nur weil sie bereits auf der Festplatte liegt.
 
 ## Framework-Update und Project-Brain-Migration sind nicht dasselbe
 
-Ein Release kann Livariant aktualisieren, ohne das Project-Brain-Schema zu verändern.
+Ein Release kann Livariant aktualisieren, ohne das Project-Brain-Schema zu verändern. Ändert sich das Schema, behandelt Livariant die Operation als Migration und trennt ihre Lifecycle Authority als `migration-update` vom normalen `normal-update`-Bereich.
 
-Ändert sich das Schema, läuft das Update zusätzlich durch den Migrationsvertrag. Als Nutzer verwendest du trotzdem denselben Einstieg:
+Der Einstieg bleibt derselbe Plan-Befehl:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-Wenn das kompatible Zielrelease das Project-Brain-Schema ändert, zeigt Livariant die Migration bereits im Plan. Ein autorisiertes `--apply` führt dann automatisch durch den unterstützten Migrationspfad.
-
-> [!WARNING]
-> `npm install`, das Kopieren eines Tarballs, das manuelle Ersetzen von `.project-brain/` oder direkte Änderungen an `metadata.json` sind keine unterstützten Projektmigrationen.
-
-## Unterstützter Migrationspfad
-
-Die aktuelle ausführbare Preview-Baseline weist einen expliziten Schema-Migrationspfad nach: Project Brain `1 -> 2`.
-
-Der Ablauf enthält:
-
-```text
-Kompatibilitätsprüfung
--> explizite Migrationsidentität
--> Autorisierung
--> integritätsgebundener Checkpoint
--> dauerhaftes Migrationsjournal
--> Evidenz für nicht sicher wiederholbare Schritte
--> Mutation
--> Validierung
--> Zielaktivierung
-```
-
-Fehlt ein unterstützter oder vollständiger Migrationspfad, bricht Livariant geschlossen ab. Es wird keine Transformation geraten, nur weil Quell- und Zielschema unterschiedlich sind.
+Fehlt ein unterstützter oder vollständiger Migrationspfad, bricht Livariant geschlossen ab. Die aktuelle ausführbare Preview-Baseline weist einen expliziten Schema-Migrationspfad nach: Project Brain `1 → 2`.
 
 ## Was bei einer unterbrochenen Migration passiert
 
-Ein Abbruch nach einer nicht sicher wiederholbaren Mutation bedeutet nicht, dass nichts passiert ist.
+Ein Abbruch nach nicht sicher wiederholbarer Arbeit bedeutet nicht, dass nichts passiert ist. Livariant hält dauerhafte Lifecycle-Evidence fest, damit ein unvollständiger Zustand nicht frisch oder gesund wirkt.
 
-Livariant hält diesen Zustand dauerhaft fest. Solange die Wiederherstellung ungeklärt ist:
+Solange Recovery ungeklärt ist:
 
-- sind normale Update-Planung und Update-Anwendung blockiert;
+- ist normale Update-Anwendung blockiert;
 - wird die Migration nicht blind wiederholt;
 - meldet `livariant status` den Zustand `recovery-required`;
-- bleibt `livariant doctor` diagnostisch und führt keine automatische Reparatur aus.
+- bleibt `livariant doctor` diagnostisch und read-only.
 
 ## Wiederherstellung zuerst prüfen
 
-Beginne immer read-only:
+Beginne mit:
 
 ```bash
 livariant doctor
 livariant recover
 ```
 
-`livariant recover` zeigt die unterbrochene Operation, Migrationsidentität, Quell- und Zielrelease, Quell- und Zielschema sowie die Gültigkeit des Checkpoints. Falls eine unterstützte Recovery-Strategie möglich ist, wird sie ebenfalls angezeigt.
+`livariant recover` zeigt die unterbrochene Operation, Migrationsidentität, Quell- und Zielrelease/-schema, Checkpoint-Gültigkeit und eine unterstützte Recovery-Strategie, sofern vorhanden.
 
 Fehlt der Checkpoint, wurde er verschoben, manipuliert oder ist er mehrdeutig, bleibt automatische Wiederherstellung gesperrt.
 
-## Wiederherstellung anwenden
+## Recovery autorisieren und anwenden
 
-Wenn `livariant recover` einen gültigen Checkpoint und die Strategie `rollback` meldet:
+Wenn Livariant einen gültigen Checkpoint und eine unterstützte Rollback-Strategie meldet, fordere zuerst exakte Recovery Authority an:
+
+```bash
+livariant recover --authorize
+```
+
+Wende danach dasselbe Recovery-Material an:
 
 ```bash
 livariant recover --apply
 ```
 
-Recovery ist eine eigene, explizit autorisierte Lifecycle-Operation.
+Recovery Authority ist an das physische Projekt, die unterbrochene Operation, Recovery-Strategie, Checkpoint-Identität und erwartetes Quellrelease/-schema gebunden. Ein Recovery-Record kann keine Initialisierung oder kein Update autorisieren; Authority eines anderen Projekts ist nicht wiederverwendbar.
 
-Vor dem Rollback prüft Livariant:
+Vor dem Rollback prüft Livariant weiterhin Migrationsjournal, Checkpoint-Ort und -Identität, Quellrelease/-schema sowie Digests der kanonischen Project-Brain-Dateien im Checkpoint.
 
-- das Migrationsjournal;
-- Checkpoint-Ort und erwartete Identität;
-- Quellrelease- und Quellschema-Metadaten;
-- Digests der kanonischen Project-Brain-Dateien im Checkpoint.
+Das wiederhergestellte Project Brain wird vor der Bereinigung committed. Schlägt eine späte Bereinigung fehl, bleibt wiederherstellbare Evidence erhalten, statt durch einen mehrdeutigen Zustand zu raten.
 
-Livariant committet zuerst das verifizierte wiederhergestellte Project Brain. Danach wird der verdrängte Pre-Recovery-Baum entfernt. Der letzte gültige Recovery-Checkpoint wird erst im letzten irreversiblen Bereinigungsschritt gelöscht.
+## Wiederholungs- und Replay-Verhalten
 
-Wenn die späte Bereinigung fehlschlägt, dürfen weder das wiederhergestellte Project Brain zurückgerollt noch der letzte gültige Checkpoint zerstört werden.
+One-Shot-Lifecycle-Authority ist nach geschütztem Verbrauch nicht wiederverwendbar. Scheitert eine Operation vor Abschluss, gelten weiterhin die vorhandenen operationsspezifischen Recovery- und Freshness-Regeln; Authority für anderes Material kann nicht auf die fehlgeschlagene Operation umgelenkt werden.
 
-Ein fehlender, verschobener, manipulierter oder mehrdeutiger Checkpoint löst keine geratene Wiederherstellung aus.
-
-## Was bei einem erneuten Versuch wiederverwendet werden darf
-
-Eine während eines unterbrochenen Versuchs bereits installierte Ziel-Runtime darf nur wiederverwendet werden, wenn ihre gebundene Release-Evidenz weiterhin exakt übereinstimmt.
-
-Dazu gehören:
-
-- Version;
-- Channel;
-- Source-ID;
-- Artefakt-ID;
-- Artefakt-Digest;
-- Paketidentität;
-- Integrität des installierten Paketbaums;
-- Übereinstimmung mit dem rechnerlokalen Runtime-Trust.
-
-Ein anderes Artefakt darf eine vorhandene Installation nicht übernehmen, nur weil es dieselbe Versionsnummer behauptet.
+Eine bereits installierte Ziel-Runtime darf nur wiederverwendet werden, wenn alle gebundenen Release-Evidence weiterhin exakt übereinstimmt: Version, Channel, Source-ID, Artefakt-ID, Artefakt-Digest, Paketidentität, Integrität des installierten Paketbaums und geschützter Runtime Trust.
 
 ## Keine manuelle Reparatur
 
 > [!CAUTION]
-> Ersetze Project Brain, Livariant-verwalteten Lifecycle-State, Runtime-Trust-Records oder Release-Authorization-Records niemals manuell, um ein Update abzuschließen, zu reparieren oder abzukürzen.
->
-> Damit würdest du Kompatibilität, Autorität, Checkpoints, Replay-Sicherheit, Integritätsprüfung und Aktivierungssemantik umgehen.
->
-> Wenn der Lifecycle-Zustand unklar ist, beginne mit:
->
-> ```bash
-> livariant doctor
-> livariant recover
-> ```
+> Ersetze Project Brain, Livariant-verwalteten Lifecycle-State, Guardian-Records, Runtime-Trust-Records oder Release-Authorization-Records niemals manuell, um ein Update abzuschließen oder zu reparieren.
+
+Dadurch würden Kompatibilität, Authority, Checkpoints, Replay-Sicherheit, Integritätsprüfung und Aktivierungssemantik umgangen. Wenn der Zustand unklar ist, beginne mit:
+
+```bash
+livariant doctor
+livariant recover
+```
 
 ## Preview-Distribution
 
-Der unterstützte Preview-Distributionsweg ist das kanonische Livariant-GitHub-Release, sobald der aktuelle Release Candidate veröffentlicht ist.
+Der unterstützte Preview-Distributionsweg ist das kanonische `Kryt3r/livariant` GitHub Release. Das Release stellt Paket, `release-manifest.json` und `SHA256SUMS` für den exakten Candidate bereit.
 
-Dieses Release stellt Paket, Release-Manifest und Prüfsummen bereit. Die für ausführbare Updates notwendige unabhängige rechnerlokale Release-Authority bleibt davon getrennt. Ein Projekt darf seine eigenen Update-Bytes nicht selbst zur Ausführungsautorität erklären.
-
-Bis das Release tatsächlich veröffentlicht ist, verwenden die Beispiele lokale Manifest- und Artefaktpfade. Sie erfinden bewusst keinen Registry-, Signer- oder Download-Endpunkt, der noch nicht existiert.
+Die initiale CLI-Installation ist unter [Installation & erstes Projekt](installation.md) beschrieben. Die Veröffentlichung eines Releases erlaubt projektkontrolliertem Input nicht, Lifecycle-, Release- oder Runtime-Authority selbst zu erzeugen.
