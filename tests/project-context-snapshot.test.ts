@@ -8,10 +8,10 @@ import test from "node:test";
 import {
   addConfirmedGoal,
   addConfirmedKnowledge,
-  buildProjectContextSnapshot,
   initializeProject,
   recordAcceptedDecision,
 } from "../src/runtime/index.js";
+import { buildProjectContextSnapshot } from "../src/runtime/context-snapshot.js";
 import { isStableProjectIdentity } from "../src/project-brain/identity.js";
 import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
@@ -36,7 +36,7 @@ async function withProject(run: (path: string) => Promise<void>): Promise<void> 
   }
 }
 
-test("healthy snapshot exposes provenance-aware canonical context and remains read-only", async () => {
+test("low-level healthy snapshot exposes provenance-aware canonical context and remains read-only", async () => {
   await withProject(async (path) => {
     await mutateAcceptedFixture(path, () => addConfirmedGoal("Ship coherent project context", path, { authorized: true }));
     await mutateAcceptedFixture(path, () => addConfirmedKnowledge("Provider memory is not canonical truth", path, { authorized: true }));
@@ -66,7 +66,7 @@ test("healthy snapshot exposes provenance-aware canonical context and remains re
   });
 });
 
-test("material baseline is stable across unchanged reads and changes with accepted managed bytes", async () => {
+test("low-level material baseline is stable across unchanged reads and changes with accepted managed bytes", async () => {
   await withProject(async (path) => {
     const first = await buildProjectContextSnapshot(path);
     const second = await buildProjectContextSnapshot(path);
@@ -86,7 +86,7 @@ test("material baseline is stable across unchanged reads and changes with accept
   });
 });
 
-test("snapshot fails closed when Project Brain changes during construction", async () => {
+test("low-level snapshot fails closed when Project Brain changes during construction", async () => {
   await withProject(async (path) => {
     const goalsPath = resolve(path, ".project-brain", "goals.md");
     const result = await buildProjectContextSnapshot(path, {
@@ -119,32 +119,25 @@ test("missing Project Brain produces structured blocked JSON with non-zero proce
   }
 });
 
-test("human and JSON CLI preserve authority distinctions and derived-output warning", async () => {
+test("context CLI refuses same-user local acceptance without protected Guardian truth", async () => {
   await withProject(async (path) => {
     await mutateAcceptedFixture(path, () => addConfirmedGoal("Make agent context trustworthy", path, { authorized: true }));
 
     const human = runCli(path, ["context"]);
-    assert.equal(human.status, 0, human.stderr);
-    assert.match(human.stdout, /Safety state: clear/);
-    assert.match(human.stdout, /Projection: derived, not mutation authorization/);
-    assert.match(human.stdout, /\[canonical-project\] Make agent context trustworthy/);
-    assert.match(human.stdout, /Unresolved unknowns:/);
-    assert.match(human.stdout, /\[unresolved-project\]/);
-    assert.match(human.stdout, /Changes made: 0/);
+    assert.equal(human.status, 3, human.stderr);
+    assert.match(human.stdout, /Safety state: blocked/);
+    assert.doesNotMatch(human.stdout, /\[canonical-project\] Make agent context trustworthy/);
 
     const json = runCli(path, ["context", "--json"]);
-    assert.equal(json.status, 0, json.stderr);
+    assert.equal(json.status, 3, json.stderr);
     const parsed = JSON.parse(json.stdout) as {
       safetyState: string;
-      stableProjectIdentity: unknown;
-      projection: { mutationAuthorization: boolean; returnedCopiesTrusted: boolean };
-      context: { confirmedGoals: Array<{ authorityClass: string }> };
+      context: unknown;
+      findings: Array<{ code: string }>;
     };
-    assert.equal(parsed.safetyState, "clear");
-    assert.ok(isStableProjectIdentity(parsed.stableProjectIdentity));
-    assert.equal(parsed.projection.mutationAuthorization, false);
-    assert.equal(parsed.projection.returnedCopiesTrusted, false);
-    assert.equal(parsed.context.confirmedGoals[0]?.authorityClass, "canonical-project");
+    assert.equal(parsed.safetyState, "blocked");
+    assert.equal(parsed.context, null);
+    assert.ok(parsed.findings.some((finding) => finding.code.startsWith("project-brain-integrity-")));
   });
 });
 
