@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
-  applyMigrationUpdate,
   initializeProject,
   inspectRecovery,
   planMigrationUpdate,
   planRecovery,
   readMigrationJournal,
 } from "../src/runtime/index.js";
+import { applyMigrationUpdate } from "../src/lifecycle/migration.js";
 import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
 
