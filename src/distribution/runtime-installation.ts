@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { assertPathWithinRoot, assertRegularFile } from "../project-brain/path-safety.js";
-import { assertReleaseAuthorized } from "./release-authorization.js";
 import {
   verifyReleaseArtifact,
   type LocalReleaseArtifact,
@@ -185,7 +184,9 @@ async function inspectInstalledRoot(installRoot: string, expectedVersion: string
 /**
  * Low-level preparation only. It verifies exact release/package evidence and may
  * materialize an inactive Runtime tree, but it never executes candidate Runtime
- * code and never establishes execution Authority.
+ * code and never establishes release or execution Authority. Consequential
+ * product lifecycle paths must cross the protected C-04 boundary before calling
+ * this mechanic for a fresh Runtime.
  */
 export async function installVerifiedRuntime(
   projectPath: string,
@@ -213,7 +214,6 @@ export async function installVerifiedRuntime(
       return await inspectInstalledRoot(finalRoot, identity.version);
     }
 
-    await assertReleaseAuthorized(projectPath, identity);
     await mkdir(stagingRoot, { recursive: false });
     npmInstall(stagingRoot, artifact.path);
     await writeReleaseEvidence(stagingRoot, identity);
@@ -229,9 +229,10 @@ export async function installVerifiedRuntime(
 }
 
 /**
- * Protected product path. Only after exact final-location Guardian trust has
- * been established and re-read may candidate Runtime code execute for
- * attestation.
+ * Protected Runtime-execution path. Only after exact final-location Guardian
+ * Runtime trust has been established and re-read may candidate Runtime code
+ * execute for attestation. C-04 release authorization is enforced by the
+ * protected lifecycle caller before fresh materialization reaches this layer.
  */
 export async function installTrustedRuntime(
   projectPath: string,
