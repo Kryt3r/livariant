@@ -52,6 +52,11 @@ export function parseWindowsProtectionOutput(stdout: string): WindowsProtectionI
  * .NET filesystem ACL APIs instead of Get-Acl so Guardian readiness does not
  * depend on PowerShell module autoloading. Valid Windows path metacharacters
  * therefore remain inert data.
+ *
+ * IMPORTANT: write-danger detection uses only the granular mutation/takeover
+ * bits. Composite FileSystemRights values such as FullControl and Modify also
+ * contain read bits, so OR-ing those composites and testing any overlap would
+ * incorrectly classify a read-only ReadAndExecute ACE as writable.
  */
 export function inspectWindowsProtection(path: string): WindowsProtectionInspection {
   const script = [
@@ -65,7 +70,7 @@ export function inspectWindowsProtection(path: string): WindowsProtectionInspect
     `$blocked=@('${WINDOWS_EVERYONE_SID}','${WINDOWS_AUTHENTICATED_USERS_SID}','${WINDOWS_USERS_SID}',$identity.User.Value)`,
     "foreach($group in $identity.Groups){ try{$sid=$group.Value}catch{continue}; if($protected -notcontains $sid){$blocked += $sid} }",
     "$blocked=@($blocked | Select-Object -Unique)",
-    "$writeDanger=[System.Security.AccessControl.FileSystemRights]::Write -bor [System.Security.AccessControl.FileSystemRights]::Modify -bor [System.Security.AccessControl.FileSystemRights]::FullControl -bor [System.Security.AccessControl.FileSystemRights]::Delete -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
+    "$writeDanger=[System.Security.AccessControl.FileSystemRights]::WriteData -bor [System.Security.AccessControl.FileSystemRights]::AppendData -bor [System.Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -bor [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [System.Security.AccessControl.FileSystemRights]::WriteAttributes -bor [System.Security.AccessControl.FileSystemRights]::Delete -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
     "$replaceChildDanger=[System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership",
     "$unsafeWrite=$false",
     "$unsafeReplace=$false",

@@ -7,6 +7,15 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+interface LegacyRuntimeIdentity {
+  version: string;
+  channel: "preview";
+  sourceId: string;
+  artifactId: string;
+  artifactSha256: string;
+  packageTreeSha256: string;
+}
+
 function machineTestTrustRoot(): string {
   return resolve(userInfo().homedir, ".livariant", "trust", "runtimes", `test-boundary-${randomUUID()}`);
 }
@@ -34,7 +43,7 @@ async function hashPackageTree(packageRoot: string): Promise<string> {
   return hash.digest("hex");
 }
 
-async function buildUntrustedProjectRuntime(projectPath: string, markerPath: string): Promise<void> {
+async function buildUntrustedProjectRuntime(projectPath: string, markerPath: string): Promise<LegacyRuntimeIdentity> {
   const managedRoot = resolve(projectPath, ".framework-runtime");
   const installRoot = resolve(managedRoot, "releases", "9.9.9");
   const packageRoot = resolve(installRoot, "node_modules", "livariant");
@@ -49,20 +58,37 @@ async function buildUntrustedProjectRuntime(projectPath: string, markerPath: str
     "",
   ].join("\n"), "utf8");
 
-  const packageTreeSha256 = await hashPackageTree(packageRoot);
-  await writeFile(resolve(installRoot, ".release-evidence.json"), `${JSON.stringify({
+  const identity: LegacyRuntimeIdentity = {
     version: "9.9.9",
     channel: "preview",
     sourceId: "attacker-controlled-source",
     artifactId: "attacker-controlled-runtime",
     artifactSha256: "0".repeat(64),
-    packageTreeSha256,
-  }, null, 2)}\n`, "utf8");
-
+    packageTreeSha256: await hashPackageTree(packageRoot),
+  };
+  await writeFile(resolve(installRoot, ".release-evidence.json"), `${JSON.stringify(identity, null, 2)}\n`, "utf8");
   await writeFile(resolve(managedRoot, "active.json"), `${JSON.stringify({
-    version: "9.9.9",
+    version: identity.version,
     installRoot: relative(managedRoot, installRoot),
     cliPath: relative(managedRoot, cliPath),
+  }, null, 2)}\n`, "utf8");
+  return identity;
+}
+
+async function forgeExactLegacyTrustRecord(trustRoot: string, identity: LegacyRuntimeIdentity): Promise<void> {
+  await mkdir(trustRoot, { recursive: true });
+  const key = createHash("sha256").update([
+    identity.version,
+    identity.channel,
+    identity.sourceId,
+    identity.artifactId,
+    identity.artifactSha256,
+    identity.packageTreeSha256,
+  ].join("\0")).digest("hex");
+  await writeFile(resolve(trustRoot, `${key}.json`), `${JSON.stringify({
+    schema: 1,
+    packageName: "livariant",
+    ...identity,
   }, null, 2)}\n`, "utf8");
 }
 
@@ -76,13 +102,13 @@ function runCli(projectPath: string, trustRoot: string, command: string) {
   });
 }
 
-test("project-local Runtime evidence cannot authorize code execution before machine-local trust", async () => {
+test("project-local evidence plus an exact forged legacy same-user Runtime trust record cannot authorize code execution", async () => {
   const projectPath = await mkdtemp(join(tmpdir(), "livariant-untrusted-runtime-project-"));
   const trustRoot = machineTestTrustRoot();
   const markerPath = resolve(projectPath, "PWNED.txt");
   try {
-    await mkdir(trustRoot, { recursive: true });
-    await buildUntrustedProjectRuntime(projectPath, markerPath);
+    const identity = await buildUntrustedProjectRuntime(projectPath, markerPath);
+    await forgeExactLegacyTrustRecord(trustRoot, identity);
 
     for (const command of ["version", "help", "status", "doctor"]) {
       const result = runCli(projectPath, trustRoot, command);
@@ -92,7 +118,7 @@ test("project-local Runtime evidence cannot authorize code execution before mach
 
     const blocked = runCli(projectPath, trustRoot, "resume");
     assert.notEqual(blocked.status, 0);
-    assert.match(String(blocked.stderr), /not trusted on this machine|project-local evidence cannot authorize execution/i);
+    assert.match(String(blocked.stderr), /Guardian|protected.*Runtime trust|same-user.*cannot authorize/i);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
   } finally {
     await rm(projectPath, { recursive: true, force: true });

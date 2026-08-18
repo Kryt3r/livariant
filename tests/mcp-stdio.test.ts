@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
-import { initializeProject } from "../src/runtime/index.js";
+import { initializeProject } from "../src/runtime/index-core.js";
 import { MCP_STDIO_MESSAGE_MAX_BYTES } from "../src/mcp/server.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {
@@ -44,7 +44,9 @@ function line(value: unknown): string {
   return `${JSON.stringify(value)}\n`;
 }
 
-test("livariant mcp speaks newline-delimited JSON-RPC on stdout only", async () => {
+const protectedError = /Canonical Project Brain use requires exact protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i;
+
+test("livariant mcp refuses valid JSON-RPC session startup without protected Project Brain truth", async () => {
   await withProject(async (path) => {
     const input = [
       line({
@@ -57,15 +59,9 @@ test("livariant mcp speaks newline-delimited JSON-RPC on stdout only", async () 
       line({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
     ].join("");
     const result = await runMcp(path, input);
-    assert.equal(result.code, 0);
-    assert.equal(result.stderr, "");
-    const messages = result.stdout.trim().split("\n").map((entry) => JSON.parse(entry) as Record<string, unknown>);
-    assert.equal(messages.length, 2);
-    assert.equal(messages[0]?.jsonrpc, "2.0");
-    assert.equal(messages[0]?.id, 1);
-    assert.equal(messages[1]?.jsonrpc, "2.0");
-    assert.equal(messages[1]?.id, 2);
-    assert.ok("result" in (messages[1] ?? {}));
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, protectedError);
   });
 });
 
@@ -78,6 +74,7 @@ test("livariant mcp rejects oversized stdio messages without unbounded accumulat
     ]);
     const result = await runMcp(path, oversized);
     assert.equal(result.code, 0);
+    assert.equal(result.stderr, "");
     const messages = result.stdout.trim().split("\n").filter(Boolean).map((entry) => JSON.parse(entry) as {
       error?: { code?: number; message?: string };
     });
@@ -87,8 +84,10 @@ test("livariant mcp rejects oversized stdio messages without unbounded accumulat
   });
 });
 
-test("disconnect after initialization cannot mutate project state", async () => {
+test("blocked MCP startup after a valid request cannot mutate project state", async () => {
   await withProject(async (path) => {
+    const managed = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"];
+    const before = new Map(await Promise.all(managed.map(async (name) => [name, await readFile(resolve(path, ".project-brain", name))] as const)));
     const input = [
       line({
         jsonrpc: "2.0",
@@ -99,7 +98,9 @@ test("disconnect after initialization cannot mutate project state", async () => 
       line({ jsonrpc: "2.0", method: "notifications/initialized" }),
     ].join("");
     const result = await runMcp(path, input);
-    assert.equal(result.code, 0);
-    assert.equal(result.stderr, "");
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, protectedError);
+    for (const name of managed) assert.deepEqual(await readFile(resolve(path, ".project-brain", name)), before.get(name));
   });
 });

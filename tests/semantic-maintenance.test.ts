@@ -10,8 +10,10 @@ import {
   maintainSemanticProjectState,
   parseSemanticProposalCandidate,
 } from "../src/runtime/index.js";
+import { addConfirmedGoal } from "../src/runtime/canonical-knowledge-change.js";
 import type { ActionableProposal } from "../src/runtime/actionable-proposal.js";
 import type { SemanticProposalCandidate } from "../src/runtime/semantic-proposal.js";
+import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const AUTH_A = "66666666-6666-4666-8666-666666666666";
 const AUTH_B = "77777777-7777-4777-8777-777777777777";
@@ -60,7 +62,7 @@ async function prepare(path: string, candidate: SemanticProposalCandidate): Prom
   return result.proposal;
 }
 
-async function seedAuthorizedEvidence(path: string, proposal: ActionableProposal, authorizationId = AUTH_A): Promise<void> {
+async function seedSameUserAuthorization(path: string, proposal: ActionableProposal, authorizationId = AUTH_A): Promise<void> {
   const authorizedAt = new Date().toISOString();
   const binding = {
     authorizationId,
@@ -104,11 +106,11 @@ test("eligible candidate without authorization returns exact authorization-requi
   });
 });
 
-test("maintain without authorization id never consumes matching existing Authority implicitly", async () => {
+test("maintain without authorization id never consumes matching same-user evidence implicitly", async () => {
   await withProject(async (path) => {
     const candidate = goalCandidate("Require explicit authorization selector");
     const proposal = await prepare(path, candidate);
-    await seedAuthorizedEvidence(path, proposal);
+    await seedSameUserAuthorization(path, proposal);
 
     const result = await maintainSemanticProjectState(candidate, undefined, path);
     assert.equal(result.state, "authorization-required");
@@ -119,30 +121,30 @@ test("maintain without authorization id never consumes matching existing Authori
   });
 });
 
-test("exact separately authorized candidate completes once and returns fresh clear context", async () => {
+test("matching same-user authorization selector is blocked without Guardian and truthfully reports not-applied", async () => {
   await withProject(async (path) => {
     const candidate = goalCandidate("Finish composed maintenance");
     const proposal = await prepare(path, candidate);
-    await seedAuthorizedEvidence(path, proposal);
+    await seedSameUserAuthorization(path, proposal);
 
     const result = await maintainSemanticProjectState(candidate, AUTH_A, path);
-    assert.equal(result.state, "completed");
-    if (result.state !== "completed") throw new Error("expected completed");
-    assert.equal(result.semanticChangesMade, 1);
-    assert.equal(result.apply.authorizationId, AUTH_A);
-    assert.equal(result.context.safetyState, "clear");
-    assert.match(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /- Finish composed maintenance/);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
-    assert.ok(audit.history.some((record) => record.authorizationId === AUTH_A && record.state === "completed"));
+    assert.equal(result.state, "blocked");
+    if (result.state !== "blocked") throw new Error("expected blocked");
+    assert.equal(result.phase, "apply");
+    assert.equal(result.recoveryRequired, false);
+    assert.equal(result.mutationOutcome, "not-applied");
+    assert.equal(result.semanticChangesMade, 0);
+    assert.match(result.message, /Guardian/i);
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Finish composed maintenance/);
+    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
   });
 });
 
-test("wrong authorization id fails closed without consuming the exact active Authority", async () => {
+test("wrong authorization id fails closed without consuming the exact active local audit", async () => {
   await withProject(async (path) => {
     const candidate = goalCandidate("Reject wrong authorization selector");
     const proposal = await prepare(path, candidate);
-    await seedAuthorizedEvidence(path, proposal, AUTH_A);
+    await seedSameUserAuthorization(path, proposal, AUTH_A);
 
     const result = await maintainSemanticProjectState(candidate, AUTH_B, path);
     assert.equal(result.state, "blocked");
@@ -156,59 +158,50 @@ test("wrong authorization id fails closed without consuming the exact active Aut
   });
 });
 
-test("candidate changed after authorization cannot consume prior Authority and does not overclaim a zero-write outcome", async () => {
+test("candidate changed after local authorization remains definitely not-applied", async () => {
   await withProject(async (path) => {
     const authorizedCandidate = goalCandidate("Authorized exact candidate");
     const authorizedProposal = await prepare(path, authorizedCandidate);
-    await seedAuthorizedEvidence(path, authorizedProposal, AUTH_A);
+    await seedSameUserAuthorization(path, authorizedProposal, AUTH_A);
 
     const changedCandidate = goalCandidate("Different candidate after authorization");
     const result = await maintainSemanticProjectState(changedCandidate, AUTH_A, path);
     assert.equal(result.state, "blocked");
     if (result.state !== "blocked") throw new Error("expected blocked");
-    assert.equal(result.recoveryRequired, true);
-    assert.equal(result.mutationOutcome, "unknown-recovery-required");
-    assert.equal(result.semanticChangesMade, "unknown");
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active?.state, "authorized");
+    assert.equal(result.recoveryRequired, false);
+    assert.equal(result.mutationOutcome, "not-applied");
+    assert.equal(result.semanticChangesMade, 0);
+    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
     assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Different candidate after authorization/);
   });
 });
 
-test("exact duplicate returns review-required and does not consume even explicitly selected matching Authority", async () => {
+test("exact duplicate returns review-required without consulting or consuming selected Authority", async () => {
   await withProject(async (path) => {
-    const initial = goalCandidate("Already confirmed goal");
-    const initialProposal = await prepare(path, initial);
-    await seedAuthorizedEvidence(path, initialProposal, AUTH_B);
-    await maintainSemanticProjectState(initial, AUTH_B, path);
-
+    await mutateAcceptedFixture(path, async () => {
+      await addConfirmedGoal("Already confirmed goal", path, { authorized: true });
+    });
     const duplicate = goalCandidate("Already confirmed goal");
-    const duplicateProposal = await prepare(path, duplicate);
-    await seedAuthorizedEvidence(path, duplicateProposal, AUTH_A);
-
     const result = await maintainSemanticProjectState(duplicate, AUTH_A, path);
     assert.equal(result.state, "review-required");
     if (result.state !== "review-required") throw new Error("expected review-required");
     assert.equal(result.semanticChangesMade, 0);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active?.authorizationId, AUTH_A);
-    assert.equal(audit.active?.state, "authorized");
+    assert.equal((await inspectAuthorizationAudit(path)).active, null);
   });
 });
 
-test("completed authorization cannot be replayed through maintain", async () => {
+test("same-user evidence cannot be promoted into a completed maintain result by replay", async () => {
   await withProject(async (path) => {
     const candidate = goalCandidate("One composed mutation only");
     const proposal = await prepare(path, candidate);
-    await seedAuthorizedEvidence(path, proposal, AUTH_A);
-    const first = await maintainSemanticProjectState(candidate, AUTH_A, path);
-    assert.equal(first.state, "completed");
+    await seedSameUserAuthorization(path, proposal, AUTH_A);
 
+    const first = await maintainSemanticProjectState(candidate, AUTH_A, path);
+    assert.equal(first.state, "blocked");
     const second = await maintainSemanticProjectState(candidate, AUTH_A, path);
-    assert.equal(second.state, "review-required");
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active, null);
-    assert.equal(audit.history.filter((record) => record.authorizationId === AUTH_A && record.state === "completed").length, 1);
+    assert.equal(second.state, "blocked");
+    assert.equal((await inspectAuthorizationAudit(path)).active?.state, "authorized");
+    assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /One composed mutation only/);
   });
 });
 

@@ -25,7 +25,7 @@ function runSourceStatus(projectPath: string): string {
   return result.stdout;
 }
 
-test("a prepared Runtime cannot execute until the canonical Project pin activates the same release", async () => {
+test("Core Runtime activation evidence cannot execute before protected Guardian trust", async () => {
   const projectPath = await mkdtemp(join(tmpdir(), "pbf-runtime-activation-"));
   const fixture = await createRuntimePackageFixture(targetVersion);
   try {
@@ -55,11 +55,15 @@ test("a prepared Runtime cannot execute until the canonical Project pin activate
 
     await new ProjectBrainStore(projectPath).updateFrameworkLifecycle(targetVersion, TEST_SOURCE_CHANNEL);
 
-    const activated = await getStatus(projectPath);
-    assert.equal(activated.frameworkVersion, targetVersion);
-    assert.equal(activated.activatedRuntimeVersion, targetVersion);
-    assert.equal(activated.preparedRuntimeVersion, undefined);
-    assert.match(runSourceStatus(projectPath), new RegExp(`Executing Runtime: ${targetVersion.replaceAll(".", "\\.")}`));
+    const activatedEvidence = await getStatus(projectPath);
+    assert.equal(activatedEvidence.frameworkVersion, targetVersion);
+    assert.equal(activatedEvidence.activatedRuntimeVersion, targetVersion);
+    assert.equal(activatedEvidence.preparedRuntimeVersion, undefined);
+
+    const statusOutput = runSourceStatus(projectPath);
+    assert.match(statusOutput, new RegExp(`Activated Runtime: ${targetVersion.replaceAll(".", "\\.")}`));
+    assert.match(statusOutput, new RegExp(`Executing Runtime: ${TEST_SOURCE_VERSION.replaceAll(".", "\\.")}`));
+    assert.doesNotMatch(statusOutput, new RegExp(`Executing Runtime: ${targetVersion.replaceAll(".", "\\.")}`));
   } finally {
     await fixture.cleanup();
     await rm(projectPath, { recursive: true, force: true });

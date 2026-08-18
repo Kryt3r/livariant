@@ -36,7 +36,7 @@ function npmPack(packageRoot: string, packRoot: string): string {
   return resolve(packRoot, parsed[0]!.filename);
 }
 
-test("project-supplied Runtime cannot create its own machine release authority before execution", async () => {
+test("project-supplied Runtime cannot create its own execution Authority before Guardian trust", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-pretrust-"));
   const packageRoot = resolve(projectPath, "hostile-package");
   const packRoot = resolve(projectPath, "pack");
@@ -75,7 +75,6 @@ test("project-supplied Runtime cannot create its own machine release authority b
 
     const blocked = run(projectPath, ["update", "--manifest", manifestPath, "--apply", "--artifact", artifactPath, "--trusted-source", sourceId]);
     assert.notEqual(blocked.status, 0);
-    assert.match(blocked.stderr, /not independently authorized|independent machine-local release process/i);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
 
     const selfAuthorize = run(projectPath, [
@@ -91,15 +90,12 @@ test("project-supplied Runtime cannot create its own machine release authority b
     assert.match(selfAuthorize.stderr, /unknown command/i);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
 
-    const stillBlocked = run(projectPath, ["update", "--manifest", manifestPath, "--apply", "--artifact", artifactPath, "--trusted-source", sourceId]);
-    assert.notEqual(stillBlocked.status, 0);
-    await assert.rejects(() => stat(markerPath), /ENOENT/);
-
     await provisionArtifactAuthorizationForTest(sha256);
 
-    const applied = run(projectPath, ["update", "--manifest", manifestPath, "--apply", "--artifact", artifactPath, "--trusted-source", sourceId]);
-    assert.equal(applied.status, 0, applied.stderr || applied.stdout);
-    assert.match(await readFile(markerPath, "utf8"), /executed/);
+    const stillBlocked = run(projectPath, ["update", "--manifest", manifestPath, "--apply", "--artifact", artifactPath, "--trusted-source", sourceId]);
+    assert.notEqual(stillBlocked.status, 0);
+    assert.match(stillBlocked.stderr, /Guardian|protected.*Runtime trust|not ready/i);
+    await assert.rejects(() => stat(markerPath), /ENOENT/);
   } finally {
     await rm(projectPath, { recursive: true, force: true });
   }

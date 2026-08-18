@@ -5,10 +5,10 @@ import { resolve } from "node:path";
 import test from "node:test";
 import {
   addConfirmedGoal,
-  buildSemanticProposal,
   initializeProject,
   parseSemanticProposalCandidate,
 } from "../src/runtime/index.js";
+import { buildSemanticProposal } from "../src/runtime/semantic-proposal.js";
 import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 test("goal proposal detects exact confirmed duplicate without writing", async () => {

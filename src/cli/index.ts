@@ -4,11 +4,11 @@ import { spawnSync } from "node:child_process";
 
 async function delegateToActiveRuntime(): Promise<boolean> {
   if (process.env.PBF_RUNTIME_DELEGATION_BYPASS === "1") return false;
-  const [{ readActiveRuntimePointer }, { getStatus, getVersionInfo }] = await Promise.all([
+  const [{ readTrustedActiveRuntimePointer }, { getStatus, getVersionInfo }] = await Promise.all([
     import("../distribution/runtime-installation.js"),
     import("../runtime/index.js"),
   ]);
-  const active = await readActiveRuntimePointer(process.cwd());
+  const active = await readTrustedActiveRuntimePointer(process.cwd());
   if (!active) return false;
   const status = await getStatus(process.cwd());
   if (status.projectBrain !== "present" || status.frameworkVersion !== active.version) return false;

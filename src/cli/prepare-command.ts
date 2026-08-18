@@ -1,12 +1,14 @@
 import { buildActionableProposal } from "../runtime/actionable-proposal.js";
 import { readSemanticProposalCandidateFile } from "../runtime/semantic-proposal.js";
 import { parseProposalAuthorityArgs } from "./proposal-authority-args.js";
+import { requireProtectedCanonicalProject } from "./protected-project-gate.js";
 
 export async function handlePrepareCommand(args: string[]): Promise<void> {
   let json = args.includes("--json");
   try {
     const parsed = parseProposalAuthorityArgs(args);
     json = parsed.json;
+    await requireProtectedCanonicalProject();
     const candidate = await readSemanticProposalCandidateFile(parsed.inputPath);
     const result = await buildActionableProposal(candidate);
     if (json) console.log(JSON.stringify(result));

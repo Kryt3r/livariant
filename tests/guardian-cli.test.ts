@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { guardianBootstrapHasInteractiveTerminal } from "../src/guardian/bootstrap.js";
+import {
+  parseProtectedGuardianRequest,
+  protectedGuardianMaterialDigest,
+} from "../src/guardian/protected-helper.js";
+import { guardianAuthorityMaterialDigest } from "../src/guardian/authority-record.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 const helperPath = fileURLToPath(new URL("../src/guardian/protected-helper.js", import.meta.url));
@@ -82,7 +87,7 @@ test("guardian bootstrap cannot use requester-controlled package bytes as privil
   });
 });
 
-test("protected Guardian helper exposes only a non-authorizing foundation version surface", () => {
+test("protected Guardian helper exposes bounded authority transition commands", () => {
   const version = spawnSync(process.execPath, [helperPath, "version"], { encoding: "utf8", shell: false });
   assert.equal(version.status, 0, version.stderr);
   const parsed = JSON.parse(version.stdout) as {
@@ -90,17 +95,38 @@ test("protected Guardian helper exposes only a non-authorizing foundation versio
     kind: string;
     guardianVersion: number;
     authorityIssuanceSupported: boolean;
+    authorityConsumptionSupported: boolean;
   };
   assert.deepEqual(parsed, {
     schemaVersion: 1,
     kind: "livariant-guardian-helper",
     guardianVersion: 1,
-    authorityIssuanceSupported: false,
+    authorityIssuanceSupported: true,
+    authorityConsumptionSupported: true,
   });
 
-  const issue = spawnSync(process.execPath, [helperPath, "issue-authority"], { encoding: "utf8", shell: false });
+  const issue = spawnSync(process.execPath, [helperPath, "issue-authority", "--request", "missing.json"], { encoding: "utf8", shell: false });
   assert.notEqual(issue.status, 0);
-  assert.match(`${issue.stdout}\n${issue.stderr}`, /does not issue Authority/i);
+  assert.match(`${issue.stdout}\n${issue.stderr}`, /fixed protected production root/i);
+});
+
+test("protected helper and requester-side authority model derive the same domain-separated material digest", () => {
+  const request = parseProtectedGuardianRequest({
+    schemaVersion: 1,
+    kind: "livariant-guardian-authority-request",
+    consumer: "semantic-mutation",
+    mode: "one-shot",
+    materialFields: [
+      { label: "project", value: "project-1" },
+      { label: "proposal", value: "proposal-1" },
+      { label: "baseline", value: "baseline-1" },
+    ],
+  });
+  assert.equal(
+    protectedGuardianMaterialDigest(request.consumer, request.materialFields),
+    guardianAuthorityMaterialDigest(request.consumer, request.materialFields),
+  );
+  assert.throws(() => parseProtectedGuardianRequest({ ...request, attacker: true }), /unsupported field/u);
 });
 
 test("guardian command refuses unsupported mutating-looking subcommands", async () => {

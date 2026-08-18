@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -44,26 +43,6 @@ function line(value) {
   return `${JSON.stringify(value)}\n`;
 }
 
-function parseMessages(stdout) {
-  return stdout.trim().split("\n").filter(Boolean).map((entry) => JSON.parse(entry));
-}
-
-function structured(messages, id) {
-  const message = messages.find((entry) => entry.id === id);
-  if (!message?.result?.structuredContent) {
-    throw new Error(`MCP response ${String(id)} did not contain structuredContent:\n${JSON.stringify(messages, null, 2)}`);
-  }
-  return message.result.structuredContent;
-}
-
-function taskDigest(task) {
-  const hash = createHash("sha256");
-  hash.update("livariant:provider-return-task:v1", "utf8");
-  hash.update(Buffer.from([0]));
-  hash.update(task, "utf8");
-  return hash.digest("hex");
-}
-
 async function assertMissing(path, label) {
   try {
     await access(path);
@@ -71,6 +50,18 @@ async function assertMissing(path, label) {
     return;
   }
   throw new Error(`MCP setup helper unexpectedly created ${label}: ${path}`);
+}
+
+async function captureManaged(projectRoot) {
+  const names = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"];
+  return new Map(await Promise.all(names.map(async (name) => [name, await readFile(resolve(projectRoot, ".project-brain", name))])));
+}
+
+async function assertManagedUnchanged(projectRoot, before) {
+  for (const [name, bytes] of before) {
+    const after = await readFile(resolve(projectRoot, ".project-brain", name));
+    if (!after.equals(bytes)) throw new Error(`Installed MCP protected-session refusal mutated ${name}`);
+  }
 }
 
 try {
@@ -113,68 +104,27 @@ try {
   await assertMissing(resolve(installDir, ".codex", "config.toml"), "Codex project configuration");
   await assertMissing(resolve(installDir, ".mcp.json"), "Claude project MCP configuration");
 
-  const task = "Installed package MCP smoke";
-  const first = run(process.execPath, [cliPath, "mcp"], {
+  const before = await captureManaged(installDir);
+  const blocked = run(process.execPath, [cliPath, "mcp"], {
     cwd: installDir,
-    input: [
-      line({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "package-smoke", version: "1" } },
-      }),
-      line({ jsonrpc: "2.0", method: "notifications/initialized" }),
-      line({
-        jsonrpc: "2.0",
-        id: 2,
-        method: "tools/call",
-        params: { name: "livariant_provider_context", arguments: { provider: "codex", task } },
-      }),
-    ].join(""),
+    input: line({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "package-smoke", version: "1" } },
+    }),
+    expectedStatus: 1,
   });
-  if (first.stderr !== "") throw new Error(`Installed MCP context request wrote unexpected stderr:\n${first.stderr}`);
-  const context = structured(parseMessages(first.stdout), 2);
-  if (context.state !== "ready" || context.mutationAuthorization !== false || context.changesMade !== 0) {
-    throw new Error(`Installed MCP returned unexpected Provider Context:\n${JSON.stringify(context, null, 2)}`);
+  if (blocked.stdout.trim() !== "") {
+    throw new Error(`Installed MCP emitted protocol output despite protected-session refusal:\n${blocked.stdout}`);
   }
-
-  const providerReturn = {
-    schemaVersion: 1,
-    packetVersion: 1,
-    provider: context.provider,
-    contextPacketId: context.packetId,
-    stableProjectIdentity: context.stableProjectIdentity,
-    baselineDigest: context.baseline.digest,
-    taskDigest: taskDigest(context.task.value),
-    candidate: null,
-  };
-
-  const second = run(process.execPath, [cliPath, "mcp"], {
-    cwd: installDir,
-    input: [
-      line({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "initialize",
-        params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "package-smoke", version: "1" } },
-      }),
-      line({ jsonrpc: "2.0", method: "notifications/initialized" }),
-      line({
-        jsonrpc: "2.0",
-        id: 4,
-        method: "tools/call",
-        params: { name: "livariant_provider_return", arguments: { context, providerReturn } },
-      }),
-    ].join(""),
-  });
-  if (second.stderr !== "") throw new Error(`Installed MCP return request wrote unexpected stderr:\n${second.stderr}`);
-  const returned = structured(parseMessages(second.stdout), 4);
-  if (returned.state !== "no-candidate" || returned.semanticChangesMade !== 0 || returned.mutationAuthorization !== false) {
-    throw new Error(`Installed MCP returned unexpected provider-return state:\n${JSON.stringify(returned, null, 2)}`);
+  if (!/Canonical Project Brain use requires exact protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i.test(blocked.stderr)) {
+    throw new Error(`Installed MCP did not explain protected integrity refusal:\n${blocked.stderr}`);
   }
+  await assertManagedUnchanged(installDir, before);
 
   const packageJson = JSON.parse(await readFile(resolve(installDir, "node_modules", "livariant", "package.json"), "utf8"));
-  console.log(`MCP package smoke passed for Livariant ${packageJson.version}: installed tarball rendered read-only native setup guidance and exposed bounded stdio context + no-candidate return without mutation authority.`);
+  console.log(`MCP package smoke passed for Livariant ${packageJson.version}: installed tarball rendered read-only native setup guidance and refused valid stdio session startup without protected Guardian Project Brain acceptance while preserving project bytes.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

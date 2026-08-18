@@ -94,6 +94,11 @@ function artifactForPlan(plan: UpdatePlan | MigrationPlan, artifactPath: string)
   };
 }
 
+function printProtectedIntegrityAcceptanceRequired(): void {
+  console.log("Protected integrity: required for the changed Project Brain state.");
+  console.log("Review with 'livariant integrity inspect', then run 'livariant integrity accept-current' before canonical Project Brain reads resume.");
+}
+
 export async function handleUpdate(args: string[]): Promise<void> {
   const manifestPath = requiredOption(args, "--manifest");
   const releases = await loadReleaseManifest(manifestPath);
@@ -134,6 +139,7 @@ export async function handleUpdate(args: string[]): Promise<void> {
 
   console.log("");
   console.log(`Livariant update completed: ${plan.sourceVersion} -> ${plan.targetVersion}`);
+  if (plan.migrationRequired) printProtectedIntegrityAcceptanceRequired();
   console.log("Run 'livariant status' in a new invocation to confirm the activated Runtime.");
 }
 
@@ -177,4 +183,5 @@ export async function handleRecover(args: string[]): Promise<void> {
   await applyRecovery(process.cwd(), plan, { authorized: true });
   console.log("");
   console.log(`Recovery completed. Restored Livariant ${plan.expectedSourceVersion} / Project Brain schema ${plan.expectedSourceSchema}.`);
+  console.log("Protected integrity: inspect the restored Project Brain before canonical reads; if it is not protected, run 'livariant integrity accept-current' after review.");
 }

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { addConfirmedGoal, initializeProject } from "../src/runtime/index.js";
+import { addConfirmedGoal, initializeProject } from "../src/runtime/index-core.js";
 import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
@@ -42,34 +42,30 @@ async function candidateFile(path: string, statement: string): Promise<string> {
   return input;
 }
 
-test("maintain CLI returns authorization-required as distinct non-mutating exit state", async () => {
+function assertProtectedBlocked(result: ReturnType<typeof runCli>): void {
+  assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
+  const output = JSON.parse(result.stdout.trim()) as { state: string; phase: string; message: string; semanticChangesMade: number };
+  assert.equal(output.state, "blocked");
+  assert.equal(output.phase, "input");
+  assert.equal(output.semanticChangesMade, 0);
+  assert.match(output.message, /Canonical Project Brain use requires exact protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i);
+}
+
+test("maintain CLI refuses candidate processing without protected Project Brain truth", async () => {
   await withProject(async (path) => {
     const input = await candidateFile(path, "Compose through CLI");
     const result = runCli(path, ["maintain", "--input", input, "--json"]);
-    assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
-    const output = JSON.parse(result.stdout.trim()) as {
-      state: string;
-      semanticChangesMade: number;
-      authorizationRequired: boolean;
-      actionableProposal: { mutationScope: { proposedStatement: string } };
-    };
-    assert.equal(output.state, "authorization-required");
-    assert.equal(output.authorizationRequired, true);
-    assert.equal(output.semanticChangesMade, 0);
-    assert.equal(output.actionableProposal.mutationScope.proposedStatement, "Compose through CLI");
+    assertProtectedBlocked(result);
     assert.doesNotMatch(await readFile(resolve(path, ".project-brain", "goals.md"), "utf8"), /Compose through CLI/);
   });
 });
 
-test("maintain CLI exact duplicate returns review-required and zero mutation", async () => {
+test("maintain CLI does not use same-user duplicate evidence before protected Project Brain truth", async () => {
   await withProject(async (path) => {
     await mutateAcceptedFixture(path, () => addConfirmedGoal("Already canonical through CLI", path, { authorized: true }));
     const input = await candidateFile(path, "Already canonical through CLI");
     const result = runCli(path, ["maintain", "--input", input, "--json"]);
-    assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
-    const output = JSON.parse(result.stdout.trim()) as { state: string; semanticChangesMade: number };
-    assert.equal(output.state, "review-required");
-    assert.equal(output.semanticChangesMade, 0);
+    assertProtectedBlocked(result);
   });
 });
 

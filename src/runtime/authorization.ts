@@ -25,6 +25,9 @@ export type AuthorizationState =
   | "failed-recovery-required"
   | "invalidated";
 
+// Historical on-disk names are retained for recovery compatibility. These
+// records are same-principal audit/recovery evidence only; protected Guardian
+// state is the independent mutation Authority.
 const MACHINE_AUTH_KIND = "semantic-mutation-authorization" as const;
 const PROJECT_AUDIT_KIND = "semantic-mutation-authorization-audit" as const;
 
@@ -55,8 +58,8 @@ export interface MachineAuthorizationReceipt extends AuthorizationBinding {
 export interface AuthorizationResult {
   state: "authorized";
   authorization: ProjectAuthorizationRecord;
-  machineAuthorityVerified: true;
-  mutationAuthorization: true;
+  machineEvidenceVerified: true;
+  mutationAuthorization: false;
   applySupported: false;
   semanticChangesMade: 0;
   authorizationStateChangesMade: 0 | 1;
@@ -124,7 +127,7 @@ function displaySafe(value: string): string {
 
 async function requireInteractiveAuthorizationConfirmation(proposal: ActionableProposal): Promise<void> {
   if (!stdin.isTTY || !stderr.isTTY) {
-    throw new Error("Authorization requires an interactive local terminal. Non-interactive callers, providers, scripts, redirected input, and CI cannot create mutation authority.");
+    throw new Error("Local authorization audit preparation requires an interactive local terminal. Non-interactive callers, providers, scripts, redirected input, and CI cannot create this audit/recovery evidence.");
   }
 
   const phrase = `AUTHORIZE ${proposal.materialDigest.digest.slice(0, 12)}`;
@@ -136,7 +139,7 @@ async function requireInteractiveAuthorizationConfirmation(proposal: ActionableP
   stderr.write(`Scope: ${proposal.mutationScope.domain}/${proposal.mutationScope.changeKind}\n`);
   stderr.write(`Statement: ${displaySafe(proposal.mutationScope.proposedStatement)}\n`);
   if (proposal.mutationScope.targetDecisionId) stderr.write(`Target: ${displaySafe(proposal.mutationScope.targetDecisionId)}\n`);
-  stderr.write("This records narrow authority only. It does not apply the semantic change.\n");
+  stderr.write("This records local audit/recovery intent only. It does not create independent mutation Authority and does not apply the semantic change.\n");
   stderr.write(`Type exactly: ${phrase}\n`);
 
   const terminal = createInterface({ input: stdin, output: stderr });
@@ -378,7 +381,7 @@ async function createMachineReceipt(projectRoot: string, receipt: MachineAuthori
 
 async function withMachineLock<T>(projectRoot: string, binding: AuthorizationBinding, action: (receiptPath: string) => Promise<T>): Promise<T> {
   const root = await safeMachineAuthorizationRoot(projectRoot, binding.stableProjectIdentity, false);
-  if (!root) throw new Error("Matching independent machine-local authorization is missing.");
+  if (!root) throw new Error("Matching machine-local authorization is missing; this same-user receipt is recovery evidence only.");
   const { receipt, lock } = machinePaths(root, binding.authorizationId);
   try { await mkdir(lock, { recursive: false }); }
   catch (error) {
@@ -456,15 +459,15 @@ export async function authorizeActionableProposal(
   const existing = await readProjectActive(project.root);
   if (existing) {
     const expected = bindingFromProposal(existing.record.authorizationId, revalidated);
-    if (!sameBinding(existing.record, expected)) throw new Error("A different or stale active authorization record already exists; refusing ambiguous authority.");
+    if (!sameBinding(existing.record, expected)) throw new Error("A different or stale active authorization record already exists; refusing ambiguous local audit evidence.");
     if (existing.record.state === "authorized") {
       const machine = await readMachineReceipt(project.root, expected);
-      if (!machine || machine.receipt.state !== "authorized") throw new Error("Project authorization audit exists without matching authorized machine-local authority.");
+      if (!machine || machine.receipt.state !== "authorized") throw new Error("Project authorization audit exists without matching authorized machine-local recovery evidence.");
       return {
         state: "authorized",
         authorization: existing.record,
-        machineAuthorityVerified: true,
-        mutationAuthorization: true,
+        machineEvidenceVerified: true,
+        mutationAuthorization: false,
         applySupported: false,
         semanticChangesMade: 0,
         authorizationStateChangesMade: 0,
@@ -478,10 +481,10 @@ export async function authorizeActionableProposal(
       await createMachineReceipt(project.root, receipt);
       machine = { receipt, raw: `${JSON.stringify(receipt, null, 2)}\n` };
     }
-    if (machine.receipt.state !== "authorized") throw new Error("Machine-local authorization is not in authorized state during creation recovery.");
+    if (machine.receipt.state !== "authorized") throw new Error("Machine-local recovery evidence is not in authorized audit state during creation recovery.");
     const next = { ...existing.record, state: "authorized" as const };
     await replaceProjectActive(project.root, existing.raw, next);
-    return { state: "authorized", authorization: next, machineAuthorityVerified: true, mutationAuthorization: true, applySupported: false, semanticChangesMade: 0, authorizationStateChangesMade: 1 };
+    return { state: "authorized", authorization: next, machineEvidenceVerified: true, mutationAuthorization: false, applySupported: false, semanticChangesMade: 0, authorizationStateChangesMade: 1 };
   }
 
   const authorizationId = randomUUID().toLowerCase();
@@ -495,17 +498,17 @@ export async function authorizeActionableProposal(
   try {
     await createMachineReceipt(project.root, receipt);
   } catch (error) {
-    throw new Error(`Authorization creation is incomplete and fail-closed: ${error instanceof Error ? error.message : "machine-local authority write failed"}`);
+    throw new Error(`Authorization audit creation is incomplete and fail-closed: ${error instanceof Error ? error.message : "machine-local recovery evidence write failed"}`);
   }
 
   const active = await readProjectActive(project.root);
-  if (!active || active.record.state !== "preparing" || !sameBinding(active.record, binding)) throw new Error("Project-local authorization audit changed during dual-evidence creation.");
+  if (!active || active.record.state !== "preparing" || !sameBinding(active.record, binding)) throw new Error("Project-local authorization audit changed during local dual-evidence creation.");
   const authorized = { ...active.record, state: "authorized" as const };
   await replaceProjectActive(project.root, active.raw, authorized);
   const machine = await readMachineReceipt(project.root, binding);
-  if (!machine || machine.receipt.state !== "authorized") throw new Error("Authorization dual evidence could not be verified after creation.");
+  if (!machine || machine.receipt.state !== "authorized") throw new Error("Local authorization audit/recovery evidence could not be verified after creation.");
 
-  return { state: "authorized", authorization: authorized, machineAuthorityVerified: true, mutationAuthorization: true, applySupported: false, semanticChangesMade: 0, authorizationStateChangesMade: 1 };
+  return { state: "authorized", authorization: authorized, machineEvidenceVerified: true, mutationAuthorization: false, applySupported: false, semanticChangesMade: 0, authorizationStateChangesMade: 1 };
 }
 
 export async function assertAuthorizationReadyForApply(
@@ -518,9 +521,9 @@ export async function assertAuthorizationReadyForApply(
   const active = await readProjectActive(project.root);
   if (!active) throw new Error("No active project-local authorization audit exists.");
   const expected = bindingFromProposal(authorizationId, fresh);
-  if (!sameBinding(active.record, expected) || active.record.state !== "authorized") throw new Error("Project-local authorization is not valid for this exact proposal and baseline.");
+  if (!sameBinding(active.record, expected) || active.record.state !== "authorized") throw new Error("Project-local authorization audit is not ready for this exact proposal and baseline.");
   const machine = await readMachineReceipt(project.root, expected);
-  if (!machine || machine.receipt.state !== "authorized") throw new Error("Matching independent machine-local authorization is missing or not reusable.");
+  if (!machine || machine.receipt.state !== "authorized") throw new Error("Matching machine-local authorization is missing or not reusable; local receipts are recovery evidence only.");
   return active.record;
 }
 
@@ -532,14 +535,14 @@ export async function beginAuthorizationApplication(
   const project = discoverProject(projectPath);
   const fresh = await rebuildAndVerifyProposal(proposal, project.root);
   const active = await readProjectActive(project.root);
-  if (!active) throw new Error("No active authorization exists.");
+  if (!active) throw new Error("No active authorization audit exists.");
   const binding = bindingFromProposal(authorizationId, fresh);
-  if (!sameBinding(active.record, binding) || active.record.state !== "authorized") throw new Error("Project-local authorization is not authorized for this exact proposal and baseline.");
+  if (!sameBinding(active.record, binding) || active.record.state !== "authorized") throw new Error("Project-local authorization audit is not ready for this exact proposal and baseline.");
 
   await transitionMachineReceipt(project.root, binding, "authorized", "applying");
   const current = await readProjectActive(project.root);
   if (!current || !sameBinding(current.record, binding) || current.record.state !== "authorized") {
-    throw new Error("Authorization became authority-ambiguous after machine-local consumption began; recovery is required.");
+    throw new Error("Authorization audit became inconsistent after machine-local recovery-state transition began; recovery is required.");
   }
   const applying = { ...current.record, state: "applying" as const };
   await replaceProjectActive(project.root, current.raw, applying);
@@ -553,16 +556,16 @@ async function finishAuthorization(
 ): Promise<ProjectAuthorizationRecord> {
   const project = discoverProject(projectPath);
   const active = await readProjectActive(project.root);
-  if (!active) throw new Error("No active authorization exists.");
-  if (active.record.authorizationId !== authorizationId) throw new Error("Active authorization id does not match the requested transition.");
+  if (!active) throw new Error("No active authorization audit exists.");
+  if (active.record.authorizationId !== authorizationId) throw new Error("Active authorization audit id does not match the requested transition.");
   const expectedProjectState: AuthorizationState = terminalState === "invalidated" ? "authorized" : "applying";
-  if (active.record.state !== expectedProjectState) throw new Error(`Authorization is ${active.record.state}; cannot transition to ${terminalState}.`);
+  if (active.record.state !== expectedProjectState) throw new Error(`Authorization audit is ${active.record.state}; cannot transition to ${terminalState}.`);
   const binding: AuthorizationBinding = active.record;
   const expectedMachineState: MachineAuthorizationReceipt["state"] = terminalState === "invalidated" ? "authorized" : "applying";
   await transitionMachineReceipt(project.root, binding, expectedMachineState, terminalState);
   const current = await readProjectActive(project.root);
   if (!current || !sameBinding(current.record, binding) || current.record.state !== expectedProjectState) {
-    throw new Error("Authorization became authority-ambiguous while terminal state was being committed.");
+    throw new Error("Authorization audit became inconsistent while terminal recovery evidence was being committed.");
   }
   const terminal = { ...current.record, state: terminalState } as ProjectAuthorizationRecord;
   await archiveProjectActive(project.root, current.raw, terminal);
@@ -597,6 +600,6 @@ export async function inspectAuthorizationAudit(projectPath: string = process.cw
     if (`${record.authorizationId}.json` !== name) throw new Error("Project authorization history record filename does not match its authorization id.");
     history.push(record);
   }
-  if (active && history.some((record) => record.authorizationId === active.record.authorizationId)) throw new Error("Authorization state is ambiguous: the active authorization also exists in terminal history.");
+  if (active && history.some((record) => record.authorizationId === active.record.authorizationId)) throw new Error("Authorization audit state is ambiguous: the active authorization also exists in terminal history.");
   return { active: active?.record ?? null, history };
 }

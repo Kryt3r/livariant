@@ -2,6 +2,10 @@ import { resolve } from "node:path";
 import { discoverProject } from "../project/discovery.js";
 import { recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import {
+  assertSemanticGuardianAuthorityWasConsumed,
+  consumeSemanticGuardianAuthority,
+} from "../guardian/semantic-authority-transition.js";
+import {
   buildActionableProposal,
   parseActionableProposal,
   type ActionableProposal,
@@ -244,33 +248,39 @@ async function enterApplyingState(
   if (readyError !== undefined) {
     try {
       await assertProposalStillCurrent(proposal, projectRoot);
+      await assertSemanticGuardianAuthorityWasConsumed(authorizationId, proposal, projectRoot);
       await reconcilePreMutationAuthorization(authorizationId, proposal, projectRoot);
       return;
     } catch (reconcileError) {
       if (await tryAlignExistingFailure(authorizationId, proposal, projectRoot)) {
         throw new Error("Semantic apply Authority is already failed-recovery-required; project evidence was aligned forward and cannot be reused.");
       }
-      const ready = readyError instanceof Error ? readyError.message : "fresh Authority verification failed";
-      const reconcile = reconcileError instanceof Error ? reconcileError.message : "pre-mutation reconciliation failed";
-      throw new Error(`Semantic apply is not safely consumable: ${ready}; reconciliation refused: ${reconcile}`);
+      const ready = readyError instanceof Error ? readyError.message : "fresh local audit verification failed";
+      const reconcile = reconcileError instanceof Error ? reconcileError.message : "protected-Authority recovery verification or local reconciliation failed";
+      throw new Error(`Semantic apply is not safely recoverable: ${ready}; Guardian-bound reconciliation refused: ${reconcile}`);
     }
   }
 
   await options.beforeConsume?.();
+  await assertProposalStillCurrent(proposal, projectRoot);
+  await assertAuthorizationReadyForApply(authorizationId, proposal, projectRoot);
+  await consumeSemanticGuardianAuthority(authorizationId, proposal, projectRoot);
+
   try {
     await beginAuthorizationApplication(authorizationId, proposal, projectRoot);
   } catch (beginError) {
     try {
       await assertProposalStillCurrent(proposal, projectRoot);
+      await assertSemanticGuardianAuthorityWasConsumed(authorizationId, proposal, projectRoot);
       await reconcilePreMutationAuthorization(authorizationId, proposal, projectRoot);
       return;
     } catch (reconcileError) {
       if (await tryAlignExistingFailure(authorizationId, proposal, projectRoot)) {
-        throw new Error("Authority consumption previously failed and is recovery-required; project evidence was aligned forward.");
+        throw new Error("Protected Guardian Authority was consumed but local recovery evidence is failed-recovery-required; project evidence was aligned forward.");
       }
-      const begin = beginError instanceof Error ? beginError.message : "Authority consumption failed";
-      const reconcile = reconcileError instanceof Error ? reconcileError.message : "pre-mutation reconciliation failed";
-      throw new Error(`Authority consumption did not complete safely and requires recovery: ${begin}; reconciliation refused: ${reconcile}`);
+      const begin = beginError instanceof Error ? beginError.message : "local audit transition failed after Guardian consumption";
+      const reconcile = reconcileError instanceof Error ? reconcileError.message : "Guardian-bound pre-mutation reconciliation failed";
+      throw new Error(`Protected Guardian Authority was consumed but local audit transition did not complete safely and requires recovery: ${begin}; reconciliation refused: ${reconcile}`);
     }
   }
 }

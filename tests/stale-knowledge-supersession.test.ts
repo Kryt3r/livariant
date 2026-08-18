@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
-  buildResumeContext,
   initializeProject,
   recordAcceptedDecision,
   supersedeAcceptedDecision,
-} from "../src/runtime/index.js";
+} from "../src/runtime/index-core.js";
+import { buildResumeContext } from "../src/runtime/resume.js";
 import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 async function withProject(run: (path: string) => Promise<void>): Promise<void> {

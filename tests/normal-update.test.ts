@@ -11,7 +11,7 @@ import {
   initializeProject,
   planNormalUpdate,
   type ReleaseDescriptor,
-} from "../src/runtime/index.js";
+} from "../src/runtime/index-core.js";
 import { readActiveRuntimePointer } from "../src/distribution/runtime-installation.js";
 import type { LocalReleaseArtifact } from "../src/distribution/release-integrity.js";
 import { createRuntimePackageFixture, type RuntimePackageFixture } from "./runtime-package-fixture.js";
@@ -73,7 +73,7 @@ test("tampered artifact and unexpected source fail before runtime installation o
   await withRuntimeRelease(async(fixture,release)=>{await withInitializedProject(async(projectPath)=>{const plan=await planNormalUpdate(projectPath,[release]); assert.ok(plan); const beforeOwned=await snapshotProjectOwnedBrain(projectPath); const tamperedPath=resolve(projectPath,"tampered-release.tgz"); await writeFile(tamperedPath,"tampered bytes\n","utf8"); await assert.rejects(()=>applyNormalUpdate(projectPath,plan,{authorized:true,artifact:installedArtifact(fixture,{path:tamperedPath}),trustedSourceIds}),/integrity verification failed/i); assert.equal(await readActiveRuntimePointer(projectPath),null); await assert.rejects(()=>applyNormalUpdate(projectPath,plan,{authorized:true,artifact:installedArtifact(fixture,{sourceId:"unexpected-mirror"}),trustedSourceIds}),/source does not match/i); assert.equal(await readActiveRuntimePointer(projectPath),null); assert.equal((await getStatus(projectPath)).frameworkVersion,TEST_SOURCE_VERSION); const afterOwned=await snapshotProjectOwnedBrain(projectPath); for(const file of projectOwnedBrainFiles) assert.deepEqual(afterOwned.get(file),beforeOwned.get(file));});});
 });
 
-test("target release activates only after a real installed Runtime attests the target identity", async () => {
+test("Core target release activation records only a verified prepared Runtime", async () => {
   await withRuntimeRelease(async(fixture,release)=>{await withInitializedProject(async(projectPath)=>{const plan=await planNormalUpdate(projectPath,[release]); assert.ok(plan); const beforeOwned=await snapshotProjectOwnedBrain(projectPath); await applyNormalUpdate(projectPath,plan,{authorized:true,artifact:installedArtifact(fixture),trustedSourceIds}); const active=await readActiveRuntimePointer(projectPath); assert.equal(active?.version,targetVersion); assert.match(active?.cliPath??"",/node_modules[\\/]livariant[\\/]/); const status=await getStatus(projectPath); assert.equal(status.frameworkVersion,targetVersion); assert.equal(status.channel,TEST_SOURCE_CHANNEL); const afterOwned=await snapshotProjectOwnedBrain(projectPath); for(const file of projectOwnedBrainFiles) assert.deepEqual(afterOwned.get(file),beforeOwned.get(file));});});
 });
 

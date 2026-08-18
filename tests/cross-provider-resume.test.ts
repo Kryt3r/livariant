@@ -3,7 +3,8 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { buildResumeContext, initializeProject, recordAcceptedDecision } from "../src/runtime/index.js";
+import { initializeProject, recordAcceptedDecision } from "../src/runtime/index.js";
+import { buildResumeContext } from "../src/runtime/resume.js";
 import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 import {
   canonicalResumePayload,

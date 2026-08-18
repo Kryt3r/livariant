@@ -7,12 +7,12 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   buildActionableProposal,
-  buildSemanticProposal,
   initializeProject,
   parseActionableProposal,
   parseSemanticProposalCandidate,
   recordAcceptedDecision,
-} from "../src/runtime/index.js";
+} from "../src/runtime/index-core.js";
+import { buildSemanticProposal } from "../src/runtime/semantic-proposal.js";
 import {
   assertAuthorizationReadyForApply,
   authorizeActionableProposal,
@@ -122,7 +122,6 @@ test("review-only proposal remains permanently non-actionable while actionable p
     assert.equal(review.state, "proposal");
     assert.equal(action.state, "actionable-proposal");
     if (review.state !== "proposal" || action.state !== "actionable-proposal") return;
-
     assert.equal(review.proposal.actionability.reviewOnly, true);
     assert.equal(review.proposal.actionability.mutationAuthorization, false);
     assert.equal(review.proposal.actionability.applySupported, false);
@@ -167,7 +166,7 @@ test("authorization binds current baseline and refuses stale actionable proposal
   });
 });
 
-test("non-interactive authorization is blocked before project or machine authority state is created", async () => {
+test("non-interactive authorization is blocked before project or machine audit state is created", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     const projectAuthorityRoot = resolve(path, ".project-brain", ".authorizations");
@@ -176,8 +175,6 @@ test("non-interactive authorization is blocked before project or machine authori
     await assertMissing(projectAuthorityRoot);
     await assertMissing(machineAuthorityRoot);
     assert.deepEqual(await inspectAuthorizationAudit(path), { active: null, history: [] });
-    await assertMissing(projectAuthorityRoot);
-    await assertMissing(machineAuthorityRoot);
   });
 });
 
@@ -189,23 +186,22 @@ test("authorization audit inspection is read-only when no authorization state ex
   });
 });
 
-test("interactive local CLI creates dual evidence without changing semantic Project Brain files", { skip: process.platform === "win32" }, async () => {
+test("interactive CLI refuses authorization before local audit when protected Project Brain truth is unavailable", { skip: process.platform === "win32" }, async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     const proposalPath = resolve(path, "actionable.json");
     await writeFile(proposalPath, `${JSON.stringify(proposal)}\n`, "utf8");
     const before = new Map(await Promise.all(semanticFiles.map(async (name) => [name, await readFile(resolve(path, ".project-brain", name))] as const)));
     const result = runInteractiveAuthorize(path, proposalPath, `AUTHORIZE ${proposal.materialDigest.digest.slice(0, 12)}`);
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active?.state, "authorized");
-    assert.ok(audit.active?.authorizationId);
-    await assertAuthorizationReadyForApply(audit.active!.authorizationId, proposal, path);
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Canonical Project Brain use requires exact protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i);
+    assert.deepEqual(await inspectAuthorizationAudit(path), { active: null, history: [] });
+    await assertMissing(resolve(path, ".project-brain", ".authorizations"));
     for (const name of semanticFiles) assert.deepEqual(await readFile(resolve(path, ".project-brain", name)), before.get(name));
   });
 });
 
-test("project-local authorization-looking bytes alone cannot establish authority", async () => {
+test("project-local authorization-looking bytes alone cannot establish local readiness", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     const root = resolve(path, ".project-brain", ".authorizations");
@@ -227,7 +223,7 @@ test("project-local authorization-looking bytes alone cannot establish authority
   });
 });
 
-test("machine-local receipt alone cannot establish authority without matching project audit", async () => {
+test("machine-local receipt alone cannot establish local readiness without matching project audit", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await seedAuthorizedEvidence(path, proposal);
@@ -245,7 +241,7 @@ test("unsupported project authorization entries fail closed", async () => {
   });
 });
 
-test("concurrent consumers cannot both transition the same authorization to applying", async () => {
+test("concurrent local audit consumers cannot both transition the same record to applying", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await seedAuthorizedEvidence(path, proposal);
@@ -260,7 +256,7 @@ test("concurrent consumers cannot both transition the same authorization to appl
   });
 });
 
-test("completed authorization is terminal and cannot be replayed", async () => {
+test("completed local audit is terminal and cannot be replayed", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await seedAuthorizedEvidence(path, proposal);
@@ -270,11 +266,11 @@ test("completed authorization is terminal and cannot be replayed", async () => {
     const audit = await inspectAuthorizationAudit(path);
     assert.equal(audit.active, null);
     assert.ok(audit.history.some((record) => record.authorizationId === FIXED_AUTH_ID && record.state === "completed"));
-    await assert.rejects(beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path), /No active authorization exists/);
+    await assert.rejects(beginAuthorizationApplication(FIXED_AUTH_ID, proposal, path), /No active authorization audit exists/);
   });
 });
 
-test("failed-recovery-required authorization is terminal and cannot be reused", async () => {
+test("failed local audit is terminal and cannot be reused", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     await seedAuthorizedEvidence(path, proposal);

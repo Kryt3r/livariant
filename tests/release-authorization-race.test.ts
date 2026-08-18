@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -16,7 +16,7 @@ function authorizationPath(digest: string): string {
   return resolve(userInfo().homedir, ".livariant", "trust", "release-authorizations", `${digest}.json`);
 }
 
-test("parallel test authorization provisioning never exposes partial JSON", async () => {
+test("parallel legacy test-evidence provisioning never exposes partial JSON", async () => {
   const digest = uniqueDigest();
   const path = authorizationPath(digest);
   try {
@@ -38,12 +38,11 @@ test("parallel test authorization provisioning never exposes partial JSON", asyn
   }
 });
 
-test("malformed machine-local authorization fails closed without leaking JSON parse errors", async () => {
-  const project = await mkdtemp(resolve(tmpdir(), "livariant-release-auth-malformed-"));
+test("syntactically valid same-user release evidence cannot satisfy C-04 Authority", async () => {
+  const project = await mkdtemp(resolve(tmpdir(), "livariant-release-auth-legacy-no-authority-"));
   const digest = uniqueDigest();
   const path = authorizationPath(digest);
-  await mkdir(resolve(userInfo().homedir, ".livariant", "trust", "release-authorizations"), { recursive: true });
-  await writeFile(path, "{", "utf8");
+  await provisionArtifactAuthorizationForTest(digest);
 
   const identity: ReleaseIdentity = {
     version: "0.1.0-test",
@@ -58,8 +57,8 @@ test("malformed machine-local authorization fails closed without leaking JSON pa
       () => assertReleaseAuthorized(project, identity),
       (error: unknown) => {
         assert.ok(error instanceof Error);
-        assert.notEqual(error.name, "SyntaxError");
-        assert.match(error.message, /malformed or unreadable/i);
+        assert.match(error.message, /Guardian|protected|not provisioned|not ready/i);
+        assert.doesNotMatch(error.message, /machine-local.*authorized|artifact.*authorization.*sufficient/i);
         return true;
       },
     );

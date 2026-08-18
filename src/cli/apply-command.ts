@@ -2,6 +2,7 @@ import { readActionableProposalFile } from "../runtime/actionable-proposal.js";
 import { inspectAuthorizationAudit } from "../runtime/authorization.js";
 import { applyActionableProposal } from "../runtime/semantic-apply.js";
 import { parseSemanticApplyArgs } from "./apply-args.js";
+import { requireProtectedCanonicalProject } from "./protected-project-gate.js";
 
 interface ApplyFailureOutcome {
   recoveryRequired: boolean;
@@ -47,9 +48,15 @@ export async function handleApplyCommand(args: string[]): Promise<void> {
     authorizationId = parsed.authorizationId;
     const proposal = await readActionableProposalFile(parsed.inputPath);
     actionableProposalParsed = true;
+    await requireProtectedCanonicalProject();
     const result = await applyActionableProposal(parsed.authorizationId, proposal);
     if (json) {
-      console.log(JSON.stringify(result));
+      console.log(JSON.stringify({
+        ...result,
+        protectedIntegrityRequired: true,
+        canonicalContextReady: false,
+        next: "livariant integrity accept-current",
+      }));
       return;
     }
 
@@ -60,6 +67,8 @@ export async function handleApplyCommand(args: string[]): Promise<void> {
     console.log(`Scope: ${result.mutationScope.domain}/${result.mutationScope.changeKind}`);
     console.log("Mutation authorization consumed: yes");
     console.log(`Semantic changes made: ${result.semanticChangesMade}`);
+    console.log("Protected integrity: required for the new Project Brain state.");
+    console.log("Canonical context remains blocked until 'livariant integrity accept-current' succeeds after review.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Semantic apply input is invalid.";
     const outcome = await classifyApplyFailure(authorizationId, actionableProposalParsed);
