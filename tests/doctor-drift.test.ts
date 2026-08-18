@@ -3,7 +3,8 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { initializeProject, runDoctor } from "../src/runtime/index.js";
+import { initializeProject } from "../src/runtime/index.js";
+import { runDoctor as runLocalEvidenceDoctor } from "../src/runtime/doctor.js";
 import { ProjectBrainStore } from "../src/project-brain/store.js";
 import { applyMigrationUpdate, planMigrationUpdate } from "../src/lifecycle/migration.js";
 import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
@@ -43,32 +44,32 @@ async function mutateMetadata(path: string, mutate: (metadata: Record<string, an
 
 test("doctor reports healthy state without mutation", async () => {
   await withProject(async (path) => {
-    const before = await snapshotTree(path); const report = await runDoctor(path); const after = await snapshotTree(path);
+    const before = await snapshotTree(path); const report = await runLocalEvidenceDoctor(path); const after = await snapshotTree(path);
     assert.equal(report.state, "healthy"); assert.equal(report.changesMade, 0); assert.deepEqual(after, before);
   });
 });
 
 test("runtime build identity differing from project active version is not alone drift", async () => {
-  await withProject(async (path) => { await new ProjectBrainStore(path).updateFrameworkLifecycle("0.0.5-development.1", "development"); assert.equal((await runDoctor(path)).state, "healthy"); });
+  await withProject(async (path) => { await new ProjectBrainStore(path).updateFrameworkLifecycle("0.0.5-development.1", "development"); assert.equal((await runLocalEvidenceDoctor(path)).state, "healthy"); });
 });
 
 test("unknown manual Framework version is classified unsupported and remains untouched", async () => {
   await withProject(async (path) => {
-    await mutateMetadata(path, (metadata) => { metadata.framework.version = "8.4.2"; }); const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path);
+    await mutateMetadata(path, (metadata) => { metadata.framework.version = "8.4.2"; }); const before=await snapshotTree(path); const report=await runLocalEvidenceDoctor(path); const after=await snapshotTree(path);
     assert.equal(report.state,"unsupported-manual-state"); assert.ok(report.findings.some((finding)=>finding.code==="unsupported-framework-state")); assert.deepEqual(after,before);
   });
 });
 
 test("unsupported update channel is classified unsupported and remains untouched", async () => {
   await withProject(async (path) => {
-    await mutateMetadata(path,(metadata)=>{metadata.framework.channel="mystery";}); const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path);
+    await mutateMetadata(path,(metadata)=>{metadata.framework.channel="mystery";}); const before=await snapshotTree(path); const report=await runLocalEvidenceDoctor(path); const after=await snapshotTree(path);
     assert.equal(report.state,"unsupported-manual-state"); assert.ok(report.findings.some((finding)=>finding.code==="unsupported-update-channel")); assert.deepEqual(after,before);
   });
 });
 
 test("schema 2 without a canonical stable project identity is partial-or-damaged and remains untouched", async () => {
   await withProject(async (path) => {
-    await mutateMetadata(path,(metadata)=>{delete metadata.projectBrain.projectId;}); const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path);
+    await mutateMetadata(path,(metadata)=>{delete metadata.projectBrain.projectId;}); const before=await snapshotTree(path); const report=await runLocalEvidenceDoctor(path); const after=await snapshotTree(path);
     assert.equal(report.state,"partial-or-damaged"); assert.ok(report.findings.some((finding)=>finding.code==="project-brain-invalid")); assert.deepEqual(after,before);
   });
 });
@@ -76,17 +77,17 @@ test("schema 2 without a canonical stable project identity is partial-or-damaged
 test("Project Brain identity conflicting with package.json is diagnosed without reconciliation", async () => {
   await withProject(async (path) => {
     await writeFile(resolve(path,"package.json"),JSON.stringify({name:"project-b"}),"utf8"); await writeFile(resolve(path,".project-brain","project.md"),"# Project\n\n## Identity\n\n- Confirmed package name: project-a\n","utf8");
-    const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path); assert.equal(report.state,"drift-detected"); assert.ok(report.findings.some((finding)=>finding.code==="identity-conflict")); assert.deepEqual(after,before);
+    const before=await snapshotTree(path); const report=await runLocalEvidenceDoctor(path); const after=await snapshotTree(path); assert.equal(report.state,"drift-detected"); assert.ok(report.findings.some((finding)=>finding.code==="identity-conflict")); assert.deepEqual(after,before);
   });
 });
 
 test("partial Project Brain is diagnosed without automatic init or repair", async () => {
-  await withProject(async (path) => { await rm(resolve(path,".project-brain","goals.md")); const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path); assert.equal(report.state,"partial-or-damaged"); assert.equal(report.changesMade,0); assert.deepEqual(after,before); });
+  await withProject(async (path) => { await rm(resolve(path,".project-brain","goals.md")); const before=await snapshotTree(path); const report=await runLocalEvidenceDoctor(path); const after=await snapshotTree(path); assert.equal(report.state,"partial-or-damaged"); assert.equal(report.changesMade,0); assert.deepEqual(after,before); });
 });
 
 test("open migration journal narrows doctor state to recovery-required", async () => {
   await withProject(async (path) => {
     await makeLegacySchema1Project(path); const plan=await planMigrationUpdate(path,migrationRelease); await applyMigrationUpdate(path,plan,{...migrationApplyOptions(),interruptAfterMutation:true} as Parameters<typeof applyMigrationUpdate>[2]);
-    const before=await snapshotTree(path); const report=await runDoctor(path); const after=await snapshotTree(path); assert.equal(report.state,"recovery-required"); assert.ok(report.findings.some((finding)=>finding.code==="interrupted-migration")); assert.deepEqual(after,before);
+    const before=await snapshotTree(path); const report=await runLocalEvidenceDoctor(path); const after=await snapshotTree(path); assert.equal(report.state,"recovery-required"); assert.ok(report.findings.some((finding)=>finding.code==="interrupted-migration")); assert.deepEqual(after,before);
   });
 });
