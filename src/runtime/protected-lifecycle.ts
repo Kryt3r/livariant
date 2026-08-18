@@ -1,11 +1,9 @@
 import { lstat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { assertReleaseAuthorized } from "../distribution/release-authorization.js";
 import { installTrustedRuntime } from "../distribution/runtime-installation.js";
 import { verifyReleaseArtifact, type ReleaseIdentity } from "../distribution/release-integrity.js";
-import {
-  consumeReleaseAuthorizationGuardianAuthority,
-  issueReleaseAuthorizationGuardianAuthority,
-} from "../guardian/release-authorization-authority-transition.js";
+import { issueReleaseAuthorizationGuardianAuthority } from "../guardian/release-authorization-authority-transition.js";
 import {
   applyMigrationUpdate as applyMigrationUpdateCore,
   type ApplyMigrationOptions,
@@ -59,7 +57,7 @@ async function prepareProtectedRuntime(
     // before installTrustedRuntime reaches the low-level materialization step.
     await verifyReleaseArtifact(identity, options.artifact, options.trustedSourceIds);
     await issueReleaseAuthorizationGuardianAuthority(identity, projectPath);
-    await consumeReleaseAuthorizationGuardianAuthority(identity, projectPath);
+    await assertReleaseAuthorized(projectPath, identity);
   }
   await installTrustedRuntime(projectPath, identity, options.artifact, options.trustedSourceIds);
 }
