@@ -6,7 +6,7 @@
 
 # Livariant
 
-**KI-Coding-Agenten können falsch liegen. Livariant verhindert, dass ihre Fehler still zur Projektwahrheit werden.**
+**KI-Coding-Agenten können falsch liegen. Livariant ist dafür gebaut, dass ihre Fehler nicht still zur Projektwahrheit werden.**
 
 **Bewahre, was wahr ist. Kontrolliere, was sich ändert. Stelle wieder her, wenn etwas schiefläuft.**
 
@@ -88,7 +88,7 @@ Livariant
  und wie wird diese Änderung verifiziert oder wiederhergestellt?"
 ```
 
-Repository-Indizes, Code-Graphen, Suchwerkzeuge, externe Wissenssysteme und Provider-Memory können allesamt nützliche Inputs sein. Livariants Architekturgrenze lautet: **Abgeleitete Intelligenz oder gefundene Information wird nicht still zu kanonischer Project Truth.**
+Repository-Indizes, Code-Graphen, Suchwerkzeuge, externe Wissenssysteme und Provider-Memory lösen benachbarte Probleme und können einem KI-Workflow nützliche Informationen liefern. Livariants Architekturgrenze lautet: **Wenn abgeleitete oder gefundene Information in einen von Livariant gesteuerten Flow gelangt, darf sie nicht still zu kanonischer Project Truth werden.**
 
 Deshalb gelten die Kernregeln:
 
