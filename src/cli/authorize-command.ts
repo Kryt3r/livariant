@@ -2,12 +2,14 @@ import { issueSemanticGuardianAuthority } from "../guardian/semantic-authority-t
 import { readActionableProposalFile } from "../runtime/actionable-proposal.js";
 import { authorizeActionableProposal } from "../runtime/authorization.js";
 import { parseProposalAuthorityArgs } from "./proposal-authority-args.js";
+import { requireProtectedCanonicalProject } from "./protected-project-gate.js";
 
 export async function handleAuthorizeCommand(args: string[]): Promise<void> {
   let json = args.includes("--json");
   try {
     const parsed = parseProposalAuthorityArgs(args);
     json = parsed.json;
+    await requireProtectedCanonicalProject();
     const proposal = await readActionableProposalFile(parsed.inputPath);
     const result = await authorizeActionableProposal(proposal);
     const guardian = await issueSemanticGuardianAuthority(result.authorization.authorizationId, proposal);
