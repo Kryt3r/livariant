@@ -1,14 +1,29 @@
 import { readSemanticProposalCandidateFile } from "../runtime/semantic-proposal.js";
 import { maintainSemanticProjectState } from "../runtime/semantic-maintenance.js";
 import { parseSemanticMaintenanceArgs } from "./maintenance-args.js";
+import { requireProtectedCanonicalProject } from "./protected-project-gate.js";
+
+function protectedPostMutationResult(result: Awaited<ReturnType<typeof maintainSemanticProjectState>>) {
+  if (result.state !== "completed") return result;
+  return {
+    state: "completed-context-blocked" as const,
+    apply: result.apply,
+    context: null,
+    refreshError: "The semantic mutation completed, but the new Project Brain state is not canonical until exact protected Guardian integrity acceptance is established.",
+    protectedIntegrityRequired: true as const,
+    next: "livariant integrity accept-current" as const,
+    semanticChangesMade: 1 as const,
+  };
+}
 
 export async function handleMaintenanceCommand(args: string[]): Promise<void> {
   let json = args.includes("--json");
   try {
     const parsed = parseSemanticMaintenanceArgs(args);
     json = parsed.json;
+    await requireProtectedCanonicalProject();
     const candidate = await readSemanticProposalCandidateFile(parsed.inputPath);
-    const result = await maintainSemanticProjectState(candidate, parsed.authorizationId);
+    const result = protectedPostMutationResult(await maintainSemanticProjectState(candidate, parsed.authorizationId));
 
     if (json) {
       console.log(JSON.stringify(result));
@@ -34,18 +49,9 @@ export async function handleMaintenanceCommand(args: string[]): Promise<void> {
       console.log(`Authorization: ${result.apply.authorizationId}`);
       console.log(`Proposal: ${result.apply.actionableProposalId}`);
       console.log("Semantic changes made: 1");
-      if (result.refreshError) {
-        console.log(`Refresh error: ${result.refreshError}`);
-        console.log("Refreshed context: unavailable; inspect project health before continuing.");
-      } else {
-        console.log("Refreshed context: blocked; inspect Doctor/context findings before continuing.");
-      }
-    } else {
-      console.log("Semantic maintenance completed");
-      console.log(`Authorization: ${result.apply.authorizationId}`);
-      console.log(`Proposal: ${result.apply.actionableProposalId}`);
-      console.log(`Refreshed baseline: ${result.context.baseline.digest}`);
-      console.log("Semantic changes made: 1");
+      if (result.refreshError) console.log(`Refresh error: ${result.refreshError}`);
+      console.log("Protected integrity: required before canonical context can resume.");
+      console.log("Next: review the resulting Project Brain and run 'livariant integrity accept-current'.");
     }
 
     if (result.state === "blocked") process.exitCode = 2;
