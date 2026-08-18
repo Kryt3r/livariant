@@ -1,5 +1,8 @@
+import { lstat } from "node:fs/promises";
+import { resolve } from "node:path";
 import { installTrustedRuntime } from "../distribution/runtime-installation.js";
 import type { ReleaseIdentity } from "../distribution/release-integrity.js";
+import { issueReleaseAuthorizationGuardianAuthority } from "../guardian/release-authorization-authority-transition.js";
 import {
   applyMigrationUpdate as applyMigrationUpdateCore,
   type ApplyMigrationOptions,
@@ -31,11 +34,34 @@ function migrationIdentity(plan: MigrationPlan): ReleaseIdentity {
   };
 }
 
+async function targetRuntimeExists(projectPath: string, identity: ReleaseIdentity): Promise<boolean> {
+  const finalRoot = resolve(projectPath, ".framework-runtime", "releases", identity.version);
+  try {
+    await lstat(finalRoot);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function prepareProtectedRuntime(
+  projectPath: string,
+  identity: ReleaseIdentity,
+  options: Pick<ApplyUpdateOptions, "artifact" | "trustedSourceIds">,
+): Promise<void> {
+  if (!await targetRuntimeExists(projectPath, identity)) {
+    await issueReleaseAuthorizationGuardianAuthority(identity, projectPath);
+  }
+  await installTrustedRuntime(projectPath, identity, options.artifact, options.trustedSourceIds);
+}
+
 /**
- * Public/product normal-update boundary. The target Runtime is fully verified,
- * bound to protected Guardian trust at its exact final location, and executed
- * only for protected attestation before any lifecycle pin/pointer mutation may
- * commit the update.
+ * Public/product normal-update boundary. A fresh target Runtime receives exact
+ * one-shot Guardian Release Authorization, which is consumed before package
+ * materialization. The installed Runtime is then bound to persistent protected
+ * Runtime trust and executed only for protected attestation before lifecycle
+ * pin/pointer mutation may commit the update.
  */
 export async function applyProtectedNormalUpdate(
   projectPath: string,
@@ -46,15 +72,15 @@ export async function applyProtectedNormalUpdate(
     await applyNormalUpdateCore(projectPath, plan, options);
     return;
   }
-  await installTrustedRuntime(projectPath, normalUpdateIdentity(plan), options.artifact, options.trustedSourceIds);
+  await prepareProtectedRuntime(projectPath, normalUpdateIdentity(plan), options);
   await applyNormalUpdateCore(projectPath, plan, options);
 }
 
 /**
- * Public/product migration boundary. Runtime execution Authority is established
- * before migration checkpoint/mutation begins. The Core lifecycle then reuses
- * the already verified exact tree as inert evidence; it cannot grant execution
- * Authority by itself.
+ * Public/product migration boundary. A fresh target Runtime first receives and
+ * consumes exact one-shot Release Authorization; Runtime execution Authority is
+ * then established before migration checkpoint/mutation begins. The Core
+ * lifecycle reuses the already verified exact tree as inert evidence.
  */
 export async function applyProtectedMigrationUpdate(
   projectPath: string,
@@ -65,6 +91,6 @@ export async function applyProtectedMigrationUpdate(
     await applyMigrationUpdateCore(projectPath, plan, options);
     return;
   }
-  await installTrustedRuntime(projectPath, migrationIdentity(plan), options.artifact, options.trustedSourceIds);
+  await prepareProtectedRuntime(projectPath, migrationIdentity(plan), options);
   await applyMigrationUpdateCore(projectPath, plan, options);
 }
