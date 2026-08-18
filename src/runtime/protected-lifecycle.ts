@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { assertReleaseAuthorized } from "../distribution/release-authorization.js";
 import { installTrustedRuntime } from "../distribution/runtime-installation.js";
 import { verifyReleaseArtifact, type ReleaseIdentity } from "../distribution/release-integrity.js";
-import { issueReleaseAuthorizationGuardianAuthority } from "../guardian/release-authorization-authority-transition.js";
+import { ensureReleaseAuthorizationGuardianAuthority } from "../guardian/release-authorization-authority-transition.js";
 import {
   applyMigrationUpdate as applyMigrationUpdateCore,
   type ApplyMigrationOptions,
@@ -53,10 +53,11 @@ async function prepareProtectedRuntime(
 ): Promise<void> {
   if (!await targetRuntimeExists(projectPath, identity)) {
     // User presence must approve the bytes Livariant actually verified, not an
-    // unverified requester-supplied identity. The exact one-shot is consumed
-    // before installTrustedRuntime reaches the low-level materialization step.
+    // unverified requester-supplied identity. If a prior exact issuance completed
+    // but consumption was interrupted, reuse only that protected active one-shot;
+    // generic Guardian duplicate issuance remains forbidden.
     await verifyReleaseArtifact(identity, options.artifact, options.trustedSourceIds);
-    await issueReleaseAuthorizationGuardianAuthority(identity, projectPath);
+    await ensureReleaseAuthorizationGuardianAuthority(identity, projectPath);
     await assertReleaseAuthorized(projectPath, identity);
   }
   await installTrustedRuntime(projectPath, identity, options.artifact, options.trustedSourceIds);
