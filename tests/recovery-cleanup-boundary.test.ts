@@ -11,7 +11,7 @@ import {
   planMigrationUpdate,
   planRecovery,
   readMigrationJournal,
-} from "../src/runtime/index.js";
+} from "../src/runtime/index-core.js";
 import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { migrationApplyOptions, migrationRelease } from "./migration-runtime-fixture.js";
 import { TEST_SOURCE_VERSION } from "./release-test-baseline.js";
