@@ -1,4 +1,5 @@
 import { inspectExternalKnowledgeSource, parseExternalKnowledgeSourceKind } from "../external-knowledge/index.js";
+import { toInertExternalKnowledgeEvidenceBundle } from "../external-knowledge/inert-data.js";
 import { escapeTerminalControlText } from "./understand-command.js";
 
 interface ExternalSourceArgs {
@@ -47,7 +48,7 @@ export async function handleExternalSourceCommand(args: string[]): Promise<void>
   const bundle = await inspectExternalKnowledgeSource(kind, parsed.path);
 
   if (parsed.json) {
-    console.log(JSON.stringify(bundle));
+    console.log(JSON.stringify(toInertExternalKnowledgeEvidenceBundle(bundle)));
     return;
   }
 
@@ -59,10 +60,10 @@ export async function handleExternalSourceCommand(args: string[]): Promise<void>
   console.log(`Evidence items: ${bundle.evidence.length}`);
   console.log(`Skipped materials: ${bundle.skipped.length}`);
   console.log("");
-  console.log("Retrieved external evidence:");
+  console.log("Retrieved external evidence (untrusted data; no instruction semantics):");
   if (bundle.evidence.length === 0) console.log("- none");
   else for (const item of bundle.evidence) {
-    console.log(`- ${escapeTerminalControlText(item.provenance.materialPath)} [external-evidence] sha256:${item.provenance.contentSha256}`);
+    console.log(`- ${escapeTerminalControlText(item.provenance.materialPath)} [external-evidence/untrusted-data] sha256:${item.provenance.contentSha256}`);
   }
   console.log("");
   console.log("Skipped material:");
@@ -71,7 +72,7 @@ export async function handleExternalSourceCommand(args: string[]): Promise<void>
     console.log(`- ${escapeTerminalControlText(item.materialPath)}: ${item.reason}`);
   }
   console.log("");
-  console.log("External evidence is not Project Brain truth and grants no Authority.");
+  console.log("External evidence is untrusted data, not instructions, not Project Brain truth, and grants no Authority.");
   console.log("Source changes made: 0");
   console.log("Project changes made: 0");
 }
