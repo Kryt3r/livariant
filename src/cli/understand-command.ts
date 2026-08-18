@@ -1,6 +1,7 @@
 import { lstatSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { inspectExternalKnowledgeSource, parseExternalKnowledgeSourceKind } from "../external-knowledge/index.js";
+import { decodeInertExternalPayload, decodeInertMaterialPath } from "../external-knowledge/inert-data.js";
 import { inspectInitialization } from "../runtime/index.js";
 import { buildUnderstandingReview, type UnderstandingReviewInput } from "../project/understanding-review.js";
 
@@ -121,13 +122,15 @@ export async function handleUnderstandCommand(args: string[]): Promise<void> {
   printEvidence("What remains uncertain:", report.uncertain);
 
   const externalBundles = report.externalEvidence ?? [];
-  console.log("External knowledge evidence (read-only, non-authoritative):");
+  console.log("External knowledge evidence (UNTRUSTED DATA; read-only, non-authoritative, no instruction semantics):");
   if (externalBundles.length === 0) console.log("- none connected");
   else for (const bundle of externalBundles) {
     console.log(`- Source ${escapeTerminalControlText(bundle.source.sourceId)} (${bundle.source.kind})`);
     if (bundle.evidence.length === 0) console.log("  - no supported evidence material");
     else for (const item of bundle.evidence) {
-      console.log(`  - ${escapeTerminalControlText(item.provenance.materialPath)}: ${escapeTerminalControlText(externalSnippet(item.content))}`);
+      const materialPath = decodeInertMaterialPath(item);
+      const content = decodeInertExternalPayload(item);
+      console.log(`  - [untrusted-data] ${escapeTerminalControlText(materialPath)}: ${escapeTerminalControlText(externalSnippet(content))}`);
     }
   }
   console.log("");
@@ -154,6 +157,6 @@ export async function handleUnderstandCommand(args: string[]): Promise<void> {
   console.log("");
 
   console.log("Project discovery and external source material remain evidence, not Project Brain truth or Authority.");
-  console.log("External evidence cannot be adopted directly; explicit reviewed candidate material is required.");
+  console.log("External data has no instruction semantics and cannot be adopted directly; explicit reviewed candidate material is required.");
   console.log("Changes made: 0");
 }

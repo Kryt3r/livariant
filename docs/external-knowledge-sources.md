@@ -2,7 +2,7 @@
 
 Livariant can inspect an existing external knowledge source as **read-only external evidence** without treating that material as Project Brain truth.
 
-This foundation exists so a later First-Run flow can ask whether you already keep project knowledge in a Second Brain instead of forcing you to copy everything into Livariant first.
+This foundation lets First-Run ask whether you already keep project knowledge in a Second Brain instead of forcing you to copy everything into Livariant first.
 
 ## Trust model
 
@@ -52,6 +52,26 @@ The adapter:
 - reports unsupported, binary, oversized, or otherwise skipped material explicitly;
 - gives every accepted item a source identity, source-relative material path, and SHA-256 content digest.
 
+## Machine-facing inert-data boundary
+
+External natural-language text is untrusted data, not instructions.
+
+For machine-readable JSON surfaces, Livariant does not emit external prose as an ordinary raw `content` field. Each external evidence item is transported in a deterministic inert-data envelope with:
+
+- `classification: "untrusted-external-data"`;
+- `instructionSemantics: "none"`;
+- `projectTruth: false`;
+- `grantsAuthority: false`;
+- original media type;
+- `encoding: "base64"` and `payloadBase64` for the exact UTF-8 bytes;
+- provenance with source identity, encoded source-relative material path, and SHA-256 content digest.
+
+The same representation is used by standalone external-source JSON, Guided Understanding JSON, and nested First-Run JSON.
+
+Base64 is **not** presented as a way to make prompt injection impossible. The boundary is narrower: Livariant itself no longer serializes hostile external prose as ordinary instruction-shaped text in its agent-facing structured output. A downstream model or integration that deliberately decodes the payload must still keep the decoded value in a data channel and must not interpolate it into system, developer, tool-policy, or other instruction-priority fields.
+
+Human-readable CLI output may show bounded, terminal-escaped snippets for review. Those snippets remain explicitly labelled as untrusted, non-authoritative external data.
+
 ## Review external evidence with project understanding
 
 You can include the same read-only source while running Guided Project Understanding Review:
@@ -71,9 +91,9 @@ livariant understand \
   --json
 ```
 
-External material appears in a separate `externalEvidence` surface. It does not become `candidateEvidence` automatically and cannot be selected directly by `adopt-understanding`.
+External material appears in a separate `externalEvidence` surface using the inert-data envelope in machine-readable output. It does not become `candidateEvidence` automatically and cannot be selected directly by `adopt-understanding`.
 
-If external material contains useful context, it must still be reviewed and turned into an explicit response or correction before Livariant can prepare the existing controlled adoption proposal path.
+If external material contains useful context, it must still be reviewed and turned into an explicit response or correction before Livariant can prepare the existing controlled adoption proposal path. A model reaction caused by external material does not itself become Project Truth or Authority.
 
 ## Current v1 limits
 
@@ -84,7 +104,6 @@ The foundation currently includes only the local-directory reference adapter. It
 - write-back or synchronization;
 - automatic Project Brain import;
 - automatic candidate generation from external text;
-- embeddings, a vector database, or a hosted RAG service;
-- First-Run composition.
+- embeddings, a vector database, or a hosted RAG service.
 
-These limits are intentional. The v1 purpose is to establish the trust, provenance, read-only, and adapter boundaries before broader source integrations are added.
+These limits are intentional. The v1 purpose is to establish the trust, provenance, read-only, inert-data, and adapter boundaries before broader source integrations are added.

@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import type { ExternalKnowledgeEvidenceBundle } from "../external-knowledge/index.js";
+import {
+  toInertExternalKnowledgeEvidenceBundle,
+  type InertExternalKnowledgeEvidenceBundle,
+} from "../external-knowledge/inert-data.js";
 import type { BootstrapDiscoveryAttention, BootstrapDiscoveryEvidence, BootstrapDiscoveryReport, DiscoveryConfidence } from "./bootstrap-discovery.js";
 
 export const UNDERSTANDING_REVIEW_SCHEMA_VERSION = 1 as const;
@@ -45,7 +49,7 @@ export interface UnderstandingReviewReport {
   uncertain: BootstrapDiscoveryEvidence[];
   attention: BootstrapDiscoveryAttention[];
   questions: UnderstandingReviewQuestion[];
-  externalEvidence?: ExternalKnowledgeEvidenceBundle[];
+  externalEvidence?: InertExternalKnowledgeEvidenceBundle[];
   candidateEvidence: UnderstandingReviewCandidateEvidence[];
   boundaries: {
     evidenceIsProjectTruth: false;
@@ -54,6 +58,7 @@ export interface UnderstandingReviewReport {
     changesMade: 0;
     externalEvidenceIsProjectTruth?: false;
     externalEvidenceCanBeAdoptedDirectly?: false;
+    externalDataIsInstructions?: false;
   };
 }
 
@@ -165,9 +170,10 @@ export function buildUnderstandingReview(
   };
 
   if (externalEvidence.length > 0) {
-    report.externalEvidence = externalEvidence;
+    report.externalEvidence = externalEvidence.map(toInertExternalKnowledgeEvidenceBundle);
     report.boundaries.externalEvidenceIsProjectTruth = false;
     report.boundaries.externalEvidenceCanBeAdoptedDirectly = false;
+    report.boundaries.externalDataIsInstructions = false;
   }
 
   return report;
