@@ -8,7 +8,8 @@ export type GuardianAuthorityConsumer =
   | "semantic-mutation"
   | "project-brain-integrity"
   | "runtime-trust"
-  | "release-authorization";
+  | "release-authorization"
+  | "lifecycle-mutation";
 
 export type GuardianAuthorityMode = "one-shot" | "persistent";
 export type GuardianAuthorityState = "active" | "consumed";
@@ -65,7 +66,8 @@ function validConsumer(value: unknown): value is GuardianAuthorityConsumer {
   return value === "semantic-mutation"
     || value === "project-brain-integrity"
     || value === "runtime-trust"
-    || value === "release-authorization";
+    || value === "release-authorization"
+    || value === "lifecycle-mutation";
 }
 
 function validMode(value: unknown): value is GuardianAuthorityMode {
