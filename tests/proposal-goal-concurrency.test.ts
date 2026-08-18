@@ -3,7 +3,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
-import { buildSemanticProposal, initializeProject, parseSemanticProposalCandidate } from "../src/runtime/index.js";
+import { initializeProject, parseSemanticProposalCandidate } from "../src/runtime/index.js";
+import { buildSemanticProposal } from "../src/runtime/semantic-proposal.js";
 
 test("goal proposal fails closed when managed state changes during construction", async () => {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-goal-concurrency-"));
