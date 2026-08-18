@@ -9,7 +9,7 @@ import {
   type LocalReleaseArtifact,
   type ReleaseIdentity,
 } from "./release-integrity.js";
-import { assertRuntimeTrusted, recordRuntimeTrust, type RuntimeTrustIdentity } from "./runtime-trust.js";
+import { assertRuntimeTrusted, establishRuntimeTrust, type RuntimeTrustIdentity } from "./runtime-trust.js";
 
 const RUNTIME_PACKAGE_NAME = "livariant";
 const MANAGED_RUNTIME_DIR = ".framework-runtime";
@@ -182,34 +182,36 @@ export async function installVerifiedRuntime(projectPath: string, identity: Rele
   const stagingRoot = resolve(root, `.staging-${randomUUID()}`);
   assertPathWithinRoot(releasesRoot, finalRoot, "Installed Runtime release path");
   assertPathWithinRoot(root, stagingRoot, "Runtime installation staging path");
+  let createdFinal = false;
 
   try {
     const existing = await lstat(finalRoot).catch((error: unknown) => isMissing(error) ? null : Promise.reject(error));
     if (existing) {
       if (!existing.isDirectory() || existing.isSymbolicLink()) throw new Error(`Existing Runtime release ${identity.version} is unsafe.`);
       const evidence = await assertReleaseEvidence(finalRoot, identity);
-      await assertRuntimeTrusted(projectPath, evidence);
+      await establishRuntimeTrust(projectPath, finalRoot, evidence);
+      await assertRuntimeTrusted(projectPath, finalRoot, evidence);
       return await attestInstalledRoot(projectPath, finalRoot, identity.version);
     }
 
-    // New candidate code may not execute until the exact artifact identity has
-    // already been authorized in independent machine-local state.
+    // The release candidate may be unpacked with lifecycle scripts disabled,
+    // but no candidate Runtime code executes until the exact final installed
+    // tree and physical installation location have protected Guardian trust.
     await assertReleaseAuthorized(projectPath, identity);
     await mkdir(stagingRoot, { recursive: false });
     npmInstall(stagingRoot, artifact.path);
     await writeReleaseEvidence(stagingRoot, identity);
-    const stagedEvidence = await assertReleaseEvidence(stagingRoot, identity);
-    await recordRuntimeTrust(projectPath, stagedEvidence);
-    await assertRuntimeTrusted(projectPath, stagedEvidence);
-    const stagedAttestation = await attestInstalledRoot(projectPath, stagingRoot, identity.version);
+    await assertReleaseEvidence(stagingRoot, identity);
     await rename(stagingRoot, finalRoot);
+    createdFinal = true;
+
     const finalEvidence = await assertReleaseEvidence(finalRoot, identity);
-    await assertRuntimeTrusted(projectPath, finalEvidence);
-    const finalAttestation = await attestInstalledRoot(projectPath, finalRoot, identity.version);
-    if (relative(stagingRoot, stagedAttestation.cliPath) === stagedAttestation.cliPath) throw new Error("Staged Runtime attestation escaped its installation root.");
-    return finalAttestation;
+    await establishRuntimeTrust(projectPath, finalRoot, finalEvidence);
+    await assertRuntimeTrusted(projectPath, finalRoot, finalEvidence);
+    return await attestInstalledRoot(projectPath, finalRoot, identity.version);
   } catch (error) {
     await rm(stagingRoot, { recursive: true, force: true });
+    if (createdFinal) await rm(finalRoot, { recursive: true, force: true });
     throw error;
   }
 }
@@ -233,7 +235,7 @@ export async function readActiveRuntimePointer(projectPath: string): Promise<Act
   assertPathWithinRoot(absoluteInstallRoot, absoluteCli, "Active Runtime CLI");
   const evidence = await readStoredReleaseEvidence(absoluteInstallRoot);
   if (evidence.version !== parsed.version) throw new Error("Active Runtime pointer version does not match installed release evidence.");
-  await assertRuntimeTrusted(projectPath, evidence);
+  await assertRuntimeTrusted(projectPath, absoluteInstallRoot, evidence);
   const attested = await attestInstalledRoot(projectPath, absoluteInstallRoot, parsed.version);
   if (resolve(attested.cliPath) !== absoluteCli) throw new Error("Active Runtime pointer does not identify the attested CLI.");
   return { version: parsed.version, installRoot: absoluteInstallRoot, cliPath: absoluteCli };
@@ -245,7 +247,7 @@ async function writeActiveRuntimePointer(projectPath: string, pointer: ActiveRun
   assertPathWithinRoot(resolve(root, "releases"), pointer.installRoot, "Runtime activation install root");
   assertPathWithinRoot(pointer.installRoot, pointer.cliPath, "Runtime activation CLI path");
   const evidence = await readStoredReleaseEvidence(pointer.installRoot);
-  await assertRuntimeTrusted(projectPath, evidence);
+  await assertRuntimeTrusted(projectPath, pointer.installRoot, evidence);
   const attested = await attestInstalledRoot(projectPath, pointer.installRoot, pointer.version);
   if (resolve(attested.cliPath) !== resolve(pointer.cliPath)) throw new Error("Runtime activation pointer does not match the attested CLI.");
   const pointerPath = activePointerPath(projectPath);
