@@ -16,7 +16,7 @@ import {
 } from "../runtime/index.js";
 import { getPreviewResumeAdapter } from "../adapters/provider-resume-adapter.js";
 import type { ResumeProviderId } from "../adapters/resume-provider.js";
-import { readActiveRuntimePointer } from "../distribution/runtime-installation.js";
+import { readTrustedActiveRuntimePointer } from "../distribution/runtime-installation.js";
 import { handleRecover, handleUpdate } from "./lifecycle.js";
 
 function printVersion(args: string[]): void {
@@ -31,7 +31,7 @@ function printVersion(args: string[]): void {
 }
 
 function commandSkipsRuntimeDelegation(command: string | undefined): boolean {
-  return command === undefined || ["help", "--help", "-h", "version"].includes(command);
+  return command === undefined || ["help", "--help", "-h", "version", "update", "recover"].includes(command);
 }
 
 function canContinueWithoutRuntimeDelegation(command: string | undefined): boolean {
@@ -43,7 +43,7 @@ async function delegateToActiveRuntime(command: string | undefined): Promise<boo
 
   let active;
   try {
-    active = await readActiveRuntimePointer(process.cwd());
+    active = await readTrustedActiveRuntimePointer(process.cwd());
   } catch (error) {
     if (canContinueWithoutRuntimeDelegation(command)) return false;
     throw error;
