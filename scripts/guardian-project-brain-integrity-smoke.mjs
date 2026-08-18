@@ -74,7 +74,7 @@ function removeProtectedRecord(destination) {
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      "$ErrorActionPreference='Stop'; Remove-Item -LiteralPath $env:LIVARIANT_TEST_RECORD_DEST -Force -ErrorAction SilentlyContinue",
+      "$ErrorActionPreference='Stop'; if (Test-Path -LiteralPath $env:LIVARIANT_TEST_RECORD_DEST) { Remove-Item -LiteralPath $env:LIVARIANT_TEST_RECORD_DEST -Force }",
     ], {
       encoding: "utf8",
       shell: false,
