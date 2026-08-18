@@ -37,6 +37,20 @@ async function integrityRequest(
   });
 }
 
+export async function findProjectBrainIntegrityGuardianAuthority(
+  identity: IntegrityIdentity,
+  projectPath: string = process.cwd(),
+) {
+  const material = await integrityRequest(identity, projectPath);
+  const record = await findMatchingActiveGuardianAuthority({
+    consumer: "project-brain-integrity",
+    mode: "persistent",
+    materialSha256: material.materialSha256,
+    projectPath,
+  });
+  return { material, record };
+}
+
 export async function issueProjectBrainIntegrityGuardianAuthority(
   identity: IntegrityIdentity,
   projectPath: string = process.cwd(),
@@ -56,13 +70,7 @@ export async function assertProjectBrainIntegrityGuardianAuthority(
   identity: IntegrityIdentity,
   projectPath: string = process.cwd(),
 ) {
-  const material = await integrityRequest(identity, projectPath);
-  const record = await findMatchingActiveGuardianAuthority({
-    consumer: "project-brain-integrity",
-    mode: "persistent",
-    materialSha256: material.materialSha256,
-    projectPath,
-  });
+  const { material, record } = await findProjectBrainIntegrityGuardianAuthority(identity, projectPath);
   if (!record) {
     throw new Error("Matching protected Guardian Project Brain Integrity Authority is missing; same-user integrity evidence is not sufficient accepted-state Authority.");
   }
