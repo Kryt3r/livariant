@@ -9,8 +9,8 @@ export async function handleAuthorizeCommand(args: string[]): Promise<void> {
   try {
     const parsed = parseProposalAuthorityArgs(args);
     json = parsed.json;
-    await requireProtectedCanonicalProject();
     const proposal = await readActionableProposalFile(parsed.inputPath);
+    await requireProtectedCanonicalProject();
     const result = await authorizeActionableProposal(proposal);
     const guardian = await issueSemanticGuardianAuthority(result.authorization.authorizationId, proposal);
     const output = {
