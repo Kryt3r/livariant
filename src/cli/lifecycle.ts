@@ -127,6 +127,36 @@ function printProtectedIntegrityAcceptanceRequired(): void {
 }
 
 async function updateLifecycleMaterial(plan: UpdatePlan | MigrationPlan): Promise<LifecycleGuardianAuthorityMaterial> {
+  const stablePlanMaterial = plan.migrationRequired
+    ? {
+        sourceVersion: plan.sourceVersion,
+        targetVersion: plan.targetVersion,
+        channel: plan.channel,
+        sourceId: plan.sourceId,
+        artifactId: plan.artifactId,
+        artifactSha256: plan.artifactSha256.toLowerCase(),
+        sourceSchema: plan.sourceSchema,
+        targetSchema: plan.targetSchema,
+        migration: plan.migration,
+        compatibility: plan.compatibility,
+        projectImpact: plan.projectImpact,
+        checkpointRequired: plan.checkpointRequired,
+        authorizationRequired: plan.authorizationRequired,
+      }
+    : {
+        sourceVersion: plan.sourceVersion,
+        targetVersion: plan.targetVersion,
+        channel: plan.channel,
+        sourceId: plan.sourceId,
+        artifactId: plan.artifactId,
+        artifactSha256: plan.artifactSha256.toLowerCase(),
+        compatibility: plan.compatibility,
+        projectImpact: plan.projectImpact,
+        checkpointRequired: plan.checkpointRequired,
+        authorizationRequired: plan.authorizationRequired,
+        effects: plan.effects,
+      };
+
   return buildLifecycleGuardianAuthorityRequest({
     operation: plan.migrationRequired ? "migration-update" : "normal-update",
     physicalProjectRoot: await realpath(process.cwd()),
@@ -137,7 +167,7 @@ async function updateLifecycleMaterial(plan: UpdatePlan | MigrationPlan): Promis
       { label: "release-source-id", value: plan.sourceId },
       { label: "artifact-id", value: plan.artifactId },
       { label: "artifact-sha256", value: plan.artifactSha256.toLowerCase() },
-      { label: "plan-sha256", value: lifecycleMaterialSha256(plan) },
+      { label: "plan-sha256", value: lifecycleMaterialSha256(stablePlanMaterial) },
       ...(plan.migrationRequired ? [
         { label: "source-schema", value: String(plan.sourceSchema) },
         { label: "target-schema", value: String(plan.targetSchema) },
