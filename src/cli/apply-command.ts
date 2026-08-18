@@ -46,9 +46,9 @@ export async function handleApplyCommand(args: string[]): Promise<void> {
     const parsed = parseSemanticApplyArgs(args);
     json = parsed.json;
     authorizationId = parsed.authorizationId;
-    await requireProtectedCanonicalProject();
     const proposal = await readActionableProposalFile(parsed.inputPath);
     actionableProposalParsed = true;
+    await requireProtectedCanonicalProject();
     const result = await applyActionableProposal(parsed.authorizationId, proposal);
     if (json) {
       console.log(JSON.stringify({
