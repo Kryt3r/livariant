@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
@@ -50,6 +51,16 @@ function providerReturnTaskDigest(task) {
   return hash.digest("hex");
 }
 
+function assertProtectedBlocked(output, label) {
+  if (output.state !== "blocked" || output.semanticChangesMade !== 0) {
+    throw new Error(`${label} did not fail closed without protected Project Brain truth:\n${JSON.stringify(output)}`);
+  }
+  const text = JSON.stringify(output);
+  if (!/protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i.test(text)) {
+    throw new Error(`${label} did not explain the protected integrity requirement:\n${JSON.stringify(output)}`);
+  }
+}
+
 try {
   const packDir = resolve(temp, "pack");
   const installDir = resolve(temp, "install");
@@ -77,6 +88,9 @@ try {
     "dist/src/runtime/semantic-maintenance.js",
     "dist/src/runtime/provider-return.js",
     "dist/src/runtime/provider-context-copy-validation.js",
+    "dist/src/runtime/protected-context.js",
+    "dist/src/runtime/protected-provider-context.js",
+    "dist/src/runtime/protected-resume.js",
     "dist/src/lifecycle/update.js",
     "dist/src/lifecycle/recovery.js",
     "dist/src/distribution/release-integrity.js",
@@ -103,7 +117,8 @@ try {
   runNpm(["init", "-y"], { cwd: installDir });
   runNpm(["install", "--ignore-scripts", tarball], { cwd: installDir });
 
-  const cliPath = resolve(installDir, "node_modules", "livariant", "dist", "src", "cli", "index.js");
+  const packageRoot = resolve(installDir, "node_modules", "livariant");
+  const cliPath = resolve(packageRoot, "dist", "src", "cli", "index.js");
   const cli = run(process.execPath, [cliPath, "version"], { cwd: installDir });
   if (!cli.stdout.includes(`Livariant framework version: ${expectedVersion}`)) {
     throw new Error(`Installed CLI returned unexpected version output:\n${cli.stdout}`);
@@ -123,12 +138,12 @@ try {
     domain: "project-goal",
     changeKind: "add",
     proposedStatement: "Installed package maintenance smoke",
-    rationale: "Verify packaged WP-010 orchestration without mutation",
+    rationale: "Verify packaged orchestration remains blocked before protected integrity acceptance",
     origin: "explicit-user",
   }, null, 2)}\n`, "utf8");
   const maintain = run(process.execPath, [cliPath, "maintain", "--input", maintenanceCandidate, "--json"], {
     cwd: installDir,
-    expectedStatus: 3,
+    expectedStatus: 2,
   });
   let maintainOutput;
   try {
@@ -136,45 +151,53 @@ try {
   } catch {
     throw new Error(`Installed maintain CLI did not return valid JSON:\n${maintain.stdout}`);
   }
-  if (maintainOutput.state !== "authorization-required" || maintainOutput.semanticChangesMade !== 0 || maintainOutput.authorizationRequired !== true) {
-    throw new Error(`Installed maintain CLI returned unexpected non-mutating orchestration state:\n${maintain.stdout}`);
-  }
+  assertProtectedBlocked(maintainOutput, "Installed maintain CLI");
   const goalsAfterMaintain = await readFile(resolve(installDir, ".project-brain", "goals.md"), "utf8");
   if (goalsAfterMaintain.includes("Installed package maintenance smoke")) {
-    throw new Error("Installed maintain CLI mutated Project Brain before separate authorization");
+    throw new Error("Installed maintain CLI mutated Project Brain before protected integrity acceptance");
   }
 
   const providerTaskPath = resolve(installDir, "provider-task.txt");
   await writeFile(providerTaskPath, "Review installed provider return smoke\n", "utf8");
   const providerContextResult = run(process.execPath, [cliPath, "provider-context", "--provider", "codex", "--task", providerTaskPath, "--json"], {
     cwd: installDir,
+    expectedStatus: 3,
   });
-  let providerContext;
+  let protectedProviderContext;
   try {
-    providerContext = JSON.parse(providerContextResult.stdout.trim());
+    protectedProviderContext = JSON.parse(providerContextResult.stdout.trim());
   } catch {
     throw new Error(`Installed provider-context CLI did not return valid JSON:\n${providerContextResult.stdout}`);
   }
-  if (providerContext.state !== "ready" || providerContext.mutationAuthorization !== false || providerContext.changesMade !== 0) {
-    throw new Error(`Installed provider-context CLI returned unexpected packet state:\n${providerContextResult.stdout}`);
+  if (protectedProviderContext.state !== "blocked" || protectedProviderContext.safetyState !== "blocked" || protectedProviderContext.changesMade !== 0) {
+    throw new Error(`Installed provider-context CLI did not fail closed before protected integrity acceptance:\n${providerContextResult.stdout}`);
   }
 
+  // Build a structurally valid local-only context through the installed low-level module
+  // so the packaged Provider Return CLI is exercised at the protected current-project gate.
+  const providerContextModulePath = resolve(packageRoot, "dist", "src", "runtime", "provider-context.js");
+  const { buildProviderContext } = await import(pathToFileURL(providerContextModulePath).href);
+  const localOnlyContext = await buildProviderContext("codex", "Check whether durable truth changed", installDir);
+  if (localOnlyContext.state !== "ready") {
+    throw new Error(`Installed low-level Provider Context fixture was not structurally ready:\n${JSON.stringify(localOnlyContext)}`);
+  }
   const providerContextPath = resolve(installDir, "provider-context.json");
-  await writeFile(providerContextPath, `${JSON.stringify(providerContext, null, 2)}\n`, "utf8");
+  await writeFile(providerContextPath, `${JSON.stringify(localOnlyContext, null, 2)}\n`, "utf8");
   const providerReturnPath = resolve(installDir, "provider-return.json");
   await writeFile(providerReturnPath, `${JSON.stringify({
     schemaVersion: 1,
     packetVersion: 1,
-    provider: providerContext.provider,
-    contextPacketId: providerContext.packetId,
-    stableProjectIdentity: providerContext.stableProjectIdentity,
-    baselineDigest: providerContext.baseline.digest,
-    taskDigest: providerReturnTaskDigest(providerContext.task.value),
+    provider: localOnlyContext.provider,
+    contextPacketId: localOnlyContext.packetId,
+    stableProjectIdentity: localOnlyContext.stableProjectIdentity,
+    baselineDigest: localOnlyContext.baseline.digest,
+    taskDigest: providerReturnTaskDigest(localOnlyContext.task.value),
     candidate: null,
   }, null, 2)}\n`, "utf8");
 
   const providerReturnResult = run(process.execPath, [cliPath, "provider-return", "--context", providerContextPath, "--input", providerReturnPath, "--json"], {
     cwd: installDir,
+    expectedStatus: 2,
   });
   let providerReturnOutput;
   try {
@@ -182,22 +205,18 @@ try {
   } catch {
     throw new Error(`Installed provider-return CLI did not return valid JSON:\n${providerReturnResult.stdout}`);
   }
-  if (providerReturnOutput.state !== "no-candidate" || providerReturnOutput.semanticChangesMade !== 0 || providerReturnOutput.mutationAuthorization !== false) {
-    throw new Error(`Installed provider-return CLI returned unexpected non-mutating intake state:\n${providerReturnResult.stdout}`);
+  assertProtectedBlocked(providerReturnOutput, "Installed provider-return CLI");
+  if (providerReturnOutput.phase !== "current-project") {
+    throw new Error(`Installed provider-return CLI blocked at an unexpected phase:\n${providerReturnResult.stdout}`);
   }
 
   const resume = run(process.execPath, [cliPath, "resume", "--provider", "codex"], {
     cwd: installDir,
     env: { LIVARIANT_PROVIDER_ENV: "codex" },
+    expectedStatus: 1,
   });
-  if (!/livariant\.codex\.resume@0\.1\.0-preview/.test(resume.stdout)) {
-    throw new Error(`Installed CLI did not invoke the expected Codex Preview adapter:\n${resume.stdout}`);
-  }
-  if (!/Compatibility: compatible/.test(resume.stdout) || !/Codex Resume Projection/.test(resume.stdout)) {
-    throw new Error(`Installed CLI did not produce compatible Codex resume handoff evidence:\n${resume.stdout}`);
-  }
-  if (!/Execution authority granted: false/.test(resume.stdout) || !/Durable instruction mutation: false/.test(resume.stdout)) {
-    throw new Error("Provider adapter must not convert environment detection into mutation or execution authority");
+  if (!/requires exact protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i.test(`${resume.stdout}\n${resume.stderr}`)) {
+    throw new Error(`Installed resume CLI did not fail closed before protected integrity acceptance:\n${resume.stdout}\n${resume.stderr}`);
   }
 
   const emptyManifest = resolve(installDir, "empty-release-manifest.json");
@@ -211,12 +230,12 @@ try {
     throw new Error(`Installed CLI did not expose read-only recovery inspection:\n${recover.stdout}`);
   }
 
-  const installedPackage = JSON.parse(await readFile(resolve(installDir, "node_modules", "livariant", "package.json"), "utf8"));
+  const installedPackage = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
   if (installedPackage.name !== "livariant" || installedPackage.version !== expectedVersion || installedPackage.bin?.livariant !== "./dist/src/cli/index.js") {
     throw new Error("Installed package does not expose the expected Livariant package and CLI identity");
   }
 
-  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed, globally installed from the release tarball, project-locally installed for packaging compatibility, initialized, verified non-mutating installed semantic maintenance and provider-return intake, exposed update/recovery inspection, and produced a capability-bounded provider resume handoff.`);
+  console.log(`Package smoke test passed for Livariant ${expectedVersion}: packed and globally/project-locally installed from the release tarball, initialized a Project Brain, verified protected-integrity fail-closed behavior for installed maintain/provider-context/provider-return/resume surfaces before Guardian acceptance, and exposed read-only update/recovery inspection.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
