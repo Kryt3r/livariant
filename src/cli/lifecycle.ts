@@ -26,6 +26,16 @@ import {
   issueLifecycleGuardianAuthority,
 } from "../guardian/lifecycle-authority-transition.js";
 
+function guardDirectLegacyInitEntrypoint(): void {
+  const entrypoint = process.argv[1] ?? "";
+  const invokedLegacyMainDirectly = /(?:^|[\\/])legacy-main\.(?:js|ts)$/u.test(entrypoint);
+  if (invokedLegacyMainDirectly && process.argv[2] === "init") {
+    throw new Error("Direct legacy init entrypoint is retired; use canonical 'livariant init' with plan -> --authorize -> --apply.");
+  }
+}
+
+guardDirectLegacyInitEntrypoint();
+
 function optionValues(args: string[], name: string): string[] {
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
