@@ -71,10 +71,10 @@ Livariant sitzt zwischen KI-gestützter Entwicklung und dem dauerhaften Zustand 
 
 Es ist um vier praktische Verantwortungsbereiche herum aufgebaut:
 
-- **Wahrheit** — projekt-eigene Ziele, Entscheidungen, Wissen, Provenienz und aktuellen Kontext bewahren, statt sich auf einen einzelnen Chat oder Provider-Memory zu verlassen.
-- **Authority** — technische Fähigkeit davon trennen, ob ein Vorschlag tatsächlich zu einer folgenreichen Projektänderung werden darf.
-- **Verifikation** — Completion-, Integritäts-, Lifecycle- und Änderungsclaims auf Evidenz statt auf Agenten-Selbstvertrauen stützen.
-- **Recovery** — verhindern, dass Updates, Migrationen, Runtime-Aktivierung oder unterbrochene Operationen das Projekt still in einem unklaren Zustand zurücklassen.
+- **Wahrheit** - projekt-eigene Ziele, Entscheidungen, Wissen, Provenienz und aktuellen Kontext bewahren, statt sich auf einen einzelnen Chat oder Provider-Memory zu verlassen.
+- **Authority** - technische Fähigkeit davon trennen, ob ein Vorschlag tatsächlich zu einer folgenreichen Projektänderung werden darf.
+- **Verifikation** - Completion-, Integritäts-, Lifecycle- und Änderungsclaims auf Evidenz statt auf Agenten-Selbstvertrauen stützen.
+- **Recovery** - verhindern, dass Updates, Migrationen, Runtime-Aktivierung oder unterbrochene Operationen das Projekt still in einem unklaren Zustand zurücklassen.
 
 Der unterstützte semantische Flow auf dem aktuellen `main` umfasst außerdem Konflikt-/Drift-Bewertung, Provider-Return-Intake als nicht vertrauenswürdige Evidenz, proposal-gebundene Autorisierung, kontrollierte Semantic-Apply-Pfade, geführtes Projektverständnis, MCP-Grundlagen, External-Knowledge-Source-Grundlagen, First-Run-Komposition und Autonomy Profiles.
 
@@ -337,12 +337,12 @@ Mehr unter [Updates, Migrationen & Wiederherstellung](docs/de/lifecycle-guide.md
 
 Livariants langfristige Richtung ist nicht einfach "mehr Kontext speichern". Die Architektur entwickelt sich um sechs miteinander verbundene Säulen:
 
-- **Memory** — validierte Projekterfahrung über Agenten und Sessions hinweg bewahren.
-- **Epistemics** — wissen, warum das Projekt etwas glaubt, woher es stammt und ob es aktuell, abgeleitet, stale oder umstritten ist.
-- **Relationships** — relevante Abhängigkeiten zwischen Entscheidungen, Requirements, Komponenten, Evidenz und Änderungen darstellen.
-- **Governance** — Fähigkeit, Authority, Risiko und irreversible Aktionen getrennt halten.
-- **Verification** — Completion- und Safety-Claims auf Evidenz statt Agenten-Selbstvertrauen stützen.
-- **Learning** — validierte Fehler in dauerhaftes Projektwissen und Regression-Schutz verwandeln.
+- **Memory** - validierte Projekterfahrung über Agenten und Sessions hinweg bewahren.
+- **Epistemics** - wissen, warum das Projekt etwas glaubt, woher es stammt und ob es aktuell, abgeleitet, stale oder umstritten ist.
+- **Relationships** - relevante Abhängigkeiten zwischen Entscheidungen, Requirements, Komponenten, Evidenz und Änderungen darstellen.
+- **Governance** - Fähigkeit, Authority, Risiko und irreversible Aktionen getrennt halten.
+- **Verification** - Completion- und Safety-Claims auf Evidenz statt Agenten-Selbstvertrauen stützen.
+- **Learning** - validierte Fehler in dauerhaftes Projektwissen und Regression-Schutz verwandeln.
 
 Künftige Funktionen wie tiefere External-Knowledge-Integration, graphgestütztes Retrieval, Context-Budget-Optimierung, Change-Impact-Analyse, risk-adaptive Autonomy und Multi-Agent-Koordination sollen erst dann auf diesen Fundamenten aufbauen, wenn ihre Voraussetzungen und ein realer Produktbedarf gegeben sind.
 
