@@ -53,7 +53,8 @@ jobs:
             /var/lib/livariant-guardian \
             /var/lib/livariant-guardian/v1 \
             /var/lib/livariant-guardian/v1/records \
-            /var/lib/livariant-guardian/v1/records/runtime-trust
+            /var/lib/livariant-guardian/v1/records/runtime-trust \
+            /var/lib/livariant-guardian/v1/records/release-authorization
           sudo install -o root -g root -m 0555 "$staging/guardian-helper.js" /var/lib/livariant-guardian/v1/guardian-helper.js
           sudo install -o root -g root -m 0444 "$staging/guardian-root.json" /var/lib/livariant-guardian/v1/guardian-root.json
 
@@ -67,14 +68,15 @@ jobs:
           $guardian = 'C:\ProgramData\Livariant\Guardian'
           $root = 'C:\ProgramData\Livariant\Guardian\v1'
           $records = Join-Path $root 'records'
-          $consumer = Join-Path $records 'runtime-trust'
+          $runtimeConsumer = Join-Path $records 'runtime-trust'
+          $releaseConsumer = Join-Path $records 'release-authorization'
 
           Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $staging -Force | Out-Null
           node scripts/build-guardian-protected-fixture.mjs $staging
 
           Remove-Item -LiteralPath $livariant -Recurse -Force -ErrorAction SilentlyContinue
-          foreach ($directory in @($livariant, $guardian, $root, $records, $consumer)) {
+          foreach ($directory in @($livariant, $guardian, $root, $records, $runtimeConsumer, $releaseConsumer)) {
             New-Item -ItemType Directory -Path $directory -Force | Out-Null
           }
 
@@ -105,7 +107,7 @@ jobs:
             [System.IO.File]::SetAccessControl($path, $acl)
           }
 
-          foreach ($directory in @($livariant, $guardian, $root, $records, $consumer)) {
+          foreach ($directory in @($livariant, $guardian, $root, $records, $runtimeConsumer, $releaseConsumer)) {
             Set-ProtectedDirectory $directory
           }
 
