@@ -6,6 +6,7 @@ import { tmpdir, userInfo } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { initializeProject } from "../src/runtime/index.js";
 
 interface FixtureIdentity {
   version: string;
@@ -103,10 +104,11 @@ function runCli(projectPath: string, trustRoot: string, command: string, args: s
   });
 }
 
-async function initializeFixture(projectPath: string, trustRoot: string): Promise<void> {
+async function initializeFixture(projectPath: string, _trustRoot: string): Promise<void> {
   await writeFile(resolve(projectPath, "package.json"), `${JSON.stringify({ name: "fixture-project", private: true }, null, 2)}\n`, "utf8");
-  const initialized = runCli(projectPath, trustRoot, "init", ["--apply"]);
-  assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+  // Internal fixture setup deliberately uses the existing core seam; the public
+  // lifecycle CLI no longer accepts bare --apply as initialization Authority.
+  await initializeProject(projectPath, { authorized: true });
 }
 
 async function pinHostileVersion(projectPath: string, identity: FixtureIdentity): Promise<void> {
