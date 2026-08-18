@@ -68,7 +68,7 @@ function removeProtectedFile(destination) {
     "-NoProfile",
     "-NonInteractive",
     "-Command",
-    "$ErrorActionPreference='Stop'; Remove-Item -LiteralPath $env:LIVARIANT_DEST -Force -ErrorAction SilentlyContinue",
+    "$ErrorActionPreference='Stop'; if (Test-Path -LiteralPath $env:LIVARIANT_DEST) { Remove-Item -LiteralPath $env:LIVARIANT_DEST -Force }",
   ], {
     encoding: "utf8",
     shell: false,
@@ -139,7 +139,6 @@ try {
   const exact = buildReleaseAuthorizationGuardianRequest(exactMaterial);
   legacyPath = await writeLegacyEvidence(exactMaterial.artifactSha256);
 
-  // Exact protected active one-shot is discoverable under the C-04 namespace.
   const exactRecord = activeRecord(exact.materialSha256);
   await stageRecord(staging, exactRecord);
   const matched = await findMatchingActiveGuardianAuthority({
@@ -150,7 +149,6 @@ try {
   });
   assert.equal(matched?.recordId, EXACT_ID);
 
-  // Every consequential candidate dimension participates in exact material.
   const substitutions = [
     { version: "9.9.10-c04-acceptance" },
     { channel: "stable" },
@@ -170,8 +168,6 @@ try {
     }), null);
   }
 
-  // Simulate the protected Guardian completing the one-shot transition externally.
-  // Product CI does not bypass the real interactive sudo/UAC boundary.
   const consumedAt = new Date(Date.parse(exactRecord.issuedAt) + 1000).toISOString();
   const consumedRecord = consumeGuardianAuthorityRecord(exactRecord, consumedAt);
   await stageRecord(staging, consumedRecord, ".consumed");
@@ -190,7 +186,6 @@ try {
   assert.equal(consumed?.recordId, EXACT_ID);
   assert.equal(consumed?.state, "consumed");
 
-  // Replay is impossible because the consumed one-shot is no longer active.
   assert.equal(await findMatchingActiveGuardianAuthority({
     consumer: "release-authorization",
     mode: "one-shot",
@@ -198,7 +193,6 @@ try {
     projectPath: project,
   }), null);
 
-  // Expired one-shots are ignored as active Authority.
   removeProtectedFile(recordPath(EXACT_ID));
   const expiredIssued = new Date(Date.now() - 20 * 60 * 1000);
   const expired = buildGuardianAuthorityRecord({
@@ -218,7 +212,6 @@ try {
   }), null);
   removeProtectedFile(recordPath(EXPIRED_ID));
 
-  // Two active exact records are ambiguous and fail closed.
   await stageRecord(staging, activeRecord(exact.materialSha256, EXACT_ID));
   await stageRecord(staging, activeRecord(exact.materialSha256, DUPLICATE_ID));
   await assert.rejects(
@@ -233,7 +226,6 @@ try {
   removeProtectedFile(recordPath(EXACT_ID));
   removeProtectedFile(recordPath(DUPLICATE_ID));
 
-  // Malformed protected state is not ignored in favor of same-user legacy evidence.
   await stageMalformed(staging);
   await assert.rejects(
     () => findMatchingActiveGuardianAuthority({
@@ -246,7 +238,6 @@ try {
   );
   removeProtectedFile(recordPath(MALFORMED_ID));
 
-  // Cross-consumer state stored in the C-04 namespace is rejected.
   const wrongConsumer = buildGuardianAuthorityRecord({
     consumer: "runtime-trust",
     mode: "persistent",
@@ -265,7 +256,6 @@ try {
   );
   removeProtectedFile(recordPath(WRONG_CONSUMER_ID));
 
-  // With no protected C-04 record, the forged same-user legacy file is irrelevant.
   assert.equal(await findMatchingActiveGuardianAuthority({
     consumer: "release-authorization",
     mode: "one-shot",
