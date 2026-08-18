@@ -43,7 +43,7 @@ function renderHelp(): void {
   console.log("  resume [--provider claude-code|codex]");
   console.log("  context [--json]");
   console.log("  propose --input <candidate.json> [--json]");
-  console.log("  init [--apply]");
+  console.log("  init [--authorize | --apply]");
   console.log("  integrity inspect [--json]");
   console.log("  integrity accept-current  # interactive local bootstrap only");
   console.log("  guardian status [--json]  # read-only protected-root diagnostics");
@@ -52,8 +52,8 @@ function renderHelp(): void {
   console.log("  knowledge [list] | knowledge add <fact>  # plan only");
   console.log("  decisions [list] | decisions add <decision>  # plan only");
   console.log("  decisions supersede <id> <replacement> [--reason <reason>]  # plan only");
-  console.log("  update --manifest <release-manifest.json> [--apply --artifact <runtime.tgz> --trusted-source <source-id>]");
-  console.log("  recover [--apply]");
+  console.log("  update --manifest <release-manifest.json> [--authorize | --apply --artifact <runtime.tgz> --trusted-source <source-id>]");
+  console.log("  recover [--authorize | --apply]");
   console.log("  first-run [--language <preferred-language>] [--autonomy-profile <ask-always|ask-important|continue-without-confirmation>] [--acknowledge-autonomy-risk] [--external-source-type <local-directory> --external-source <source-path>] [--provider <claude-code|codex>] [--json]");
   console.log("  autonomy show [--json]");
   console.log("  autonomy set --profile <ask-always|ask-important|continue-without-confirmation> [--acknowledge-risk] [--json]");
@@ -73,6 +73,7 @@ function renderHelp(): void {
   console.log("");
   console.log("Legacy goals/knowledge/decisions commands are list/plan surfaces only; their --apply mutation path is retired.");
   console.log("Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
+  console.log("Lifecycle mutation uses plan -> --authorize -> --apply; --apply alone is never lifecycle Authority.");
   console.log("Project Brain integrity checkpoints detect unaccepted managed-byte drift but are not same-user Agent-resistant Authority.");
   console.log("Guardian foundation bootstrap establishes only an OS-protected trust seam; it does not itself issue Authority.");
 }
@@ -90,7 +91,7 @@ async function entry(): Promise<void> {
     process.exitCode = 3;
     return;
   }
-  if (command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "init" && command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     await import("./legacy-main.js");
     return;
   }
@@ -105,6 +106,11 @@ async function entry(): Promise<void> {
   }
 
   if (await delegateToActiveRuntime()) return;
+  if (command === "init") {
+    const { handleInitCommand } = await import("./init-command.js");
+    await handleInitCommand(process.argv.slice(3));
+    return;
+  }
   if (command === "first-run") {
     const { handleFirstRunCommand } = await import("./first-run-command.js");
     await handleFirstRunCommand(process.argv.slice(3));
