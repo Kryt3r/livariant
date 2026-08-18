@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { addConfirmedGoal, addConfirmedKnowledge, initializeProject, recordAcceptedDecision } from "../src/runtime/index.js";
+import { addConfirmedGoal, addConfirmedKnowledge, initializeProject, recordAcceptedDecision } from "../src/runtime/index-core.js";
 import { isStableProjectIdentity } from "../src/project-brain/identity.js";
 import { buildProviderContext, PROVIDER_CONTEXT_TASK_MAX_BYTES } from "../src/runtime/provider-context.js";
 import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
@@ -144,28 +144,27 @@ test("provider context fails closed when managed Project Brain changes during co
   });
 });
 
-test("human and JSON CLI outputs remain read-only and render task control characters inert", async () => {
+test("provider-context CLI refuses local-only Project Brain truth and keeps task controls inert", async () => {
   await withProject(async (path) => {
     const taskPath = resolve(path, "task.txt");
     await writeFile(taskPath, "Line one\nLine two\u001b[31m", "utf8");
     const before = await captureManaged(path);
 
     const human = runCli(path, ["provider-context", "--provider", "claude-code", "--task", taskPath]);
-    assert.equal(human.status, 0, human.stderr);
+    assert.equal(human.status, 3, human.stderr);
     assert.match(human.stdout, /Provider context/);
-    assert.match(human.stdout, /Task authority: session-ephemeral/);
-    assert.match(human.stdout, /Mutation authorization: false/);
+    assert.match(human.stdout, /State: blocked/);
+    assert.match(human.stdout, /project-brain-integrity|protected Guardian|Canonical Project Truth/i);
     assert.match(human.stdout, /Changes made: 0/);
     assert.equal(human.stdout.includes("\u001b[31m"), false);
-    assert.match(human.stdout, /\\u001b\[31m/);
 
     const json = runCli(path, ["provider-context", "--provider", "codex", "--task", taskPath, "--json"]);
-    assert.equal(json.status, 0, json.stderr);
-    const parsed = JSON.parse(json.stdout) as { state: string; provider: string; stableProjectIdentity: unknown; task: { authorityClass: string }; changesMade: number };
-    assert.equal(parsed.state, "ready");
+    assert.equal(json.status, 3, json.stderr);
+    const parsed = JSON.parse(json.stdout) as { state: string; provider: string; task: null; evidence: null; changesMade: number };
+    assert.equal(parsed.state, "blocked");
     assert.equal(parsed.provider, "codex");
-    assert.ok(isStableProjectIdentity(parsed.stableProjectIdentity));
-    assert.equal(parsed.task.authorityClass, "session-ephemeral");
+    assert.equal(parsed.task, null);
+    assert.equal(parsed.evidence, null);
     assert.equal(parsed.changesMade, 0);
 
     for (const name of managedFiles) assert.deepEqual(await readFile(resolve(path, ".project-brain", name)), before.get(name));
