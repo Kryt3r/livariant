@@ -60,7 +60,7 @@ function canonicalBase64(value: string): string {
 }
 
 function assertCanonicalBase64(value: string, label: string): Buffer {
-  if (typeof value !== "string" || value.length === 0 || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/u.test(value)) {
+  if (typeof value !== "string" || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(value)) {
     throw new Error(`${label} is not canonical base64.`);
   }
   const bytes = Buffer.from(value, "base64");
