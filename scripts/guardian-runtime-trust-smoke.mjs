@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { dirname, relative, resolve } from "node:path";
+import { assertReleaseAuthorized } from "../dist/src/distribution/release-authorization.js";
 import { buildGuardianAuthorityRecord } from "../dist/src/guardian/authority-record.js";
 import { buildReleaseAuthorizationGuardianRequest } from "../dist/src/guardian/release-authorization-authority.js";
 import { buildRuntimeTrustGuardianRequest } from "../dist/src/guardian/runtime-trust-authority.js";
@@ -154,10 +155,13 @@ async function stageReleaseAuthorization(project, identity, staging) {
     ...identity,
     physicalProjectRoot: await realpath(project),
   });
+  const issuedAt = new Date();
   const record = buildGuardianAuthorityRecord({
     consumer: "release-authorization",
     mode: "one-shot",
     materialSha256: material.materialSha256,
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: new Date(issuedAt.getTime() + 5 * 60 * 1000).toISOString(),
     recordId: RELEASE_RECORD_ID,
   });
   const source = resolve(staging, `${RELEASE_RECORD_ID}.release.json`);
@@ -238,9 +242,10 @@ try {
   const releaseAuthority = await stageReleaseAuthorization(project, identity, staging);
   assert.equal(releaseAuthority.record.consumer, "release-authorization");
   assert.equal(releaseAuthority.record.mode, "one-shot");
+  await assertReleaseAuthorized(project, identity);
 
   // Preparation may install and inspect exact bytes, but must not execute them.
-  // Fresh installation consumes the protected C-04 one-shot before materialization.
+  // The protected C-04 one-shot was consumed before materialization.
   const prepared = await installVerifiedRuntime(project, identity, artifact, trustedSources);
   assert.equal(await markerCount(markerPath), 0);
   await activateInstalledRuntime(project, prepared);
@@ -329,7 +334,7 @@ try {
   await assert.rejects(() => readTrustedActiveRuntimePointer(project), /wrong consumer namespace/i);
   removeProtectedRecord(protectedRecordPath(WRONG_CONSUMER_RECORD_ID));
 
-  console.log("Protected Runtime Trust acceptance passed: protected C-04 one-shot authorized fresh preparation; preparation stayed non-executable; exact protected C-03 Runtime trust enabled attestation/execution; package-tree drift, physical project/location substitution, duplicate Authority, Guardian removal with forged legacy trust, malformed protected state, and cross-consumer confusion all failed closed.");
+  console.log("Protected Runtime Trust acceptance passed: protected C-04 one-shot was consumed before fresh preparation; preparation stayed non-executable; exact protected C-03 Runtime trust enabled attestation/execution; package-tree drift, physical project/location substitution, duplicate Authority, Guardian removal with forged legacy trust, malformed protected state, and cross-consumer confusion all failed closed.");
 } finally {
   for (const recordId of [EXACT_RECORD_ID, DUPLICATE_RECORD_ID, MALFORMED_RECORD_ID, WRONG_CONSUMER_RECORD_ID]) {
     removeProtectedRecord(protectedRecordPath(recordId));
