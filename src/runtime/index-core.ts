@@ -208,7 +208,7 @@ export async function getStatus(projectPath: string = process.cwd()): Promise<St
           : brain.health !== "valid" && brain.health !== "not-found"
             ? brain.reason
             : activatedRuntimeVersion && activatedRuntimeVersion !== FRAMEWORK_VERSION
-              ? `Runtime ${activatedRuntimeVersion} is activated; a new CLI invocation will execute it.`
+              ? `Runtime ${activatedRuntimeVersion} is selected by project state; protected Guardian Runtime trust is still required before delegation.`
               : undefined;
 
   return {
