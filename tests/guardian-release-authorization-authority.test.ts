@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import test from "node:test";
 import { guardianAuthorityMaterialDigest } from "../src/guardian/authority-record.js";
 import { buildReleaseAuthorizationGuardianRequest } from "../src/guardian/release-authorization-authority.js";
@@ -12,19 +13,20 @@ function material() {
     sourceId: "fixture-source",
     artifactId: "livariant-1.2.3.tgz",
     artifactSha256: "1".repeat(64),
+    physicalProjectRoot: resolve(process.cwd(), "fixture-project"),
   };
 }
 
-test("C-04 Guardian release authorization is persistent and consumer-domain separated", () => {
+test("C-04 Guardian release authorization is one-shot and consumer-domain separated", () => {
   const built = buildReleaseAuthorizationGuardianRequest(material());
   assert.equal(built.request.consumer, "release-authorization");
-  assert.equal(built.request.mode, "persistent");
+  assert.equal(built.request.mode, "one-shot");
   assert.equal(built.materialSha256, guardianAuthorityMaterialDigest("release-authorization", built.request.materialFields));
   assert.notEqual(built.materialSha256, guardianAuthorityMaterialDigest("runtime-trust", built.request.materialFields));
   assert.notEqual(built.materialSha256, guardianAuthorityMaterialDigest("project-brain-integrity", built.request.materialFields));
 });
 
-test("C-04 Guardian release authorization binds exact release and artifact identity", () => {
+test("C-04 Guardian release authorization binds exact candidate and target project identity", () => {
   const base = material();
   const original = buildReleaseAuthorizationGuardianRequest(base).materialSha256;
   const variants = [
@@ -33,17 +35,22 @@ test("C-04 Guardian release authorization binds exact release and artifact ident
     { ...base, sourceId: "other-source" },
     { ...base, artifactId: "other-artifact.tgz" },
     { ...base, artifactSha256: "2".repeat(64) },
+    { ...base, physicalProjectRoot: resolve(process.cwd(), "other-project") },
   ];
   for (const variant of variants) {
     assert.notEqual(buildReleaseAuthorizationGuardianRequest(variant).materialSha256, original);
   }
 });
 
-test("C-04 Guardian release authorization refuses malformed digest and unsafe identity framing", () => {
+test("C-04 Guardian release authorization refuses malformed digest, project path, and unsafe identity framing", () => {
   const base = material();
   assert.throws(
     () => buildReleaseAuthorizationGuardianRequest({ ...base, artifactSha256: "bad" }),
     /SHA-256 digest/i,
+  );
+  assert.throws(
+    () => buildReleaseAuthorizationGuardianRequest({ ...base, physicalProjectRoot: "relative/project" }),
+    /absolute physical path/i,
   );
   assert.throws(
     () => buildReleaseAuthorizationGuardianRequest({ ...base, artifactId: "bad\nartifact" }),
