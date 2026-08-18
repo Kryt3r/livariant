@@ -80,7 +80,7 @@ async function buildHostileRuntime(projectPath: string, markerPath: string): Pro
   return identity;
 }
 
-async function writeTrustRecord(root: string, identity: FixtureIdentity): Promise<void> {
+async function writeLegacyTrustRecord(root: string, identity: FixtureIdentity): Promise<void> {
   await mkdir(root, { recursive: true });
   const key = createHash("sha256").update([
     identity.version,
@@ -116,7 +116,7 @@ async function pinHostileVersion(projectPath: string, identity: FixtureIdentity)
   await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
 }
 
-test("LIVARIANT_TRUST_ROOT cannot redirect machine trust into project-controlled paths", async () => {
+test("LIVARIANT_TRUST_ROOT and project-controlled legacy trust files are irrelevant to hard Runtime execution Authority", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "livariant-hostile-workspace-"));
   const projectPath = resolve(workspace, "packages", "victim");
   const safeTrustRoot = machineTestTrustRoot("boundary");
@@ -128,27 +128,19 @@ test("LIVARIANT_TRUST_ROOT cannot redirect machine trust into project-controlled
     await pinHostileVersion(projectPath, identity);
 
     const localTrustRoot = resolve(projectPath, ".livariant-trust");
-    await writeTrustRecord(localTrustRoot, identity);
     const parentTrustRoot = resolve(workspace, ".livariant-trust");
-    await writeTrustRecord(parentTrustRoot, identity);
+    await writeLegacyTrustRecord(localTrustRoot, identity);
+    await writeLegacyTrustRecord(parentTrustRoot, identity);
 
     for (const override of [".livariant-trust", localTrustRoot, parentTrustRoot]) {
       const status = runCli(projectPath, override, "status");
       assert.equal(status.status, 0, status.stderr || status.stdout);
-      assert.match(status.stdout, /LIVARIANT_TRUST_ROOT must/i);
+      assert.doesNotMatch(status.stdout, /LIVARIANT_TRUST_ROOT must/i);
       await assert.rejects(() => stat(markerPath), /ENOENT/);
 
       const resume = runCli(projectPath, override, "resume");
       assert.notEqual(resume.status, 0);
-      assert.match(resume.stderr, /LIVARIANT_TRUST_ROOT must/i);
-      await assert.rejects(() => stat(markerPath), /ENOENT/);
-    }
-
-    if (process.platform === "win32") {
-      const namespaced = `\\\\?\\${localTrustRoot}`;
-      const status = runCli(projectPath, namespaced, "status");
-      assert.equal(status.status, 0, status.stderr || status.stdout);
-      assert.match(status.stdout, /must not use Windows namespace, device, or UNC path aliases/i);
+      assert.match(resume.stderr, /Guardian|protected.*Runtime trust|same-user.*cannot authorize/i);
       await assert.rejects(() => stat(markerPath), /ENOENT/);
     }
   } finally {
@@ -157,7 +149,7 @@ test("LIVARIANT_TRUST_ROOT cannot redirect machine trust into project-controlled
   }
 });
 
-test("a project inside the machine trust tree cannot self-authorize a sibling hostile Runtime trust store", async () => {
+test("placing a project inside the historical same-user trust tree does not create or redirect Runtime Authority", async () => {
   const stagingProject = await mkdtemp(join(tmpdir(), "livariant-trust-authority-staging-"));
   const stagingTrustRoot = machineTestTrustRoot("authority-staging");
   const hostileRepoRoot = resolve(machineTrustBase(), `hostile-repo-${randomUUID()}`);
@@ -173,16 +165,16 @@ test("a project inside the machine trust tree cannot self-authorize a sibling ho
 
     const identity = await buildHostileRuntime(projectPath, markerPath);
     await pinHostileVersion(projectPath, identity);
-    await writeTrustRecord(attackerTrustRoot, identity);
+    await writeLegacyTrustRecord(attackerTrustRoot, identity);
 
     const status = runCli(projectPath, attackerTrustRoot, "status");
     assert.equal(status.status, 0, status.stderr || status.stdout);
-    assert.match(status.stdout, /project directories must not reside inside the machine-local Runtime trust directory/i);
+    assert.doesNotMatch(status.stdout, /project directories must not reside inside the machine-local Runtime trust directory/i);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
 
     const resume = runCli(projectPath, attackerTrustRoot, "resume");
     assert.notEqual(resume.status, 0);
-    assert.match(resume.stderr, /project directories must not reside inside the machine-local Runtime trust directory/i);
+    assert.match(resume.stderr, /Guardian|protected.*Runtime trust|same-user.*cannot authorize/i);
     await assert.rejects(() => stat(markerPath), /ENOENT/);
   } finally {
     await rm(stagingProject, { recursive: true, force: true });
