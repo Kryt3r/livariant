@@ -6,12 +6,14 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
-  applyMigrationUpdate,
   getStatus,
   initializeProject,
-  planMigrationUpdate,
   type ReleaseDescriptor,
 } from "../src/runtime/index.js";
+import {
+  applyMigrationUpdate as applyMigrationUpdateCore,
+  planMigrationUpdate,
+} from "../src/runtime/index-core.js";
 import { makeLegacySchema1Project } from "./legacy-schema1-fixture.js";
 import { createRuntimePackageFixture } from "./runtime-package-fixture.js";
 import {
@@ -39,11 +41,7 @@ async function writeManifest(projectPath: string, release: ReleaseDescriptor): P
   return path;
 }
 
-function escaped(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-test("Livariant update CLI plans read-only, requires explicit trust, and activates an attested Runtime", async () => {
+test("Livariant update CLI plans read-only and fails closed without protected Runtime trust", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-cli-update-"));
   const targetVersion = NORMAL_TARGET_VERSION;
   const fixture = await createRuntimePackageFixture(targetVersion);
@@ -67,27 +65,27 @@ test("Livariant update CLI plans read-only, requires explicit trust, and activat
     assert.match(plan.stdout, /No changes applied/);
     assert.deepEqual(await readFile(resolve(projectPath, ".project-brain", "metadata.json")), beforeMetadata);
 
-    const untrusted = runCli(projectPath, ["update", "--manifest", manifest, "--apply", "--artifact", fixture.path]);
-    assert.equal(untrusted.status, 1);
-    assert.match(untrusted.stderr, /trusted-source/i);
+    const missingSource = runCli(projectPath, ["update", "--manifest", manifest, "--apply", "--artifact", fixture.path]);
+    assert.equal(missingSource.status, 1);
+    assert.match(missingSource.stderr, /trusted-source/i);
     assert.equal((await getStatus(projectPath)).frameworkVersion, TEST_SOURCE_VERSION);
 
-    const applied = runCli(projectPath, [
+    const blocked = runCli(projectPath, [
       "update", "--manifest", manifest,
       "--apply", "--artifact", fixture.path,
       "--trusted-source", sourceId,
     ]);
-    assert.equal(applied.status, 0, applied.stderr);
-    assert.match(applied.stdout, new RegExp(`Livariant update completed: ${escaped(TEST_SOURCE_VERSION)} -> ${escaped(targetVersion)}`));
-    assert.doesNotMatch(applied.stdout, /Protected integrity: required for the changed Project Brain state/i);
-    assert.equal((await getStatus(projectPath)).frameworkVersion, targetVersion);
+    assert.notEqual(blocked.status, 0);
+    assert.match(blocked.stderr, /Guardian|protected.*Runtime trust|not ready/i);
+    assert.equal((await getStatus(projectPath)).frameworkVersion, TEST_SOURCE_VERSION);
+    assert.deepEqual(await readFile(resolve(projectPath, ".project-brain", "metadata.json")), beforeMetadata);
   } finally {
     await fixture.cleanup();
     await rm(projectPath, { recursive: true, force: true });
   }
 });
 
-test("schema-changing update CLI explains protected integrity acceptance for the migrated Project Brain", async () => {
+test("schema-changing update CLI fails closed before migration without protected Runtime trust", async () => {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-cli-migration-guidance-"));
   const targetVersion = MIGRATION_TARGET_VERSION;
   const fixture = await createRuntimePackageFixture(targetVersion);
@@ -103,16 +101,16 @@ test("schema-changing update CLI explains protected integrity acceptance for the
       artifact: { id: "runtime-node-cli", sha256: fixture.sha256 },
     };
     const manifest = await writeManifest(projectPath, release);
-    const applied = runCli(projectPath, [
+    const beforeMetadata = await readFile(resolve(projectPath, ".project-brain", "metadata.json"));
+    const blocked = runCli(projectPath, [
       "update", "--manifest", manifest,
       "--apply", "--artifact", fixture.path,
       "--trusted-source", sourceId,
     ]);
-    assert.equal(applied.status, 0, `${applied.stdout}\n${applied.stderr}`);
-    assert.match(applied.stdout, /Migration required: yes/);
-    assert.match(applied.stdout, /Protected integrity: required for the changed Project Brain state/i);
-    assert.match(applied.stdout, /integrity inspect/i);
-    assert.match(applied.stdout, /integrity accept-current/i);
+    assert.notEqual(blocked.status, 0);
+    assert.match(blocked.stdout, /Migration required: yes/);
+    assert.match(blocked.stderr, /Guardian|protected.*Runtime trust|not ready/i);
+    assert.deepEqual(await readFile(resolve(projectPath, ".project-brain", "metadata.json")), beforeMetadata);
   } finally {
     await fixture.cleanup();
     await rm(projectPath, { recursive: true, force: true });
@@ -135,7 +133,7 @@ test("Livariant recover CLI inspects first and only rolls back after explicit ap
       artifact: { id: "runtime-node-cli", sha256: fixture.sha256 },
     };
     const migrationPlan = await planMigrationUpdate(projectPath, release);
-    await applyMigrationUpdate(projectPath, migrationPlan, {
+    await applyMigrationUpdateCore(projectPath, migrationPlan, {
       authorized: true,
       artifact: { sourceId, releaseVersion: targetVersion, artifactId: "runtime-node-cli", path: fixture.path },
       trustedSourceIds: new Set([sourceId]),
