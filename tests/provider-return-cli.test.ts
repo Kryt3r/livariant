@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { initializeProject } from "../src/runtime/index.js";
+import { initializeProject } from "../src/runtime/index-core.js";
 import { buildProviderContext } from "../src/runtime/provider-context.js";
 import { providerReturnTaskDigest } from "../src/runtime/provider-return.js";
 
@@ -35,7 +35,16 @@ async function withProject(run: (path: string) => Promise<void>): Promise<void> 
   }
 }
 
-test("provider-return CLI reports authorization-required without mutation", async () => {
+function assertProtectedBlocked(result: ReturnType<typeof runCli>): void {
+  assert.equal(result.status, 2, result.stderr);
+  const parsed = JSON.parse(result.stdout) as { state: string; phase: string; message: string; semanticChangesMade: number };
+  assert.equal(parsed.state, "blocked");
+  assert.equal(parsed.phase, "input");
+  assert.equal(parsed.semanticChangesMade, 0);
+  assert.match(parsed.message, /Canonical Project Brain use requires exact protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i);
+}
+
+test("provider-return CLI refuses durable candidate processing without protected Project Brain truth", async () => {
   await withProject(async (path) => {
     const context = await buildProviderContext("claude-code", "Review one durable candidate", path);
     assert.equal(context.state, "ready");
@@ -63,17 +72,13 @@ test("provider-return CLI reports authorization-required without mutation", asyn
     const before = await captureManaged(path);
 
     const result = runCli(path, ["provider-return", "--context", contextPath, "--input", returnPath, "--json"]);
-    assert.equal(result.status, 3, result.stderr);
-    const parsed = JSON.parse(result.stdout) as { state: string; maintenance: { state: string }; semanticChangesMade: number };
-    assert.equal(parsed.state, "candidate-received");
-    assert.equal(parsed.maintenance.state, "authorization-required");
-    assert.equal(parsed.semanticChangesMade, 0);
+    assertProtectedBlocked(result);
 
     for (const name of managedFiles) assert.deepEqual(await readFile(resolve(path, ".project-brain", name)), before.get(name));
   });
 });
 
-test("provider-return CLI no-candidate path is successful and read-only", async () => {
+test("provider-return CLI does not trust a local-only no-candidate context copy", async () => {
   await withProject(async (path) => {
     const context = await buildProviderContext("codex", "Check whether durable truth changed", path);
     assert.equal(context.state, "ready");
@@ -93,9 +98,6 @@ test("provider-return CLI no-candidate path is successful and read-only", async 
     }), "utf8");
 
     const result = runCli(path, ["provider-return", "--context", contextPath, "--input", returnPath, "--json"]);
-    assert.equal(result.status, 0, result.stderr);
-    const parsed = JSON.parse(result.stdout) as { state: string; semanticChangesMade: number };
-    assert.equal(parsed.state, "no-candidate");
-    assert.equal(parsed.semanticChangesMade, 0);
+    assertProtectedBlocked(result);
   });
 });
