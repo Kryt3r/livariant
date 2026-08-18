@@ -39,7 +39,7 @@ function assertProtectedBlocked(result: ReturnType<typeof runCli>): void {
   assert.equal(result.status, 2, result.stderr);
   const parsed = JSON.parse(result.stdout) as { state: string; phase: string; message: string; semanticChangesMade: number };
   assert.equal(parsed.state, "blocked");
-  assert.equal(parsed.phase, "input");
+  assert.equal(parsed.phase, "current-project");
   assert.equal(parsed.semanticChangesMade, 0);
   assert.match(parsed.message, /Canonical Project Brain use requires exact protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i);
 }
