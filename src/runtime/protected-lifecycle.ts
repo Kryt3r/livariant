@@ -2,7 +2,10 @@ import { lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { installTrustedRuntime } from "../distribution/runtime-installation.js";
 import { verifyReleaseArtifact, type ReleaseIdentity } from "../distribution/release-integrity.js";
-import { issueReleaseAuthorizationGuardianAuthority } from "../guardian/release-authorization-authority-transition.js";
+import {
+  consumeReleaseAuthorizationGuardianAuthority,
+  issueReleaseAuthorizationGuardianAuthority,
+} from "../guardian/release-authorization-authority-transition.js";
 import {
   applyMigrationUpdate as applyMigrationUpdateCore,
   type ApplyMigrationOptions,
@@ -52,10 +55,11 @@ async function prepareProtectedRuntime(
 ): Promise<void> {
   if (!await targetRuntimeExists(projectPath, identity)) {
     // User presence must approve the bytes Livariant actually verified, not an
-    // unverified requester-supplied identity. installTrustedRuntime repeats this
-    // verification before installation as defense in depth.
+    // unverified requester-supplied identity. The exact one-shot is consumed
+    // before installTrustedRuntime reaches the low-level materialization step.
     await verifyReleaseArtifact(identity, options.artifact, options.trustedSourceIds);
     await issueReleaseAuthorizationGuardianAuthority(identity, projectPath);
+    await consumeReleaseAuthorizationGuardianAuthority(identity, projectPath);
   }
   await installTrustedRuntime(projectPath, identity, options.artifact, options.trustedSourceIds);
 }
