@@ -8,10 +8,10 @@ import test from "node:test";
 import {
   addConfirmedGoal,
   addConfirmedKnowledge,
-  buildResumeContext,
   initializeProject,
   recordAcceptedDecision,
-} from "../src/runtime/index.js";
+} from "../src/runtime/index-core.js";
+import { buildResumeContext } from "../src/runtime/resume.js";
 import { acceptFixtureProjectBrain, mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
@@ -133,8 +133,6 @@ test("semantic writes reject concurrent project-owned changes instead of overwri
     assert.match(await readFile(goalsPath, "utf8"), /Human concurrent goal/);
     assert.doesNotMatch(await readFile(goalsPath, "utf8"), /New goal/);
 
-    // The first concurrency attack deliberately left a different Project Brain on disk.
-    // Accept it only as the fixture baseline for the independent decision concurrency attack below.
     await acceptFixtureProjectBrain(path);
 
     await assert.rejects(
