@@ -13,6 +13,7 @@ import {
   findMatchingConsumedGuardianAuthority,
 } from "../dist/src/guardian/authority-client.js";
 import { buildReleaseAuthorizationGuardianRequest } from "../dist/src/guardian/release-authorization-authority.js";
+import { ensureReleaseAuthorizationGuardianAuthority } from "../dist/src/guardian/release-authorization-authority-transition.js";
 
 const EXACT_ID = "11111111-1111-4111-8111-111111111111";
 const DUPLICATE_ID = "22222222-2222-4222-8222-222222222222";
@@ -104,6 +105,16 @@ function releaseMaterial(projectRoot, overrides = {}) {
   };
 }
 
+function releaseIdentity(material) {
+  return {
+    version: material.version,
+    channel: material.channel,
+    sourceId: material.sourceId,
+    artifactId: material.artifactId,
+    artifactSha256: material.artifactSha256,
+  };
+}
+
 function activeRecord(materialSha256, recordId = EXACT_ID, issuedAt = new Date()) {
   return buildGuardianAuthorityRecord({
     consumer: "release-authorization",
@@ -148,6 +159,13 @@ try {
     projectPath: project,
   });
   assert.equal(matched?.recordId, EXACT_ID);
+
+  // Interrupted issue-before-consume retry reuses only the already protected,
+  // active, exact one-shot. It must not attempt duplicate issuance or invent new Authority.
+  const retry = await ensureReleaseAuthorizationGuardianAuthority(releaseIdentity(exactMaterial), project);
+  assert.equal(retry.reused, true);
+  assert.equal(retry.record.recordId, EXACT_ID);
+  assert.equal(retry.record.materialSha256, exact.materialSha256);
 
   const substitutions = [
     { version: "9.9.10-c04-acceptance" },
@@ -264,7 +282,7 @@ try {
   }), null);
   assert.equal((await readFile(legacyPath, "utf8")).includes(exactMaterial.artifactSha256), true);
 
-  console.log("Protected C-04 acceptance passed: exact one-shot Authority was project/candidate bound; protected consumed state was non-replayable; expiry, substitution, duplicates, malformed state, cross-consumer confusion, and forged same-user legacy evidence all failed closed.");
+  console.log("Protected C-04 acceptance passed: exact one-shot Authority was project/candidate bound; interrupted exact retries reused only protected active Authority; protected consumed state was non-replayable; expiry, substitution, duplicates, malformed state, cross-consumer confusion, and forged same-user legacy evidence all failed closed.");
 } finally {
   for (const id of [EXACT_ID, DUPLICATE_ID, EXPIRED_ID, MALFORMED_ID, WRONG_CONSUMER_ID]) {
     removeProtectedFile(recordPath(id));
