@@ -5,6 +5,7 @@ import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "nod
 import { tmpdir, userInfo } from "node:os";
 import { dirname, relative, resolve } from "node:path";
 import { buildGuardianAuthorityRecord } from "../dist/src/guardian/authority-record.js";
+import { buildReleaseAuthorizationGuardianRequest } from "../dist/src/guardian/release-authorization-authority.js";
 import { buildRuntimeTrustGuardianRequest } from "../dist/src/guardian/runtime-trust-authority.js";
 import {
   activateInstalledRuntime,
@@ -18,6 +19,7 @@ const VERSION = "9.9.7-c03-acceptance";
 const CHANNEL = "preview";
 const SOURCE_ID = "c03-protected-acceptance-source";
 const ARTIFACT_ID = "runtime-node-cli";
+const RELEASE_RECORD_ID = "66666666-7777-4777-8777-666666666666";
 const EXACT_RECORD_ID = "77777777-7777-4777-8777-777777777777";
 const DUPLICATE_RECORD_ID = "88888888-8888-4888-8888-888888888888";
 const MALFORMED_RECORD_ID = "99999999-9999-4999-8999-999999999999";
@@ -28,14 +30,14 @@ function fail(command, result) {
   throw new Error(`${command} failed: ${String(detail).trim()}`);
 }
 
-function protectedConsumerDirectory() {
-  if (process.platform === "linux") return "/var/lib/livariant-guardian/v1/records/runtime-trust";
-  if (process.platform === "win32") return "C:\\ProgramData\\Livariant\\Guardian\\v1\\records\\runtime-trust";
+function protectedConsumerDirectory(consumer = "runtime-trust") {
+  if (process.platform === "linux") return `/var/lib/livariant-guardian/v1/records/${consumer}`;
+  if (process.platform === "win32") return `C:\\ProgramData\\Livariant\\Guardian\\v1\\records\\${consumer}`;
   throw new Error("Protected Runtime Trust smoke supports Linux and Windows only.");
 }
 
-function protectedRecordPath(recordId) {
-  return resolve(protectedConsumerDirectory(), `${recordId}.json`);
+function protectedRecordPath(recordId, consumer = "runtime-trust") {
+  return resolve(protectedConsumerDirectory(consumer), `${recordId}.json`);
 }
 
 function installProtectedRecord(source, destination) {
@@ -44,7 +46,7 @@ function installProtectedRecord(source, destination) {
       encoding: "utf8",
       shell: false,
     });
-    if (result.error || result.status !== 0) fail("sudo install protected Runtime Trust Authority", result);
+    if (result.error || result.status !== 0) fail("sudo install protected Guardian Authority", result);
     return;
   }
   if (process.platform === "win32") {
@@ -63,7 +65,7 @@ function installProtectedRecord(source, destination) {
         LIVARIANT_TEST_RECORD_DEST: destination,
       },
     });
-    if (result.error || result.status !== 0) fail("install protected Runtime Trust Authority on Windows", result);
+    if (result.error || result.status !== 0) fail("install protected Guardian Authority on Windows", result);
     return;
   }
   throw new Error("unsupported platform");
@@ -72,7 +74,7 @@ function installProtectedRecord(source, destination) {
 function removeProtectedRecord(destination) {
   if (process.platform === "linux") {
     const result = spawnSync("/usr/bin/sudo", ["rm", "-f", destination], { encoding: "utf8", shell: false });
-    if (result.error || result.status !== 0) fail("sudo remove protected Runtime Trust Authority", result);
+    if (result.error || result.status !== 0) fail("sudo remove protected Guardian Authority", result);
     return;
   }
   if (process.platform === "win32") {
@@ -87,7 +89,7 @@ function removeProtectedRecord(destination) {
       windowsHide: true,
       env: { ...process.env, LIVARIANT_TEST_RECORD_DEST: destination },
     });
-    if (result.error || result.status !== 0) fail("remove protected Runtime Trust Authority on Windows", result);
+    if (result.error || result.status !== 0) fail("remove protected Guardian Authority on Windows", result);
     return;
   }
   throw new Error("unsupported platform");
@@ -143,6 +145,25 @@ async function provisionLegacyReleaseAuthorization(artifactSha256) {
     artifactSha256,
   }, null, 2)}\n`, "utf8");
   return path;
+}
+
+async function stageReleaseAuthorization(project, identity, staging) {
+  const material = buildReleaseAuthorizationGuardianRequest({
+    releaseAuthorizationSchemaVersion: 1,
+    packageName: "livariant",
+    ...identity,
+    physicalProjectRoot: await realpath(project),
+  });
+  const record = buildGuardianAuthorityRecord({
+    consumer: "release-authorization",
+    mode: "one-shot",
+    materialSha256: material.materialSha256,
+    recordId: RELEASE_RECORD_ID,
+  });
+  const source = resolve(staging, `${RELEASE_RECORD_ID}.release.json`);
+  await writeFile(source, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+  installProtectedRecord(source, protectedRecordPath(RELEASE_RECORD_ID, "release-authorization"));
+  return { material, record };
 }
 
 async function stageRuntimeAuthority(project, installed, staging, recordId = EXACT_RECORD_ID) {
@@ -212,15 +233,22 @@ try {
   };
   const trustedSources = new Set([SOURCE_ID]);
 
+  // Headless CI externally provisions the exact protected one-shot C-04 record.
+  // The forged same-user record above remains present but is not Authority.
+  const releaseAuthority = await stageReleaseAuthorization(project, identity, staging);
+  assert.equal(releaseAuthority.record.consumer, "release-authorization");
+  assert.equal(releaseAuthority.record.mode, "one-shot");
+
   // Preparation may install and inspect exact bytes, but must not execute them.
+  // Fresh installation consumes the protected C-04 one-shot before materialization.
   const prepared = await installVerifiedRuntime(project, identity, artifact, trustedSources);
   assert.equal(await markerCount(markerPath), 0);
   await activateInstalledRuntime(project, prepared);
   await assert.rejects(() => readTrustedActiveRuntimePointer(project), /Guardian|protected.*Runtime trust|not trusted/i);
   assert.equal(await markerCount(markerPath), 0);
 
-  // CI externally provisions the exact protected persistent record because headless
-  // CI cannot perform the real interactive privilege transition.
+  // CI externally provisions the exact protected persistent C-03 record because
+  // headless CI cannot perform the real interactive privilege transition.
   const staged = await stageRuntimeAuthority(project, prepared, staging);
   assert.equal(staged.record.consumer, "runtime-trust");
   assert.equal(staged.record.mode, "persistent");
@@ -301,11 +329,12 @@ try {
   await assert.rejects(() => readTrustedActiveRuntimePointer(project), /wrong consumer namespace/i);
   removeProtectedRecord(protectedRecordPath(WRONG_CONSUMER_RECORD_ID));
 
-  console.log("Protected Runtime Trust acceptance passed: preparation stayed non-executable; exact protected Guardian trust enabled Runtime attestation/execution; package-tree drift, physical project/location substitution, duplicate Authority, Guardian removal with forged legacy trust, malformed protected state, and cross-consumer confusion all failed closed.");
+  console.log("Protected Runtime Trust acceptance passed: protected C-04 one-shot authorized fresh preparation; preparation stayed non-executable; exact protected C-03 Runtime trust enabled attestation/execution; package-tree drift, physical project/location substitution, duplicate Authority, Guardian removal with forged legacy trust, malformed protected state, and cross-consumer confusion all failed closed.");
 } finally {
   for (const recordId of [EXACT_RECORD_ID, DUPLICATE_RECORD_ID, MALFORMED_RECORD_ID, WRONG_CONSUMER_RECORD_ID]) {
     removeProtectedRecord(protectedRecordPath(recordId));
   }
+  removeProtectedRecord(protectedRecordPath(RELEASE_RECORD_ID, "release-authorization"));
   if (releaseAuthorizationPath) await rm(releaseAuthorizationPath, { force: true });
   await rm(project, { recursive: true, force: true });
   await rm(copyParent, { recursive: true, force: true });
