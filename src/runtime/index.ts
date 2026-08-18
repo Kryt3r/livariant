@@ -1,5 +1,6 @@
 export * from "./index-core.js";
 export { runProtectedDoctor as runDoctor } from "./protected-doctor.js";
+export { buildProtectedProjectContextSnapshot as buildProjectContextSnapshot } from "./protected-context.js";
 export * from "./drift-assessment.js";
 export * from "./provider-context.js";
 export * from "./semantic-maintenance.js";
