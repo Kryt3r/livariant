@@ -1,7 +1,7 @@
 import { lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { installTrustedRuntime } from "../distribution/runtime-installation.js";
-import type { ReleaseIdentity } from "../distribution/release-integrity.js";
+import { verifyReleaseArtifact, type ReleaseIdentity } from "../distribution/release-integrity.js";
 import { issueReleaseAuthorizationGuardianAuthority } from "../guardian/release-authorization-authority-transition.js";
 import {
   applyMigrationUpdate as applyMigrationUpdateCore,
@@ -51,6 +51,10 @@ async function prepareProtectedRuntime(
   options: Pick<ApplyUpdateOptions, "artifact" | "trustedSourceIds">,
 ): Promise<void> {
   if (!await targetRuntimeExists(projectPath, identity)) {
+    // User presence must approve the bytes Livariant actually verified, not an
+    // unverified requester-supplied identity. installTrustedRuntime repeats this
+    // verification before installation as defense in depth.
+    await verifyReleaseArtifact(identity, options.artifact, options.trustedSourceIds);
     await issueReleaseAuthorizationGuardianAuthority(identity, projectPath);
   }
   await installTrustedRuntime(projectPath, identity, options.artifact, options.trustedSourceIds);
@@ -58,10 +62,10 @@ async function prepareProtectedRuntime(
 
 /**
  * Public/product normal-update boundary. A fresh target Runtime receives exact
- * one-shot Guardian Release Authorization, which is consumed before package
- * materialization. The installed Runtime is then bound to persistent protected
- * Runtime trust and executed only for protected attestation before lifecycle
- * pin/pointer mutation may commit the update.
+ * one-shot Guardian Release Authorization for already verified artifact bytes,
+ * which is consumed before package materialization. The installed Runtime is
+ * then bound to persistent protected Runtime trust and executed only for
+ * protected attestation before lifecycle pin/pointer mutation may commit.
  */
 export async function applyProtectedNormalUpdate(
   projectPath: string,
@@ -78,9 +82,10 @@ export async function applyProtectedNormalUpdate(
 
 /**
  * Public/product migration boundary. A fresh target Runtime first receives and
- * consumes exact one-shot Release Authorization; Runtime execution Authority is
- * then established before migration checkpoint/mutation begins. The Core
- * lifecycle reuses the already verified exact tree as inert evidence.
+ * consumes exact one-shot Release Authorization for verified artifact bytes;
+ * Runtime execution Authority is then established before migration
+ * checkpoint/mutation begins. The Core lifecycle reuses the already verified
+ * exact tree as inert evidence.
  */
 export async function applyProtectedMigrationUpdate(
   projectPath: string,
