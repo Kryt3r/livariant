@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { buildGuardianAuthorityRecord } from "../dist/src/guardian/authority-record.js";
@@ -12,7 +12,10 @@ import {
   recordAcceptedProjectBrainState,
 } from "../dist/src/project-brain/integrity.js";
 import { inspectProtectedProjectBrainIntegrity } from "../dist/src/project-brain/protected-integrity.js";
+import { buildProtectedProjectContextSnapshot } from "../dist/src/runtime/protected-context.js";
 import { runProtectedDoctor } from "../dist/src/runtime/protected-doctor.js";
+import { buildProtectedProviderContext } from "../dist/src/runtime/protected-provider-context.js";
+import { buildProtectedResumeContext } from "../dist/src/runtime/protected-resume.js";
 import { FRAMEWORK_VERSION } from "../dist/src/lifecycle/state.js";
 
 const RECORD_ID = "55555555-5555-4555-8555-555555555555";
@@ -136,13 +139,40 @@ try {
   const store = await bootstrap(project);
   const originalMetadata = await readFile(resolve(project, ".project-brain", "metadata.json"), "utf8");
   const originalKnowledge = await store.readKnowledgeDocument();
-  await stageExactProtectedRecord(project, staging);
+  const staged = await stageExactProtectedRecord(project, staging);
 
   const protectedMatch = await inspectProtectedProjectBrainIntegrity(project);
   assert.equal(protectedMatch.state, "match");
   if (protectedMatch.state !== "match") throw new Error("expected protected integrity match");
   assert.equal(protectedMatch.guardian.recordId, RECORD_ID);
   assert.equal((await runProtectedDoctor(project)).state, "healthy");
+
+  // Positive release-relevant product-surface proof: exact protected Guardian
+  // acceptance must permit canonical Context, Resume, and Provider Context reads.
+  const protectedContext = await buildProtectedProjectContextSnapshot(project);
+  assert.equal(protectedContext.safetyState, "clear");
+  assert.equal(protectedContext.stableProjectIdentity, staged.local.receipt.stableProjectIdentity);
+  assert.equal(protectedContext.changesMade, 0);
+  assert.notEqual(protectedContext.context, null);
+
+  const protectedResume = await buildProtectedResumeContext(project);
+  assert.equal(protectedResume.lifecycle, "initialized");
+  assert.ok(Array.isArray(protectedResume.confirmedGoals));
+  assert.ok(Array.isArray(protectedResume.activeDecisions));
+
+  const protectedProvider = await buildProtectedProviderContext(
+    "codex",
+    "Protected C-02 product-surface acceptance",
+    project,
+  );
+  assert.equal(protectedProvider.state, "ready");
+  if (protectedProvider.state !== "ready") throw new Error("expected protected provider context ready state");
+  assert.equal(protectedProvider.safetyState, "clear");
+  assert.equal(protectedProvider.stableProjectIdentity, staged.local.receipt.stableProjectIdentity);
+  assert.equal(protectedProvider.task.authorityClass, "session-ephemeral");
+  assert.equal(protectedProvider.mutationAuthorization, false);
+  assert.equal(protectedProvider.changesMade, 0);
+  assert.equal(typeof protectedProvider.packetId, "string");
 
   // Direct managed-byte mutation must be detected before any local receipt rewrite.
   const mutatedKnowledge = `${originalKnowledge.trimEnd()}\n\n## Confirmed project knowledge\n\n- same-user direct mutation attack\n`;
@@ -205,7 +235,7 @@ try {
   assert.equal(malformed.state, "invalid");
   assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
 
-  console.log("Protected Project Brain Integrity acceptance passed: exact protected state and protected Doctor matched; direct mutation, forged local re-acceptance, stable-id substitution, physical copy, Guardian removal, and malformed protected state all failed closed through the protected Doctor gate.");
+  console.log("Protected Project Brain Integrity acceptance passed: exact Guardian acceptance enabled protected Context, Resume, Provider Context, and Doctor; direct mutation, forged local re-acceptance, stable-id substitution, physical copy, Guardian removal, and malformed protected state all failed closed.");
 } finally {
   removeProtectedRecord(protectedRecordPath(RECORD_ID));
   removeProtectedRecord(protectedRecordPath(MALFORMED_RECORD_ID));
