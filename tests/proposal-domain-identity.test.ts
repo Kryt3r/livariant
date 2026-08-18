@@ -3,7 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
-import { buildSemanticProposal, initializeProject, parseSemanticProposalCandidate } from "../src/runtime/index.js";
+import { initializeProject, parseSemanticProposalCandidate } from "../src/runtime/index.js";
+import { buildSemanticProposal } from "../src/runtime/semantic-proposal.js";
 
 test("proposal domain is material to deterministic identity", async () => {
   const path = await mkdtemp(resolve(tmpdir(), "livariant-proposal-domain-"));
