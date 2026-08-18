@@ -79,7 +79,40 @@ test("Livariant update CLI plans read-only, requires explicit trust, and activat
     ]);
     assert.equal(applied.status, 0, applied.stderr);
     assert.match(applied.stdout, new RegExp(`Livariant update completed: ${escaped(TEST_SOURCE_VERSION)} -> ${escaped(targetVersion)}`));
+    assert.doesNotMatch(applied.stdout, /Protected integrity: required for the changed Project Brain state/i);
     assert.equal((await getStatus(projectPath)).frameworkVersion, targetVersion);
+  } finally {
+    await fixture.cleanup();
+    await rm(projectPath, { recursive: true, force: true });
+  }
+});
+
+test("schema-changing update CLI explains protected integrity acceptance for the migrated Project Brain", async () => {
+  const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-cli-migration-guidance-"));
+  const targetVersion = MIGRATION_TARGET_VERSION;
+  const fixture = await createRuntimePackageFixture(targetVersion);
+  try {
+    await initializeProject(projectPath, { authorized: true });
+    await makeLegacySchema1Project(projectPath);
+    const release: ReleaseDescriptor = {
+      version: targetVersion,
+      channel: TEST_SOURCE_CHANNEL,
+      projectBrainSchema: 2,
+      compatibility: { from: [TEST_SOURCE_VERSION] },
+      sourceId,
+      artifact: { id: "runtime-node-cli", sha256: fixture.sha256 },
+    };
+    const manifest = await writeManifest(projectPath, release);
+    const applied = runCli(projectPath, [
+      "update", "--manifest", manifest,
+      "--apply", "--artifact", fixture.path,
+      "--trusted-source", sourceId,
+    ]);
+    assert.equal(applied.status, 0, `${applied.stdout}\n${applied.stderr}`);
+    assert.match(applied.stdout, /Migration required: yes/);
+    assert.match(applied.stdout, /Protected integrity: required for the changed Project Brain state/i);
+    assert.match(applied.stdout, /integrity inspect/i);
+    assert.match(applied.stdout, /integrity accept-current/i);
   } finally {
     await fixture.cleanup();
     await rm(projectPath, { recursive: true, force: true });
@@ -120,6 +153,8 @@ test("Livariant recover CLI inspects first and only rolls back after explicit ap
     const applied = runCli(projectPath, ["recover", "--apply"]);
     assert.equal(applied.status, 0, applied.stderr);
     assert.match(applied.stdout, /Recovery completed/);
+    assert.match(applied.stdout, /Protected integrity: inspect the restored Project Brain/i);
+    assert.match(applied.stdout, /integrity accept-current/i);
     const status = await getStatus(projectPath);
     assert.equal(status.lifecycle, "initialized");
     assert.equal(status.frameworkVersion, TEST_SOURCE_VERSION);
