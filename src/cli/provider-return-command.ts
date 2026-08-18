@@ -1,9 +1,9 @@
 import { lstat, readFile } from "node:fs/promises";
 import {
-  processProviderReturn,
   PROVIDER_CONTEXT_COPY_FILE_MAX_BYTES,
   PROVIDER_RETURN_FILE_MAX_BYTES,
 } from "../runtime/provider-return.js";
+import { processProtectedProviderReturn } from "../runtime/protected-provider-return.js";
 import { parseProviderReturnArgs } from "./provider-return-args.js";
 
 async function readBoundedJson(path: string, maxBytes: number, label: string): Promise<unknown> {
@@ -28,7 +28,7 @@ export async function handleProviderReturnCommand(args: string[]): Promise<void>
       readBoundedJson(parsed.contextPath, PROVIDER_CONTEXT_COPY_FILE_MAX_BYTES, "Provider Context copy"),
       readBoundedJson(parsed.inputPath, PROVIDER_RETURN_FILE_MAX_BYTES, "Provider return input"),
     ]);
-    const result = await processProviderReturn(contextValue, returnValue, parsed.authorizationId);
+    const result = await processProtectedProviderReturn(contextValue, returnValue, parsed.authorizationId);
 
     if (json) {
       console.log(JSON.stringify(result));
@@ -63,6 +63,9 @@ export async function handleProviderReturnCommand(args: string[]): Promise<void>
       console.log(`Semantic changes made: ${result.semanticChangesMade}`);
       if (result.maintenance.state === "authorization-required") {
         console.log("Next: authorize the exact Actionable Proposal through livariant authorize, then rerun provider-return with --authorization <id>.");
+      } else if (result.maintenance.state === "completed-context-blocked") {
+        console.log("Protected integrity: required before the changed Project Brain can become canonical context.");
+        console.log("Next: review the resulting Project Brain and run 'livariant integrity accept-current'.");
       }
     }
 
