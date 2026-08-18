@@ -7,12 +7,12 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   buildActionableProposal,
-  buildSemanticProposal,
   initializeProject,
   parseActionableProposal,
   parseSemanticProposalCandidate,
   recordAcceptedDecision,
-} from "../src/runtime/index.js";
+} from "../src/runtime/index-core.js";
+import { buildSemanticProposal } from "../src/runtime/semantic-proposal.js";
 import {
   assertAuthorizationReadyForApply,
   authorizeActionableProposal,
@@ -186,7 +186,7 @@ test("authorization audit inspection is read-only when no authorization state ex
   });
 });
 
-test("interactive local CLI does not report successful authorization when Guardian is unavailable", { skip: process.platform === "win32" }, async () => {
+test("interactive CLI refuses authorization before local audit when protected Project Brain truth is unavailable", { skip: process.platform === "win32" }, async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);
     const proposalPath = resolve(path, "actionable.json");
@@ -194,11 +194,9 @@ test("interactive local CLI does not report successful authorization when Guardi
     const before = new Map(await Promise.all(semanticFiles.map(async (name) => [name, await readFile(resolve(path, ".project-brain", name))] as const)));
     const result = runInteractiveAuthorize(path, proposalPath, `AUTHORIZE ${proposal.materialDigest.digest.slice(0, 12)}`);
     assert.notEqual(result.status, 0);
-    assert.match(`${result.stdout}\n${result.stderr}`, /Protected Livariant Guardian is not ready|Guardian root is not provisioned/i);
-    const audit = await inspectAuthorizationAudit(path);
-    assert.equal(audit.active?.state, "authorized");
-    assert.ok(audit.active?.authorizationId);
-    await assertAuthorizationReadyForApply(audit.active!.authorizationId, proposal, path);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Canonical Project Brain use requires exact protected Guardian integrity acceptance|Protected Livariant Guardian is not ready|Guardian root is not provisioned/i);
+    assert.deepEqual(await inspectAuthorizationAudit(path), { active: null, history: [] });
+    await assertMissing(resolve(path, ".project-brain", ".authorizations"));
     for (const name of semanticFiles) assert.deepEqual(await readFile(resolve(path, ".project-brain", name)), before.get(name));
   });
 });
