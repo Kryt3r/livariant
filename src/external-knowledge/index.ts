@@ -12,6 +12,19 @@ export type {
   ExternalKnowledgeSourceDescriptor,
   ExternalKnowledgeSourceKind,
 } from "./types.js";
+export {
+  EXTERNAL_INERT_DATA_SCHEMA_VERSION,
+  decodeInertExternalPayload,
+  decodeInertMaterialPath,
+  toInertExternalKnowledgeEvidenceBundle,
+  validateInertExternalKnowledgeEvidenceBundle,
+} from "./inert-data.js";
+export type {
+  InertExternalKnowledgeEvidence,
+  InertExternalKnowledgeEvidenceBundle,
+  InertExternalKnowledgeProvenance,
+  InertExternalKnowledgeSkippedMaterial,
+} from "./inert-data.js";
 
 const adapters = new Map<ExternalKnowledgeSourceKind, ExternalKnowledgeAdapter>([
   ["local-directory", new LocalDirectoryExternalKnowledgeAdapter()],
