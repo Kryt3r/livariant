@@ -1,4 +1,4 @@
-<img width="1376" height="682" alt="Livariant | Zuverlässigkeit und Governance für KI-gestützte Softwareentwicklung" src="https://github.com/user-attachments/assets/16f5afee-a10a-4c79-8bc9-89d23135e0e9" />
+<img width="1857" height="738" alt="image" src="https://github.com/user-attachments/assets/87f45255-c7b2-4326-ad0c-209562df5ee9" />
 
 <p align="center">
   <a href="README.md">English</a> · <strong>Deutsch</strong>
