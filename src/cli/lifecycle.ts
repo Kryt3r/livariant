@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   applyMigrationUpdate,
@@ -10,11 +10,21 @@ import {
   planNormalUpdate,
   planRecovery,
   type MigrationPlan,
+  type RecoveryPlan,
   type ReleaseDescriptor,
   type UpdatePlan,
 } from "../runtime/index.js";
 import { recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import type { LocalReleaseArtifact } from "../distribution/release-integrity.js";
+import {
+  buildLifecycleGuardianAuthorityRequest,
+  lifecycleMaterialSha256,
+  type LifecycleGuardianAuthorityMaterial,
+} from "../guardian/lifecycle-authority.js";
+import {
+  consumeLifecycleGuardianAuthority,
+  issueLifecycleGuardianAuthority,
+} from "../guardian/lifecycle-authority-transition.js";
 
 function optionValues(args: string[], name: string): string[] {
   const values: string[] = [];
@@ -38,6 +48,13 @@ function requiredOption(args: string[], name: string): string {
   const value = optionValue(args, name);
   if (!value) throw new Error(`${name} is required.`);
   return value;
+}
+
+function lifecycleMode(args: string[]): "plan" | "authorize" | "apply" {
+  const authorize = args.includes("--authorize");
+  const apply = args.includes("--apply");
+  if (authorize && apply) throw new Error("Lifecycle --authorize and --apply are separate phases and may not be supplied together.");
+  return authorize ? "authorize" : apply ? "apply" : "plan";
 }
 
 async function loadReleaseManifest(path: string): Promise<ReleaseDescriptor[]> {
@@ -77,7 +94,7 @@ function printUpdatePlan(plan: UpdatePlan | MigrationPlan): void {
   console.log(`Migration required: ${plan.migrationRequired ? "yes" : "no"}`);
   console.log(`Project impact: ${plan.projectImpact}`);
   console.log(`Checkpoint required: ${plan.checkpointRequired ? "yes" : "no"}`);
-  console.log("Authorization required: yes");
+  console.log("Independent lifecycle authorization required: yes");
   if (plan.migrationRequired) {
     console.log(`Schema: ${plan.sourceSchema} -> ${plan.targetSchema}`);
     console.log(`Migration: ${plan.migration.id}`);
@@ -99,7 +116,65 @@ function printProtectedIntegrityAcceptanceRequired(): void {
   console.log("Review with 'livariant integrity inspect', then run 'livariant integrity accept-current' before canonical Project Brain reads resume.");
 }
 
+async function updateLifecycleMaterial(plan: UpdatePlan | MigrationPlan): Promise<LifecycleGuardianAuthorityMaterial> {
+  return buildLifecycleGuardianAuthorityRequest({
+    operation: plan.migrationRequired ? "migration-update" : "normal-update",
+    physicalProjectRoot: await realpath(process.cwd()),
+    materialFields: [
+      { label: "source-version", value: plan.sourceVersion },
+      { label: "target-version", value: plan.targetVersion },
+      { label: "channel", value: plan.channel },
+      { label: "release-source-id", value: plan.sourceId },
+      { label: "artifact-id", value: plan.artifactId },
+      { label: "artifact-sha256", value: plan.artifactSha256.toLowerCase() },
+      { label: "plan-sha256", value: lifecycleMaterialSha256(plan) },
+      ...(plan.migrationRequired ? [
+        { label: "source-schema", value: String(plan.sourceSchema) },
+        { label: "target-schema", value: String(plan.targetSchema) },
+        { label: "migration-id", value: plan.migration.id },
+      ] : []),
+    ],
+  });
+}
+
+async function recoveryLifecycleMaterial(plan: RecoveryPlan): Promise<LifecycleGuardianAuthorityMaterial> {
+  const stableRecoveryMaterial = {
+    interruptedOperationId: plan.interruptedOperationId,
+    strategy: plan.strategy,
+    checkpointPath: resolve(plan.checkpointPath),
+    expectedSourceVersion: plan.expectedSourceVersion,
+    expectedSourceSchema: plan.expectedSourceSchema,
+  };
+  return buildLifecycleGuardianAuthorityRequest({
+    operation: "recovery",
+    physicalProjectRoot: await realpath(process.cwd()),
+    materialFields: [
+      { label: "interrupted-operation-id", value: plan.interruptedOperationId.toLowerCase() },
+      { label: "recovery-strategy", value: plan.strategy },
+      { label: "checkpoint-path", value: resolve(plan.checkpointPath) },
+      { label: "expected-source-version", value: plan.expectedSourceVersion },
+      { label: "expected-source-schema", value: String(plan.expectedSourceSchema) },
+      { label: "plan-sha256", value: lifecycleMaterialSha256(stableRecoveryMaterial) },
+    ],
+  });
+}
+
+async function authorizeLifecycle(material: LifecycleGuardianAuthorityMaterial): Promise<void> {
+  const issued = await issueLifecycleGuardianAuthority(material);
+  console.log("");
+  console.log("Protected Guardian lifecycle Authority issued.");
+  console.log(`Guardian record: ${issued.record.recordId}`);
+  console.log(`Exact material SHA-256: ${material.materialSha256}`);
+  console.log("Lifecycle changes made: 0");
+  console.log("Rerun the same lifecycle plan with --apply before this one-shot Authority expires.");
+}
+
+async function consumeLifecycle(material: LifecycleGuardianAuthorityMaterial): Promise<void> {
+  await consumeLifecycleGuardianAuthority(material);
+}
+
 export async function handleUpdate(args: string[]): Promise<void> {
+  const mode = lifecycleMode(args);
   const manifestPath = requiredOption(args, "--manifest");
   const releases = await loadReleaseManifest(manifestPath);
   const check = await checkForUpdate(process.cwd(), releases);
@@ -117,10 +192,16 @@ export async function handleUpdate(args: string[]): Promise<void> {
     return;
   }
   printUpdatePlan(plan);
+  const lifecycleMaterial = await updateLifecycleMaterial(plan);
 
-  if (!args.includes("--apply")) {
+  if (mode === "plan") {
     console.log("");
-    console.log("No changes applied. The exact artifact digest must already be authorized by independent machine-local release policy before --apply can succeed.");
+    console.log("No changes applied. Run the same command with --authorize to request exact protected Guardian lifecycle Authority, then rerun with --apply.");
+    return;
+  }
+
+  if (mode === "authorize") {
+    await authorizeLifecycle(lifecycleMaterial);
     return;
   }
 
@@ -129,6 +210,8 @@ export async function handleUpdate(args: string[]): Promise<void> {
   if (trustedSources.length === 0) throw new Error("--apply requires at least one explicit --trusted-source <source-id>.");
   const trustedSourceIds = new Set(trustedSources);
   const artifact = artifactForPlan(plan, artifactPath);
+
+  await consumeLifecycle(lifecycleMaterial);
 
   if (plan.migrationRequired) {
     await applyMigrationUpdate(process.cwd(), plan, { authorized: true, artifact, trustedSourceIds });
@@ -144,6 +227,7 @@ export async function handleUpdate(args: string[]): Promise<void> {
 }
 
 export async function handleRecover(args: string[]): Promise<void> {
+  const mode = lifecycleMode(args);
   const inspection = await inspectRecovery(process.cwd());
   console.log("Livariant recovery assessment");
   console.log("");
@@ -163,7 +247,7 @@ export async function handleRecover(args: string[]): Promise<void> {
   if (inspection.state !== "interrupted-migration" || !inspection.checkpointValid) {
     console.log("");
     console.log("Automatic recovery is unavailable. No changes were made; use 'livariant doctor' for diagnosis.");
-    if (args.includes("--apply")) process.exitCode = 3;
+    if (mode === "apply") process.exitCode = 3;
     return;
   }
 
@@ -172,14 +256,21 @@ export async function handleRecover(args: string[]): Promise<void> {
   console.log(`Recommended strategy: ${plan.strategy}`);
   console.log(`Expected source version: ${plan.expectedSourceVersion}`);
   console.log(`Expected source schema: ${plan.expectedSourceSchema}`);
-  console.log("Authorization required: yes");
+  console.log("Independent lifecycle authorization required: yes");
+  const lifecycleMaterial = await recoveryLifecycleMaterial(plan);
 
-  if (!args.includes("--apply")) {
+  if (mode === "plan") {
     console.log("");
-    console.log("No changes applied. Rerun with 'livariant recover --apply' to authorize the validated rollback.");
+    console.log("No changes applied. Rerun with 'livariant recover --authorize' to request exact protected Guardian lifecycle Authority, then rerun with --apply.");
     return;
   }
 
+  if (mode === "authorize") {
+    await authorizeLifecycle(lifecycleMaterial);
+    return;
+  }
+
+  await consumeLifecycle(lifecycleMaterial);
   await applyRecovery(process.cwd(), plan, { authorized: true });
   console.log("");
   console.log(`Recovery completed. Restored Livariant ${plan.expectedSourceVersion} / Project Brain schema ${plan.expectedSourceSchema}.`);
