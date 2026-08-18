@@ -8,10 +8,10 @@ import test from "node:test";
 import {
   applyActionableProposal,
   buildActionableProposal,
-  buildSemanticProposal,
   initializeProject,
   parseSemanticProposalCandidate,
-} from "../src/runtime/index.js";
+} from "../src/runtime/index-core.js";
+import { buildSemanticProposal } from "../src/runtime/semantic-proposal.js";
 import type { ActionableProposal } from "../src/runtime/actionable-proposal.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
