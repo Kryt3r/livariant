@@ -1,4 +1,4 @@
-<img width="1376" height="682" alt="Livariant | Reliability and governance for AI-assisted software development" src="https://github.com/user-attachments/assets/16f5afee-a10a-4c79-8bc9-89d23135e0e9" />
+<img width="1851" height="737" alt="image" src="https://github.com/user-attachments/assets/e5e1c73b-b4fd-4df4-8b0a-1d278ac12d3e" />
 
 <p align="center">
   <strong>English</strong> · <a href="README.de.md">Deutsch</a>
