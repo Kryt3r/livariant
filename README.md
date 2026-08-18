@@ -6,7 +6,7 @@
 
 # Livariant
 
-**AI coding agents can be wrong. Livariant keeps their mistakes from silently becoming project truth.**
+**AI coding agents can be wrong. Livariant is built so their mistakes do not silently become project truth.**
 
 **Preserve what is true. Control what changes. Recover when things go wrong.**
 
@@ -88,7 +88,7 @@ Livariant
  and how is that change verified or recovered?"
 ```
 
-Repository indexes, code graphs, search tools, external knowledge systems, and provider memory can all be useful inputs. Livariant's architectural boundary is that **derived intelligence or retrieved information does not silently become canonical Project Truth**.
+Repository indexes, code graphs, search tools, external knowledge systems, and provider memory solve adjacent problems and may supply useful information to an AI workflow. Livariant's architectural boundary is that **when derived or retrieved information enters a Livariant-governed flow, it must not silently become canonical Project Truth**.
 
 That is why the core rules are:
 
