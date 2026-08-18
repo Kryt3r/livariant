@@ -1,4 +1,5 @@
-import { buildProviderContext, readProviderContextTaskFile } from "../runtime/provider-context.js";
+import { readProviderContextTaskFile } from "../runtime/provider-context.js";
+import { buildProtectedProviderContext } from "../runtime/protected-provider-context.js";
 import { parseProviderContextArgs } from "./provider-context-args.js";
 import { printProviderContext } from "./provider-context-output.js";
 
@@ -7,7 +8,7 @@ export async function handleProviderContextCommand(args: string[]): Promise<void
   try {
     parsed = parseProviderContextArgs(args);
     const task = await readProviderContextTaskFile(parsed.taskPath);
-    printProviderContext(await buildProviderContext(parsed.provider, task), parsed.json);
+    printProviderContext(await buildProtectedProviderContext(parsed.provider, task), parsed.json);
   } catch (error) {
     const json = args.includes("--json");
     const message = error instanceof Error ? error.message : "Provider context input is invalid.";
