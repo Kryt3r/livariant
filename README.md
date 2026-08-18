@@ -71,10 +71,10 @@ Livariant sits between AI-assisted development and the durable state of your sof
 
 It is designed around four practical responsibilities:
 
-- **Truth** — preserve project-owned goals, decisions, knowledge, provenance, and current context instead of relying on one chat or provider memory.
-- **Authority** — keep technical capability separate from permission to turn a suggestion into a consequential project change.
-- **Verification** — make completion, integrity, lifecycle, and change claims depend on evidence rather than agent confidence.
-- **Recovery** — keep updates, migrations, Runtime activation, and interrupted operations from silently leaving the project in an ambiguous state.
+- **Truth** - preserve project-owned goals, decisions, knowledge, provenance, and current context instead of relying on one chat or provider memory.
+- **Authority** - keep technical capability separate from permission to turn a suggestion into a consequential project change.
+- **Verification** - make completion, integrity, lifecycle, and change claims depend on evidence rather than agent confidence.
+- **Recovery** - keep updates, migrations, Runtime activation, and interrupted operations from silently leaving the project in an ambiguous state.
 
 The supported semantic flow on current `main` also includes conflict/drift assessment, provider-return intake as untrusted evidence, proposal-bound authorization, controlled semantic apply paths, guided project understanding, MCP foundations, external-knowledge-source foundations, first-run composition, and autonomy profiles.
 
@@ -337,12 +337,12 @@ See [Updates, Migrations & Recovery](docs/lifecycle-guide.md) and [Architecture 
 
 Livariant's long-term direction is not simply "store more context." The architecture is converging around six mutually reinforcing pillars:
 
-- **Memory** — preserve validated project experience across agents and sessions.
-- **Epistemics** — know why the project believes something, where it came from, and whether it is current, inferred, stale, or disputed.
-- **Relationships** — represent meaningful dependencies between decisions, requirements, components, evidence, and changes.
-- **Governance** — keep capability, Authority, risk, and irreversible action separate.
-- **Verification** — make completion and safety claims traceable to evidence rather than agent confidence.
-- **Learning** — turn validated failures into durable project knowledge and regression protection.
+- **Memory** - preserve validated project experience across agents and sessions.
+- **Epistemics** - know why the project believes something, where it came from, and whether it is current, inferred, stale, or disputed.
+- **Relationships** - represent meaningful dependencies between decisions, requirements, components, evidence, and changes.
+- **Governance** - keep capability, Authority, risk, and irreversible action separate.
+- **Verification** - make completion and safety claims traceable to evidence rather than agent confidence.
+- **Learning** - turn validated failures into durable project knowledge and regression protection.
 
 Future capabilities such as richer external knowledge integration, graph-assisted retrieval, context-budget optimization, change-impact analysis, risk-adaptive autonomy, and multi-agent coordination are intended to build on these foundations when their prerequisites and real product need justify them.
 
