@@ -325,6 +325,8 @@ async function handleInit(args: string[]): Promise<void> {
   const result = await initializeProject(process.cwd(), { authorized: true });
   console.log("");
   console.log(`Project Brain initialized: ${result.projectBrainPath}`);
+  console.log("Protected integrity: required before canonical Project Brain reads.");
+  console.log("Review with 'livariant integrity inspect', then run 'livariant integrity accept-current'.");
 }
 
 function textBeforeFlags(args: string[], start: number, stopFlags: string[]): string {
