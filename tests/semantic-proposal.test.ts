@@ -6,13 +6,13 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
-  buildSemanticProposal,
   initializeProject,
   parseSemanticProposalCandidate,
   recordAcceptedDecision,
   SEMANTIC_PROPOSAL_CANDIDATE_FILE_MAX_BYTES,
   supersedeAcceptedDecision,
 } from "../src/runtime/index.js";
+import { buildSemanticProposal } from "../src/runtime/semantic-proposal.js";
 import { mutateAcceptedFixture } from "./accepted-project-brain-fixture.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
@@ -186,7 +186,7 @@ test("managed-state change during proposal construction fails closed", async () 
   });
 });
 
-test("CLI human output renders control characters inert and JSON stays structured", async () => {
+test("propose CLI refuses local-only Project Brain truth before rendering candidate material", async () => {
   await withProject(async (path) => {
     const candidatePath = resolve(path, "candidate.json");
     await writeFile(candidatePath, JSON.stringify({
@@ -199,22 +199,17 @@ test("CLI human output renders control characters inert and JSON stays structure
     }), "utf8");
 
     const human = runCli(path, ["propose", "--input", candidatePath]);
-    assert.equal(human.status, 0, human.stderr);
-    assert.match(human.stdout, /Origin claim: explicit-user \(verified: false\)/);
-    assert.match(human.stdout, /Review only: true/);
-    assert.match(human.stdout, /Apply supported: false/);
-    assert.match(human.stdout, /Changes made: 0/);
-    assert.equal(human.stdout.includes("\u001b"), false);
-    assert.match(human.stdout, /\\u001b/);
-    assert.match(human.stdout, /\\u000aStatus: review/);
-    assert.match(human.stdout, /\\u0007/);
+    assert.equal(human.status, 3, human.stderr);
+    assert.match(human.stdout, /State: blocked/);
+    assert.doesNotMatch(human.stdout, /Origin claim:|Proposed statement:/);
+    assert.match(human.stdout, /project-brain-integrity-/i);
 
     const json = runCli(path, ["propose", "--input", candidatePath, "--json"]);
-    assert.equal(json.status, 0, json.stderr);
-    const parsed = JSON.parse(json.stdout) as { state: string; proposal: { actionability: { authorizationEligible: boolean }; changesMade: number } };
-    assert.equal(parsed.state, "proposal");
-    assert.equal(parsed.proposal.actionability.authorizationEligible, false);
-    assert.equal(parsed.proposal.changesMade, 0);
+    assert.equal(json.status, 3, json.stderr);
+    const parsed = JSON.parse(json.stdout) as { state: string; proposal: unknown; findings: Array<{ code: string }> };
+    assert.equal(parsed.state, "blocked");
+    assert.equal(parsed.proposal, null);
+    assert.ok(parsed.findings.some((finding) => finding.code.startsWith("project-brain-integrity-")));
   });
 });
 
