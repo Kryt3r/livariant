@@ -1,0 +1,141 @@
+name: S-03 Guardian Cross-Consumer Acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s03-guardian-cross-consumer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guardian-cross-consumer:
+    name: Guardian Cross-Consumer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Provision protected Guardian on Linux
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          staging="$RUNNER_TEMP/livariant-s03-guardian-fixture"
+          rm -rf "$staging"
+          mkdir -p "$staging"
+          node scripts/build-guardian-protected-fixture.mjs "$staging"
+
+          sudo rm -rf /var/lib/livariant-guardian
+          sudo install -d -o root -g root -m 0755 \
+            /var/lib/livariant-guardian \
+            /var/lib/livariant-guardian/v1 \
+            /var/lib/livariant-guardian/v1/records \
+            /var/lib/livariant-guardian/v1/records/semantic-mutation \
+            /var/lib/livariant-guardian/v1/records/project-brain-integrity \
+            /var/lib/livariant-guardian/v1/records/runtime-trust \
+            /var/lib/livariant-guardian/v1/records/release-authorization
+          sudo install -o root -g root -m 0555 "$staging/guardian-helper.js" /var/lib/livariant-guardian/v1/guardian-helper.js
+          sudo install -o root -g root -m 0444 "$staging/guardian-root.json" /var/lib/livariant-guardian/v1/guardian-root.json
+
+      - name: Provision protected Guardian on Windows
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = Join-Path $env:RUNNER_TEMP 'livariant-s03-guardian-fixture'
+          $livariant = 'C:\ProgramData\Livariant'
+          $guardian = 'C:\ProgramData\Livariant\Guardian'
+          $root = 'C:\ProgramData\Livariant\Guardian\v1'
+          $records = Join-Path $root 'records'
+          $consumers = @(
+            (Join-Path $records 'semantic-mutation'),
+            (Join-Path $records 'project-brain-integrity'),
+            (Join-Path $records 'runtime-trust'),
+            (Join-Path $records 'release-authorization')
+          )
+
+          Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          node scripts/build-guardian-protected-fixture.mjs $staging
+
+          Remove-Item -LiteralPath $livariant -Recurse -Force -ErrorAction SilentlyContinue
+          $directories = @($livariant, $guardian, $root, $records) + $consumers
+          foreach ($directory in $directories) {
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+          }
+
+          $system = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
+          $admins = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
+          $users = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-545')
+          $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+          $none = [System.Security.AccessControl.PropagationFlags]::None
+          $allow = [System.Security.AccessControl.AccessControlType]::Allow
+
+          function Set-ProtectedDirectory([string]$path) {
+            $acl = New-Object System.Security.AccessControl.DirectorySecurity
+            $acl.SetOwner($admins)
+            $acl.SetAccessRuleProtection($true, $false)
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $inherit, $none, $allow)))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $inherit, $none, $allow)))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $inherit, $none, $allow)))
+            [System.IO.Directory]::SetAccessControl($path, $acl)
+          }
+
+          function Set-ProtectedFile([string]$path) {
+            $acl = New-Object System.Security.AccessControl.FileSecurity
+            $acl.SetOwner($admins)
+            $acl.SetAccessRuleProtection($true, $false)
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $allow)))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $allow)))
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $allow)))
+            [System.IO.File]::SetAccessControl($path, $acl)
+          }
+
+          foreach ($directory in $directories) {
+            Set-ProtectedDirectory $directory
+          }
+
+          Copy-Item -LiteralPath (Join-Path $staging 'guardian-helper.js') -Destination (Join-Path $root 'guardian-helper.js')
+          Copy-Item -LiteralPath (Join-Path $staging 'guardian-root.json') -Destination (Join-Path $root 'guardian-root.json')
+          Set-ProtectedFile (Join-Path $root 'guardian-helper.js')
+          Set-ProtectedFile (Join-Path $root 'guardian-root.json')
+
+      - name: Run focused S-03 acceptance
+        run: node scripts/guardian-s03-cross-consumer-smoke.mjs
+
+      - name: Clean protected Guardian on Linux
+        if: always() && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          sudo rm -rf /var/lib/livariant-guardian
+          rm -rf "$RUNNER_TEMP/livariant-s03-guardian-fixture"
+
+      - name: Clean protected Guardian on Windows
+        if: always() && matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath 'C:\ProgramData\Livariant' -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'livariant-s03-guardian-fixture') -Recurse -Force -ErrorAction SilentlyContinue
