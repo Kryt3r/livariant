@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { initializeProject } from "../src/runtime/index.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 const legacyCliPath = fileURLToPath(new URL("../src/cli/legacy-main.js", import.meta.url));
@@ -13,8 +14,9 @@ async function withInitializedProject(run: (path: string) => Promise<void>): Pro
   const path = await mkdtemp(resolve(tmpdir(), "livariant-legacy-authority-"));
   try {
     await writeFile(resolve(path, "package.json"), JSON.stringify({ name: "legacy-authority-test" }));
-    const init = runEntry(path, cliPath, ["init", "--apply"]);
-    assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+    // Test fixture setup uses the already-covered core authorization seam. The
+    // public lifecycle CLI is tested separately and may not self-authorize init.
+    await initializeProject(path, { authorized: true });
     await run(path);
   } finally {
     await rm(path, { recursive: true, force: true });
