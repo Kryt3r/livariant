@@ -1,3 +1,4 @@
+import { isAbsolute, resolve } from "node:path";
 import { buildGuardianAuthorityRequest, type GuardianAuthorityRequest } from "./authority-client.js";
 
 export interface ReleaseAuthorizationGuardianMaterial {
@@ -8,6 +9,7 @@ export interface ReleaseAuthorizationGuardianMaterial {
   sourceId: string;
   artifactId: string;
   artifactSha256: string;
+  physicalProjectRoot: string;
 }
 
 export interface ReleaseAuthorizationGuardianRequest {
@@ -26,6 +28,12 @@ function safeIdentityValue(value: string, label: string): string {
   return value;
 }
 
+function normalizedPhysicalPath(value: string, label: string): string {
+  if (!value || !isAbsolute(value)) throw new Error(`${label} must be an absolute physical path.`);
+  const normalized = resolve(value);
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
 export function buildReleaseAuthorizationGuardianRequest(
   input: ReleaseAuthorizationGuardianMaterial,
 ): ReleaseAuthorizationGuardianRequest {
@@ -41,7 +49,7 @@ export function buildReleaseAuthorizationGuardianRequest(
 
   return buildGuardianAuthorityRequest({
     consumer: "release-authorization",
-    mode: "persistent",
+    mode: "one-shot",
     materialFields: [
       { label: "release-authorization-schema-version", value: String(input.releaseAuthorizationSchemaVersion) },
       { label: "package-name", value: input.packageName },
@@ -50,6 +58,7 @@ export function buildReleaseAuthorizationGuardianRequest(
       { label: "source-id", value: safeIdentityValue(input.sourceId, "Release source id") },
       { label: "artifact-id", value: safeIdentityValue(input.artifactId, "Release artifact id") },
       { label: "artifact-sha256", value: normalizedDigest(input.artifactSha256, "Release artifact digest") },
+      { label: "physical-project-root", value: normalizedPhysicalPath(input.physicalProjectRoot, "Physical project root") },
     ],
   });
 }
