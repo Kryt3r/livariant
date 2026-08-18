@@ -1,11 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 
-export const AUTONOMY_PROFILE_SCHEMA_VERSION = 1;
+export const AUTONOMY_PROFILE_SCHEMA_VERSION = 2;
 export const DEFAULT_AUTONOMY_PROFILE: AutonomyProfile = "ask-important";
 export const FAIL_CLOSED_AUTONOMY_PROFILE: AutonomyProfile = "ask-always";
 
@@ -35,16 +35,18 @@ export interface AutonomyPolicy {
 }
 
 interface PersistedAutonomyProfile {
-  schemaVersion: 1;
+  schemaVersion: 2;
   kind: "livariant-autonomy-profile";
   stableProjectIdentity: string;
+  projectLocatorDigest: string;
   profile: AutonomyProfile;
   updatedAt: string;
 }
 
 export interface AutonomyProfileState {
-  schemaVersion: 1;
+  schemaVersion: 2;
   stableProjectIdentity: string | null;
+  projectLocatorDigest?: string;
   profile: AutonomyProfile;
   persisted: boolean;
   source: "default" | "machine-local" | "fail-closed";
@@ -55,6 +57,11 @@ export interface AutonomyProfileState {
 export interface AutonomyStorageOptions {
   homeDir?: string;
   acknowledgeRisk?: boolean;
+}
+
+interface ProjectPreferenceIdentity {
+  stableProjectIdentity: string;
+  projectLocatorDigest: string;
 }
 
 const PROFILE_VALUES = new Set<AutonomyProfile>([
@@ -70,6 +77,10 @@ function errno(error: unknown, code: string): boolean {
 function pathIsWithin(root: string, candidate: string): boolean {
   const rel = relative(resolve(root), resolve(candidate));
   return rel === "" || (!isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`) && !rel.startsWith(sep));
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 async function assertRealDirectory(path: string, label: string): Promise<boolean> {
@@ -93,22 +104,27 @@ function profileBase(homeDir: string): string {
   return resolve(homeDir, ".livariant", "preferences", "autonomy");
 }
 
-async function resolveStableProjectIdentity(projectRoot: string): Promise<string | null> {
+async function resolveProjectPreferenceIdentity(projectRoot: string): Promise<ProjectPreferenceIdentity | null> {
   const store = new ProjectBrainStore(projectRoot);
   const inspection = await store.inspect();
   if (inspection.health !== "valid") return null;
   const metadata = await store.readMetadata();
   if (metadata.projectBrain.schemaVersion !== 2 || !isStableProjectIdentity(metadata.projectBrain.projectId)) return null;
-  return metadata.projectBrain.projectId;
+  return {
+    stableProjectIdentity: metadata.projectBrain.projectId,
+    projectLocatorDigest: sha256(await realpath(projectRoot)),
+  };
 }
 
 async function safeProjectProfileRoot(
   projectRoot: string,
-  projectId: string,
+  identity: ProjectPreferenceIdentity,
   create: boolean,
   options: AutonomyStorageOptions,
 ): Promise<string | null> {
-  if (!isStableProjectIdentity(projectId)) throw new Error("Autonomy profile requires a valid stable project identity.");
+  if (!isStableProjectIdentity(identity.stableProjectIdentity)) throw new Error("Autonomy profile requires a valid stable project identity.");
+  if (!/^[a-f0-9]{64}$/.test(identity.projectLocatorDigest)) throw new Error("Autonomy profile requires a valid physical project locator digest.");
+
   const home = resolve(options.homeDir ?? userInfo().homedir);
   const base = profileBase(home);
 
@@ -132,8 +148,18 @@ async function safeProjectProfileRoot(
     throw new Error("Machine-local autonomy state must not overlap the current project directory.");
   }
 
-  const projectPreferenceRoot = resolve(physicalBase, projectId);
-  if (!pathIsWithin(physicalBase, projectPreferenceRoot)) throw new Error("Machine-local autonomy project path is unsafe.");
+  const actualLocatorDigest = sha256(physicalProject);
+  if (actualLocatorDigest !== identity.projectLocatorDigest) {
+    throw new Error("Autonomy project identity changed while machine-local preference state was being resolved.");
+  }
+
+  const locatorRoot = resolve(physicalBase, identity.projectLocatorDigest);
+  if (!pathIsWithin(physicalBase, locatorRoot)) throw new Error("Machine-local autonomy project-locator path is unsafe.");
+  if (create) await ensureRealDirectory(locatorRoot, "Machine-local autonomy project-locator root");
+  else if (!await assertRealDirectory(locatorRoot, "Machine-local autonomy project-locator root")) return null;
+
+  const projectPreferenceRoot = resolve(locatorRoot, identity.stableProjectIdentity);
+  if (!pathIsWithin(locatorRoot, projectPreferenceRoot)) throw new Error("Machine-local autonomy project path is unsafe.");
   if (create) await ensureRealDirectory(projectPreferenceRoot, "Machine-local autonomy project root");
   else if (!await assertRealDirectory(projectPreferenceRoot, "Machine-local autonomy project root")) return null;
   return realpath(projectPreferenceRoot);
@@ -142,17 +168,19 @@ async function safeProjectProfileRoot(
 function parsePersistedProfile(value: unknown): PersistedAutonomyProfile {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Autonomy profile state is invalid.");
   const record = value as Record<string, unknown>;
-  const allowed = new Set(["schemaVersion", "kind", "stableProjectIdentity", "profile", "updatedAt"]);
+  const allowed = new Set(["schemaVersion", "kind", "stableProjectIdentity", "projectLocatorDigest", "profile", "updatedAt"]);
   for (const key of Object.keys(record)) if (!allowed.has(key)) throw new Error("Autonomy profile state contains an unsupported field.");
   for (const key of allowed) if (!(key in record)) throw new Error(`Autonomy profile state is missing required field: ${key}.`);
-  if (record.schemaVersion !== 1 || record.kind !== "livariant-autonomy-profile") throw new Error("Autonomy profile state schema is invalid.");
+  if (record.schemaVersion !== 2 || record.kind !== "livariant-autonomy-profile") throw new Error("Autonomy profile state schema is invalid.");
   if (!isStableProjectIdentity(record.stableProjectIdentity)) throw new Error("Autonomy profile project identity is invalid.");
+  if (typeof record.projectLocatorDigest !== "string" || !/^[a-f0-9]{64}$/.test(record.projectLocatorDigest)) throw new Error("Autonomy profile physical project locator digest is invalid.");
   if (!isAutonomyProfile(record.profile)) throw new Error("Autonomy profile value is invalid.");
   if (typeof record.updatedAt !== "string" || Number.isNaN(Date.parse(record.updatedAt))) throw new Error("Autonomy profile timestamp is invalid.");
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: "livariant-autonomy-profile",
     stableProjectIdentity: record.stableProjectIdentity,
+    projectLocatorDigest: record.projectLocatorDigest,
     profile: record.profile,
     updatedAt: record.updatedAt,
   };
@@ -217,10 +245,10 @@ export async function readAutonomyProfile(
   projectRoot: string = process.cwd(),
   options: AutonomyStorageOptions = {},
 ): Promise<AutonomyProfileState> {
-  const projectId = await resolveStableProjectIdentity(projectRoot);
-  if (!projectId) {
+  const identity = await resolveProjectPreferenceIdentity(projectRoot);
+  if (!identity) {
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       stableProjectIdentity: null,
       profile: DEFAULT_AUTONOMY_PROFILE,
       persisted: false,
@@ -232,12 +260,13 @@ export async function readAutonomyProfile(
 
   let root: string | null;
   try {
-    root = await safeProjectProfileRoot(projectRoot, projectId, false, options);
+    root = await safeProjectProfileRoot(projectRoot, identity, false, options);
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Machine-local autonomy state is unsafe.";
     return {
-      schemaVersion: 1,
-      stableProjectIdentity: projectId,
+      schemaVersion: 2,
+      stableProjectIdentity: identity.stableProjectIdentity,
+      projectLocatorDigest: identity.projectLocatorDigest,
       profile: FAIL_CLOSED_AUTONOMY_PROFILE,
       persisted: false,
       source: "fail-closed",
@@ -247,8 +276,9 @@ export async function readAutonomyProfile(
   }
   if (!root) {
     return {
-      schemaVersion: 1,
-      stableProjectIdentity: projectId,
+      schemaVersion: 2,
+      stableProjectIdentity: identity.stableProjectIdentity,
+      projectLocatorDigest: identity.projectLocatorDigest,
       profile: DEFAULT_AUTONOMY_PROFILE,
       persisted: false,
       source: "default",
@@ -264,8 +294,9 @@ export async function readAutonomyProfile(
   } catch (error) {
     if (errno(error, "ENOENT")) {
       return {
-        schemaVersion: 1,
-        stableProjectIdentity: projectId,
+        schemaVersion: 2,
+        stableProjectIdentity: identity.stableProjectIdentity,
+        projectLocatorDigest: identity.projectLocatorDigest,
         profile: DEFAULT_AUTONOMY_PROFILE,
         persisted: false,
         source: "default",
@@ -277,8 +308,9 @@ export async function readAutonomyProfile(
 
   if (!stats.isFile() || stats.isSymbolicLink()) {
     return {
-      schemaVersion: 1,
-      stableProjectIdentity: projectId,
+      schemaVersion: 2,
+      stableProjectIdentity: identity.stableProjectIdentity,
+      projectLocatorDigest: identity.projectLocatorDigest,
       profile: FAIL_CLOSED_AUTONOMY_PROFILE,
       persisted: false,
       source: "fail-closed",
@@ -289,10 +321,12 @@ export async function readAutonomyProfile(
 
   try {
     const parsed = parsePersistedProfile(JSON.parse(await readFile(profilePath, "utf8")) as unknown);
-    if (parsed.stableProjectIdentity !== projectId) throw new Error("Machine-local autonomy profile does not match the current stable project identity.");
+    if (parsed.stableProjectIdentity !== identity.stableProjectIdentity) throw new Error("Machine-local autonomy profile does not match the current stable project identity.");
+    if (parsed.projectLocatorDigest !== identity.projectLocatorDigest) throw new Error("Machine-local autonomy profile does not match the current physical project location.");
     return {
-      schemaVersion: 1,
-      stableProjectIdentity: projectId,
+      schemaVersion: 2,
+      stableProjectIdentity: identity.stableProjectIdentity,
+      projectLocatorDigest: identity.projectLocatorDigest,
       profile: parsed.profile,
       persisted: true,
       source: "machine-local",
@@ -301,8 +335,9 @@ export async function readAutonomyProfile(
   } catch (error) {
     const reason = error instanceof Error ? error.message : "Machine-local autonomy profile is invalid.";
     return {
-      schemaVersion: 1,
-      stableProjectIdentity: projectId,
+      schemaVersion: 2,
+      stableProjectIdentity: identity.stableProjectIdentity,
+      projectLocatorDigest: identity.projectLocatorDigest,
       profile: FAIL_CLOSED_AUTONOMY_PROFILE,
       persisted: false,
       source: "fail-closed",
@@ -321,18 +356,26 @@ export async function writeAutonomyProfile(
   if (profile === "continue-without-confirmation" && options.acknowledgeRisk !== true) {
     throw new Error("Persisting continue-without-confirmation requires explicit risk acknowledgement at the autonomy storage boundary.");
   }
-  const projectId = await resolveStableProjectIdentity(projectRoot);
-  if (!projectId) throw new Error("Cannot persist autonomy profile until this project has a valid initialized Project Brain with a stable project identity.");
-  const root = await safeProjectProfileRoot(projectRoot, projectId, true, options);
+  const identity = await resolveProjectPreferenceIdentity(projectRoot);
+  if (!identity) throw new Error("Cannot persist autonomy profile until this project has a valid initialized Project Brain with a stable project identity.");
+  const root = await safeProjectProfileRoot(projectRoot, identity, true, options);
   if (!root) throw new Error("Machine-local autonomy root could not be established.");
   const profilePath = resolve(root, "profile.json");
   const tempPath = resolve(root, `.profile.tmp-${randomUUID()}.json`);
   if (!pathIsWithin(root, profilePath) || !pathIsWithin(root, tempPath)) throw new Error("Machine-local autonomy profile path is unsafe.");
 
+  const revalidated = await resolveProjectPreferenceIdentity(projectRoot);
+  if (!revalidated
+    || revalidated.stableProjectIdentity !== identity.stableProjectIdentity
+    || revalidated.projectLocatorDigest !== identity.projectLocatorDigest) {
+    throw new Error("Project identity changed while the autonomy profile was being persisted; refusing stale preference state.");
+  }
+
   const record: PersistedAutonomyProfile = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: "livariant-autonomy-profile",
-    stableProjectIdentity: projectId,
+    stableProjectIdentity: identity.stableProjectIdentity,
+    projectLocatorDigest: identity.projectLocatorDigest,
     profile,
     updatedAt: new Date().toISOString(),
   };
@@ -345,8 +388,9 @@ export async function writeAutonomyProfile(
   }
 
   return {
-    schemaVersion: 1,
-    stableProjectIdentity: projectId,
+    schemaVersion: 2,
+    stableProjectIdentity: identity.stableProjectIdentity,
+    projectLocatorDigest: identity.projectLocatorDigest,
     profile,
     persisted: true,
     source: "machine-local",
