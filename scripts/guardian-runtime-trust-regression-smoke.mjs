@@ -70,7 +70,7 @@ function removeProtectedRecord() {
     "-NoProfile",
     "-NonInteractive",
     "-Command",
-    "$ErrorActionPreference='Stop'; Remove-Item -LiteralPath $env:LIVARIANT_DEST -Force -ErrorAction SilentlyContinue",
+    "$ErrorActionPreference='Stop'; if (Test-Path -LiteralPath $env:LIVARIANT_DEST) { Remove-Item -LiteralPath $env:LIVARIANT_DEST -Force }",
   ], {
     encoding: "utf8",
     shell: false,
