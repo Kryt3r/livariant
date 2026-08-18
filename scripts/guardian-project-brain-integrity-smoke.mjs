@@ -12,6 +12,7 @@ import {
   recordAcceptedProjectBrainState,
 } from "../dist/src/project-brain/integrity.js";
 import { inspectProtectedProjectBrainIntegrity } from "../dist/src/project-brain/protected-integrity.js";
+import { runProtectedDoctor } from "../dist/src/runtime/protected-doctor.js";
 import { FRAMEWORK_VERSION } from "../dist/src/lifecycle/state.js";
 
 const RECORD_ID = "55555555-5555-4555-8555-555555555555";
@@ -141,11 +142,13 @@ try {
   assert.equal(protectedMatch.state, "match");
   if (protectedMatch.state !== "match") throw new Error("expected protected integrity match");
   assert.equal(protectedMatch.guardian.recordId, RECORD_ID);
+  assert.equal((await runProtectedDoctor(project)).state, "healthy");
 
   // Direct managed-byte mutation must be detected before any local receipt rewrite.
   const mutatedKnowledge = `${originalKnowledge.trimEnd()}\n\n## Confirmed project knowledge\n\n- same-user direct mutation attack\n`;
   await store.replaceKnowledgeDocument(originalKnowledge, mutatedKnowledge);
   assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "mismatch");
+  assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
 
   // S-03 attack: the same user can rewrite the local receipt to bless the new bytes,
   // but the protected Guardian still binds the original exact material. The forged
@@ -153,12 +156,14 @@ try {
   await recordAcceptedProjectBrainState(project, "manual-bootstrap");
   assert.equal((await inspectProjectBrainIntegrity(project)).state, "match");
   assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "unprotected");
+  assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
 
   // Restore the exact previously protected bytes; exact material may become valid
   // again, because the persistent Guardian record is byte/location/identity bound.
   await store.replaceKnowledgeDocument(mutatedKnowledge, originalKnowledge);
   await recordAcceptedProjectBrainState(project, "manual-bootstrap");
   assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "match");
+  assert.equal((await runProtectedDoctor(project)).state, "healthy");
 
   // Stable project identity substitution plus a freshly forged local receipt must
   // also fail because stable identity participates in the protected material digest.
@@ -168,10 +173,12 @@ try {
   await recordAcceptedProjectBrainState(project, "manual-bootstrap");
   assert.equal((await inspectProjectBrainIntegrity(project)).state, "match");
   assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "unprotected");
+  assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
 
   await writeFile(resolve(project, ".project-brain", "metadata.json"), originalMetadata, "utf8");
   await recordAcceptedProjectBrainState(project, "manual-bootstrap");
   assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "match");
+  assert.equal((await runProtectedDoctor(project)).state, "healthy");
 
   // Copy exact Project Brain bytes to another physical project and forge its local
   // receipt. Physical path binding must prevent portability of the accepted state.
@@ -180,12 +187,14 @@ try {
   await recordAcceptedProjectBrainState(copiedProject, "manual-bootstrap");
   assert.equal((await inspectProjectBrainIntegrity(copiedProject)).state, "match");
   assert.equal((await inspectProtectedProjectBrainIntegrity(copiedProject)).state, "unprotected");
+  assert.notEqual((await runProtectedDoctor(copiedProject)).state, "healthy");
 
   // Guardian removal must fail closed and must not fall back to the still-matching
   // same-user local receipt.
   removeProtectedRecord(protectedRecordPath(RECORD_ID));
   assert.equal((await inspectProjectBrainIntegrity(project)).state, "match");
   assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "unprotected");
+  assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
 
   // Malformed protected state fails closed as invalid rather than being ignored in
   // favor of local evidence.
@@ -194,8 +203,9 @@ try {
   installProtectedRecord(malformedSource, protectedRecordPath(MALFORMED_RECORD_ID));
   const malformed = await inspectProtectedProjectBrainIntegrity(project);
   assert.equal(malformed.state, "invalid");
+  assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
 
-  console.log("Protected Project Brain Integrity acceptance passed: exact protected state matched; direct mutation, forged local re-acceptance, stable-id substitution, physical copy, Guardian removal, and malformed protected state all failed closed.");
+  console.log("Protected Project Brain Integrity acceptance passed: exact protected state and protected Doctor matched; direct mutation, forged local re-acceptance, stable-id substitution, physical copy, Guardian removal, and malformed protected state all failed closed through the protected Doctor gate.");
 } finally {
   removeProtectedRecord(protectedRecordPath(RECORD_ID));
   removeProtectedRecord(protectedRecordPath(MALFORMED_RECORD_ID));
