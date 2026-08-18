@@ -4,6 +4,15 @@
   <strong>English</strong> · <a href="README.de.md">Deutsch</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
+  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.3"><img alt="Release" src="https://img.shields.io/badge/release-v0.1.0--rc.3-0ea5e9" /></a>
+  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-339933?logo=nodedotjs&logoColor=white" />
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-PolyForm%20Perimeter-7c3aed" /></a>
+  <img alt="Local-first" src="https://img.shields.io/badge/local--first-default-06b6d4" />
+  <img alt="MCP" src="https://img.shields.io/badge/MCP-supported-a855f7" />
+</p>
+
 # Livariant
 
 **AI coding agents can be wrong. Livariant is built so their mistakes do not silently become project truth.**
