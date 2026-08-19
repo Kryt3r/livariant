@@ -1,6 +1,9 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { selectCanonicalReleaseRuns } from "./release-decision-evidence-selection.mjs";
+import {
+  SELF_INTEGRITY_RELEASE_WORKFLOW_NAME,
+  selectCanonicalReleaseRuns,
+} from "./release-decision-evidence-selection.mjs";
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -39,10 +42,11 @@ if (!metadata.sbom?.sha256 || metadata.sbom?.format !== "SPDX-2.3") throw new Er
 
 const runsResponse = await githubApi(`/repos/${repository}/actions/runs?head_sha=${sourceSha}&per_page=100`, token);
 const runs = Array.isArray(runsResponse.workflow_runs) ? runsResponse.workflow_runs : [];
-const { hardeningRun, codeqlRun } = selectCanonicalReleaseRuns(runs, sourceSha);
+const { hardeningRun, codeqlRun, selfIntegrityRun } = selectCanonicalReleaseRuns(runs, sourceSha);
 
 const hardeningPassed = hardeningRun?.conclusion === "success";
 const codeqlPassed = codeqlRun?.conclusion === "success";
+const selfIntegrityPassed = selfIntegrityRun?.conclusion === "success";
 const runReference = `github-actions:${repository}#${workflowRunId}`;
 
 const evidence = {
@@ -64,6 +68,13 @@ const evidence = {
       summary: codeqlPassed
         ? `CodeQL completed successfully on canonical main at exact source ${sourceSha}; deterministic hardening tests also passed in the RC workflow.`
         : `No successful completed CodeQL Actions run on canonical main was found for exact source ${sourceSha}.`,
+    },
+    selfIntegrity: {
+      required: true,
+      status: selfIntegrityPassed ? "PASS" : "UNKNOWN",
+      summary: selfIntegrityPassed
+        ? `Dedicated ${SELF_INTEGRITY_RELEASE_WORKFLOW_NAME} completed successfully on canonical main at exact source ${sourceSha}.`
+        : `No successful completed dedicated ${SELF_INTEGRITY_RELEASE_WORKFLOW_NAME} push run on canonical main was found for exact source ${sourceSha}.`,
     },
     ciPlatforms: {
       required: true,
@@ -91,7 +102,7 @@ const evidence = {
   blockers: [],
   residualRisks: [
     "Artifact provenance/attestation is not yet implemented, so the current dossier verifies source-bound build evidence and digests but not an independently verifiable build attestation.",
-    "Independent AI-assisted release audits are not yet part of dossier v1; current security confidence comes from deterministic hardening, CodeQL, dependency controls, regression evidence, and human review.",
+    "Independent AI-assisted release audits are not yet part of dossier v1; the dedicated Self-Integrity release acceptance is deterministic regression evidence and does not replace independent human or AI review where separately required.",
   ],
   technicalEvidence: [
     {
@@ -120,6 +131,18 @@ const evidence = {
       sourceSha,
       reference: codeqlRun ? `github-actions:${repository}#${codeqlRun.id}` : undefined,
       summary: codeqlPassed ? "Exact-source CodeQL Actions run on canonical main succeeded." : "Exact-source successful CodeQL Actions evidence on canonical main was not found.",
+    },
+    {
+      id: "self-integrity-release-acceptance",
+      type: "github-actions-self-integrity-workflow",
+      workflowName: SELF_INTEGRITY_RELEASE_WORKFLOW_NAME,
+      required: true,
+      status: selfIntegrityPassed ? "PASS" : "UNKNOWN",
+      sourceSha,
+      reference: selfIntegrityRun ? `github-actions:${repository}#${selfIntegrityRun.id}` : undefined,
+      summary: selfIntegrityPassed
+        ? "Dedicated exact-source Self-Integrity / AI-Failure Containment release acceptance succeeded on canonical main."
+        : "Dedicated exact-source Self-Integrity / AI-Failure Containment release acceptance on canonical main was not found or did not succeed.",
     },
     {
       id: "release-artifact-digest",
@@ -151,4 +174,4 @@ const evidence = {
 };
 
 await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-process.stdout.write(`${JSON.stringify({ sourceSha, hardeningRunId: hardeningRun?.id ?? null, hardeningConclusion: hardeningRun?.conclusion ?? null, codeqlRunId: codeqlRun?.id ?? null, codeqlConclusion: codeqlRun?.conclusion ?? null, outputPath })}\n`);
+process.stdout.write(`${JSON.stringify({ sourceSha, hardeningRunId: hardeningRun?.id ?? null, hardeningConclusion: hardeningRun?.conclusion ?? null, codeqlRunId: codeqlRun?.id ?? null, codeqlConclusion: codeqlRun?.conclusion ?? null, selfIntegrityRunId: selfIntegrityRun?.id ?? null, selfIntegrityConclusion: selfIntegrityRun?.conclusion ?? null, outputPath })}\n`);
