@@ -97,9 +97,9 @@ Nachdem du den normalen MCP-Registrierungsschritt des Providers angewendet hast,
 
 Aktuelle begrenzte MCP-Tools sind:
 
-- `livariant_provider_context` — begrenzten Projektkontext für eine explizite Aufgabe liefern;
-- `livariant_provider_return` — Provider-Ausgabe als nicht vertrauenswürdige Evidenz/Kandidatenmaterial zurückgeben;
-- `livariant_verification_trace` — explizite Anforderungen oder Acceptance Criteria gegen bereitgestellte Verification Evidence bewerten.
+- `livariant_provider_context`: begrenzten Projektkontext für eine explizite Aufgabe liefern;
+- `livariant_provider_return`: Provider-Ausgabe als nicht vertrauenswürdige Evidenz/Kandidatenmaterial zurückgeben;
+- `livariant_verification_trace`: explizite Anforderungen oder Acceptance Criteria gegen bereitgestellte Verification Evidence bewerten.
 
 ## 5. Danach normal mit dem Agenten arbeiten
 
