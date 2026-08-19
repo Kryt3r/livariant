@@ -17,7 +17,7 @@ KI-gestützte Implementierung kann fertig wirken, obwohl angeforderte Ergebnisse
 
 `verification-trace` macht diese Lücke sichtbar, ohne Project Truth, Task-Status, Release-Status oder Authority stillschweigend zu verändern.
 
-## Einen Trace ausführen
+## Einen Trace über die CLI ausführen
 
 Erstelle einen JSON-Trace und führe aus:
 
@@ -32,6 +32,25 @@ livariant verification-trace --input trace.json --json
 ```
 
 Der Befehl ist read-only und meldet `Changes made: 0`.
+
+## Den Trace direkt aus einem MCP-Coding-Agent verwenden
+
+Wenn Livariants lokale MCP-Bridge verbunden ist, kann ein MCP-fähiger Coding-Agent direkt dieses Tool aufrufen:
+
+`livariant_verification_trace`
+
+Das Tool akzeptiert dieselbe explizite Version-1-Trace-Struktur wie CLI und Core-Assessor und liefert dieselben deterministischen Assessment-Zustände zurück. Es ist ausdrücklich read-only und nicht-destruktiv deklariert.
+
+Konzeptionell:
+
+```text
+Coding-Agent
+  → livariant_verification_trace
+  → bestehender Verification-Trace-Assessor
+  → supported / contradicted / unproven
+```
+
+Dadurch muss während einer Agent-Session nicht mehr manuell der CLI-Befehl ausgeführt werden. Das fügt aber **keine** automatische Anforderungserkennung oder unabhängige Verification Intelligence hinzu: Anforderungen, Implementierungsbehauptungen und Verification Evidence müssen weiterhin explizit geliefert werden, und Evidence wird nicht allein deshalb vertrauenswürdig, weil sie über MCP von einem Agent stammt.
 
 ## Assessment-Zustände
 
@@ -81,13 +100,14 @@ Das sind getrennte zukünftige Fähigkeiten mit eigenem Scope und Trust-Modell.
 
 ## Sicherheitsgrenze
 
-Das Trace-Assessment:
+Das Trace-Assessment, einschließlich des MCP-Consumers:
 
 - ist read-only;
 - vergibt keine Authority;
 - verändert Project Truth nicht;
 - markiert Arbeit nicht als akzeptiert oder DONE;
 - verändert keine Release-Entscheidung;
+- vertraut Evidence nicht allein deshalb, weil sie von einer KI geliefert wurde;
 - behauptet nicht, dass ein einzelner bestandener Test universelle Fertigstellung beweist.
 
 Die Kernregeln bleiben:
@@ -123,9 +143,11 @@ Bewusst nicht enthalten sind:
 - automatische Anforderungspersistenz;
 - automatisches Task-DONE;
 - Project-Truth-Promotion;
+- automatische beliebige Anforderungserkennung;
+- unabhängiges Vertrauen in Agent-gelieferte Evidence;
 - Graph-/Index-Infrastruktur;
 - Ausführung von Verification-Plugins/Capability-Packs;
 - Release-Autorisierung;
 - breite Provider-/Agent-Consumer-Migration.
 
-Das v1-Ziel ist enger: unbelegte oder widersprochene Fertigstellungsbehauptungen schon jetzt sichtbar und nutzbar machen und gleichzeitig saubere Erweiterungspunkte für spätere Fähigkeiten bewahren.
+Das v1-Ziel ist enger: unbelegte oder widersprochene Fertigstellungsbehauptungen jetzt sowohl über CLI als auch über die lokale MCP-Agent-Bridge sichtbar und nutzbar machen und gleichzeitig saubere Erweiterungspunkte für spätere Fähigkeiten bewahren.
