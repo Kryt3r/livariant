@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 export const AREA_KEYS = [
   "functionality",
   "security",
+  "selfIntegrity",
   "ciPlatforms",
   "packaging",
   "supplyChain",
@@ -15,9 +16,13 @@ export const REQUIRED_TECHNICAL_EVIDENCE_IDS = [
   "rc-source-validation",
   "hardening-ci",
   "codeql",
+  "self-integrity-release-acceptance",
   "release-artifact-digest",
   "release-sbom",
 ];
+
+export const SELF_INTEGRITY_EVIDENCE_TYPE = "github-actions-self-integrity-workflow";
+export const SELF_INTEGRITY_WORKFLOW_NAME = "Self-Integrity Release Acceptance";
 
 const VALID_STATUSES = new Set(["PASS", "WARN", "FAIL", "UNKNOWN", "NOT_APPLICABLE"]);
 const VALID_RECOMMENDATIONS = new Set(["GO", "GO WITH RISKS", "NO-GO"]);
@@ -68,6 +73,11 @@ export function validateReleaseDecisionEvidence(input) {
     assert(item, `Missing canonical required technical evidence: ${id}`);
     assert(item.required === true, `Canonical technical evidence ${id} cannot be demoted from required.`);
   }
+
+  const selfIntegrity = evidenceById.get("self-integrity-release-acceptance");
+  assert(selfIntegrity.type === SELF_INTEGRITY_EVIDENCE_TYPE, "Self-Integrity evidence must use the dedicated workflow evidence type.");
+  assert(selfIntegrity.workflowName === SELF_INTEGRITY_WORKFLOW_NAME, "Self-Integrity evidence must come from the dedicated Self-Integrity Release Acceptance workflow.");
+  assert(selfIntegrity.sourceSha === input.candidate.sourceSha, "Self-Integrity evidence must be bound to the exact candidate source SHA.");
 
   return input;
 }
@@ -130,6 +140,7 @@ export function renderReleaseDecisionMarkdown(evaluated) {
   const areaLabels = {
     functionality: "Functionality",
     security: "Security",
+    selfIntegrity: "Self-Integrity / AI-Failure Containment",
     ciPlatforms: "CI / supported platforms",
     packaging: "Installation / packaging",
     supplyChain: "Supply chain",
@@ -190,6 +201,7 @@ export function renderReleaseDecisionMarkdown(evaluated) {
       `- Required: ${item.required ? "yes" : "no"}`,
       `- Status: ${item.status}`,
       `- Source SHA: ${item.sourceSha ?? "not candidate-bound / not applicable"}`,
+      ...(item.workflowName ? [`- Workflow: ${item.workflowName}`] : []),
       `- Reference: ${item.reference ?? "not provided"}`,
       `- Summary: ${item.summary}`,
       "",

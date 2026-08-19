@@ -4,6 +4,8 @@ function latestRun(runs, predicate) {
     .sort((left, right) => Date.parse(right.created_at ?? 0) - Date.parse(left.created_at ?? 0))[0];
 }
 
+export const SELF_INTEGRITY_RELEASE_WORKFLOW_NAME = "Self-Integrity Release Acceptance";
+
 export function selectCanonicalReleaseRuns(runs, sourceSha) {
   const safeRuns = Array.isArray(runs) ? runs : [];
   const hardeningRun = latestRun(
@@ -21,5 +23,13 @@ export function selectCanonicalReleaseRuns(runs, sourceSha) {
       && run.status === "completed"
       && (String(run.path).includes("codeql") || String(run.name).toLowerCase().includes("codeql")),
   );
-  return { hardeningRun, codeqlRun };
+  const selfIntegrityRun = latestRun(
+    safeRuns,
+    (run) => run.name === SELF_INTEGRITY_RELEASE_WORKFLOW_NAME
+      && run.head_sha === sourceSha
+      && run.head_branch === "main"
+      && run.event === "push"
+      && run.status === "completed",
+  );
+  return { hardeningRun, codeqlRun, selfIntegrityRun };
 }
