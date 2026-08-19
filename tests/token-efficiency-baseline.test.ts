@@ -19,13 +19,26 @@ test("token-efficiency baseline harness emits bounded reproducible B-state metri
     schemaVersion: number;
     benchmarkState: string;
     sourceBaseline: string;
-    methodology: { tokenProxy: string };
-    surfaces: Array<{ surface: string; bytes: number; estimatedTokens: number }>;
-    totals: {
-      bytes: number;
-      estimatedTokens: number;
+    methodology: { tokenProxy: string; aggregateBoundary: string };
+    surfaces: Array<{
+      surface: string;
+      serializedBytes: number;
+      tokenProxy: number;
+      topLevelFieldBytes: Record<string, number>;
+    }>;
+    aggregateDiagnostics: {
+      serializedBytesAcrossMeasuredSurfaces: number;
+      tokenProxyAcrossMeasuredSurfaces: number;
       crossSurfaceDuplicateStringBytes: number;
-      mcpStructuredContentMirroredInTextBytes: number;
+    };
+    mcpDelivery: {
+      transportResponseBytes: number;
+      explicitTextContentBytes: number;
+      explicitTextContentTokenProxy: number;
+      structuredContentBytes: number;
+      exactStructuredTextMirror: boolean;
+      exactMirrorBytes: number;
+      interpretationBoundary: string;
     };
     reliabilityAssertions: {
       providerContextState: string;
@@ -35,19 +48,25 @@ test("token-efficiency baseline harness emits bounded reproducible B-state metri
     };
   };
 
-  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.schemaVersion, 2);
   assert.equal(report.benchmarkState, "B-current-livariant");
   assert.equal(report.sourceBaseline, "f325ab57b862e1e13526e6d75e17d93a243e2284");
   assert.match(report.methodology.tokenProxy, /proxy/i);
+  assert.match(report.methodology.aggregateBoundary, /not assumed/i);
   assert.deepEqual(report.surfaces.map((item) => item.surface), ["resume", "context", "providerContext", "understand", "mcpContext"]);
   for (const surface of report.surfaces) {
-    assert.ok(surface.bytes > 0, `${surface.surface} must have measurable payload bytes`);
-    assert.ok(surface.estimatedTokens > 0, `${surface.surface} must have a non-zero token proxy`);
+    assert.ok(surface.serializedBytes > 0, `${surface.surface} must have measurable payload bytes`);
+    assert.ok(surface.tokenProxy > 0, `${surface.surface} must have a non-zero token proxy`);
+    assert.ok(Object.keys(surface.topLevelFieldBytes).length > 0, `${surface.surface} must expose top-level field diagnostics`);
   }
-  assert.ok(report.totals.bytes > 0);
-  assert.ok(report.totals.estimatedTokens > 0);
-  assert.ok(report.totals.crossSurfaceDuplicateStringBytes >= 0);
-  assert.ok(report.totals.mcpStructuredContentMirroredInTextBytes > 0, "current MCP context response should expose measurable structured/text mirroring");
+  assert.ok(report.aggregateDiagnostics.serializedBytesAcrossMeasuredSurfaces > 0);
+  assert.ok(report.aggregateDiagnostics.tokenProxyAcrossMeasuredSurfaces > 0);
+  assert.ok(report.aggregateDiagnostics.crossSurfaceDuplicateStringBytes >= 0);
+  assert.ok(report.mcpDelivery.transportResponseBytes > report.mcpDelivery.explicitTextContentBytes);
+  assert.equal(report.mcpDelivery.exactStructuredTextMirror, true);
+  assert.equal(report.mcpDelivery.exactMirrorBytes, report.mcpDelivery.explicitTextContentBytes);
+  assert.equal(report.mcpDelivery.structuredContentBytes, report.mcpDelivery.explicitTextContentBytes);
+  assert.match(report.mcpDelivery.interpretationBoundary, /not automatically equivalent/i);
   assert.equal(report.reliabilityAssertions.providerContextState, "ready");
   assert.equal(report.reliabilityAssertions.contextSafetyState, "clear");
   assert.equal(report.reliabilityAssertions.mcpReturnedWithoutMutationAuthority, true);
