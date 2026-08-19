@@ -93,9 +93,9 @@ Once you apply the provider's normal MCP registration step, the coding agent can
 
 Current bounded MCP tools include:
 
-- `livariant_provider_context` — obtain bounded project context for an explicit task;
-- `livariant_provider_return` — return provider output as untrusted evidence/candidate material;
-- `livariant_verification_trace` — assess explicit requirements or acceptance criteria against supplied verification evidence.
+- `livariant_provider_context`: obtain bounded project context for an explicit task;
+- `livariant_provider_return`: return provider output as untrusted evidence/candidate material;
+- `livariant_verification_trace`: assess explicit requirements or acceptance criteria against supplied verification evidence.
 
 ## 5. Work normally with the agent
 
