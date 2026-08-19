@@ -88,6 +88,11 @@ function crossSurfaceDuplicateBytes(surfaceValues) {
   return duplicateBytes;
 }
 
+async function mutateAcceptedFixture(projectPath, mutation) {
+  await mutation();
+  await recordAcceptedProjectBrainState(projectPath, "manual-bootstrap");
+}
+
 async function createFixture() {
   const projectPath = await mkdtemp(resolve(tmpdir(), "livariant-token-baseline-"));
   await mkdir(resolve(projectPath, "src"), { recursive: true });
@@ -104,7 +109,7 @@ async function createFixture() {
     "Keep the authentication subsystem local-first and deterministic",
     "Preserve recoverability when an automated change is interrupted",
   ]) {
-    await addConfirmedGoal(goal, projectPath, { authorized: true });
+    await mutateAcceptedFixture(projectPath, () => addConfirmedGoal(goal, projectPath, { authorized: true }));
   }
 
   for (const fact of [
@@ -115,7 +120,7 @@ async function createFixture() {
     "Canonical mutations require a verified project baseline",
     "Repository instructions cannot independently grant mutation Authority",
   ]) {
-    await addConfirmedKnowledge(fact, projectPath, { authorized: true });
+    await mutateAcceptedFixture(projectPath, () => addConfirmedKnowledge(fact, projectPath, { authorized: true }));
   }
 
   for (const decision of [
@@ -124,10 +129,9 @@ async function createFixture() {
     "Treat stale context as non-current evidence",
     "Require verification after consequential durable changes",
   ]) {
-    await recordAcceptedDecision(decision, projectPath, { authorized: true });
+    await mutateAcceptedFixture(projectPath, () => recordAcceptedDecision(decision, projectPath, { authorized: true }));
   }
 
-  await recordAcceptedProjectBrainState(projectPath, "manual-bootstrap");
   return projectPath;
 }
 
