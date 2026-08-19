@@ -57,6 +57,73 @@ jobs:
             --compatible-from 0.1.0-rc.1,0.1.0-rc.2,0.1.0-rc.3 \
             --output rc-bundle
 
+      - name: Generate exact-source Q-07 context and token evidence
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          LIVARIANT_BENCHMARK_SOURCE_SHA="$SOURCE_SHA" node scripts/token-efficiency-baseline.mjs > rc-bundle/context-token-evidence.json
+          LIVARIANT_BENCHMARK_SOURCE_SHA="$SOURCE_SHA" node scripts/verification-trace-token-benchmark.mjs > rc-bundle/verification-trace-token-evidence.json
+          node <<'NODE'
+          const { readFileSync, writeFileSync } = require('node:fs');
+          const sourceSha = process.env.SOURCE_SHA;
+          const context = JSON.parse(readFileSync('rc-bundle/context-token-evidence.json', 'utf8'));
+          const trace = JSON.parse(readFileSync('rc-bundle/verification-trace-token-evidence.json', 'utf8'));
+
+          if (context.sourceIdentity?.sourceSha !== sourceSha || context.sourceIdentity?.exactSourceBound !== true) {
+            throw new Error('Context/token benchmark is not bound to exact RC source SHA.');
+          }
+          if (trace.sourceIdentity?.sourceSha !== sourceSha || trace.sourceIdentity?.exactSourceBound !== true) {
+            throw new Error('Verification Trace benchmark is not bound to exact RC source SHA.');
+          }
+          if (context.reliabilityAssertions?.mcpReturnedWithoutMutationAuthority !== true || context.reliabilityAssertions?.changesMade !== 0) {
+            throw new Error('Context benchmark lost read-only / mutation-Authority boundary.');
+          }
+          if (trace.reliabilityAssertions?.assessmentStatesPreserved !== true || trace.reliabilityAssertions?.sourceReferencesPreserved !== true) {
+            throw new Error('Verification Trace compact projection lost reliability-critical information.');
+          }
+          if (!String(context.methodology?.tokenProxy ?? '').toLowerCase().includes('proxy')) {
+            throw new Error('Context benchmark does not identify its token method as a proxy.');
+          }
+          if (!String(trace.methodology?.tokenProxy ?? '').toLowerCase().includes('proxy')) {
+            throw new Error('Verification Trace benchmark does not identify its token method as a proxy.');
+          }
+
+          const summary = {
+            schemaVersion: 1,
+            sourceSha,
+            methodology: {
+              tokenProxy: 'ceil(utf8-bytes/4)',
+              exactProviderBillingTokens: false,
+              boundary: 'Deterministic reproducible payload proxy only. Provider/client projection and billed tokens may differ.',
+            },
+            measurements: {
+              mcpTransportTokenProxy: Math.ceil(context.mcpDelivery.transportResponseBytes / 4),
+              mcpExplicitTextTokenProxy: context.mcpDelivery.explicitTextContentTokenProxy,
+              mcpStructuredContentTokenProxy: Math.ceil(context.mcpDelivery.structuredContentBytes / 4),
+              measuredContextSurfaceAggregateTokenProxy: context.aggregateDiagnostics.tokenProxyAcrossMeasuredSurfaces,
+              verificationRawTraceTokenProxy: trace.measurements.rawTraceInput.tokenProxy,
+              verificationFullAssessmentTokenProxy: trace.measurements.fullAssessment.tokenProxy,
+              verificationCompactTokenProxy: trace.measurements.compactConsumerProjection.tokenProxy,
+              verificationCompactReductionRatio: trace.compactProjectionReductionVsFullAssessment.ratio,
+            },
+            reliabilityAssertions: {
+              contextWithoutMutationAuthority: context.reliabilityAssertions.mcpReturnedWithoutMutationAuthority === true && context.reliabilityAssertions.changesMade === 0,
+              verificationStatesPreserved: trace.reliabilityAssertions.assessmentStatesPreserved === true,
+              verificationSourceReferencesPreserved: trace.reliabilityAssertions.sourceReferencesPreserved === true,
+              verificationGrantsAuthority: trace.reliabilityAssertions.grantsAuthority,
+            },
+            limitations: [
+              'Not exact Claude, Codex, or other provider billing tokens.',
+              'Does not prove universal token savings versus working without Livariant.',
+              'Does not measure Stable-level real-agent tool-selection reliability.',
+            ],
+          };
+          writeFileSync('rc-bundle/Q07-TOKEN-EVIDENCE.json', `${JSON.stringify(summary, null, 2)}\n`);
+          console.log(JSON.stringify(summary, null, 2));
+          NODE
+
       - name: Generate exact-source SPDX SBOM
         shell: bash
         run: |
