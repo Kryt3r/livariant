@@ -1,374 +1,185 @@
 # Public-Preview-Umfang & Einschränkungen
 
-Diese Seite trennt das **veröffentlichte Foundation-Preview-Release** von neuerer Repository-Entwicklung. So ist klar erkennbar, was tatsächlich veröffentlicht ist und was nur im Post-RC3-Quellstand vorhanden ist.
+Diese Seite beschreibt den Umfang des **aktuell veröffentlichten Livariant Public Preview**. Sie ist eine Release-Truth-Oberfläche, kein historisches Entwicklungsprotokoll und kein Versprechen, dass Roadmap-Arbeit bereits implementiert ist.
 
-Sie ist keine Marketingliste. Ihr Zweck ist, unterstützte Oberflächen und Grenzen zu beschreiben, ohne geplante oder unveröffentlichte Funktionen zu Release-Behauptungen zu machen.
+## Aktuelles veröffentlichtes Release
 
-## Veröffentlichtes Foundation Preview
-
-Das aktuelle öffentliche Release ist das unveränderliche Pre-Release:
+Das aktuelle öffentliche Prerelease ist:
 
 ```text
-v0.1.0-rc.3
+v0.1.0-rc.4
 ```
 
-RC3 ist das erste saubere öffentliche Foundation-Preview-Release. Es bleibt historische Release-Evidenz und wird durch spätere Entwicklung auf `main` nicht umgeschrieben.
+RC4 wurde aus folgendem exakten Quellstand qualifiziert:
 
-Die gehärtete RC3-Foundation besitzt ausführbare Evidenz für:
+```text
+4f547751d9d53e7325e6ea1f2401f1dea45779dc
+```
 
-- neue und bestehende Projekte;
-- wiederholte semantische Pflege bestätigter Ziele, bestätigten Projektwissens und akzeptierter Entscheidungen;
-- plan-first Mutation mit ausdrücklichem `--apply`;
+Qualifiziertes Release-Artefakt:
+
+```text
+livariant-0.1.0-rc.4.tgz
+```
+
+SHA-256:
+
+```text
+6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e
+```
+
+`v0.1.0-rc.3` bleibt unveränderliche historische Foundation-Preview-Evidenz. RC4 schreibt die RC3-Historie nicht um, sondern ist der spätere separat qualifizierte Public-Preview-Kandidat.
+
+## Was RC4 enthält
+
+RC4 verbindet die gehärtete Grundlage für projekt-eigene Kontinuität/Lifecycle mit begrenzter Active Project Intelligence und einem agent-nativen MCP-Pfad.
+
+### Projekt-eigene Kontinuität und Lifecycle
+
+Das Public Preview enthält das Project Brain und unterstützte Lifecycle-Oberflächen für:
+
+- Initialisierung sowie Status-/Diagnose-Inspektion;
+- bestätigte Ziele, Projektwissen und akzeptierte Entscheidungen;
+- plan-first unterstützte Mutationsabläufe;
 - Supersession von Entscheidungen mit erhaltener Historie;
-- Project-Brain-Resume-Handoff für Claude Code und Codex;
+- Project-Brain-Resume-Handoff;
 - Schutz vor veraltetem Kontext;
-- normale Updates;
-- den expliziten Project-Brain-Schema-Pfad `1 -> 2`;
-- Diagnose unterbrochener Updates;
-- separat autorisierte Wiederherstellung;
-- Dateisystemgrenzen;
-- Release- und Runtime-Integrität;
-- unabhängige rechnerlokale Runtime-Release-Authority;
-- Drift-Diagnose;
-- saubere Paketinstallation.
+- Update- und unterstützte Migrations-/Recovery-Flows;
+- Runtime-/Release-Integrität und geschützte Authority-Grenzen;
+- stabile logische Project-Brain-Identität;
+- Dateisystem-/Topologie-Sicherheit und saubere Paketinstallation.
 
-Die veröffentlichte RC3-Befehlsoberfläche lautet:
+### Active-Project-Intelligence-Grundlagen
 
-```text
-init
-status
-doctor
-resume
-goals
-knowledge
-decisions
-update
-recover
-version
+RC4 enthält begrenzte read-only/review-orientierte Grundlagen wie:
+
+- Project Context Snapshot;
+- Semantic Proposal und Conflict/Drift Assessment;
+- Provider Context und Provider Return Evidence Intake;
+- Guided Project Understanding Review und kontrollierte Übernahme;
+- External-Knowledge-Evidenz-Grundlagen;
+- Autonomy Profiles;
+- Evidence-backed Findings;
+- Requirement -> Implementation -> Verification Trace.
+
+Diese Fähigkeiten erhalten die Trennung zwischen Evidenz, Inferenz, Project Truth, Verifikation, Autorisierung und Mutation.
+
+### First Run
+
+RC4 enthält den geführten Einstieg:
+
+```bash
+livariant first-run
 ```
 
-Paket, Runtime und installierter CLI-Befehl heißen `livariant`.
+First Run kombiniert bestehende read-only Setup-/Understanding-Oberflächen, beginnt mit der Wahl einer Interaktionssprache und kann die nächsten expliziten Claude-Code- oder Codex-MCP-Setup-Schritte ausgeben.
 
-Die Release-Supportaussage ist bewusst auf die Umgebungen begrenzt, die von der gehärteten Release-Pipeline tatsächlich getestet werden: Ubuntu und Windows mit Node.js 24. Das Paket deklariert Node.js `>=20`.
+Er endet mit `Changes made: 0`. Er initialisiert das Projekt nicht stillschweigend, übernimmt keine Evidenz automatisch, konfiguriert keinen Provider, persistiert keine Authority und macht Agent-Ausgabe nicht zu Project Truth.
 
-## Post-RC3-Repository-Entwicklung
+Siehe [First-Run Composition](first-run.md).
 
-Die Entwicklung nach RC3 ergänzt klar begrenzte Active-Project-Intelligence-Oberflächen und unterstützende Project-Brain-Grundlagen. Diese Fähigkeiten bleiben unveröffentlicht, bis ein späteres Release separat freigegeben wird.
+### Lokale MCP-Agent-Bridge
 
-### Project Context Snapshot
+RC4 enthält die lokale stdio-MCP-Bridge:
 
-Der Repository-Quellstand stellt bereit:
-
-```text
-livariant context
-livariant context --json
-```
-
-sowie die Runtime-API `buildProjectContextSnapshot()`.
-
-Der Snapshot ist read-only. Er liefert bestätigten Project-Brain-Kontext, offene Unklarheiten, explizite Authority-Klassen, eine deterministische materiale Project-Brain-Baseline und einen Safety-State `clear` oder `blocked`. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab, statt einen gemischten sauberen Snapshot auszugeben.
-
-Ein gültiges Schema-2-Project-Brain liefert seine kanonische logische UUID als `stableProjectIdentity`; historischer Schema-1-Zustand liefert bis zur ausdrücklichen unterstützten Migration `null`. Der Projekt-Locator bleibt von der logischen Identität getrennt.
-
-Siehe [Project Context Snapshot](project-context-snapshot.md) und [Stable Project Identity Foundation](stable-project-identity-foundation.md).
-
-### Semantic Proposal Core
-
-Der Repository-Quellstand stellt bereit:
-
-```text
-livariant propose --input <candidate.json>
-livariant propose --input <candidate.json> --json
-```
-
-sowie die Runtime-API `buildSemanticProposal()`.
-
-Schema-Version 1 unterstützt:
-
-- `project-decision` mit `add` und `supersede`;
-- `project-goal` mit `add`;
-- `project-knowledge` mit `add`.
-
-Candidate-JSON ist externe, nicht vertrauenswürdige Eingabe. `origin` ist lediglich eine nicht verifizierte Herkunftsbehauptung und niemals Zustimmung, Projektidentität oder Mutationsautorität.
-
-Semantic-Proposal-Ausgabe bleibt dauerhaft review-only: `reviewOnly: true`, `mutationAuthorization: false`, `applySupported: false`, `authorizationEligible: false` und `changesMade: 0`. Die Proposal-Identität ist deterministisch an die kohärente materiale Project-Brain-Baseline gebunden; bei Schema 2 ist auch die stabile logische Projektidentität material. Parallele Änderungen am verwalteten Zustand brechen geschlossen ab.
-
-Exakte Duplikate aktiver Decisions, bestätigter Goals und bestätigten Knowledges können erkannt werden. Abweichender Text wird nicht als semantisch gleichwertig oder konfliktfrei behauptet. Decision-Supersession benötigt genau ein aktives strukturiertes Decision-Ziel. Goal- und Knowledge-Proposals sind im aktuellen Schema add-only.
-
-Siehe [Semantic Proposal Core](semantic-proposal-core.md).
-
-### Konflikt- und Drift-Bewertung
-
-Der Repository-Quellstand stellt bereit:
-
-```text
-livariant drift --input <observation.json>
-livariant drift --input <observation.json> --json
-```
-
-sowie die Runtime-API `buildConflictDriftAssessment()`.
-
-Die aktuelle begrenzte read-only Bewertung akzeptiert genau eine explizite Observation in den Decision-, Goal- oder Knowledge-Domänen mit Evidence-Klassen `dependent-current`, `historical` oder `provider-observation`.
-
-Die vertrauenswürdige Diagnosemenge umfasst `consistent`, `confirmed-drift`, `historical-match`, `authority-ambiguous` und `insufficient-evidence`. Abweichender Text allein ist niemals Beweis für Widerspruch oder Drift. Die Ausgabe bleibt abgeleitete Review-Evidence ohne Mutationsautorität.
-
-Dieser Slice scannt das Repository nicht automatisch und wendet oder autorisiert keine Änderung.
-
-Siehe [Konflikt- und Drift-Bewertung](conflict-drift-assessment.md).
-
-### Provider Context Foundation
-
-Der Repository-Quellstand stellt bereit:
-
-```text
-livariant provider-context --provider claude-code --task <task.txt>
-livariant provider-context --provider codex --task <task.txt>
-livariant provider-context --provider <provider> --task <task.txt> --json
-```
-
-sowie die Runtime-API `buildProviderContext()`.
-
-Provider Context verbindet kohärente aktuelle Project-Brain-Evidence mit genau einer begrenzten expliziten externen Aufgabe. Task-Material bleibt `session-ephemeral` und kann weder kanonische Wahrheit noch stabile Projektidentität, Zustimmung, Safety-State oder Mutationsautorität behaupten.
-
-Provider-Auswahl ändert nur das Projektionsziel. Kopierte oder vom Provider zurückgegebene Pakete gelten später nicht als vertrauenswürdige kanonische Eingabe. Provider Context selbst injiziert Kontext nicht automatisch in Claude Code oder Codex und ergänzt keine persistenten Provider-Writes; die unten beschriebene separate Post-RC3 Local MCP Agent Bridge stellt einen eng begrenzten lokalen stdio-Transport über diese bestehenden Core-Primitive bereit.
-
-Siehe [Provider Context Foundation](provider-context-foundation.md).
-
-### Stable Project Identity Foundation
-
-Der aktuelle Post-RC3-Quellstand verwendet Project-Brain-Schema 2 mit genau einer erforderlichen kanonischen UUID in `projectBrain.projectId`.
-
-Frische Schema-2-Initialisierung erzeugt die Identität lokal aus vertrauenswürdiger Runtime-Zufälligkeit. Bestehende Schema-1-Project-Brains erhalten Identität nur über die ausdrückliche unterstützte `1 -> 2`-Lifecycle-Migration. Reads erzeugen oder reparieren Identität nicht stillschweigend; fehlerhafte Schema-2-Identität bricht geschlossen ab.
-
-Die ID identifiziert eine logische Project-Brain-Linie, nicht einen physischen Checkout, eine Maschine, Provider-Session oder User-Session. Verschieben oder Kopieren eines Project Brain macht sie weder zur eindeutigen physischen Identität noch zur Mutationsautorität.
-
-Siehe [Stable Project Identity Foundation](stable-project-identity-foundation.md).
-
-### Proposal-bound Authorization Foundation
-
-Der aktuelle Post-RC3-Quellstand stellt zusätzlich bereit:
-
-```text
-livariant prepare --input <candidate.json>
-livariant prepare --input <candidate.json> --json
-livariant authorize --input <actionable-proposal.json>
-livariant authorize --input <actionable-proposal.json> --json
-```
-
-`prepare` erzeugt ein strukturell getrenntes Actionable Proposal, gebunden an exakte logische Projektidentität, materiale Project-Brain-Baseline, normalisierten Mutation Scope und deterministischen Material-Digest. Es autorisiert oder appliziert die Änderung nicht.
-
-`authorize` ist eine separate ausdrückliche lokale User-Presence-Operation. Die unterstützte CLI verlangt ein interaktives TTY und exakte Challenge-Bestätigung. Projektfelder, Provider-Behauptungen, kopierte Pakete, passende Identität, Environment-Flags oder Gesprächshistorie können dieses Ereignis nicht ersetzen.
-
-Aufgezeichnete Authority verwendet passende projektlokale Lifecycle-/Audit-Evidence und unabhängige machine-local Evidence außerhalb der Projektkontrolle. Beide binden dieselbe Authorization-ID, dasselbe Actionable Proposal, Projektidentität, Baseline und Mutation Scope. Fehlende, fehlerhafte oder widersprüchliche Evidence bricht geschlossen ab.
-
-Der Lifecycle unterscheidet `authorized`, `applying`, `completed`, `failed-recovery-required` und `invalidated`. Consumption-Locking verhindert parallelen Replay. Terminale Authority kann durch kopierte Records nicht wieder zu nutzbarer Zustimmung werden.
-
-`prepare` und `authorize` selbst führen null semantische Mutationen aus.
-
-Siehe [Proposal-bound Authorization Foundation](proposal-bound-authorization.md).
-
-### Semantic Apply
-
-Der aktuelle Post-RC3-Quellstand stellt bereit:
-
-```text
-livariant apply --authorization <authorization-id> --input <actionable-proposal.json>
-livariant apply --authorization <authorization-id> --input <actionable-proposal.json> --json
-```
-
-sowie die Runtime-API `applyActionableProposal()`.
-
-Semantic Apply unterstützt nur Decision Add, Decision Supersede, Confirmed-Goal Add und Confirmed-Knowledge Add. Review-only Semantic-Proposal-JSON und rohe Candidate-JSON sind kein Ersatz für ein Actionable Proposal.
-
-Ein frisches Apply prüft exakte Proposal-Identität, stabile logische Projektidentität, materiale Baseline, Scope, projektlokale Authorization-Evidence und passende machine-local Authority erneut. Authority wird vor Beginn der semantischen Mutation zu `applying` verbraucht.
-
-Die Implementierung verwendet bestehende semantische Writer weiter und erhält Managed-Path-Confinement, Regular-File-/Symlink-Safety, Exact-Original-Concurrency-Schutz, atomare Promotion und Writer-Verifikation. Unmittelbar vor Promotion wird die exakte autorisierte Baseline erneut geprüft.
-
-Normale Same-Process-Completion beweist zusätzlich das **exakte Managed Delta**: Jeder nicht betroffene verwaltete Project-Brain-Input muss byte-identisch zum vertrauenswürdigen Pre-State dieses Aufrufs bleiben, das exakte autorisierte semantische Ziel muss verifiziert werden, und der vollständige verifizierte verwaltete Post-State muss bis zur terminalen Authority-Completion stabil bleiben. Diese Pre-/Post-Bytes bleiben flüchtig und werden kein neues Recovery-Trust-Substrat.
-
-Crash-Time-Proof bleibt bewusst enger. Nach einer Prozessgrenze ist die flüchtige Exact-Delta-Evidence nicht mehr verfügbar. Changed-Baseline-/Post-Mutation-Splits bleiben deshalb fail-closed/recovery-required, solange keine separat akzeptierte vollständige dauerhafte Post-State-Evidence vorliegt. Dass der gewünschte Satz vorhanden ist, reicht nicht für einen Crash-Time-Erfolgsclaim.
-
-Auch die Apply-CLI vermeidet einen falschen Null-Write-Claim, wenn die exakte Authorization bereits in einem aktiven oder recovery-required Lifecycle stehen könnte; Recovery-Unsicherheit wird ausdrücklich gemeldet.
-
-Siehe [Semantic Apply](semantic-apply.md).
-
-### Agent-Assisted Semantic Maintenance
-
-Der aktuelle Post-RC3-Quellstand ergänzt die provider-neutrale Kompositionsoberfläche:
-
-```text
-livariant maintain --input <candidate.json>
-livariant maintain --input <candidate.json> --json
-livariant maintain --input <candidate.json> --authorization <authorization-id>
-livariant maintain --input <candidate.json> --authorization <authorization-id> --json
-```
-
-sowie die Runtime-API `maintainSemanticProjectState()`.
-
-`maintain` koordiniert vorhandene Primitive für genau einen expliziten Candidate. Es kann strukturierte Zustände `review-required`, `authorization-required`, `blocked`, `completed` oder `completed-context-blocked` zurückgeben.
-
-Ohne explizite Authorization-ID verbraucht es niemals implizit eine vorhandene passende Authority. Ein zulässiger Candidate liefert das exakt rekonstruierte Actionable Proposal und benötigt den separaten bestehenden `livariant authorize`-User-Presence-Pfad. Der Command erzeugt keine Authority und startet intern keine TTY-Authorization-Challenge.
-
-Mit expliziter Authorization-ID ist die ID lediglich ein Selektor vorhandener Authority. Der aktuelle Candidate wird aus aktuellem kanonischem Zustand neu rekonstruiert, und ausschließlich der bestehende Semantic-Apply-Pfad darf exakt passende Authority verbrauchen. Alle WP-008/WP-009-Replay-, Recovery-, Locking-, Baseline-, Scope-, Project-Identity- und Exact-Delta-Regeln bleiben maßgeblich.
-
-Nach erfolgreichem Apply baut Livariant einen frischen Project Context Snapshot aus dem kanonischen Post-State auf. Wenn die Mutation abgeschlossen ist, der frische Context aber blockiert, lautet der Zustand `completed-context-blocked`: Die Mutation bleibt terminal und nicht replaybar, während Livariant keinen sauberen aktualisierten Context behauptet.
-
-Diese Komposition ergänzt keine automatische Candidate-Erkennung, keinen Provider-Transport/Injection, keine provider-spezifische Zustimmung, keine Standing-/Wildcard-Authorization, keine beliebigen Repository-Writes, keine neuen semantischen Domänen, keine Batch-Mutation und kein Project-Lexicon-Rename-Verhalten.
-
-Siehe [Agent-Assisted Semantic Maintenance](semantic-maintenance.md).
-
-### Provider Roundtrip Evidence Intake
-
-Der aktuelle Post-RC3-Quellstand ergänzt außerdem die lokale Return-Hälfte von Provider Context:
-
-```text
-livariant provider-return --context <provider-context.json> --input <provider-return.json>
-livariant provider-return --context <provider-context.json> --input <provider-return.json> --json
-livariant provider-return --context <provider-context.json> --input <provider-return.json> --authorization <authorization-id> --json
-```
-
-sowie die Runtime-API `processProviderReturn()`.
-
-Beide bereitgestellten Dateien sind externe, nicht vertrauenswürdige Eingabe. Livariant parst genau eine ready Provider-Context-Kopie und genau ein Provider-Return-Paket strikt, berechnet deterministische Packet-/Task-Korrelation neu und rekonstruiert anschließend die aktuelle kanonische Project-Brain-Identität und materiale Baseline frisch, bevor ein zurückgegebener Candidate interpretiert wird.
-
-Packet-IDs, Task-/Baseline-Echos, Echos der stabilen Project Identity und schema-gültige kopierte Provider-Context-Evidence sind **nur Korrelation**. Sie beweisen weder historische Livariant-Issuance noch Provider-Konsum, kanonische Wahrheit, Zustimmung oder Authority. Ein fabriziertes, aber selbstkonsistentes Paketpaar darf keine stärkere Fähigkeit erhalten als die direkte Übergabe desselben typisierten Candidates an `maintain`.
-
-Wenn sich der aktuelle materiale Project-Brain-Zustand verändert hat, lautet der Return-State `stale-context`; er wird nicht stillschweigend an die neuere Baseline gebunden. Andere Korrelationsabweichungen ergeben `mismatched-context`. Ein blockiertes aktuelles Project Brain bleibt blockiert.
-
-Ein kohärenter Return darf `null` oder genau einen bestehenden schema-konformen Candidate enthalten. Ohne explizite Authorization-ID wird passende bestehende Authority niemals implizit verbraucht. Mit expliziter Authorization-ID ist der Wert lediglich ein Selektor für den bestehenden proposal-gebundenen Authorization-/Semantic-Apply-Pfad.
-
-Der Roundtrip übergibt außerdem die frisch verifizierte erwartete Project Identity und materiale Baseline als auf diesen Aufruf begrenzte Kohärenzbedingungen an `maintain`. Dadurch blockiert eine Zustandsänderung vor der Proposal-Rekonstruktion vor Actionable-Proposal-Erstellung, Authority-Lookup/-Consumption oder Mutation.
-
-Diese Oberfläche ergänzt kein vertrauenswürdiges Issuance-Ledger, keine Packet-Authentifizierung, keine automatische Provider-Injektion oder Transport, keine provider-spezifische Authorization, keine automatische freie Candidate-Extraktion, keine Standing-Authorization, keine neue semantische Domäne, keine Batch-Mutation und keine beliebigen Repository-Writes.
-
-Siehe [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md).
-
-### Local MCP Agent Bridge
-
-Der aktuelle Post-RC3-Quellstand ergänzt eine eng begrenzte lokale stdio-MCP-kompatible Bridge:
-
-```text
+```bash
 livariant mcp
 ```
 
-Die Bridge implementiert den stabilen MCP-`2025-11-25`-JSON-RPC-Lifecycle und stellt genau zwei Tools bereit:
+und explizite Provider-Setup-Hinweise:
 
-- `livariant_provider_context` delegiert für genau ein explizites Provider-/Task-Paar an den bestehenden Provider-Context-Builder;
-- `livariant_provider_return` delegiert für genau ein bereitgestelltes Context-/Return-Paar an den bestehenden Provider-Return-Intake.
-
-MCP-Eingabe ist externe, nicht vertrauenswürdige Eingabe. Der stdio-Transport ist newline-delimitiertes UTF-8, byte-begrenzt und lehnt fehlerhaftes Framing ab, statt partiellen EOF-Input als vollständige Nachricht zu behandeln.
-
-Das MCP-Return-Tool besitzt kein Authorization- oder Authorization-ID-Feld. Es ruft Provider Return Intake ohne Authorization-Selektor auf; damit wird passende vorhandene Authority weder gesucht noch verbraucht, und kanonische semantische Mutation ist über diese WP-012-Oberfläche nicht erreichbar. Candidate-Evidence kann weiterhin die bestehenden Zustände `authorization-required`, Review, stale, mismatch, blocked oder no-candidate erreichen, Zustimmung bleibt jedoch eine separate bestehende Livariant-Operation außerhalb von MCP.
-
-WP-012 ist ausschließlich lokales stdio. Es ergänzt keinen HTTP-/TCP-Listener, kein Remote-MCP-Hosting, keine Cloud-Abhängigkeit, keine Provider-Prozesssteuerung, keine automatische Session-Injektion, keine provider-spezifische Authority, keine neue semantische Domäne, keine freie Candidate-Extraktion, keine Batch-Mutation und keine beliebigen Repository-Writes.
-
-Siehe [Local MCP Agent Bridge](mcp-agent-bridge.md).
-
-Diese Post-RC3-Funktionen werden nicht rückwirkend Bestandteil des unveränderlichen RC3-Releases. Sie werden erst durch ein späteres, separat freigegebenes Release zu verteilten Release-Funktionen.
-
-Die aktuellen Post-RC3-Oberflächen ergänzen weiterhin **nicht**:
-
-- provider-getriebene, automatische, Wildcard- oder Standing-Mutationsautorität;
-- eindeutige Checkout-Identität oder Authority-Transfer durch Kopieren von Project-Brain-Bytes;
-- Project-Fork-, Split-, Merge- oder Project-ID-Replacement-Semantik;
-- automatisches Drift-Scanning oder automatische Drift-Reparatur;
-- Terminologie-Persistenz oder Canonical-Rename-Workflows;
-- Remote-/Netzwerk-Provider-Transport oder automatische Kontextinjektion in Provider-Sessions;
-- LLM-basierte semantische Gleichwertigkeit;
-- autonome Candidate-Erkennung;
-- Goal- oder Knowledge-Ersetzung, -Löschung oder -Supersession;
-- zusätzliche Proposal-/Apply-Domänen außerhalb des dokumentierten Schema-Version-1-Sets;
-- Batch- oder Multi-Proposal-Mutationstransaktionen.
-
-## Provider-Support ist bewusst begrenzt
-
-Die veröffentlichte Preview unterstützt Claude Code und Codex für Project-Brain-Resume-Handoff.
-
-Die Provider-Anwendbarkeit verwendet `LIVARIANT_PROVIDER_ENV`. Provider-Auswahl bezeichnet das unterstützte Resume-Ziel; sie erteilt keine Ausführungs- oder Mutationsautorität.
-
-Livariant beansprucht nicht, jede Provider-Funktion, Modellauswahl, Authentifizierungsmethode, native Instruktionsdatei oder Provider-Memory-Oberfläche zu verwalten.
-
-Die Post-RC3 Context-, Proposal-, Drift-, Stable-Identity-, Authorization-, Semantic-Apply-, Semantic-Maintenance-, Provider-Roundtrip- und Local-MCP-Agent-Bridge-Oberflächen sind provider-neutrale Grundlagen oder lokale nutzergesteuerte Operationen. Provider Context ist eine providerbezogene read-only Projektion. Provider Roundtrip und MCP-Return-Eingaben akzeptieren Provider-/Client-Bytes ausschließlich als nicht vertrauenswürdige Evidence. Keine davon behandelt Provider-Ausgabe oder providerseitige Zustimmungsbehauptungen als Livariant-Mutationsautorität.
-
-## Semantische Wissenspflege
-
-Die Foundation Preview selbst unterstützt klar begrenzte wiederholte Änderungen an dauerhafter Project-Brain-Wahrheit:
-
-```text
-livariant goals [list]
-livariant goals add <goal> [--apply]
-
-livariant knowledge [list]
-livariant knowledge add <fact> [--apply]
-
-livariant decisions [list]
-livariant decisions add <decision> [--apply]
-livariant decisions supersede <id> <replacement> [--reason <reason>] [--apply]
+```bash
+livariant mcp setup --provider claude-code
+livariant mcp setup --provider codex
 ```
 
-Mutation ist plan-first. Ohne `--apply` zeigt Livariant die geplante kanonische Änderung und schreibt nichts.
+Aktuelle begrenzte MCP-Tools sind:
 
-Unterstützte Writes verlangen einen gültigen gesunden Project Brain, bleiben innerhalb verwalteter Project-Brain-Grenzen, lehnen unsichere Topologie ab, verwenden atomare Ersetzung mit Exact-Original-Concurrency-Prüfung und verifizieren persistierten Zustand vor Erfolg. Duplicate Adds schlagen fehl, statt bestehenden Truth still zu normalisieren. Decision Supersession erhält die alte Decision als Historie.
+- `livariant_provider_context`;
+- `livariant_provider_return`;
+- `livariant_verification_trace`.
 
-Livariant beobachtet Gespräche nicht automatisch und entscheidet nicht selbst, welche KI-Ausgabe dauerhafte Projektwahrheit werden soll.
+Provider-Konfiguration bleibt explizit. Livariant schreibt Provider-Konfiguration nicht stillschweigend um, und MCP-Transport verleiht weder unabhängiges Vertrauen noch Mutation Authority.
 
-## Update- und Migrationssupport
+Siehe [Lokale MCP-Agent-Bridge](mcp-agent-bridge.md), [Provider-Handoff](provider-handoff.md) und [Verification Trace](verification-trace.md).
 
-`livariant update --manifest <path>` plant nur, solange `--apply` fehlt.
+### Verification Trace
 
-Zum Anwenden eines geprüften Updates werden außerdem das passende lokale Runtime-Artefakt und mindestens ein expliziter `--trusted-source` benötigt. Das Release-Manifest kann seine eigene Quelle nicht selbst vertrauenswürdig machen; für ausführbare Update-Installation ist zusätzlich unabhängige machine-local Release Authority für den exakten Artefakt-Digest erforderlich.
+RC4 kann explizite Anforderungen oder Acceptance Criteria gegen bereitgestellte Implementierungsclaims und Verification Evidence bewerten mit:
 
-Projektdateien, Manifeste, `--trusted-source` und projektseitige Commands können diese Runtime-Release-Authority nicht erzeugen. Einen projektseitigen `authorize-runtime`-Befehl gibt es absichtlich nicht.
+```text
+SUPPORTED
+CONTRADICTED
+UNPROVEN
+```
 
-Schema-ändernde kompatible Releases verwenden den Migration-Lifecycle. Der aktuell belegte Schema-Pfad ist `1 -> 2`; aktueller Post-RC3-Quellstand erzeugt stabile logische Projektidentität innerhalb der bestehenden Checkpoint-/Journal-/Validation-/Activation-/Recovery-Transaktion. Nicht unterstützte Pfade brechen geschlossen ab.
+Diese Zustände beschreiben Evidenzunterstützung. Sie bedeuten **nicht** automatisch akzeptierte Completion oder Project Truth.
 
-> [!WARNING]
-> Das manuelle Ersetzen von Project-Brain-Dateien, framework-verwaltetem Lifecycle-State, Schema-/Versionsmetadaten, stabiler Projektidentität, installierten Runtime-Dateien, Runtime-Trust-Records, Release-Authorization-Records oder semantischen Authorization-Audit-Records ist kein unterstützter Authority- oder Update-Weg.
+Dauerhafte Grenzen sind unter anderem:
 
-## Wiederherstellung
+```text
+SUPPORTED != DONE
+Verification Evidence != akzeptierte Completion
+Evidence != Project Truth
+Capability != Authority
+MCP-Transport != unabhängiges Vertrauen
+```
 
-`livariant recover` ist standardmäßig read-only. `livariant recover --apply` autorisiert einen validierten Rollback-Plan separat.
+## Provider-Unterstützung
 
-Automatische Wiederherstellung bleibt gesperrt, wenn dauerhafte Lifecycle-Evidenz oder der Checkpoint fehlt, verschoben, verändert oder mehrdeutig ist. Nach verifiziertem Rollback wird der wiederhergestellte Project-Brain-Zustand committed, bevor verdrängter Recovery-State entfernt wird; das Löschen des letzten Checkpoints bleibt der letzte irreversible Cleanup-Schritt.
+Das aktuelle Public Preview bietet explizite Integrations-/Setup-Pfade für **Claude Code** und **Codex**.
 
-## Keine versprochene Wunderreparatur
+Provider-Auswahl oder Provider-Ausgabe verleiht selbst keine Livariant Authority. Provider-/Client-Material, das Livariant erreicht, bleibt Evidenz oder Kandidatenmaterial, solange es nicht den passenden bestehenden Project-Truth-/Authority-Prozess durchläuft.
 
-Livariant verspricht keine automatische Reparatur beliebiger beschädigter, manuell umgeschriebener oder mehrdeutiger Project-Brain-Zustände. Wenn sichere Semantik nicht hergestellt werden kann, darf Diagnose bewusst stoppen und menschliche Klärung verlangen.
+Livariant behauptet nicht, jede Provider-Funktion, jeden Authentifizierungsmechanismus, jede Modellauswahl, native Memory-Oberfläche oder künftiges MCP-Verhalten zu verwalten.
 
-## Local-first bedeutet nicht vertrauensfrei
+## Plattform- und Paketumfang
 
-Normale Project-Brain-Nutzung ist local-first und braucht kein Livariant-Cloud-Konto.
+Die RC4-Release-Qualifikation hat die release-relevante Pipeline unter **Ubuntu und Windows** ausgeführt. Das Paket deklariert Node.js `>=20`; die Release-Qualifikation verwendet die im Repository festgelegte CI-/Toolchain-Konfiguration.
 
-Release-/Update-Authority und semantische Mutationsautorität verwenden unabhängige machine-local Evidence, wo ihre jeweiligen Verträge dies verlangen. Projektkontrollierte Bytes können diese Trust Roots nicht selbst erzeugen.
+Siehe [Installation & erstes Projekt](installation.md) für den aktuellen Installationspfad.
 
-Die aktuelle Runtime implementiert keine Livariant-Telemetrie, keinen automatischen Project-Brain-Upload und keinen automatischen Remote-Update-Check. Siehe [Datenschutz & Netzwerkverhalten](privacy-and-network.md).
+## Was RC4 nicht behauptet
 
-## Öffentliche Distribution
+Das Public Preview behauptet **nicht**:
 
-Das kanonische Repository ist unter `Kryt3r/livariant` öffentlich. Preview-Releases werden über GitHub Releases aus diesem Repository mit erwarteter Source-Identität `github:Kryt3r/livariant` verteilt.
+- universelle automatische Anforderungsentdeckung;
+- automatische Erzeugung vertrauenswürdiger Verification Evidence;
+- universelle Korrektheitsverifikation für beliebigen Code;
+- provider-gesteuerte, Wildcard- oder Standing-Autorisierung semantischer Mutation;
+- Provider-Ausgabe werde allein durch MCP automatisch Project Truth;
+- Remote-/Cloud-MCP-Hosting als Livariant-Dienst;
+- Besitz einer breiten Repository-Graph-/Index-/Search-Schicht;
+- automatische Drift-Reparatur;
+- uneingeschränkte autonome Repository-Mutation;
+- breite Multi-Agent-Orchestrierung oder Concurrent-Agent-Containment;
+- ein allgemeines Drittanbieter-Plugin-/Marketplace-Ausführungsmodell;
+- exakte Einsparungen bei provider-abgerechneten Tokens.
 
-Das Release-Tooling erzeugt einen konkreten Runtime-Tarball, ein maschinenlesbares Manifest gebunden an den exakten Artefakt-SHA-256 und `SHA256SUMS`; CI verifiziert das Release-Bundle gegen einen sauberen Consumer.
+RC4 enthält deterministische Kontext-/Token-Proxy-Evidenz, aber diese Messungen sind keine exakten Claude-/Codex-Billing-Tokenwerte und belegen keinen universellen Token-Sparprozentsatz.
 
-`v0.1.0-rc.1` und `v0.1.0-rc.2` bleiben historische Evidenz. RC2 enthält Pre-Public-Text und ältere Bundle-Bytes und darf nicht überschrieben oder als aktuell dargestellt werden. `v0.1.0-rc.3` ist das aktuell veröffentlichte Foundation Preview. Spätere Repository-Änderungen verändern weder Tag noch Release-Text oder Artefakte dieses Releases.
+## Stable-Release-Arbeit bleibt getrennt
 
-Für die aktuelle Preview wird kein npm-Publishing-Pfad behauptet.
+RC4 ist ein **Public-Preview-Prerelease**, kein Stable Release.
 
-## Lizenz, Sicherheit, Datenschutz, Beiträge und Support
+Vor einem ersten Stable Release benötigt Livariant weiterhin repräsentative Real-Agent-Workflow-Qualifikation, soweit sinnvoll einschließlich:
 
-Zum Preview-Repository gehören `LICENSE`, `THIRD_PARTY_NOTICES.md`, `SECURITY.md`, `CONTRIBUTING.md`, `SUPPORT.md` sowie die paarigen Lizenz-/Datenschutz-/Support-Dokumente.
+- korrekte MCP-Tool-Auswahl;
+- verpasste oder unnötige Tool-Aufrufe;
+- Interpretation von `SUPPORTED / CONTRADICTED / UNPROVEN`;
+- Unterschiede zwischen Claude Code und Codex;
+- Verhalten in längeren Sessions und bei Kontextverlust;
+- Fehlermodi;
+- provider-beobachtetes Token-/Kontextverhalten, soweit praktikabel.
 
-Livariant ist source-available und wird nicht als OSI-zertifiziertes Open Source angeboten. Externe Code-Beiträge bleiben ausgesetzt, bis Contributor-Rechte finalisiert sind, die mit dem source-available und zukünftigen kommerziellen Lizenzmodell vereinbar sind.
+Build-Provenance/Attestation und ein unabhängiger KI-gestützter Release-Audit sind ebenfalls explizite Release-Hardening-Kandidaten; ob sie für Stable Pflicht-Gates werden, muss evidenzbasiert entschieden werden.
 
-GitHub Private Vulnerability Reporting, Dependabot Alerts, CodeQL, Secret Scanning, Push Protection, restriktive Actions-Berechtigungen, das main Ruleset und das Release-Tag Ruleset sind für das öffentliche Repository aktiviert.
+## Historisches RC3
 
-## Was Preview bedeutet
+`v0.1.0-rc.3` bleibt als unveränderliche historische Foundation-Preview-Evidenz verfügbar. Aussagen darüber, was RC3 enthielt, bleiben historisch und dürfen nicht als Umfang des aktuellen RC4 Public Preview gelesen werden.
 
-Public Preview bedeutet:
+Für den aktuellen Nutzerpfad beginne mit:
 
-- die unterstützte Oberfläche ist bewusst begrenzt;
-- bekannte Einschränkungen sollen ausdrücklich dokumentiert werden;
-- Breaking Changes können unter den dokumentierten Preview- und SemVer-Regeln noch vorkommen;
-- Authority und Projektmutationsumfang dürfen nicht stillschweigend wachsen;
-- unterstützte Pfade sollen durch ausführbare Evidence belegt sein, statt pauschal jede Umgebung zu versprechen.
-
-Preview-Support ist Maintainer- und Community-Support ohne bezahlten SLA, sofern nichts anderes separat vereinbart wurde. Der spätere 1.0-Stabilitäts- und Kompatibilitätsvertrag braucht eine eigene Readiness-Entscheidung.
+- [Installation & erstes Projekt](installation.md)
+- [Fünf-Minuten-Schnellstart](quickstart.md)
+- [Architektur & Sicherheit](architecture-and-safety.md)
