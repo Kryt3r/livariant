@@ -54,7 +54,7 @@ jobs:
             --source-id github:Kryt3r/livariant \
             --channel preview \
             --schema 1 \
-            --compatible-from 0.1.0-rc.1,0.1.0-rc.2 \
+            --compatible-from 0.1.0-rc.1,0.1.0-rc.2,0.1.0-rc.3 \
             --output rc-bundle
 
       - name: Generate exact-source SPDX SBOM
@@ -97,8 +97,11 @@ jobs:
           if (release.channel !== 'preview') throw new Error('Manifest channel mismatch.');
           if (release.projectBrainSchema !== 1) throw new Error('Manifest Project Brain schema mismatch.');
           if (release.sourceId !== 'github:Kryt3r/livariant') throw new Error('Manifest sourceId mismatch.');
-          if (!release.compatibility?.from?.includes('0.1.0-rc.1')) throw new Error('Manifest missing rc.1 compatibility.');
-          if (!release.compatibility?.from?.includes('0.1.0-rc.2')) throw new Error('Manifest missing rc.2 compatibility.');
+          for (const predecessor of ['0.1.0-rc.1', '0.1.0-rc.2', '0.1.0-rc.3']) {
+            if (!release.compatibility?.from?.includes(predecessor)) {
+              throw new Error(`Manifest missing ${predecessor} compatibility.`);
+            }
+          }
           if (release.artifact?.id !== 'runtime-node-cli') throw new Error('Manifest artifact id mismatch.');
           if (release.artifact?.sha256 !== sha256) throw new Error('Manifest SHA-256 does not match artifact bytes.');
 
