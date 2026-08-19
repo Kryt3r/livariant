@@ -4,7 +4,7 @@
   <a href="../quickstart.md">English</a> · <strong>Deutsch</strong>
 </p>
 
-Dieser Schnellstart beschreibt die **aktuelle `main`-Entwicklungserfahrung**. Das veröffentlichte `v0.1.0-rc.3` bleibt die unveränderliche historische Foundation Preview und enthält noch nicht jede hier beschriebene Fähigkeit.
+Dieser Schnellstart beschreibt die **aktuelle `v0.1.0-rc.4`-Public-Preview-Nutzung**. Zum Zeitpunkt der Veröffentlichung entspricht der kanonische `main` dem exakt qualifizierten RC4-Quellstand.
 
 Die kürzeste Erklärung von Livariant lautet:
 
@@ -14,14 +14,20 @@ Die kürzeste Erklärung von Livariant lautet:
 
 Livariant wird einmal als lokales CLI-Tool installiert. Für die normale lokale Nutzung muss es nicht als Abhängigkeit in die `package.json` deiner Anwendung eingetragen werden.
 
-Für die aktuell veröffentlichte Foundation Preview installierst du den geprüften `v0.1.0-rc.3`-Tarball aus dem kanonischen GitHub Release:
+Für das aktuell veröffentlichte Public Preview installierst du den geprüften `v0.1.0-rc.4`-Tarball aus dem kanonischen GitHub Release:
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.4.tgz
 livariant version
 ```
 
-Für SHA-256-Prüfung, Windows-Hinweise, PATH-Hilfe und die Trennung zwischen veröffentlichtem RC3 und aktueller Entwicklung siehe [Installation & erstes Projekt](installation.md).
+Der SHA-256 des qualifizierten RC4-Tarballs lautet:
+
+```text
+6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e
+```
+
+Für SHA-256-Prüfung, Windows-Hinweise, PATH-Hilfe und Release-/Source-Grenzen siehe [Installation & erstes Projekt](installation.md).
 
 ## 2. Projekt öffnen und First Run starten
 
@@ -31,7 +37,7 @@ Im Projekt-Hauptordner:
 livariant first-run
 ```
 
-`first-run` ist der geführte Einstieg auf aktuellem `main`. Er kombiniert bestehende read-only Fähigkeiten und fragt zuerst nach deiner bevorzugten Interaktionssprache.
+`first-run` ist der geführte Public-Preview-Einstieg. Er kombiniert bestehende read-only Fähigkeiten und fragt zuerst nach deiner bevorzugten Interaktionssprache.
 
 First Run kann unter anderem sichtbar machen:
 
@@ -77,7 +83,7 @@ Livariant hält Evidenz, Inferenz, Project Truth, Autorisierung und Mutation get
 
 ## 4. Coding-Agent über MCP verbinden
 
-Der aktuelle `main` enthält eine lokale MCP-Agent-Bridge. Provider-Setup bleibt explizit; Livariant schreibt Provider-Konfiguration nicht stillschweigend um.
+RC4 enthält eine lokale MCP-Agent-Bridge. Provider-Setup bleibt explizit; Livariant schreibt Provider-Konfiguration nicht stillschweigend um.
 
 Für Claude Code:
 
@@ -187,13 +193,13 @@ livariant resume
 livariant autonomy show --json
 ```
 
-## Veröffentlichtes RC3 vs. aktueller `main`
+## Veröffentlichtes RC4 und Repository-`main`
 
-`v0.1.0-rc.3` ist die veröffentlichte Foundation Preview und bleibt über ihr geprüftes GitHub-Release-Artefakt installierbar.
+`v0.1.0-rc.4` ist das aktuell veröffentlichte Public-Preview-Prerelease. Es enthält First Run Composition, MCP-Bridge, Verification Trace, geschützte Guardian-origin Authority für folgenschwere Consumer, External-Knowledge-Grundlagen und zusätzliche Active-Project-Intelligence-Fähigkeiten.
 
-Der aktuelle `main` geht deutlich weiter und enthält unter anderem First Run Composition, MCP-Bridge, Verification Trace, geschützte Guardian-origin Authority für folgenschwere Consumer, External-Knowledge-Grundlagen und zusätzliche Active-Project-Intelligence-Fähigkeiten.
+`v0.1.0-rc.3` bleibt unveränderliche historische Foundation-Preview-Evidenz; spätere Fähigkeiten wurden diesem Artefakt nicht rückwirkend hinzugefügt.
 
-Repository-Existenz ist **keine** Veröffentlichung. Der nächste Release erhält eine eigene Exact-Candidate-Qualifikation und ausdrückliche Release-Autorisierung.
+Zum Zeitpunkt der RC4-Veröffentlichung entspricht der kanonische `main` dem exakt qualifizierten RC4-Quellstand. Künftige Repository-Entwicklung kann wieder vorauslaufen, daher ist Repository-Existenz weiterhin **keine** Veröffentlichung.
 
 ## Danach lesen
 

@@ -1,6 +1,6 @@
 # Livariant Five-Minute Quickstart
 
-This Quickstart describes the **current `main` development experience**. The published `v0.1.0-rc.3` release remains the immutable historical Foundation Preview and does not contain every capability described here.
+This Quickstart describes the **current `v0.1.0-rc.4` Public Preview experience**. At the time of publication, canonical `main` is the exact qualified RC4 source.
 
 The shortest way to understand Livariant is:
 
@@ -10,14 +10,20 @@ The shortest way to understand Livariant is:
 
 Livariant is installed once as local CLI tooling. It is not added to your application's `package.json` just to use the normal local workflow.
 
-For the currently published Foundation Preview, install the verified `v0.1.0-rc.3` tarball from the canonical GitHub Release:
+For the currently published Public Preview, install the verified `v0.1.0-rc.4` tarball from the canonical GitHub Release:
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.4.tgz
 livariant version
 ```
 
-For SHA-256 verification, Windows details, PATH help, and the distinction between published RC3 and current development, see [Installation & First Project](installation.md).
+The qualified RC4 tarball SHA-256 is:
+
+```text
+6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e
+```
+
+For SHA-256 verification, Windows details, PATH help, and release/source boundaries, see [Installation & First Project](installation.md).
 
 ## 2. Open your project and run First Run
 
@@ -27,7 +33,7 @@ From the project root, start with:
 livariant first-run
 ```
 
-`first-run` is the guided current-main entry point. It composes existing read-only capabilities and starts by asking for your preferred interaction language.
+`first-run` is the guided Public Preview entry point. It composes existing read-only capabilities and starts by asking for your preferred interaction language.
 
 It can help surface:
 
@@ -73,7 +79,7 @@ Livariant keeps evidence, inference, Project Truth, authorization, and mutation 
 
 ## 4. Connect your coding agent through MCP
 
-Current `main` includes a local MCP agent bridge. Provider setup remains explicit; Livariant does not silently rewrite provider configuration.
+RC4 includes a local MCP agent bridge. Provider setup remains explicit; Livariant does not silently rewrite provider configuration.
 
 Ask Livariant for the native setup path:
 
@@ -183,13 +189,13 @@ livariant resume
 livariant autonomy show --json
 ```
 
-## Published RC3 vs. current `main`
+## Published RC4 and repository `main`
 
-`v0.1.0-rc.3` is the published Foundation Preview. It is useful historical release evidence and remains installable through its verified GitHub Release artifact.
+`v0.1.0-rc.4` is the current published Public Preview prerelease. It includes First Run composition, the MCP bridge, Verification Trace, protected Guardian-origin Authority for consequential consumers, external-knowledge foundations, and additional Active Project Intelligence capabilities.
 
-Current `main` goes significantly beyond RC3, including First Run composition, the MCP bridge, Verification Trace, protected Guardian-origin Authority for consequential consumers, external-knowledge foundations, and additional Active Project Intelligence capabilities.
+`v0.1.0-rc.3` remains immutable historical Foundation Preview evidence; later capabilities were not retroactively added to that artifact.
 
-Repository presence is **not** release publication. The next release will receive its own exact-candidate qualification and explicit release authorization.
+At RC4 publication, canonical `main` is the exact qualified RC4 source. Future repository development may move ahead again, so repository presence is still **not** release publication.
 
 ## Next reads
 

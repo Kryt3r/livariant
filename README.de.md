@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
-  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.3"><img alt="Release" src="https://img.shields.io/badge/release-v0.1.0--rc.3-0ea5e9" /></a>
+  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.4"><img alt="Release" src="https://img.shields.io/badge/release-v0.1.0--rc.4-0ea5e9" /></a>
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-339933?logo=nodedotjs&logoColor=white" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-PolyForm%20Perimeter-7c3aed" /></a>
   <img alt="Local-first" src="https://img.shields.io/badge/local--first-default-06b6d4" />
@@ -220,28 +220,32 @@ externes Wissen
 
 Künftige Retrieval-, Relationship-, Graph- und Token-Effizienz-Arbeit soll auf diesen expliziten Provenienz-/Freshness-Grenzen aufbauen, statt versteckte zweite Wahrheitsspeicher zu erzeugen.
 
-## Veröffentlichtes Release vs. aktuelle Entwicklung
+## Veröffentlichtes Release und aktuelle Entwicklung
 
-### Veröffentlichtes Release
+### Aktuelles veröffentlichtes Public Preview
 
-`v0.1.0-rc.3` ist die unveränderliche **Foundation Preview**. Sie zeigt die frühere projekt-eigene Kontinuitäts- und Lifecycle-Basis und bleibt das aktuell veröffentlichte Artefakt.
+`v0.1.0-rc.4` ist das aktuell veröffentlichte **Public-Preview-Prerelease**. Es enthält den agent-nativen First-Run-/MCP-Workflow, Verification Trace, Active-Project-Intelligence-Grundlagen, External-Knowledge-Grundlagen, Autonomy Profiles sowie die Guardian-/Self-Integrity-Härtung des qualifizierten RC4-Quellstands.
 
-Für dieses historische veröffentlichte Release installierst du den geprüften Release-Tarball:
+Installiere den geprüften RC4-Release-Tarball:
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.4.tgz
 livariant version
 ```
 
+RC4 wurde aus dem exakten Quellstand `4f547751d9d53e7325e6ea1f2401f1dea45779dc` qualifiziert. Der SHA-256 des Release-Artefakts lautet `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
+
+### Historisches RC3 Foundation Preview
+
+`v0.1.0-rc.3` bleibt unveränderliche historische Foundation-Preview-Evidenz. Spätere Fähigkeiten wurden dem RC3-Artefakt nicht rückwirkend hinzugefügt.
+
 ### Aktueller Repository-`main`
 
-Der aktuelle `main` geht deutlich über RC3 hinaus und enthält First Run Composition, MCP-Agent-Zugriff, Verification Trace, Active-Project-Intelligence-Fähigkeiten, External-Knowledge-Grundlagen, Autonomy Profiles sowie Guardian-/Self-Integrity-Härtung.
+Zum Zeitpunkt der RC4-Veröffentlichung entspricht der kanonische `main` dem qualifizierten RC4-Quellstand. Künftige Repository-Entwicklung kann wieder vorauslaufen; Repository-Existenz allein darf daher weiterhin nie als Release-Veröffentlichung behandelt werden.
 
-Repository-Existenz ist **keine** Release-Qualifikation. Diese Fähigkeiten werden nicht rückwirkend Teil von RC3.
+### Künftige qualifizierte Releases
 
-### Nächster qualifizierter Release
-
-Der nächste Release erhält eine eigene Exact-Candidate-CI-/Security-/Self-Integrity-Qualifikation, First-User-Utility-Prüfung, Kontext-/Token-Evidenz, ein Release Decision Dossier und ausdrückliche Publication Authority.
+Ein künftiger Release benötigt weiterhin seine eigene Exact-Candidate-CI-/Security-/Self-Integrity-Qualifikation, passende User-/Reliability-Evidenz, eine Release-Entscheidung und ausdrückliche Publication Authority.
 
 Keine README-Aussage und kein CI-Ergebnis veröffentlicht automatisch einen Release.
 
@@ -260,7 +264,7 @@ Mehr unter [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md).
 
 ## Hier starten
 
-Für die aktuelle Entwicklungserfahrung:
+Für die aktuelle Public-Preview-Nutzung:
 
 1. [Installation & erstes Projekt](docs/de/installation.md)
 2. [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)

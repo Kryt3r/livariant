@@ -15,18 +15,22 @@ Livariant-CLI installieren
 
 Livariant wird für den normalen lokalen Workflow nicht einfach als Anwendungsabhängigkeit in `package.json` eingetragen und schreibt Provider-Konfiguration nicht stillschweigend um.
 
-## Veröffentlichtes Release vs. aktuelle Entwicklung
+## Veröffentlichtes Release und aktueller Quellstand
 
-Das aktuell veröffentlichte Release ist die unveränderliche `v0.1.0-rc.3` **Foundation Preview**.
+Das aktuell veröffentlichte Release ist **`v0.1.0-rc.4` - Public-Preview-Prerelease**.
 
-Der aktuelle Repository-`main` enthält umfangreiche Post-RC3-Fähigkeiten, darunter Guided First Run, lokale MCP-Bridge und Verification Trace. Diese Fähigkeiten werden **nicht rückwirkend Teil des RC3-Artefakts**. Der nächste Release erhält eine eigene Exact-Candidate-Qualifikation und ausdrückliche Release-Autorisierung.
+RC4 enthält Guided First Run, lokale MCP-Bridge, Verification Trace, geschützte Guardian-/Self-Integrity-Härtung sowie die weiteren Fähigkeiten des exakt qualifizierten RC4-Quellstands.
+
+Zum Zeitpunkt der Veröffentlichung entspricht der kanonische Repository-`main` dem exakt qualifizierten RC4-Quellstand `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. Künftige Repository-Entwicklung kann wieder vorauslaufen; Repository-Existenz allein ist nie eine Release-Veröffentlichung.
+
+`v0.1.0-rc.3` bleibt unveränderliche historische Foundation-Preview-Evidenz und wird nicht rückwirkend umgeschrieben.
 
 ## Was du brauchst
 
 - Node.js 20 oder neuer;
 - npm aus deiner Node.js-Installation;
 - ein lokales Softwareprojekt;
-- für den veröffentlichten RC3-Pfad: die geprüften Livariant-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`.
+- die geprüften RC4-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`.
 
 Ein Release-Bundle enthält mindestens:
 
@@ -36,34 +40,35 @@ release-manifest.json
 SHA256SUMS
 ```
 
-## 1. Veröffentlichten Download prüfen
+## 1. Veröffentlichten RC4-Download prüfen
 
-Bevor du ausführbaren Release-Code installierst, vergleichst du den SHA-256 des Tarballs mit `SHA256SUMS` und `release-manifest.json`.
+Bevor du ausführbaren Release-Code installierst, vergleichst du den SHA-256 des Tarballs mit dem qualifizierten RC4-Wert und, sofern in deinem heruntergeladenen Release-Bundle vorhanden, mit `SHA256SUMS` und `release-manifest.json`.
 
-Für `v0.1.0-rc.3`:
+Qualifizierter RC4-Tarball SHA-256:
+
+```text
+6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e
+```
 
 ### Linux
 
 ```bash
-sha256sum livariant-0.1.0-rc.3.tgz
-cat SHA256SUMS
+sha256sum livariant-0.1.0-rc.4.tgz
 ```
 
 ### macOS
 
 ```bash
-shasum -a 256 livariant-0.1.0-rc.3.tgz
-cat SHA256SUMS
+shasum -a 256 livariant-0.1.0-rc.4.tgz
 ```
 
 ### Windows PowerShell
 
 ```powershell
-(Get-FileHash .\livariant-0.1.0-rc.3.tgz -Algorithm SHA256).Hash.ToLower()
-Get-Content .\SHA256SUMS
+(Get-FileHash .\livariant-0.1.0-rc.4.tgz -Algorithm SHA256).Hash.ToLower()
 ```
 
-Stimmen die Werte nicht exakt überein, installiere den Tarball nicht.
+Stimmt der Wert nicht exakt überein, installiere den Tarball nicht.
 
 > [!IMPORTANT]
 > Verwende für Release-Artefakte das kanonische Livariant-GitHub-Release. Installiere keinen ausführbaren Livariant-Code aus einem unbekannten Repository, Mirror, Chat-Anhang oder einer beliebigen Paketquelle nur deshalb, weil der Dateiname korrekt aussieht.
@@ -75,13 +80,13 @@ Im Ordner mit dem geprüften Tarball:
 ### Linux / macOS
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.4.tgz
 ```
 
 ### Windows PowerShell
 
 ```powershell
-npm install --global --ignore-scripts .\livariant-0.1.0-rc.3.tgz
+npm install --global --ignore-scripts .\livariant-0.1.0-rc.4.tgz
 ```
 
 Danach:
@@ -112,9 +117,9 @@ Set-Location C:\pfad\zu\deinem-projekt
 
 Livariant arbeitet preservation-first: Es soll ein bestehendes Projekt prüfen und übernehmen, ohne es still in eine bevorzugte Vorlage umzubauen.
 
-## 4. Auf aktuellem `main` First Run verwenden
+## 4. First Run verwenden
 
-Der geführte Einstieg ist:
+Der geführte Public-Preview-Einstieg ist:
 
 ```bash
 livariant first-run
@@ -162,7 +167,7 @@ livariant resume
 
 Die Livariant-Installation konfiguriert deinen Coding-Agenten **nicht** automatisch.
 
-Der aktuelle `main` kann den nativen Setup-Pfad ausgeben:
+RC4 kann den nativen Setup-Pfad ausgeben:
 
 ### Claude Code
 
