@@ -36,8 +36,8 @@ ok ... proof: stale agent evidence cannot silently become Project Truth or self-
 
 The test itself asserts two containment points:
 
-1. **No self-authorization** — a coherent returned candidate without explicit authorization reaches the existing maintenance path as `authorization-required`, with `semanticChangesMade === 0`, and all managed Project Brain files remain byte-for-byte unchanged.
-2. **No stale rebinding** — after canonical Project Truth advances, replaying the same older provider context/candidate becomes `stale-context`, with `semanticChangesMade === 0`, and the newer canonical Project Brain remains byte-for-byte unchanged.
+1. **No self-authorization** - a coherent returned candidate without explicit authorization reaches the existing maintenance path as `authorization-required`, with `semanticChangesMade === 0`, and all managed Project Brain files remain byte-for-byte unchanged.
+2. **No stale rebinding** - after canonical Project Truth advances, replaying the same older provider context/candidate becomes `stale-context`, with `semanticChangesMade === 0`, and the newer canonical Project Brain remains byte-for-byte unchanged.
 
 ## What this proves
 
