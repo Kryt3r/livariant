@@ -224,11 +224,15 @@ export async function runTokenEfficiencyBaseline() {
     const surfaceValues = { resume, context, providerContext, understand, mcpContext };
     const surfaces = Object.entries(surfaceValues).map(([name, value]) => measureSurface(name, value));
     const aggregateDiagnosticBytes = surfaces.reduce((sum, item) => sum + item.serializedBytes, 0);
+    const sourceSha = process.env.LIVARIANT_BENCHMARK_SOURCE_SHA ?? null;
 
     return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       benchmarkState: "B-current-livariant",
-      sourceBaseline: "f325ab57b862e1e13526e6d75e17d93a243e2284",
+      sourceIdentity: {
+        sourceSha,
+        exactSourceBound: sourceSha !== null,
+      },
       workload: "authentication-architecture-review",
       task: TASK,
       methodology: {
