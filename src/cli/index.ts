@@ -58,6 +58,7 @@ function renderHelp(): void {
   console.log("  autonomy show [--json]");
   console.log("  autonomy set --profile <ask-always|ask-important|continue-without-confirmation> [--acknowledge-risk] [--json]");
   console.log("  findings [--json]");
+  console.log("  verification-trace --input <trace.json> [--json]  # read-only evidence coverage assessment");
   console.log("  discover [--json]");
   console.log("  external-source inspect --type <local-directory> --path <source-path> [--json]");
   console.log("  understand [--input <review.json>] [--external-source-type <local-directory> --external-source <source-path>] [--json]");
@@ -92,7 +93,7 @@ async function entry(): Promise<void> {
     process.exitCode = 3;
     return;
   }
-  if (command !== "init" && command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "findings" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "init" && command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "findings" && command !== "verification-trace" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     await import("./legacy-main.js");
     return;
   }
@@ -130,6 +131,11 @@ async function entry(): Promise<void> {
   if (command === "findings") {
     const { handleFindingsCommand } = await import("./findings-command.js");
     await handleFindingsCommand(process.argv.slice(3));
+    return;
+  }
+  if (command === "verification-trace") {
+    const { handleVerificationTraceCommand } = await import("./verification-trace-command.js");
+    await handleVerificationTraceCommand(process.argv.slice(3));
     return;
   }
   if (command === "discover") {
