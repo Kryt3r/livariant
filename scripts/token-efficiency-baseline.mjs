@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   addConfirmedGoal,
   addConfirmedKnowledge,
@@ -257,7 +258,7 @@ export async function runTokenEfficiencyBaseline() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const result = await runTokenEfficiencyBaseline();
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
