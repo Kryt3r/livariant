@@ -57,6 +57,7 @@ function renderHelp(): void {
   console.log("  first-run [--language <preferred-language>] [--autonomy-profile <ask-always|ask-important|continue-without-confirmation>] [--acknowledge-autonomy-risk] [--external-source-type <local-directory> --external-source <source-path>] [--provider <claude-code|codex>] [--json]");
   console.log("  autonomy show [--json]");
   console.log("  autonomy set --profile <ask-always|ask-important|continue-without-confirmation> [--acknowledge-risk] [--json]");
+  console.log("  findings [--json]");
   console.log("  discover [--json]");
   console.log("  external-source inspect --type <local-directory> --path <source-path> [--json]");
   console.log("  understand [--input <review.json>] [--external-source-type <local-directory> --external-source <source-path>] [--json]");
@@ -91,7 +92,7 @@ async function entry(): Promise<void> {
     process.exitCode = 3;
     return;
   }
-  if (command !== "init" && command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "init" && command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "findings" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
     await import("./legacy-main.js");
     return;
   }
@@ -124,6 +125,11 @@ async function entry(): Promise<void> {
   if (command === "autonomy") {
     const { handleAutonomyCommand } = await import("./autonomy-command.js");
     await handleAutonomyCommand(process.argv.slice(3));
+    return;
+  }
+  if (command === "findings") {
+    const { handleFindingsCommand } = await import("./findings-command.js");
+    await handleFindingsCommand(process.argv.slice(3));
     return;
   }
   if (command === "discover") {

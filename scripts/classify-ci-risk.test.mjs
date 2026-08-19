@@ -18,7 +18,7 @@ test("classifies normal source and test changes as C", () => {
   assert.equal(classifyPaths(["tests/semantic-editing.test.ts"]).class, "C");
 });
 
-test("classifies workflow, packaging, authority, Guardian, external knowledge, first-run, autonomy, and mutation-router trust paths as D", () => {
+test("classifies workflow, packaging, authority, Guardian, external knowledge, first-run, autonomy, findings, and mutation-router trust paths as D", () => {
   assert.equal(classifyPaths([".github/workflows/ci.yml"]).class, "D");
   assert.equal(classifyPaths(["scripts/package-smoke.mjs"]).class, "D");
   assert.equal(classifyPaths(["src/distribution/release-authorization.ts"]).class, "D");
@@ -37,6 +37,11 @@ test("classifies workflow, packaging, authority, Guardian, external knowledge, f
   assert.equal(classifyPaths(["src/cli/autonomy-command.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/autonomy-profile.test.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/autonomy-cli.test.ts"]).class, "D");
+  assert.equal(classifyPaths(["src/findings/project-findings.ts"]).class, "D");
+  assert.equal(classifyPaths(["src/cli/findings-command.ts"]).class, "D");
+  assert.equal(classifyPaths(["tests/project-findings.test.ts"]).class, "D");
+  assert.equal(classifyPaths(["tests/project-findings-cli.test.ts"]).class, "D");
+  assert.equal(classifyPaths(["tests/project-findings-freshness.test.ts"]).class, "D");
 });
 
 test("uses the highest class across mixed changes", () => {
@@ -47,6 +52,7 @@ test("uses the highest class across mixed changes", () => {
   assert.equal(classifyPaths(["README.md", "src/autonomy/profile.ts"]).class, "D");
   assert.equal(classifyPaths(["README.md", "src/guardian/trust-root.ts"]).class, "D");
   assert.equal(classifyPaths(["README.md", "src/cli/index.ts"]).class, "D");
+  assert.equal(classifyPaths(["docs/project-findings.md", "src/findings/project-findings.ts"]).class, "D");
 });
 
 test("unknown and empty change sets fail safe to D", () => {
