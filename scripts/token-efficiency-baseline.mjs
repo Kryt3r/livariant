@@ -59,15 +59,23 @@ function withinPayloadDuplicateBytes(value) {
   return duplicateBytes;
 }
 
+function topLevelFieldBytes(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).map(([key, fieldValue]) => [key, bytes(JSON.stringify({ [key]: fieldValue }))]),
+  );
+}
+
 function measureSurface(name, value) {
   const json = serialize(value);
   const payloadBytes = bytes(json);
   return {
     surface: name,
-    bytes: payloadBytes,
+    serializedBytes: payloadBytes,
     characters: json.length,
-    estimatedTokens: Math.ceil(payloadBytes / 4),
+    tokenProxy: Math.ceil(payloadBytes / 4),
     duplicateStringBytesWithinPayload: withinPayloadDuplicateBytes(value),
+    topLevelFieldBytes: topLevelFieldBytes(value),
   };
 }
 
@@ -156,12 +164,20 @@ async function mcpProviderContext(projectPath) {
   });
 }
 
-function mcpMirrorBytes(response) {
+function measureMcpDelivery(response) {
   const result = response?.result;
   const structured = result?.structuredContent;
   const text = result?.content?.[0]?.text;
-  if (!structured || typeof text !== "string") return 0;
-  return text === JSON.stringify(structured) ? bytes(text) : 0;
+  const structuredJson = structured ? JSON.stringify(structured) : null;
+  return {
+    transportResponseBytes: bytes(JSON.stringify(response)),
+    explicitTextContentBytes: typeof text === "string" ? bytes(text) : 0,
+    explicitTextContentTokenProxy: typeof text === "string" ? Math.ceil(bytes(text) / 4) : 0,
+    structuredContentBytes: structuredJson ? bytes(structuredJson) : 0,
+    exactStructuredTextMirror: Boolean(structuredJson && typeof text === "string" && text === structuredJson),
+    exactMirrorBytes: structuredJson && typeof text === "string" && text === structuredJson ? bytes(text) : 0,
+    interpretationBoundary: "Transport bytes and structuredContent are not automatically equivalent to model-billed context; client projection is implementation-specific.",
+  };
 }
 
 export async function runTokenEfficiencyBaseline() {
@@ -176,10 +192,10 @@ export async function runTokenEfficiencyBaseline() {
 
     const surfaceValues = { resume, context, providerContext, understand, mcpContext };
     const surfaces = Object.entries(surfaceValues).map(([name, value]) => measureSurface(name, value));
-    const totalBytes = surfaces.reduce((sum, item) => sum + item.bytes, 0);
+    const aggregateDiagnosticBytes = surfaces.reduce((sum, item) => sum + item.serializedBytes, 0);
 
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       benchmarkState: "B-current-livariant",
       sourceBaseline: "f325ab57b862e1e13526e6d75e17d93a243e2284",
       workload: "authentication-architecture-review",
@@ -188,15 +204,16 @@ export async function runTokenEfficiencyBaseline() {
         serialization: "JSON.stringify compact JSON",
         tokenProxy: TOKEN_PROXY_METHOD,
         duplicateStringMinBytes: DUPLICATE_STRING_MIN_BYTES,
+        aggregateBoundary: "Surface sizes are diagnostic alternatives/components and are not assumed to all enter one model request.",
         note: "Token proxy is used because no provider tokenizer dependency is installed. Public claims must not present it as exact provider billing tokens.",
       },
       surfaces,
-      totals: {
-        bytes: totalBytes,
-        estimatedTokens: Math.ceil(totalBytes / 4),
+      aggregateDiagnostics: {
+        serializedBytesAcrossMeasuredSurfaces: aggregateDiagnosticBytes,
+        tokenProxyAcrossMeasuredSurfaces: Math.ceil(aggregateDiagnosticBytes / 4),
         crossSurfaceDuplicateStringBytes: crossSurfaceDuplicateBytes(surfaceValues),
-        mcpStructuredContentMirroredInTextBytes: mcpMirrorBytes(mcpContext),
       },
+      mcpDelivery: measureMcpDelivery(mcpContext),
       reliabilityAssertions: {
         providerContextState: providerContext.state,
         contextSafetyState: context.safetyState,
