@@ -13,6 +13,7 @@ import { buildProjectContextSnapshot } from "../dist/src/runtime/context-snapsho
 import { buildProviderContext } from "../dist/src/runtime/provider-context.js";
 import { buildUnderstandingReview } from "../dist/src/project/understanding-review.js";
 import { recordAcceptedProjectBrainState } from "../dist/src/project-brain/integrity.js";
+import { codexResumeProjection } from "../dist/src/adapters/resume-provider.js";
 import {
   createMcpSession,
   MCP_CONTEXT_TOOL,
@@ -94,6 +95,35 @@ function crossSurfaceDuplicateBytes(surfaceValues) {
     if (surfaces.size > 1) duplicateBytes += bytes(text) * (surfaces.size - 1);
   }
   return duplicateBytes;
+}
+
+function countOccurrences(text, needle) {
+  if (!needle) return 0;
+  let count = 0;
+  let offset = 0;
+  while (true) {
+    const index = text.indexOf(needle, offset);
+    if (index < 0) return count;
+    count += 1;
+    offset = index + needle.length;
+  }
+}
+
+function measureResumeProviderDelivery(resume) {
+  const text = codexResumeProjection.render(resume);
+  let duplicateKnownFactBytes = 0;
+  for (const fact of resume.knownFacts) {
+    const repeatedCopies = Math.max(0, countOccurrences(text, fact) - 1);
+    duplicateKnownFactBytes += bytes(fact) * repeatedCopies;
+  }
+  return {
+    provider: "codex",
+    textBytes: bytes(text),
+    textTokenProxy: Math.ceil(bytes(text) / 4),
+    duplicateKnownFactBytes,
+    knownFactCount: resume.knownFacts.length,
+    evidenceSummaryEqualsKnownFacts: JSON.stringify(resume.evidenceSummary) === JSON.stringify(resume.knownFacts),
+  };
 }
 
 async function mutateAcceptedFixture(projectPath, mutation) {
@@ -195,7 +225,7 @@ export async function runTokenEfficiencyBaseline() {
     const aggregateDiagnosticBytes = surfaces.reduce((sum, item) => sum + item.serializedBytes, 0);
 
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       benchmarkState: "B-current-livariant",
       sourceBaseline: "f325ab57b862e1e13526e6d75e17d93a243e2284",
       workload: "authentication-architecture-review",
@@ -208,6 +238,7 @@ export async function runTokenEfficiencyBaseline() {
         note: "Token proxy is used because no provider tokenizer dependency is installed. Public claims must not present it as exact provider billing tokens.",
       },
       surfaces,
+      resumeProviderDelivery: measureResumeProviderDelivery(resume),
       aggregateDiagnostics: {
         serializedBytesAcrossMeasuredSurfaces: aggregateDiagnosticBytes,
         tokenProxyAcrossMeasuredSurfaces: Math.ceil(aggregateDiagnosticBytes / 4),
