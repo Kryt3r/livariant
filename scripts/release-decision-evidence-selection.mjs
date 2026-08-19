@@ -13,7 +13,7 @@ export function selectCanonicalReleaseRuns(runs, sourceSha) {
     (run) => run.name === "Hardening CI"
       && run.head_sha === sourceSha
       && run.head_branch === "main"
-      && run.event === "push"
+      && (run.event === "push" || run.event === "workflow_dispatch")
       && run.status === "completed",
   );
   const codeqlRun = latestRun(
