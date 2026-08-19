@@ -1,0 +1,55 @@
+name: Self-Integrity Release Acceptance
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  self-integrity-release-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run Self-Integrity / AI-Failure Containment regression acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+          node --test \
+            dist/tests/project-brain-integrity.test.js \
+            dist/tests/autonomy-profile.test.js \
+            dist/tests/external-evidence-inert-data.test.js \
+            dist/tests/guardian-authority.test.js \
+            dist/tests/lifecycle-authority.test.js \
+            dist/tests/runtime-trust.test.js \
+            dist/tests/semantic-apply-authority.test.js \
+            dist/tests/understanding-review.test.js
+          npm run test:release-dossier
+
+      - name: Record exact accepted source
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          observed="$(git rev-parse HEAD)"
+          test "$observed" = "$SOURCE_SHA"
+          echo "Self-Integrity Release Acceptance passed for exact source $SOURCE_SHA"
+          echo "This workflow is release evidence only and grants no release, mutation, Runtime, or publication Authority."
