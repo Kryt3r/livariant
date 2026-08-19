@@ -26,6 +26,14 @@ test("token-efficiency baseline harness emits bounded reproducible B-state metri
       tokenProxy: number;
       topLevelFieldBytes: Record<string, number>;
     }>;
+    resumeProviderDelivery: {
+      provider: string;
+      textBytes: number;
+      textTokenProxy: number;
+      duplicateKnownFactBytes: number;
+      knownFactCount: number;
+      evidenceSummaryEqualsKnownFacts: boolean;
+    };
     aggregateDiagnostics: {
       serializedBytesAcrossMeasuredSurfaces: number;
       tokenProxyAcrossMeasuredSurfaces: number;
@@ -48,7 +56,7 @@ test("token-efficiency baseline harness emits bounded reproducible B-state metri
     };
   };
 
-  assert.equal(report.schemaVersion, 2);
+  assert.equal(report.schemaVersion, 3);
   assert.equal(report.benchmarkState, "B-current-livariant");
   assert.equal(report.sourceBaseline, "f325ab57b862e1e13526e6d75e17d93a243e2284");
   assert.match(report.methodology.tokenProxy, /proxy/i);
@@ -59,6 +67,12 @@ test("token-efficiency baseline harness emits bounded reproducible B-state metri
     assert.ok(surface.tokenProxy > 0, `${surface.surface} must have a non-zero token proxy`);
     assert.ok(Object.keys(surface.topLevelFieldBytes).length > 0, `${surface.surface} must expose top-level field diagnostics`);
   }
+  assert.equal(report.resumeProviderDelivery.provider, "codex");
+  assert.ok(report.resumeProviderDelivery.textBytes > 0);
+  assert.ok(report.resumeProviderDelivery.textTokenProxy > 0);
+  assert.ok(report.resumeProviderDelivery.duplicateKnownFactBytes > 0);
+  assert.ok(report.resumeProviderDelivery.knownFactCount > 0);
+  assert.equal(report.resumeProviderDelivery.evidenceSummaryEqualsKnownFacts, true);
   assert.ok(report.aggregateDiagnostics.serializedBytesAcrossMeasuredSurfaces > 0);
   assert.ok(report.aggregateDiagnostics.tokenProxyAcrossMeasuredSurfaces > 0);
   assert.ok(report.aggregateDiagnostics.crossSurfaceDuplicateStringBytes >= 0);
