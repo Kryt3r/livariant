@@ -16,10 +16,12 @@ function isClassD(path) {
   if (path.startsWith("src/external-knowledge/")) return true;
   if (path.startsWith("src/autonomy/")) return true;
   if (path.startsWith("src/guardian/")) return true;
+  if (path.startsWith("src/findings/")) return true;
   if (path === "src/cli/index.ts") return true;
   if (path === "src/cli/autonomy-command.ts") return true;
   if (path === "src/cli/first-run-command.ts") return true;
   if (path === "src/cli/guardian-command.ts") return true;
+  if (path === "src/cli/findings-command.ts") return true;
   if (path === "tests/legacy-mutation-authority.test.ts") return true;
   if (path === "tests/semantic-knowledge-cli.test.ts") return true;
   if (path === "tests/autonomy-profile.test.ts") return true;
@@ -27,6 +29,8 @@ function isClassD(path) {
   if (path === "tests/first-run-cli.test.ts") return true;
   if (path === "tests/guardian-trust-root.test.ts") return true;
   if (path === "tests/guardian-cli.test.ts") return true;
+  if (path === "tests/project-findings.test.ts") return true;
+  if (path === "tests/project-findings-cli.test.ts") return true;
 
   const safetySegments = [
     "/distribution/",
