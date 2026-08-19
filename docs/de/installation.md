@@ -1,17 +1,34 @@
-# Livariant installieren und einem Projekt hinzufügen
+# Livariant installieren und mit einem Projekt verbinden
 
-Livariant wird einmal als lokales Kommandozeilen-Tool auf deinem Rechner installiert. Danach verwendest du es direkt im Hauptordner des Projekts, das du mit KI weiterentwickelst.
+Livariant wird einmal als lokales Rechner-/Benutzer-Tool installiert und danach im Hauptordner des Projekts verwendet, das du mit KI-Unterstützung entwickelst.
 
-Livariant wird nicht in Claude Code, Codex oder einen anderen Coding-Agent installiert. Es wird im aktuellen Preview-Weg auch nicht als Abhängigkeit in die `package.json` deines Projekts eingetragen.
+CLI-Installation und Coding-Agent-Verbindung sind **getrennte Schritte**:
+
+```text
+Livariant-CLI installieren
+-> Projekt öffnen
+-> First Run ausführen
+-> bei Bedarf bewusst initialisieren
+-> Claude Code oder Codex explizit über MCP verbinden
+-> normal mit dem Coding-Agenten arbeiten
+```
+
+Livariant wird für den normalen lokalen Workflow nicht einfach als Anwendungsabhängigkeit in `package.json` eingetragen und schreibt Provider-Konfiguration nicht stillschweigend um.
+
+## Veröffentlichtes Release vs. aktuelle Entwicklung
+
+Das aktuell veröffentlichte Release ist die unveränderliche `v0.1.0-rc.3` **Foundation Preview**.
+
+Der aktuelle Repository-`main` enthält umfangreiche Post-RC3-Fähigkeiten, darunter Guided First Run, lokale MCP-Bridge und Verification Trace. Diese Fähigkeiten werden **nicht rückwirkend Teil des RC3-Artefakts**. Der nächste Release erhält eine eigene Exact-Candidate-Qualifikation und ausdrückliche Release-Autorisierung.
 
 ## Was du brauchst
 
 - Node.js 20 oder neuer;
 - npm aus deiner Node.js-Installation;
-- eine lokale Kopie deines Projekts;
-- die Livariant-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`, sobald RC3 veröffentlicht ist.
+- ein lokales Softwareprojekt;
+- für den veröffentlichten RC3-Pfad: die geprüften Livariant-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`.
 
-Das Release-Bundle enthält mindestens:
+Ein Release-Bundle enthält mindestens:
 
 ```text
 livariant-<version>.tgz
@@ -19,31 +36,18 @@ release-manifest.json
 SHA256SUMS
 ```
 
-Für den aktuellen Kandidaten `0.1.0-rc.3` heißt das Paket:
+## 1. Veröffentlichten Download prüfen
 
-```text
-livariant-0.1.0-rc.3.tgz
-```
+Bevor du ausführbaren Release-Code installierst, vergleichst du den SHA-256 des Tarballs mit `SHA256SUMS` und `release-manifest.json`.
 
-Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz und nicht das aktuelle Installationsziel.
-
-> [!IMPORTANT]
-> Lade die Release-Dateien nur aus dem kanonischen Livariant-GitHub-Release. Installiere keinen Tarball aus einem unbekannten Repository, Chat-Anhang, Mirror oder einer beliebigen Paketquelle nur deshalb, weil die Datei `livariant` heißt.
-
-## 1. Download prüfen
-
-Bevor du ausführbaren Code installierst, vergleichst du den SHA-256 des Tarballs mit den Werten in `SHA256SUMS` und `release-manifest.json`.
+Für `v0.1.0-rc.3`:
 
 ### Linux
-
-Im Ordner mit den heruntergeladenen Release-Dateien:
 
 ```bash
 sha256sum livariant-0.1.0-rc.3.tgz
 cat SHA256SUMS
 ```
-
-Die Hashwerte müssen exakt übereinstimmen.
 
 ### macOS
 
@@ -52,8 +56,6 @@ shasum -a 256 livariant-0.1.0-rc.3.tgz
 cat SHA256SUMS
 ```
 
-Die Hashwerte müssen exakt übereinstimmen.
-
 ### Windows PowerShell
 
 ```powershell
@@ -61,11 +63,12 @@ Die Hashwerte müssen exakt übereinstimmen.
 Get-Content .\SHA256SUMS
 ```
 
-Die Hashwerte müssen exakt übereinstimmen.
+Stimmen die Werte nicht exakt überein, installiere den Tarball nicht.
 
-Wenn sie nicht übereinstimmen, installiere den Tarball nicht.
+> [!IMPORTANT]
+> Verwende für Release-Artefakte das kanonische Livariant-GitHub-Release. Installiere keinen ausführbaren Livariant-Code aus einem unbekannten Repository, Mirror, Chat-Anhang oder einer beliebigen Paketquelle nur deshalb, weil der Dateiname korrekt aussieht.
 
-## 2. Livariant installieren
+## 2. CLI installieren
 
 Im Ordner mit dem geprüften Tarball:
 
@@ -81,195 +84,165 @@ npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
 npm install --global --ignore-scripts .\livariant-0.1.0-rc.3.tgz
 ```
 
-Damit wird der Befehl `livariant` für deinen Rechner oder Benutzer installiert.
-
-Noch passiert nichts mit deinem Projekt. Livariant wird weder automatisch initialisiert noch in `package.json` oder `node_modules` des Zielprojekts eingetragen.
-
-> [!NOTE]
-> Falls npm nicht in sein globales Installationsverzeichnis schreiben darf, richte einen benutzerbeschreibbaren npm-Prefix oder eine passende Node.js-Installation ein. Kopiere Livariant nicht als Workaround manuell in das Projekt oder in verwaltete Runtime- und Trust-Verzeichnisse.
-
-## 3. Installation prüfen
+Danach:
 
 ```bash
 livariant version
 ```
 
-Für diesen Preview-Kandidaten muss die Ausgabe Livariant `0.1.0-rc.3` auf dem Channel `preview` erkennen lassen.
+Die Installation initialisiert kein Projekt und trägt Livariant nicht in `package.json` oder `node_modules` des Zielprojekts ein.
 
-Wenn dein Terminal den Befehl `livariant` nicht findet, öffne zuerst ein neues Terminal. Prüfe danach, ob das globale npm-Bin-Verzeichnis in deinem `PATH` liegt.
+Wenn der Befehl nicht gefunden wird, öffne ein neues Terminal und prüfe, ob das globale npm-Bin-Verzeichnis in `PATH` liegt. Nutze lieber einen benutzerbeschreibbaren npm-Prefix, statt Livariant manuell in Projekt-, Runtime- oder Trust-Verzeichnisse zu kopieren.
 
-## 4. Dein Projekt öffnen
+## 3. Projekt öffnen
 
-Livariant arbeitet mit dem Projektordner auf deinem Rechner. Es verbindet sich für die grundlegende Nutzung nicht mit deinem Claude-, OpenAI- oder Editor-Account.
+Verwende den Hauptordner des Projekts, an dem du ohnehin arbeitest.
 
-Wenn dein Projekt bereits lokal existiert, öffne ein Terminal in seinem Hauptordner.
-
-Beispiel unter Linux oder macOS:
+Linux/macOS:
 
 ```bash
 cd /pfad/zu/deinem-projekt
 ```
 
-Unter Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
 Set-Location C:\pfad\zu\deinem-projekt
 ```
 
-Liegt dein Projekt bisher nur auf GitHub oder einem anderen Git-Host, klone es zuerst wie gewohnt und wechsle danach in den Projektordner.
+Livariant arbeitet preservation-first: Es soll ein bestehendes Projekt prüfen und übernehmen, ohne es still in eine bevorzugte Vorlage umzubauen.
 
-Wenn du Claude Code oder Codex dort bereits verwendest, ist das genau derselbe Ordner. Für diese Tools gibt es in der aktuellen Preview keinen zusätzlichen Livariant-Plugin-Schritt.
+## 4. Auf aktuellem `main` First Run verwenden
 
-## 5. Projekt zuerst prüfen
-
-Im Projektordner:
+Der geführte Einstieg ist:
 
 ```bash
-livariant status
-livariant doctor
+livariant first-run
+```
+
+First Run kombiniert read-only Project Discovery, Initialisierungsbewertung, Autonomy-Profile-Wahl, optionale External-Knowledge-Evidenz, Guided Project Understanding Review und optionale Provider-Setup-Hinweise.
+
+Er endet mit `Changes made: 0` und initialisiert das Projekt nicht still, persistiert kein Autonomy Profile automatisch, übernimmt keine Evidenz, konfiguriert keinen Provider und vergibt keine Authority.
+
+Für deterministische Nutzung:
+
+```bash
+livariant first-run --language Deutsch
+```
+
+Wenn du bereits weißt, welchen unterstützten Provider du verbinden möchtest, kann First Run den Setup-Pfad direkt sichtbar machen:
+
+```bash
+livariant first-run --language Deutsch --provider claude-code
+livariant first-run --language Deutsch --provider codex
+```
+
+Mehr unter [First-Run Composition](first-run.md).
+
+## 5. Bei Bedarf bewusst initialisieren
+
+Wenn das Projekt ein Project Brain benötigt, prüfst du zuerst den Initialisierungsplan:
+
+```bash
 livariant init
 ```
 
-Diese Befehle helfen dir, den aktuellen Zustand zu verstehen, bevor Livariant verwalteten Projektzustand anlegt.
+Erst nach Prüfung gehst du über den unterstützten expliziten Autorisierungspfad weiter. First Run selbst führt die Initialisierung niemals aus.
 
-`livariant init` ohne `--apply` zeigt nur den geplanten Initialisierungsschritt. Der Befehl verändert das Projekt noch nicht.
-
-Gerade bei einem bestehenden Projekt solltest du diesen Plan lesen. Livariant soll das vorhandene Projekt übernehmen, nicht es in eine bevorzugte Vorlage umbauen.
-
-## 6. Project Brain bewusst anlegen
-
-Wenn der Plan korrekt aussieht:
-
-```bash
-livariant init --apply
-```
-
-Danach prüfst du das Ergebnis:
+Nach erfolgreicher unterstützter Initialisierung sind unter anderem diese read-only Checks nützlich:
 
 ```bash
 livariant status
 livariant doctor
+livariant context
 livariant resume
 ```
 
-Das Projekt enthält jetzt den minimalen `.project-brain/`-Zustand, den Livariant verwaltet.
+## 6. Claude Code oder Codex explizit über MCP verbinden
 
-## 7. Dauerhafte Projektwahrheit im Alltag festhalten
+Die Livariant-Installation konfiguriert deinen Coding-Agenten **nicht** automatisch.
 
-Die Initialisierung ist nur der Anfang. Wenn ein Ziel, ein bestätigter Fakt oder eine akzeptierte Entscheidung die aktuelle KI-Sitzung überdauern soll, hältst du das über Livariant fest, statt es nur im Chatverlauf zu lassen.
+Der aktuelle `main` kann den nativen Setup-Pfad ausgeben:
 
-Die aktuellen Werte kannst du so ansehen:
-
-```bash
-livariant goals
-livariant knowledge
-livariant decisions
-```
-
-Mutierende Befehle sind plan-first. Diese Beispiele zeigen zunächst nur, was geändert würde:
+### Claude Code
 
 ```bash
-livariant goals add "Erste sichere Public Preview veröffentlichen"
-livariant knowledge add "Die Preview wird über GitHub Releases verteilt"
-livariant decisions add "GitHub Releases für die Preview verwenden"
+livariant mcp setup --provider claude-code
 ```
 
-Wenn der Plan stimmt, wiederholst du den gewünschten Befehl mit `--apply`:
+### Codex
 
 ```bash
-livariant goals add "Erste sichere Public Preview veröffentlichen" --apply
-livariant knowledge add "Die Preview wird über GitHub Releases verteilt" --apply
-livariant decisions add "GitHub Releases für die Preview verwenden" --apply
+livariant mcp setup --provider codex
 ```
 
-Ändert sich eine akzeptierte Entscheidung später, lässt du dir zuerst die Decision-ID anzeigen und löst die alte Entscheidung gezielt ab. Die frühere Entscheidung wird nicht aus der Historie gelöscht:
+Dieser Befehl liefert provider-spezifische Registrierungs-/Konfigurationshinweise und führt selbst **null Provider-Konfigurationsänderungen** aus. Du bzw. der Provider wendet den angezeigten Schritt über dessen eigene Konfigurationsoberfläche an.
 
-```bash
-livariant decisions
-livariant decisions supersede <decision-id> "Signierte Release-Infrastruktur verwenden" --reason "Distributionsmodell geändert"
-```
+Sobald der Provider mit `livariant mcp` verbunden ist, kann der Agent Livariants MCP-Tools und Server-Instructions während der normalen MCP-Sitzung erkennen.
 
-Auch dieser Supersede-Befehl ist zunächst nur ein Plan. Erst mit `--apply` wird die Änderung geschrieben.
+Aktuelle begrenzte MCP-Fähigkeiten sind:
 
-Livariant prüft vor semantischen Änderungen den Project-Brain-Zustand, schützt verwaltete Pfade, lehnt eine Änderung ab, wenn sich der projekt-eigene Ausgangszustand zwischenzeitlich verändert hat, und verifiziert den gespeicherten Wert vor einer Erfolgsmeldung.
+- `livariant_provider_context`;
+- `livariant_provider_return`;
+- `livariant_verification_trace`.
 
-## 8. Mit Claude Code oder Codex weiterarbeiten
+Damit kann die normale Nutzung agent-native sein: Du arbeitest in natürlicher Sprache mit dem Coding-Agenten, und dieser kann Livariant-Tools bei Bedarf aufrufen. Du musst nicht für jede normale Interaktion manuell einen Livariant-CLI-Befehl tippen.
 
-Die aktuelle Preview kann Project-Brain-Kontext für Claude Code oder Codex als Resume-Handoff ausgeben. Livariant ist dabei kein natives Plugin und schreibt keine provider-eigenen Instruktionsdateien stillschweigend um.
+Die CLI bleibt die direkte Kontroll- und Diagnoseoberfläche, wenn du sie ausdrücklich verwenden möchtest.
 
-### Claude Code unter Linux / macOS
+## 7. Verification Trace im Agent-Workflow
 
-```bash
-LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
-```
+Mit verbundener MCP-Bridge kann ein MCP-fähiger Coding-Agent folgendes Tool aufrufen:
 
-### Claude Code unter Windows PowerShell
+`livariant_verification_trace`
 
-```powershell
-$env:LIVARIANT_PROVIDER_ENV = "claude-code"
-livariant resume --provider claude-code
-```
-
-### Codex unter Linux / macOS
-
-```bash
-LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
-```
-
-### Codex unter Windows PowerShell
-
-```powershell
-$env:LIVARIANT_PROVIDER_ENV = "codex"
-livariant resume --provider codex
-```
-
-Die Resume-Ausgabe ist temporärer Kontext für die aktuelle Arbeitssitzung. Das Project Brain bleibt der dauerhafte Projektstand. Bestätigte Ziele, aktive Entscheidungen und bekanntes Projektwissen, die über Livariant festgehalten wurden, stehen dem unterstützten Resume-Pfad zur Verfügung.
-
-## Was die Installation tut und was nicht
+Es verwendet dieselbe explizite Verification-Trace-v1-Struktur wie Core-/CLI-Assessor und liefert deterministische Zustände:
 
 ```text
-geprüften GitHub-Release-Tarball herunterladen
-        |
-        v
-Livariant-CLI installieren
-        |
-        v
-Projektordner öffnen
-        |
-        v
-mit status / doctor / init prüfen
-        |
-        v
-init --apply bewusst ausführen
-        |
-        v
-bestätigte Projektwahrheit im Arbeitsverlauf festhalten
-        |
-        v
-Resume-Kontext über unterstützte KI-Sitzungen hinweg verwenden
+SUPPORTED
+CONTRADICTED
+UNPROVEN
 ```
 
-Die CLI-Installation:
+Das ist Evidenzabdeckung, keine akzeptierte Completion.
 
-- initialisiert kein Projekt automatisch;
-- verändert nicht automatisch `CLAUDE.md`, `AGENTS.md` oder Provider-Memory;
-- beobachtet keine KI-Gespräche und entscheidet nicht automatisch, was Projektwahrheit wird;
-- gibt einem Coding-Provider keine Projekt- oder Runtime-Autorität;
-- migriert ein vorhandenes Project Brain nicht allein deshalb, weil das CLI-Paket aktualisiert wurde;
-- autorisiert keine zukünftigen ausführbaren Runtime-Update-Artefakte.
+Die Grenzen bleiben:
 
-## Spätere Updates sind ein eigener Vorgang
+```text
+Evidence != Truth
+Verification Evidence != akzeptierte Completion
+SUPPORTED != DONE
+MCP-Transport != unabhängiges Vertrauen
+Capability != Authority
+```
 
-Ein neueres Livariant-CLI-Paket zu installieren ist nicht dasselbe wie ein vorhandenes Project Brain zu migrieren oder eine neue Runtime zu autorisieren.
+Livariant entdeckt aktuell nicht automatisch jede Anforderung und erzeugt nicht automatisch vertrauenswürdige Verification Evidence.
 
-Für bestehende Projekte verwendest du den unterstützten `update`-, Migrations- und Recovery-Ablauf aus [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md).
+Mehr unter [Verification Trace](verification-trace.md).
 
-Ersetze `.project-brain/`, verwalteten Runtime-State, Runtime-Trust-Evidenz oder Release-Authorization-Evidenz nicht manuell.
+## Was Installation und MCP-Setup nicht tun
+
+Sie:
+
+- initialisieren Projekte nicht automatisch;
+- schreiben `CLAUDE.md`, `AGENTS.md` oder Provider-Memory nicht still um;
+- beobachten nicht jedes KI-Gespräch und entscheiden nicht automatisch, was Project Truth wird;
+- vergeben keine Mutation-, Runtime-, Guardian- oder Release-Authority an einen Provider;
+- behandeln Agent-Evidenz nicht automatisch als vertrauenswürdig, nur weil sie über MCP kam;
+- migrieren kein Project Brain allein deshalb, weil das CLI-Paket geändert wurde;
+- veröffentlichen oder autorisieren keinen zukünftigen Livariant-Release.
+
+## Spätere Updates sind getrennt
+
+Ein neueres Livariant-CLI-Paket zu installieren ist nicht dasselbe wie Project-Brain-State zu migrieren, eine neue Runtime zu aktivieren oder Release-/Runtime-Authority zu vergeben.
+
+Verwende die unterstützten Update-, Migrations- und Recovery-Flows aus [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md). Ersetze `.project-brain/`, verwalteten Runtime-State, Guardian-State, Runtime-Trust-Evidenz oder Release-Authorization-Evidenz nicht manuell.
 
 ## Danach lesen
 
 - [Fünf-Minuten-Schnellstart](quickstart.md)
+- [First-Run Composition](first-run.md)
+- [Verification Trace](verification-trace.md)
 - [Bestehende Projekte](existing-projects.md)
 - [Provider-Handoff](provider-handoff.md)
 - [Architektur & Sicherheit](architecture-and-safety.md)
-- [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md)
