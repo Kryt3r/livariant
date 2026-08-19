@@ -17,7 +17,7 @@ AI-assisted implementation can look complete while one or more requested outcome
 
 `verification-trace` makes that gap visible without silently changing Project Truth, task state, release state, or Authority.
 
-## Run a trace
+## Run a trace from the CLI
 
 Create a JSON trace and run:
 
@@ -32,6 +32,25 @@ livariant verification-trace --input trace.json --json
 ```
 
 The command is read-only and reports `Changes made: 0`.
+
+## Use the trace from an MCP coding agent
+
+When Livariant's local MCP bridge is connected, an MCP-capable coding agent can call:
+
+`livariant_verification_trace`
+
+The tool accepts the same explicit version-1 trace structure as the CLI/core assessor and returns the same deterministic assessment states. It is declared read-only and non-destructive.
+
+Conceptually:
+
+```text
+coding agent
+  → livariant_verification_trace
+  → existing Verification Trace assessor
+  → supported / contradicted / unproven
+```
+
+This removes the need to hand-run the CLI command during an agent session. It does **not** add automatic requirement discovery or independent verification intelligence: the requirements, implementation claims, and verification evidence still have to be supplied explicitly, and agent-supplied evidence is not trusted merely because it arrived through MCP.
 
 ## Assessment states
 
@@ -81,13 +100,14 @@ Those are separate future capabilities and require their own scope and trust mod
 
 ## Safety boundary
 
-The trace assessment:
+The trace assessment, including the MCP consumer:
 
 - is read-only;
 - grants no Authority;
 - does not mutate Project Truth;
 - does not mark work accepted or DONE;
 - does not change release decisions;
+- does not independently trust evidence because an AI supplied it;
 - does not imply that one passing test proves universal completion.
 
 The core rules remain:
@@ -123,9 +143,11 @@ This feature intentionally does not include:
 - automatic requirement persistence;
 - automatic task completion;
 - Project Truth promotion;
+- automatic arbitrary requirement discovery;
+- independent trust in agent-supplied evidence;
 - graph/index infrastructure;
 - verification plugin/capability-pack execution;
 - release authorization;
 - broad provider/agent consumer migration.
 
-The v1 goal is narrower: make unsupported or contradicted completion claims inspectable and useful now, while preserving clean seams for later capabilities.
+The v1 goal is narrower: make unsupported or contradicted completion claims inspectable and useful now through both CLI and the local MCP agent bridge, while preserving clean seams for later capabilities.

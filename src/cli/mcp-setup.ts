@@ -31,7 +31,7 @@ export function buildMcpSetupPlan(provider: McpSetupProvider, projectPath: strin
       notes: [
         "Run the registration command from the Livariant project directory.",
         "Claude Code owns and applies its MCP configuration; Livariant only renders this command.",
-        "The registered server still exposes only livariant_provider_context and livariant_provider_return and cannot create or consume mutation Authority.",
+        "The registered server exposes livariant_provider_context, livariant_provider_return, and the read-only livariant_verification_trace tool; none can create or consume mutation Authority.",
       ],
     };
   }
@@ -41,7 +41,7 @@ export function buildMcpSetupPlan(provider: McpSetupProvider, projectPath: strin
     'command = "livariant"',
     'args = ["mcp"]',
     `cwd = ${tomlString(projectPath)}`,
-    'enabled_tools = ["livariant_provider_context", "livariant_provider_return"]',
+    'enabled_tools = ["livariant_provider_context", "livariant_provider_return", "livariant_verification_trace"]',
   ].join("\n");
 
   return {
@@ -56,7 +56,7 @@ export function buildMcpSetupPlan(provider: McpSetupProvider, projectPath: strin
       "The CLI registration command uses Codex's native MCP configuration surface.",
       "For an explicit project-bound setup, place the rendered TOML in the trusted project's .codex/config.toml.",
       "Livariant does not write either Codex configuration location; the user or Codex remains responsible for applying the configuration.",
-      "The registered server still exposes only livariant_provider_context and livariant_provider_return and cannot create or consume mutation Authority.",
+      "The registered server exposes livariant_provider_context, livariant_provider_return, and the read-only livariant_verification_trace tool; none can create or consume mutation Authority.",
     ],
   };
 }
