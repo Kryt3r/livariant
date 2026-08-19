@@ -37,8 +37,8 @@ ok ... proof: stale agent evidence cannot silently become Project Truth or self-
 
 Der Test prüft selbst zwei Containment-Punkte:
 
-1. **Keine Selbstautorisierung** — ein kohärenter zurückgegebener Kandidat ohne explizite Autorisierung erreicht den bestehenden Maintenance-Pfad als `authorization-required`, `semanticChangesMade === 0`, und alle verwalteten Project-Brain-Dateien bleiben Byte für Byte unverändert.
-2. **Kein stilles Rebinding veralteten Kontexts** — nachdem sich die kanonische Project Truth weiterentwickelt hat, wird derselbe ältere Provider Context/Kandidat als `stale-context` klassifiziert, `semanticChangesMade === 0`, und der neuere kanonische Project Brain bleibt Byte für Byte unverändert.
+1. **Keine Selbstautorisierung** - ein kohärenter zurückgegebener Kandidat ohne explizite Autorisierung erreicht den bestehenden Maintenance-Pfad als `authorization-required`, `semanticChangesMade === 0`, und alle verwalteten Project-Brain-Dateien bleiben Byte für Byte unverändert.
+2. **Kein stilles Rebinding veralteten Kontexts** - nachdem sich die kanonische Project Truth weiterentwickelt hat, wird derselbe ältere Provider Context/Kandidat als `stale-context` klassifiziert, `semanticChangesMade === 0`, und der neuere kanonische Project Brain bleibt Byte für Byte unverändert.
 
 ## Was dieser Proof beweist
 
