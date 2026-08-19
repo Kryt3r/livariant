@@ -17,7 +17,7 @@ Livariant wird für den normalen lokalen Workflow nicht einfach als Anwendungsab
 
 ## Veröffentlichtes Release und aktueller Quellstand
 
-Das aktuell veröffentlichte Release ist **`v0.1.0-rc.4` — Public-Preview-Prerelease**.
+Das aktuell veröffentlichte Release ist **`v0.1.0-rc.4` - Public-Preview-Prerelease**.
 
 RC4 enthält Guided First Run, lokale MCP-Bridge, Verification Trace, geschützte Guardian-/Self-Integrity-Härtung sowie die weiteren Fähigkeiten des exakt qualifizierten RC4-Quellstands.
 
