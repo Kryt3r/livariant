@@ -29,7 +29,6 @@ interface CanonicalResumePayload {
   knownFacts: string[];
   unresolvedUnknowns: string[];
   lifecycle: "initialized";
-  evidenceSummary: string[];
 }
 
 export function canonicalResumePayload(context: ResumeContext): CanonicalResumePayload {
@@ -40,7 +39,6 @@ export function canonicalResumePayload(context: ResumeContext): CanonicalResumeP
     knownFacts: [...context.knownFacts],
     unresolvedUnknowns: [...context.unresolvedUnknowns],
     lifecycle: context.lifecycle,
-    evidenceSummary: [...context.evidenceSummary],
   };
 }
 

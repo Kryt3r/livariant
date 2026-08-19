@@ -26,6 +26,18 @@ async function snapshotProjectFiles(projectPath: string): Promise<string[]> {
   return (await readdir(projectPath)).filter((entry) => entry !== ".project-brain").sort();
 }
 
+function countOccurrences(text: string, needle: string): number {
+  if (!needle) return 0;
+  let count = 0;
+  let offset = 0;
+  while (true) {
+    const index = text.indexOf(needle, offset);
+    if (index < 0) return count;
+    count += 1;
+    offset = index + needle.length;
+  }
+}
+
 test("resume is derived from canonical Project Brain and remains read-only", async () => {
   await withProject(async (projectPath) => {
     const before = await snapshotProjectFiles(projectPath);
@@ -66,7 +78,7 @@ test("Codex projection reconstructs Claude Code accepted change without shared p
   });
 });
 
-test("Claude Code and Codex projections preserve the same canonical resume semantics", async () => {
+test("Claude Code and Codex projections preserve the same canonical resume semantics without duplicating known facts", async () => {
   await withProject(async (projectPath) => {
     await mutateAcceptedFixture(projectPath, () => recordAcceptedDecision("Provider translation must preserve semantics", projectPath, { authorized: true }));
     const context = await buildResumeContext(projectPath);
@@ -83,6 +95,12 @@ test("Claude Code and Codex projections preserve the same canonical resume seman
       assert.ok(claudePacket.includes(value));
       assert.ok(codexPacket.includes(value));
     }
+    for (const value of canonical.knownFacts) {
+      assert.equal(countOccurrences(claudePacket, value), 1, `Claude Code projection must include known fact exactly once: ${value}`);
+      assert.equal(countOccurrences(codexPacket, value), 1, `Codex projection must include known fact exactly once: ${value}`);
+    }
+    assert.deepEqual(context.evidenceSummary, context.knownFacts, "ResumeContext compatibility keeps evidenceSummary available");
+    assert.equal("evidenceSummary" in canonical, false, "provider payload must not serialize the duplicate evidenceSummary alias");
   });
 });
 

@@ -70,7 +70,7 @@ test("token-efficiency baseline harness emits bounded reproducible B-state metri
   assert.equal(report.resumeProviderDelivery.provider, "codex");
   assert.ok(report.resumeProviderDelivery.textBytes > 0);
   assert.ok(report.resumeProviderDelivery.textTokenProxy > 0);
-  assert.ok(report.resumeProviderDelivery.duplicateKnownFactBytes > 0);
+  assert.ok(report.resumeProviderDelivery.duplicateKnownFactBytes >= 0);
   assert.ok(report.resumeProviderDelivery.knownFactCount > 0);
   assert.equal(report.resumeProviderDelivery.evidenceSummaryEqualsKnownFacts, true);
   assert.ok(report.aggregateDiagnostics.serializedBytesAcrossMeasuredSurfaces > 0);
