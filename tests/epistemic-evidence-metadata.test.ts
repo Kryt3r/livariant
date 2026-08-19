@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateEpistemicEvidenceMetadata } from "../src/epistemics/evidence-metadata.js";
+import { EPISTEMIC_EVIDENCE_SCHEMA_VERSION, validateEpistemicEvidenceMetadata } from "../src/epistemics/index.js";
+
+test("epistemic foundation exposes a stable v1 module boundary", () => {
+  assert.equal(EPISTEMIC_EVIDENCE_SCHEMA_VERSION, 1);
+});
 
 test("canonical project evidence can be confirmed only with explicit current binding and no Authority", () => {
   const metadata = validateEpistemicEvidenceMetadata({
