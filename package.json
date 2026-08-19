@@ -18,6 +18,7 @@
     "test:release-bundle": "node scripts/release-bundle-smoke.mjs",
     "test:release-dossier": "node --test scripts/release-decision-dossier.test.mjs",
     "test:public-docs": "node scripts/check-public-doc-consistency.mjs",
+    "benchmark:tokens": "npm run build && node scripts/token-efficiency-baseline.mjs",
     "release:bundle": "node scripts/build-release-bundle.mjs",
     "release:dossier": "node scripts/build-release-decision-dossier.mjs",
     "prepack": "npm run build",
