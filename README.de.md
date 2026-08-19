@@ -232,7 +232,7 @@ Das wird umso wichtiger, je mehr Coding-Agenten auf Dateisystem, Shell, Git, Net
 
 Der aktuelle `main` enthält Guardian-origin geschützte Authority für folgenschwere Consumer, darunter semantische Änderungsautorisierung, Project-Brain-Integritätsakzeptanz/-schutz, Runtime Trust und Release Authorization.
 
-Diese Migrationen bestanden vor dem Merge fokussierte Pre-Merge-Acceptance. Die vorgeschriebene Canonical-main-Post-Merge-Class-D-/Security-Qualifikation ist weiterhin nötig, bevor der Guardian-/S-03-Remediation-Block als vollständig geschlossen gilt. Das ist daher eine Aussage über den aktuellen Entwicklungsstand und kein veröffentlichtes Release-Versprechen.
+Diese Migrationen bestanden die fokussierte Pre-Merge-Acceptance sowie die vorgeschriebene Canonical-main-Post-Merge-Class-D-/Security-Qualifikation. Der Guardian-/S-03-Remediation-Block ist damit innerhalb des akzeptierten WP-023-Threat-Scope vollständig geschlossen. Das ist eine Aussage über den aktuellen Entwicklungsstand und erweitert nicht rückwirkend den veröffentlichten RC3-Funktionsumfang.
 
 ## Bestehende Projekte zuerst
 
@@ -302,9 +302,9 @@ Wo praktikabel, sollen kritische Invarianten durch deterministische Software und
 
 Enthält umfangreiche Post-RC3-Active-Project-Intelligence-Funktionen sowie zusätzliche Guardian-/Self-Integrity-Härtung, die nicht Teil von RC3 sind.
 
-### Aktuelle Guardian-Qualifikationsgrenze
+### Aktueller Guardian-Qualifikationsstatus
 
-Die folgenschweren Guardian-Consumer-Migrationen sind auf `main` gemergt und bestanden fokussierte Pre-Merge-Acceptance. Die erforderliche Canonical-main-Post-Merge-Class-D- und Security-Verifikation entscheidet noch darüber, ob dieser Remediation-Block vollständig geschlossen ist.
+Die folgenschweren Guardian-Consumer-Migrationen sind auf `main` gemergt und haben sowohl ihre fokussierte Pre-Merge-Acceptance als auch die erforderliche Canonical-main-Post-Merge-Class-D-/Security-Verifikation bestanden. Der zugehörige Guardian-/Self-Integrity-Remediation-Block ist innerhalb des akzeptierten WP-023-Threat-Scope vollständig geschlossen.
 
 ### Nächster qualifizierter Release
 
