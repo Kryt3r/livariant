@@ -7,18 +7,19 @@ import test from "node:test";
 const repositoryRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 
 test("token-efficiency baseline harness emits bounded reproducible B-state metrics", () => {
+  const sourceSha = "0123456789abcdef0123456789abcdef01234567";
   const result = spawnSync(process.execPath, ["scripts/token-efficiency-baseline.mjs"], {
     cwd: repositoryRoot,
     encoding: "utf8",
     shell: false,
-    env: { ...process.env },
+    env: { ...process.env, LIVARIANT_BENCHMARK_SOURCE_SHA: sourceSha },
   });
 
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout) as {
     schemaVersion: number;
     benchmarkState: string;
-    sourceBaseline: string;
+    sourceIdentity: { sourceSha: string | null; exactSourceBound: boolean };
     methodology: { tokenProxy: string; aggregateBoundary: string };
     surfaces: Array<{
       surface: string;
@@ -56,9 +57,10 @@ test("token-efficiency baseline harness emits bounded reproducible B-state metri
     };
   };
 
-  assert.equal(report.schemaVersion, 3);
+  assert.equal(report.schemaVersion, 4);
   assert.equal(report.benchmarkState, "B-current-livariant");
-  assert.equal(report.sourceBaseline, "f325ab57b862e1e13526e6d75e17d93a243e2284");
+  assert.equal(report.sourceIdentity.sourceSha, sourceSha);
+  assert.equal(report.sourceIdentity.exactSourceBound, true);
   assert.match(report.methodology.tokenProxy, /proxy/i);
   assert.match(report.methodology.aggregateBoundary, /not assumed/i);
   assert.deepEqual(report.surfaces.map((item) => item.surface), ["resume", "context", "providerContext", "understand", "mcpContext"]);

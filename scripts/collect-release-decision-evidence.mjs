@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import {
   SELF_INTEGRITY_RELEASE_WORKFLOW_NAME,
   selectCanonicalReleaseRuns,
@@ -32,6 +32,7 @@ const sourceSha = requiredEnv("GITHUB_SHA");
 const workflowRunId = requiredEnv("GITHUB_RUN_ID");
 const metadataPath = resolve(process.argv[2] ?? "rc-bundle/RC-BUILD-METADATA.json");
 const outputPath = resolve(process.argv[3] ?? "release-decision-evidence.json");
+const q07Path = resolve(dirname(metadataPath), "Q07-TOKEN-EVIDENCE.json");
 
 if (!/^[0-9a-f]{40}$/u.test(sourceSha)) throw new Error("GITHUB_SHA is not a full git SHA.");
 
@@ -39,6 +40,14 @@ const metadata = JSON.parse(await readFile(metadataPath, "utf8"));
 if (metadata.sourceSha !== sourceSha) throw new Error("RC metadata sourceSha does not match exact workflow source SHA.");
 if (!metadata.version || !metadata.channel || !metadata.artifact || !metadata.sha256) throw new Error("RC metadata is incomplete.");
 if (!metadata.sbom?.sha256 || metadata.sbom?.format !== "SPDX-2.3") throw new Error("RC SBOM metadata is incomplete or unexpected.");
+
+const q07 = JSON.parse(await readFile(q07Path, "utf8"));
+if (q07.schemaVersion !== 1) throw new Error("Unsupported Q-07 token evidence schemaVersion.");
+if (q07.sourceSha !== sourceSha) throw new Error("Q-07 token evidence is not bound to exact workflow source SHA.");
+if (q07.methodology?.exactProviderBillingTokens !== false) throw new Error("Q-07 evidence must explicitly reject exact provider billing-token interpretation.");
+if (q07.reliabilityAssertions?.contextWithoutMutationAuthority !== true) throw new Error("Q-07 evidence lost MCP mutation-Authority boundary.");
+if (q07.reliabilityAssertions?.verificationStatesPreserved !== true) throw new Error("Q-07 evidence lost Verification Trace assessment state preservation.");
+if (q07.reliabilityAssertions?.verificationSourceReferencesPreserved !== true) throw new Error("Q-07 evidence lost Verification Trace source-reference preservation.");
 
 const runsResponse = await githubApi(`/repos/${repository}/actions/runs?head_sha=${sourceSha}&per_page=100`, token);
 const runs = Array.isArray(runsResponse.workflow_runs) ? runsResponse.workflow_runs : [];
@@ -80,8 +89,8 @@ const evidence = {
       required: true,
       status: hardeningPassed ? "PASS" : "UNKNOWN",
       summary: hardeningPassed
-        ? `Post-merge Hardening CI completed successfully on canonical main at exact source ${sourceSha}, including its configured Ubuntu/Windows matrix.`
-        : `No successful completed post-merge Hardening CI push on canonical main was found for exact source ${sourceSha}.`,
+        ? `Canonical-main Hardening CI completed successfully at exact source ${sourceSha}, including its configured Ubuntu/Windows matrix. Event: ${hardeningRun.event}.`
+        : `No successful completed canonical-main Hardening CI push/manual-dispatch run was found for exact source ${sourceSha}.`,
     },
     packaging: {
       required: true,
@@ -98,11 +107,17 @@ const evidence = {
       status: "PASS",
       summary: "Public documentation truth-surface validation passed in the exact-source RC workflow.",
     },
+    contextTokenEfficiency: {
+      required: true,
+      status: "PASS",
+      summary: `Exact-source deterministic context/token proxy evidence was generated for MCP context and Verification Trace surfaces. MCP explicit-text proxy: ${q07.measurements.mcpExplicitTextTokenProxy}; Verification Trace compact proxy: ${q07.measurements.verificationCompactTokenProxy}. These are reproducible proxy values, not provider-billed token counts.`,
+    },
   },
   blockers: [],
   residualRisks: [
     "Artifact provenance/attestation is not yet implemented, so the current dossier verifies source-bound build evidence and digests but not an independently verifiable build attestation.",
     "Independent AI-assisted release audits are not yet part of dossier v1; the dedicated Self-Integrity release acceptance is deterministic regression evidence and does not replace independent human or AI review where separately required.",
+    "Q-07 uses a deterministic UTF-8 byte/token proxy rather than exact Claude/Codex billing tokenizers; provider-specific billed token counts and real-agent tool-selection efficiency remain separate Stable-level qualification work.",
   ],
   technicalEvidence: [
     {
@@ -112,7 +127,7 @@ const evidence = {
       status: "PASS",
       sourceSha,
       reference: runReference,
-      summary: "Current manual RC workflow reached dossier generation only after public-doc, build, hardening, package, and release-bundle verification succeeded.",
+      summary: "Current manual RC workflow reached dossier generation only after public-doc, build, hardening, package, release-bundle, and Q-07 evidence verification succeeded.",
     },
     {
       id: "hardening-ci",
@@ -121,7 +136,7 @@ const evidence = {
       status: hardeningPassed ? "PASS" : "UNKNOWN",
       sourceSha,
       reference: hardeningRun ? `github-actions:${repository}#${hardeningRun.id}` : undefined,
-      summary: hardeningPassed ? "Exact-source post-merge Hardening CI on canonical main succeeded." : "Exact-source successful post-merge Hardening CI evidence on canonical main was not found.",
+      summary: hardeningPassed ? `Exact-source canonical-main Hardening CI succeeded via ${hardeningRun.event}.` : "Exact-source successful canonical-main Hardening CI evidence was not found.",
     },
     {
       id: "codeql",
@@ -163,6 +178,15 @@ const evidence = {
       summary: "Exact-source SPDX 2.3 release SBOM is digest-recorded and excludes root build-only devDependencies.",
     },
     {
+      id: "q07-context-token-evidence",
+      type: "deterministic-token-proxy",
+      required: true,
+      status: "PASS",
+      sourceSha,
+      reference: `Q07-TOKEN-EVIDENCE.json:${q07.measurements.mcpExplicitTextTokenProxy}/${q07.measurements.verificationCompactTokenProxy}`,
+      summary: "Exact-source Q-07 evidence measures representative MCP context and Verification Trace payloads using the repository's deterministic ceil(UTF-8 bytes/4) proxy while preserving required reliability states and explicitly disclaiming provider billing-token equivalence.",
+    },
+    {
       id: "dependency-review",
       type: "pull-request-gate",
       required: false,
@@ -174,4 +198,4 @@ const evidence = {
 };
 
 await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-process.stdout.write(`${JSON.stringify({ sourceSha, hardeningRunId: hardeningRun?.id ?? null, hardeningConclusion: hardeningRun?.conclusion ?? null, codeqlRunId: codeqlRun?.id ?? null, codeqlConclusion: codeqlRun?.conclusion ?? null, selfIntegrityRunId: selfIntegrityRun?.id ?? null, selfIntegrityConclusion: selfIntegrityRun?.conclusion ?? null, outputPath })}\n`);
+process.stdout.write(`${JSON.stringify({ sourceSha, hardeningRunId: hardeningRun?.id ?? null, hardeningConclusion: hardeningRun?.conclusion ?? null, hardeningEvent: hardeningRun?.event ?? null, codeqlRunId: codeqlRun?.id ?? null, codeqlConclusion: codeqlRun?.conclusion ?? null, selfIntegrityRunId: selfIntegrityRun?.id ?? null, selfIntegrityConclusion: selfIntegrityRun?.conclusion ?? null, q07Path, outputPath })}\n`);

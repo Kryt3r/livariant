@@ -10,6 +10,7 @@ export const AREA_KEYS = [
   "packaging",
   "supplyChain",
   "documentationTruth",
+  "contextTokenEfficiency",
 ];
 
 export const REQUIRED_TECHNICAL_EVIDENCE_IDS = [
@@ -19,6 +20,7 @@ export const REQUIRED_TECHNICAL_EVIDENCE_IDS = [
   "self-integrity-release-acceptance",
   "release-artifact-digest",
   "release-sbom",
+  "q07-context-token-evidence",
 ];
 
 export const SELF_INTEGRITY_EVIDENCE_TYPE = "github-actions-self-integrity-workflow";
@@ -78,6 +80,9 @@ export function validateReleaseDecisionEvidence(input) {
   assert(selfIntegrity.type === SELF_INTEGRITY_EVIDENCE_TYPE, "Self-Integrity evidence must use the dedicated workflow evidence type.");
   assert(selfIntegrity.workflowName === SELF_INTEGRITY_WORKFLOW_NAME, "Self-Integrity evidence must come from the dedicated Self-Integrity Release Acceptance workflow.");
   assert(selfIntegrity.sourceSha === input.candidate.sourceSha, "Self-Integrity evidence must be bound to the exact candidate source SHA.");
+
+  const q07 = evidenceById.get("q07-context-token-evidence");
+  assert(q07.sourceSha === input.candidate.sourceSha, "Q-07 context/token evidence must be bound to the exact candidate source SHA.");
 
   return input;
 }
@@ -145,6 +150,7 @@ export function renderReleaseDecisionMarkdown(evaluated) {
     packaging: "Installation / packaging",
     supplyChain: "Supply chain",
     documentationTruth: "Documentation / product truth",
+    contextTokenEfficiency: "Context / token efficiency evidence",
   };
 
   const forRelease = AREA_KEYS
