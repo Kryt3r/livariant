@@ -17,7 +17,7 @@ Livariant is not added to your application's `package.json` merely to use the no
 
 ## Published release and current source
 
-The currently published release is **`v0.1.0-rc.4` — Public Preview prerelease**.
+The currently published release is **`v0.1.0-rc.4` - Public Preview prerelease**.
 
 RC4 contains the guided First Run, local MCP bridge, Verification Trace, protected Guardian/Self-Integrity hardening, and the other capabilities present in the exact qualified RC4 source.
 
