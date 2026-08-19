@@ -116,8 +116,14 @@ export function runVerificationTraceTokenBenchmark() {
     throw new Error("Compact verification trace projection lost required assessment or source-reference information.");
   }
 
+  const sourceSha = process.env.LIVARIANT_BENCHMARK_SOURCE_SHA ?? null;
+
   return {
     schemaVersion: 1,
+    sourceIdentity: {
+      sourceSha,
+      exactSourceBound: sourceSha !== null,
+    },
     workload: "requirement-implementation-verification-trace",
     methodology: {
       tokenProxy: TOKEN_PROXY_METHOD,
