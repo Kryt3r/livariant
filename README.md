@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
-  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.3"><img alt="Release" src="https://img.shields.io/badge/release-v0.1.0--rc.3-0ea5e9" /></a>
+  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.4"><img alt="Release" src="https://img.shields.io/badge/release-v0.1.0--rc.4-0ea5e9" /></a>
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-339933?logo=nodedotjs&logoColor=white" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-PolyForm%20Perimeter-7c3aed" /></a>
   <img alt="Local-first" src="https://img.shields.io/badge/local--first-default-06b6d4" />
@@ -220,28 +220,32 @@ external knowledge
 
 Future retrieval, relationship, graph, and token-efficiency work is intended to build on these explicit provenance/freshness boundaries rather than creating hidden second sources of truth.
 
-## Published release vs. current development
+## Published release and current development
 
-### Published release
+### Current published Public Preview
 
-`v0.1.0-rc.3` is the immutable **Foundation Preview**. It demonstrates the earlier project-owned continuity and lifecycle foundation and remains the currently published artifact.
+`v0.1.0-rc.4` is the current published **Public Preview prerelease**. It includes the agent-native First Run/MCP workflow, Verification Trace, Active Project Intelligence foundations, external-knowledge foundations, Autonomy Profiles, and the Guardian/Self-Integrity hardening present in the qualified RC4 source.
 
-For that historical published release, install the verified release tarball:
+Install the verified RC4 release tarball:
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.3.tgz
+npm install --global --ignore-scripts ./livariant-0.1.0-rc.4.tgz
 livariant version
 ```
 
+RC4 was qualified from exact source `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. Its release artifact SHA-256 is `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
+
+### Historical RC3 Foundation Preview
+
+`v0.1.0-rc.3` remains immutable historical Foundation Preview evidence. Later capabilities were not retroactively added to the RC3 artifact.
+
 ### Current repository `main`
 
-Current `main` goes substantially beyond RC3 and contains First Run composition, MCP agent access, Verification Trace, Active Project Intelligence capabilities, external-knowledge foundations, autonomy profiles, and Guardian/Self-Integrity hardening.
+At the time of RC4 publication, canonical `main` is the qualified RC4 source. Future repository development may move ahead again after new work is merged, so repository presence alone must still never be treated as release publication.
 
-Repository presence is **not** release qualification. These capabilities are not retroactively part of RC3.
+### Future qualified releases
 
-### Next qualified release
-
-The next release will receive its own exact-candidate CI/security/self-integrity qualification, first-user utility review, context/token evidence, release decision dossier, and explicit publication authorization.
+A future release still requires its own exact-candidate CI/security/Self-Integrity qualification, appropriate user/reliability evidence, a release decision, and explicit publication Authority.
 
 No README statement or CI result publishes a release automatically.
 
@@ -260,7 +264,7 @@ See [Privacy & Network Behavior](docs/privacy-and-network.md).
 
 ## Start here
 
-For the current development experience:
+For the current Public Preview experience:
 
 1. [Installation & First Project](docs/installation.md)
 2. [Five-Minute Quickstart](docs/quickstart.md)
