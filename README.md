@@ -232,7 +232,7 @@ This matters more as coding agents gain filesystem, shell, Git, network, and dep
 
 Current `main` includes Guardian-origin protected Authority for consequential consumers including semantic mutation authorization, Project Brain integrity acceptance/protection, Runtime trust, and release authorization.
 
-Those migrations passed focused pre-merge acceptance before merge. Canonical-main post-merge Class-D/security qualification is still required before the Guardian/S-03 remediation block is considered fully closed. This is therefore a current-development statement, not a published-release claim.
+Those migrations passed focused pre-merge acceptance and the required canonical-main post-merge Class-D/security qualification. The Guardian/S-03 remediation block is therefore fully closed within the accepted WP-023 threat scope. This is a statement about current development state and does not retroactively expand the published RC3 capability set.
 
 ## Existing projects first
 
@@ -302,9 +302,9 @@ Where practical, critical invariants should be enforced by deterministic softwar
 
 Contains significant post-RC3 Active Project Intelligence and Guardian/Self-Integrity hardening that are not part of RC3.
 
-### Current Guardian qualification boundary
+### Current Guardian qualification status
 
-The consequential Guardian consumer migrations are merged to `main` and passed focused pre-merge acceptance. Required canonical-main post-merge Class-D and security verification still determines whether that remediation block is fully closed.
+The consequential Guardian consumer migrations are merged to `main` and passed both focused pre-merge acceptance and the required canonical-main post-merge Class-D/security verification. The associated Guardian/Self-Integrity remediation block is fully closed within the accepted WP-023 threat scope.
 
 ### Next qualified release
 
