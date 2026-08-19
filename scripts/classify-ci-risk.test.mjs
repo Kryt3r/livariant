@@ -41,6 +41,7 @@ test("classifies workflow, packaging, authority, Guardian, external knowledge, f
   assert.equal(classifyPaths(["src/cli/findings-command.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/project-findings.test.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/project-findings-cli.test.ts"]).class, "D");
+  assert.equal(classifyPaths(["tests/project-findings-freshness.test.ts"]).class, "D");
 });
 
 test("uses the highest class across mixed changes", () => {
