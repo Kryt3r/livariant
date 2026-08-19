@@ -13,7 +13,7 @@ function requiredEvidence(id, type, reference, extra = {}) {
 function baseEvidence() {
   return {
     schemaVersion: 1,
-    candidate: { version: "0.1.0-rc.3", sourceSha: sha, channel: "preview" },
+    candidate: { version: "0.1.0-rc.4", sourceSha: sha, channel: "preview" },
     areas: {
       functionality: { required: true, status: "PASS", summary: "Functional verification passed." },
       security: { required: true, status: "PASS", summary: "Security verification passed." },
@@ -22,6 +22,7 @@ function baseEvidence() {
       packaging: { required: true, status: "PASS", summary: "Packaging passed." },
       supplyChain: { required: true, status: "PASS", summary: "Supply-chain checks passed." },
       documentationTruth: { required: true, status: "PASS", summary: "Truth-surface checks passed." },
+      contextTokenEfficiency: { required: true, status: "PASS", summary: "Exact-source deterministic token proxy evidence passed." },
     },
     blockers: [],
     residualRisks: [],
@@ -32,6 +33,7 @@ function baseEvidence() {
       requiredEvidence("self-integrity-release-acceptance", "github-actions-self-integrity-workflow", "run:3", { workflowName: SELF_INTEGRITY_RELEASE_WORKFLOW_NAME }),
       requiredEvidence("release-artifact-digest", "sha256", "artifact:abc"),
       requiredEvidence("release-sbom", "spdx", "sbom:def"),
+      requiredEvidence("q07-context-token-evidence", "deterministic-token-proxy", "q07:ghi"),
       { id: "dependency-review", type: "pr-gate", required: false, status: "NOT_APPLICABLE", reference: "pr-only", summary: "PR-scoped." },
     ],
   };
@@ -52,11 +54,29 @@ test("missing dedicated Self-Integrity area fails closed even when Security pass
   assert.throws(() => evaluateReleaseDecision(evidence), /Missing required decision area: selfIntegrity/u);
 });
 
+test("missing Q-07 context/token area fails closed before recommendation", () => {
+  const evidence = baseEvidence();
+  delete evidence.areas.contextTokenEfficiency;
+  assert.throws(() => evaluateReleaseDecision(evidence), /Missing required decision area: contextTokenEfficiency/u);
+});
+
 test("missing dedicated Self-Integrity technical evidence cannot be substituted by Security PASS", () => {
   const evidence = baseEvidence();
   evidence.technicalEvidence = evidence.technicalEvidence.filter((item) => item.id !== "self-integrity-release-acceptance");
   assert.equal(evidence.areas.security.status, "PASS");
   assert.throws(() => evaluateReleaseDecision(evidence), /Missing canonical required technical evidence: self-integrity-release-acceptance/u);
+});
+
+test("missing Q-07 technical evidence cannot be omitted", () => {
+  const evidence = baseEvidence();
+  evidence.technicalEvidence = evidence.technicalEvidence.filter((item) => item.id !== "q07-context-token-evidence");
+  assert.throws(() => evaluateReleaseDecision(evidence), /Missing canonical required technical evidence: q07-context-token-evidence/u);
+});
+
+test("Q-07 evidence must be exact-source bound", () => {
+  const evidence = baseEvidence();
+  evidence.technicalEvidence.find((item) => item.id === "q07-context-token-evidence").sourceSha = otherSha;
+  assert.throws(() => evaluateReleaseDecision(evidence), /Q-07 context\/token evidence must be bound/u);
 });
 
 test("Self-Integrity evidence cannot be relabelled from another workflow type", () => {
@@ -141,9 +161,9 @@ test("duplicate technical evidence identities are rejected", () => {
   assert.throws(() => evaluateReleaseDecision(evidence), /Duplicate technical evidence id/u);
 });
 
-test("canonical selector rejects PR or wrong-source Self-Integrity evidence", () => {
+test("canonical selector accepts exact-main manual Hardening fallback but rejects PR or wrong-source Self-Integrity evidence", () => {
   const runs = [
-    { id: 1, name: "Hardening CI", head_sha: sha, head_branch: "main", event: "push", status: "completed", conclusion: "success", created_at: "2026-08-16T10:00:00Z", path: ".github/workflows/ci.yml" },
+    { id: 1, name: "Hardening CI", head_sha: sha, head_branch: "main", event: "workflow_dispatch", status: "completed", conclusion: "success", created_at: "2026-08-16T10:00:00Z", path: ".github/workflows/ci.yml" },
     { id: 2, name: "Hardening CI", head_sha: sha, head_branch: "feature", event: "pull_request", status: "completed", conclusion: "success", created_at: "2026-08-16T11:00:00Z", path: ".github/workflows/ci.yml" },
     { id: 3, name: "Push on main", head_sha: sha, head_branch: "main", event: "dynamic", status: "completed", conclusion: "success", created_at: "2026-08-16T10:05:00Z", path: "dynamic/github-code-scanning/codeql" },
     { id: 4, name: SELF_INTEGRITY_RELEASE_WORKFLOW_NAME, head_sha: sha, head_branch: "feature", event: "pull_request", status: "completed", conclusion: "success", created_at: "2026-08-16T11:05:00Z", path: ".github/workflows/self-integrity-release-acceptance.yml" },
@@ -156,14 +176,16 @@ test("canonical selector rejects PR or wrong-source Self-Integrity evidence", ()
   assert.equal(selected.selfIntegrityRun.id, 6);
 });
 
-test("rendered dossier exposes Self-Integrity decision and technical evidence layers", () => {
+test("rendered dossier exposes Self-Integrity and Q-07 decision/evidence layers", () => {
   const markdown = renderReleaseDecisionMarkdown(evaluateReleaseDecision(baseEvidence()));
   for (const requiredText of [
     "Layer 1 - Decision view",
     "Self-Integrity / AI-Failure Containment",
+    "Context / token efficiency evidence",
     "Layer 2 - Technical evidence",
     `Exact source: ${sha}`,
     "### self-integrity-release-acceptance",
+    "### q07-context-token-evidence",
     `Workflow: ${SELF_INTEGRITY_RELEASE_WORKFLOW_NAME}`,
   ]) {
     assert.ok(markdown.includes(requiredText), `Missing rendered dossier section: ${requiredText}`);
