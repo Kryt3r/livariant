@@ -36,10 +36,14 @@ jobs:
             dist/tests/project-brain-integrity.test.js \
             dist/tests/autonomy-profile.test.js \
             dist/tests/external-evidence-inert-data.test.js \
-            dist/tests/guardian-authority.test.js \
+            dist/tests/guardian-authority-record.test.js \
+            dist/tests/guardian-project-brain-integrity-authority.test.js \
+            dist/tests/guardian-release-authorization-authority.test.js \
+            dist/tests/guardian-runtime-trust-authority.test.js \
+            dist/tests/guardian-semantic-authority.test.js \
             dist/tests/lifecycle-authority.test.js \
-            dist/tests/runtime-trust.test.js \
-            dist/tests/semantic-apply-authority.test.js \
+            dist/tests/legacy-mutation-authority.test.js \
+            dist/tests/semantic-apply.test.js \
             dist/tests/understanding-review.test.js
           npm run test:release-dossier
 
