@@ -1,7 +1,15 @@
 import { createHash } from "node:crypto";
+import {
+  validateEpistemicEvidenceMetadata,
+  type EpistemicEvidenceMetadata,
+} from "../epistemics/index.js";
 import type { ExternalKnowledgeAdapter } from "./adapter.js";
 import { LocalDirectoryExternalKnowledgeAdapter } from "./local-directory-adapter.js";
-import type { ExternalKnowledgeEvidenceBundle, ExternalKnowledgeSourceKind } from "./types.js";
+import type {
+  ExternalKnowledgeEvidence,
+  ExternalKnowledgeEvidenceBundle,
+  ExternalKnowledgeSourceKind,
+} from "./types.js";
 
 export type { ExternalKnowledgeAdapter } from "./adapter.js";
 export type {
@@ -42,6 +50,23 @@ export async function inspectExternalKnowledgeSource(
   const adapter = adapters.get(kind);
   if (!adapter) throw new Error(`No read-only adapter is registered for external knowledge source type: ${kind}`);
   return validateExternalKnowledgeEvidenceBundle(await adapter.inspect(location));
+}
+
+export function projectExternalKnowledgeEpistemicMetadata(
+  evidence: ExternalKnowledgeEvidence,
+): EpistemicEvidenceMetadata {
+  return validateEpistemicEvidenceMetadata({
+    schemaVersion: 1,
+    sourceClass: "external-evidence",
+    epistemicState: "observed",
+    currency: "current",
+    binding: {
+      kind: "content-digest",
+      id: `sha256:${evidence.provenance.contentSha256}`,
+    },
+    sourceId: evidence.provenance.sourceId,
+    grantsAuthority: false,
+  });
 }
 
 export function validateExternalKnowledgeEvidenceBundle(bundle: ExternalKnowledgeEvidenceBundle): ExternalKnowledgeEvidenceBundle {
