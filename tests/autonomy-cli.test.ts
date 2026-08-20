@@ -81,6 +81,7 @@ test("first-run carries autonomy choice without persisting it or granting author
         persistenceRequiresExplicitAction: boolean;
         policy: { confirmation: { routine: boolean; important: boolean; authorityRequired: boolean }; boundaries: { grantsAuthority: boolean } };
       };
+      machine: { lifecycleAuthorizationReady: boolean };
       boundaries: { autonomyProfileIsAuthority: boolean; grantsAuthority: boolean; changesMade: number };
       nextActions: Array<{ id: string; command?: string; changesProject: boolean; changesMachineLocalState?: boolean }>;
     };
@@ -91,13 +92,12 @@ test("first-run carries autonomy choice without persisting it or granting author
     assert.equal(report.autonomy.policy.confirmation.important, true);
     assert.equal(report.autonomy.policy.confirmation.authorityRequired, true);
     assert.equal(report.autonomy.policy.boundaries.grantsAuthority, false);
+    assert.equal(report.machine.lifecycleAuthorizationReady, false);
     assert.equal(report.boundaries.autonomyProfileIsAuthority, false);
     assert.equal(report.boundaries.grantsAuthority, false);
     assert.equal(report.boundaries.changesMade, 0);
-    const persist = report.nextActions.find((item) => item.id === "persist-autonomy");
-    assert.equal(persist?.command, "livariant autonomy set --profile ask-always");
-    assert.equal(persist?.changesProject, false);
-    assert.equal(persist?.changesMachineLocalState, true);
+    assert.equal(report.nextActions.some((item) => item.id === "persist-autonomy"), false);
+    assert.ok(report.nextActions.some((item) => item.id === "install-protected-bootstrap"));
     assert.deepEqual((await readdir(path)).sort(), before);
   });
 });
@@ -118,14 +118,14 @@ test("first-run high-autonomy JSON mode requires explicit acknowledgement", asyn
     assert.equal(accepted.status, 0, `${accepted.stdout}\n${accepted.stderr}`);
     const report = JSON.parse(accepted.stdout.trim()) as {
       autonomy: { selectedProfile: string; policy: { warning?: string; confirmation: { authorityRequired: boolean } } };
+      machine: { lifecycleAuthorizationReady: boolean };
       nextActions: Array<{ id: string; command?: string }>;
     };
     assert.equal(report.autonomy.selectedProfile, "continue-without-confirmation");
     assert.match(report.autonomy.policy.warning ?? "", /higher autonomy/i);
     assert.equal(report.autonomy.policy.confirmation.authorityRequired, true);
-    assert.equal(
-      report.nextActions.find((item) => item.id === "persist-autonomy")?.command,
-      "livariant autonomy set --profile continue-without-confirmation --acknowledge-risk",
-    );
+    assert.equal(report.machine.lifecycleAuthorizationReady, false);
+    assert.equal(report.nextActions.some((item) => item.id === "persist-autonomy"), false);
+    assert.ok(report.nextActions.some((item) => item.id === "install-protected-bootstrap"));
   });
 });

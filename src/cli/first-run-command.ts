@@ -8,11 +8,37 @@ import {
   type AutonomyProfile,
 } from "../autonomy/profile.js";
 import { inspectExternalKnowledgeSource, parseExternalKnowledgeSourceKind } from "../external-knowledge/index.js";
+import { inspectGuardianMachineReadiness, type GuardianMachineReadiness } from "../guardian/readiness.js";
 import { inspectInitialization } from "../runtime/index.js";
 import { buildUnderstandingReview } from "../project/understanding-review.js";
+import {
+  cliMessage,
+  localizeAttention,
+  localizeAutonomyPolicy,
+  localizeDiscoveryValue,
+  localizeProjectBrainHealth,
+  localizeProjectShape,
+  localizeQuestion,
+  localizeReadinessState,
+  resolveCliLocale,
+  type CliLocale,
+} from "./localization.js";
 import { escapeTerminalControlText } from "./understand-command.js";
 
 export type FirstRunProvider = "claude-code" | "codex";
+
+type FirstRunActionId =
+  | "install-protected-bootstrap"
+  | "bootstrap-guardian"
+  | "stop-unsafe-machine"
+  | "unsupported-platform"
+  | "initialize-plan"
+  | "initialize-authorize"
+  | "initialize-apply"
+  | "persist-autonomy"
+  | "review-understanding"
+  | "configure-provider"
+  | "continue";
 
 interface FirstRunArgs {
   json: boolean;
@@ -25,7 +51,7 @@ interface FirstRunArgs {
 }
 
 interface FirstRunNextAction {
-  id: "initialize" | "persist-autonomy" | "review-understanding" | "configure-provider" | "continue";
+  id: FirstRunActionId;
   optional: boolean;
   command?: string;
   purpose: string;
@@ -37,6 +63,8 @@ interface FirstRunNextAction {
 export interface FirstRunReport {
   schemaVersion: 1;
   preferredLanguage: string;
+  interactionLocale: CliLocale;
+  interactionLanguageSupported: boolean;
   autonomy: {
     selectedProfile: AutonomyProfile;
     policy: ReturnType<typeof autonomyPolicy>;
@@ -51,12 +79,14 @@ export interface FirstRunReport {
     projectBrainHealth: string;
     initializationAction: string;
   };
+  machine: GuardianMachineReadiness;
   understanding: ReturnType<typeof buildUnderstandingReview>;
   nextActions: FirstRunNextAction[];
   boundaries: {
     evidenceIsProjectTruth: false;
     externalEvidenceIsProjectTruth: false;
     autonomyProfileIsAuthority: false;
+    machineReadinessGrantsAuthority: false;
     grantsAuthority: false;
     mutationAuthorized: false;
     runtimeAuthorized: false;
@@ -140,23 +170,23 @@ async function resolveLanguage(parsed: FirstRunArgs): Promise<string> {
   }
   const prompt = createInterface({ input, output });
   try {
-    const answer = await prompt.question("Preferred interaction language: ");
+    const answer = await prompt.question(cliMessage("en", "language.prompt"));
     return normalizeLanguage(answer);
   } finally {
     prompt.close();
   }
 }
 
-async function resolveAutonomyProfile(parsed: FirstRunArgs): Promise<AutonomyProfile> {
+async function resolveAutonomyProfile(parsed: FirstRunArgs, locale: CliLocale): Promise<AutonomyProfile> {
   if (parsed.autonomyProfile) {
     if (parsed.autonomyProfile !== "continue-without-confirmation" || parsed.acknowledgeAutonomyRisk) return parsed.autonomyProfile;
     if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error("High-autonomy profile acknowledgement requires an interactive terminal or --acknowledge-autonomy-risk.");
     const prompt = createInterface({ input, output });
     try {
-      console.log("Warning: Continue without confirmation lets the agent make consequential workflow choices without asking you first when no hard Livariant authority is required.");
-      console.log("Mutation, Runtime and Release Authority boundaries still remain mandatory.");
-      const answer = await prompt.question("Type CONTINUE to use this profile for First-Run: ");
-      if (answer !== "CONTINUE") throw new Error("High-autonomy profile acknowledgement did not match.");
+      console.log(cliMessage(locale, "autonomy.warning"));
+      console.log(cliMessage(locale, "autonomy.warning.boundary"));
+      const answer = await prompt.question(cliMessage(locale, "autonomy.ack.use"));
+      if (answer !== "CONTINUE") throw new Error(cliMessage(locale, "autonomy.error.ack"));
       return parsed.autonomyProfile;
     } finally {
       prompt.close();
@@ -170,58 +200,125 @@ async function resolveAutonomyProfile(parsed: FirstRunArgs): Promise<AutonomyPro
 
   const prompt = createInterface({ input, output });
   try {
-    console.log("Choose how often Livariant should stop and ask:");
-    console.log("1) Always ask — maximum control");
-    console.log("2) Ask on important decisions — recommended balance");
-    console.log("3) Continue without confirmation — higher autonomy, higher risk");
-    const answer = (await prompt.question("Autonomy mode [2]: ")).trim();
+    console.log(cliMessage(locale, "autonomy.choose"));
+    console.log(cliMessage(locale, "autonomy.option.always"));
+    console.log(cliMessage(locale, "autonomy.option.important"));
+    console.log(cliMessage(locale, "autonomy.option.continue"));
+    const answer = (await prompt.question(cliMessage(locale, "autonomy.prompt"))).trim();
     if (answer === "" || answer === "2") return "ask-important";
     if (answer === "1") return "ask-always";
     if (answer === "3") {
-      console.log("Warning: this mode lets the agent make consequential workflow choices without asking you first when no hard Livariant authority is required.");
-      console.log("Mutation, Runtime and Release Authority boundaries still remain mandatory.");
-      const acknowledgement = await prompt.question("Type CONTINUE to accept this risk: ");
-      if (acknowledgement !== "CONTINUE") throw new Error("High-autonomy profile acknowledgement did not match.");
+      console.log(cliMessage(locale, "autonomy.warning"));
+      console.log(cliMessage(locale, "autonomy.warning.boundary"));
+      const acknowledgement = await prompt.question(cliMessage(locale, "autonomy.ack.accept"));
+      if (acknowledgement !== "CONTINUE") throw new Error(cliMessage(locale, "autonomy.error.ack"));
       return "continue-without-confirmation";
     }
-    throw new Error("Autonomy mode must be 1, 2, or 3.");
+    throw new Error(cliMessage(locale, "autonomy.error.mode"));
   } finally {
     prompt.close();
   }
 }
 
+function protectedBootstrapCommand(platform: NodeJS.Platform): string | undefined {
+  if (platform === "win32") return "& 'C:\\Program Files\\Livariant\\Bootstrap\\v1\\guardian-bootstrap.ps1'";
+  if (platform === "linux") return "/opt/livariant/bootstrap/v1/guardian-bootstrap";
+  return undefined;
+}
+
 function buildNextActions(
   plan: Awaited<ReturnType<typeof inspectInitialization>>,
+  machine: GuardianMachineReadiness,
   autonomyProfile: AutonomyProfile,
+  locale: CliLocale,
   provider?: FirstRunProvider,
   externalSourceType?: string,
 ): FirstRunNextAction[] {
   const next: FirstRunNextAction[] = [];
-  if (plan.action === "initialize") {
+
+  if (machine.state === "protected-source-required") {
     next.push({
-      id: "initialize",
+      id: "install-protected-bootstrap",
+      optional: false,
+      purpose: cliMessage(locale, "next.installProtectedSource"),
+      changesProject: false,
+      changesMachineLocalState: true,
+      requiresSeparateAuthorization: true,
+    });
+  } else if (machine.state === "guardian-bootstrap-required") {
+    next.push({
+      id: "bootstrap-guardian",
+      optional: false,
+      command: protectedBootstrapCommand(machine.platform),
+      purpose: cliMessage(locale, "next.bootstrapGuardian"),
+      changesProject: false,
+      changesMachineLocalState: true,
+      requiresSeparateAuthorization: true,
+    });
+  } else if (machine.state === "unsafe") {
+    next.push({
+      id: "stop-unsafe-machine",
+      optional: false,
+      purpose: cliMessage(locale, "next.stopUnsafe"),
+      changesProject: false,
+      changesMachineLocalState: false,
+      requiresSeparateAuthorization: true,
+    });
+  } else if (machine.state === "unsupported-platform") {
+    next.push({
+      id: "unsupported-platform",
+      optional: false,
+      purpose: cliMessage(locale, "next.unsupported"),
+      changesProject: false,
+      changesMachineLocalState: false,
+      requiresSeparateAuthorization: true,
+    });
+  }
+
+  if (machine.lifecycleAuthorizationReady && plan.action === "initialize") {
+    next.push({
+      id: "initialize-plan",
+      optional: false,
+      command: "livariant init",
+      purpose: cliMessage(locale, "next.initialize"),
+      changesProject: false,
+      requiresSeparateAuthorization: false,
+    });
+    next.push({
+      id: "initialize-authorize",
+      optional: false,
+      command: "livariant init --authorize",
+      purpose: cliMessage(locale, "next.initialize"),
+      changesProject: false,
+      changesMachineLocalState: true,
+      requiresSeparateAuthorization: true,
+    });
+    next.push({
+      id: "initialize-apply",
       optional: false,
       command: "livariant init --apply",
-      purpose: "Initialize Project Brain only after you explicitly approve the bootstrap plan.",
+      purpose: cliMessage(locale, "next.initialize"),
       changesProject: true,
       requiresSeparateAuthorization: true,
     });
   }
 
-  const persistenceCommand = autonomyProfile === "continue-without-confirmation"
-    ? `livariant autonomy set --profile ${autonomyProfile} --acknowledge-risk`
-    : `livariant autonomy set --profile ${autonomyProfile}`;
-  next.push({
-    id: "persist-autonomy",
-    optional: false,
-    command: persistenceCommand,
-    purpose: plan.projectBrainHealth === "valid"
-      ? "Persist this autonomy preference machine-locally for this stable project identity. This does not grant Authority."
-      : "After Project Brain initialization establishes a stable project identity, persist this autonomy preference machine-locally. This does not grant Authority.",
-    changesProject: false,
-    changesMachineLocalState: true,
-    requiresSeparateAuthorization: false,
-  });
+  if (plan.projectBrainHealth === "valid" || machine.lifecycleAuthorizationReady) {
+    const persistenceCommand = autonomyProfile === "continue-without-confirmation"
+      ? `livariant autonomy set --profile ${autonomyProfile} --acknowledge-risk`
+      : `livariant autonomy set --profile ${autonomyProfile}`;
+    next.push({
+      id: "persist-autonomy",
+      optional: false,
+      command: persistenceCommand,
+      purpose: plan.projectBrainHealth === "valid"
+        ? cliMessage(locale, "next.persist.valid")
+        : cliMessage(locale, "next.persist.afterInit"),
+      changesProject: false,
+      changesMachineLocalState: true,
+      requiresSeparateAuthorization: false,
+    });
+  }
 
   next.push({
     id: "review-understanding",
@@ -230,28 +327,32 @@ function buildNextActions(
       ? `livariant understand --external-source-type ${externalSourceType} --external-source <same-source-path>`
       : "livariant understand",
     purpose: externalSourceType
-      ? "Continue the understanding review with the same external knowledge source. Replace <same-source-path> with the source path you selected for First-Run."
-      : "Review unknowns and provide corrections or answers before anything becomes Project Truth.",
+      ? cliMessage(locale, "next.review.external")
+      : cliMessage(locale, "next.review"),
     changesProject: false,
     requiresSeparateAuthorization: false,
   });
+
   if (provider) {
     next.push({
       id: "configure-provider",
       optional: true,
       command: `livariant mcp setup --provider ${provider}`,
-      purpose: `Render the ${provider} MCP setup guidance. Livariant makes no provider-configuration write; any later registration remains a separate explicit external action.`,
+      purpose: cliMessage(locale, "next.provider", { provider }),
       changesProject: false,
       requiresSeparateAuthorization: false,
     });
   }
-  next.push({
-    id: "continue",
-    optional: false,
-    purpose: "Only reviewed candidate material may enter Controlled Starting Understanding Adoption; raw discovery or external evidence cannot be adopted directly.",
-    changesProject: false,
-    requiresSeparateAuthorization: true,
-  });
+
+  if (machine.lifecycleAuthorizationReady) {
+    next.push({
+      id: "continue",
+      optional: false,
+      purpose: cliMessage(locale, "next.continue"),
+      changesProject: false,
+      requiresSeparateAuthorization: true,
+    });
+  }
   return next;
 }
 
@@ -263,8 +364,10 @@ export async function buildFirstRunReport(options: {
   provider?: FirstRunProvider;
 }): Promise<FirstRunReport> {
   const preferredLanguage = normalizeLanguage(options.language);
+  const localeResolution = resolveCliLocale(preferredLanguage);
   const selectedAutonomyProfile = options.autonomyProfile ?? DEFAULT_AUTONOMY_PROFILE;
   const plan = await inspectInitialization();
+  const machine = await inspectGuardianMachineReadiness(plan.discovery.projectRoot);
   const externalEvidence = options.externalSourceType && options.externalSourcePath
     ? [await inspectExternalKnowledgeSource(parseExternalKnowledgeSourceKind(options.externalSourceType), options.externalSourcePath)]
     : [];
@@ -273,6 +376,8 @@ export async function buildFirstRunReport(options: {
   return {
     schemaVersion: 1,
     preferredLanguage,
+    interactionLocale: localeResolution.locale,
+    interactionLanguageSupported: localeResolution.supported,
     autonomy: {
       selectedProfile: selectedAutonomyProfile,
       policy: autonomyPolicy(selectedAutonomyProfile),
@@ -287,12 +392,14 @@ export async function buildFirstRunReport(options: {
       projectBrainHealth: plan.projectBrainHealth,
       initializationAction: plan.action,
     },
+    machine,
     understanding,
-    nextActions: buildNextActions(plan, selectedAutonomyProfile, options.provider, options.externalSourceType),
+    nextActions: buildNextActions(plan, machine, selectedAutonomyProfile, localeResolution.locale, options.provider, options.externalSourceType),
     boundaries: {
       evidenceIsProjectTruth: false,
       externalEvidenceIsProjectTruth: false,
       autonomyProfileIsAuthority: false,
+      machineReadinessGrantsAuthority: false,
       grantsAuthority: false,
       mutationAuthorized: false,
       runtimeAuthorized: false,
@@ -303,6 +410,7 @@ export async function buildFirstRunReport(options: {
 }
 
 function renderEvidencePreview(
+  locale: CliLocale,
   items: Array<{ value: string; provenance: string }>,
   emptyText: string,
   maxItems = 3,
@@ -312,65 +420,86 @@ function renderEvidencePreview(
     return;
   }
   for (const item of items.slice(0, maxItems)) {
-    console.log(`- ${escapeTerminalControlText(item.value)} (${escapeTerminalControlText(item.provenance)})`);
+    console.log(`- ${escapeTerminalControlText(localizeDiscoveryValue(locale, item.value))} (${escapeTerminalControlText(item.provenance)})`);
   }
-  if (items.length > maxItems) console.log(`- ...and ${items.length - maxItems} more`);
+  if (items.length > maxItems) console.log(`- ${cliMessage(locale, "report.more", { count: items.length - maxItems })}`);
 }
 
 function renderHuman(report: FirstRunReport): void {
-  console.log("Livariant first run");
+  const locale = report.interactionLocale;
+  const autonomy = localizeAutonomyPolicy(locale, report.autonomy.selectedProfile);
+
+  console.log(cliMessage(locale, "report.title"));
   console.log("");
-  console.log(`Preferred interaction language: ${escapeTerminalControlText(report.preferredLanguage)}`);
-  console.log(`Autonomy: ${report.autonomy.policy.label}`);
-  console.log(`Autonomy behavior: ${report.autonomy.policy.summary}`);
-  if (report.autonomy.policy.warning) console.log(`Autonomy warning: ${report.autonomy.policy.warning}`);
-  console.log("Autonomy grants Authority: no");
-  console.log(`Project: ${escapeTerminalControlText(report.project.root)}`);
-  console.log(`Workspace: ${report.project.shape}`);
-  console.log(`Project Brain: ${report.project.projectBrainHealth}`);
+  if (!report.interactionLanguageSupported) {
+    console.log(cliMessage("en", "language.unsupported", { language: escapeTerminalControlText(report.preferredLanguage) }));
+  }
+  console.log(`${cliMessage(locale, "report.language")}: ${escapeTerminalControlText(report.preferredLanguage)}`);
+  console.log(`${cliMessage(locale, "report.locale")}: ${locale === "de" ? "Deutsch" : "English"}`);
+  console.log(`${cliMessage(locale, "report.autonomy")}: ${autonomy.label}`);
+  console.log(`${cliMessage(locale, "report.autonomyBehavior")}: ${autonomy.summary}`);
+  if (autonomy.warning) console.log(`${cliMessage(locale, "report.autonomyWarning")}: ${autonomy.warning}`);
+  console.log(cliMessage(locale, "report.autonomyAuthority"));
+  console.log(`${cliMessage(locale, "report.project")}: ${escapeTerminalControlText(report.project.root)}`);
+  console.log(`${cliMessage(locale, "report.workspace")}: ${localizeProjectShape(locale, report.project.shape)}`);
+  console.log(`${cliMessage(locale, "report.projectBrain")}: ${localizeProjectBrainHealth(locale, report.project.projectBrainHealth)}`);
   console.log("");
 
-  console.log("What Livariant found:");
-  renderEvidencePreview(report.understanding.confirmed, "no confirmed project evidence yet");
-  renderEvidencePreview(report.understanding.stronglyInferred, "no strong inferences", 2);
+  console.log(cliMessage(locale, "report.machine"));
+  console.log(`- ${cliMessage(locale, "report.machine.platform")}: ${report.machine.platform}`);
+  console.log(`- ${localizeReadinessState(locale, report.machine)}`);
+  if (report.machine.protectedSource.root) {
+    console.log(`- ${cliMessage(locale, "report.machine.source")}: ${escapeTerminalControlText(report.machine.protectedSource.root)}`);
+  }
+  if (report.machine.guardian.root) {
+    console.log(`- ${cliMessage(locale, "report.machine.guardian")}: ${escapeTerminalControlText(report.machine.guardian.root)}`);
+  }
+  console.log(`- ${cliMessage(locale, "report.machine.lifecycle")}: ${cliMessage(locale, report.machine.lifecycleAuthorizationReady ? "report.yes" : "report.no")}`);
   console.log("");
 
-  console.log("Still needs your review:");
+  console.log(cliMessage(locale, "report.found"));
+  renderEvidencePreview(locale, report.understanding.confirmed, cliMessage(locale, "report.noConfirmed"));
+  renderEvidencePreview(locale, report.understanding.stronglyInferred, cliMessage(locale, "report.noInferences"), 2);
+  console.log("");
+
+  console.log(cliMessage(locale, "report.review"));
   if (report.understanding.attention.length === 0 && report.understanding.questions.length === 0) {
-    console.log("- nothing currently flagged");
+    console.log(`- ${cliMessage(locale, "report.nothingFlagged")}`);
   } else {
     for (const item of report.understanding.attention.slice(0, 2)) {
-      console.log(`- ${escapeTerminalControlText(item.message)}`);
+      console.log(`- ${escapeTerminalControlText(localizeAttention(locale, item))}`);
     }
     for (const question of report.understanding.questions.slice(0, 3)) {
-      console.log(`- ${escapeTerminalControlText(question.prompt)}`);
+      console.log(`- ${escapeTerminalControlText(localizeQuestion(locale, question))}`);
     }
     const hidden = Math.max(0, report.understanding.attention.length - 2) + Math.max(0, report.understanding.questions.length - 3);
-    if (hidden > 0) console.log(`- ...and ${hidden} more item(s)`);
+    if (hidden > 0) console.log(`- ${cliMessage(locale, "report.moreItems", { count: hidden })}`);
   }
-  console.log(`- external knowledge sources connected: ${report.understanding.externalEvidence?.length ?? 0}`);
+  console.log(`- ${cliMessage(locale, "report.externalSources", { count: report.understanding.externalEvidence?.length ?? 0 })}`);
   console.log("");
 
-  console.log("Important safety boundary:");
-  console.log("- Discovery and external knowledge are evidence, not Project Truth.");
-  console.log("- Autonomy preference changes how often an agent should ask; it is not mutation, Runtime, or Release Authority.");
-  console.log("- This first-run does not persist autonomy, authorize initialization/adoption, configure providers, change runtime trust, or authorize release.");
+  console.log(cliMessage(locale, "report.safety"));
+  console.log(`- ${cliMessage(locale, "report.safety.evidence")}`);
+  console.log(`- ${cliMessage(locale, "report.safety.autonomy")}`);
+  console.log(`- ${cliMessage(locale, "report.safety.firstRun")}`);
+  console.log(`- ${cliMessage(locale, "report.safety.machine")}`);
   console.log("");
 
-  console.log("Next actions:");
+  console.log(cliMessage(locale, "report.nextActions"));
   for (const action of report.nextActions) {
-    const optional = action.optional ? "optional" : "next";
+    const optional = action.optional ? cliMessage(locale, "report.action.optional") : cliMessage(locale, "report.action.next");
     const command = action.command ? ` — ${action.command}` : "";
     console.log(`- [${optional}] ${action.purpose}${command}`);
   }
   console.log("");
-  console.log("Changes made: 0");
+  console.log(cliMessage(locale, "report.changes"));
 }
 
 export async function handleFirstRunCommand(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
   const language = await resolveLanguage(parsed);
-  const autonomyProfile = await resolveAutonomyProfile(parsed);
+  const locale = resolveCliLocale(language).locale;
+  const autonomyProfile = await resolveAutonomyProfile(parsed, locale);
   const report = await buildFirstRunReport({
     language,
     autonomyProfile,

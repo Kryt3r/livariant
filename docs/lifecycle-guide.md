@@ -4,14 +4,52 @@ Livariant handles updates, schema migrations, and recovery through the installed
 
 `--apply` expresses intent to execute an already reviewed lifecycle operation. It is **not** lifecycle Authority by itself.
 
+## Protected machine foundation is a separate lifecycle
+
+The ordinary CLI/package lifecycle and the protected Guardian-bootstrap lifecycle are intentionally separate.
+
+For a supported fresh Windows/Linux machine, the protected foundation must already be established before Guardian-backed project lifecycle authorization can work:
+
+```text
+verified qualified release
+-> ordinary CLI install
+-> protected Stage A provisioning
+-> protected Stage B Guardian bootstrap
+-> guardian status: ready
+-> project lifecycle authorization/application
+```
+
+Installing or updating the global npm CLI does not silently create, replace, or authorize the protected bootstrap source.
+
+The protected Stage-A source is release-bound system state:
+
+```text
+Windows: C:\Program Files\Livariant\Bootstrap\v1
+Linux:   /opt/livariant/bootstrap/v1
+```
+
+A protected source that already exists is not overwritten merely because a new CLI package is installed. Replacing it requires a separately verified qualified release and an explicit Stage-A release transition (`-Replace` on Windows or `--replace` on Linux in the WP-044 installer design).
+
+That replacement operation:
+
+- verifies the new release/provenance and exact protected payload before privilege;
+- keeps ordinary CLI bytes separate from protected bootstrap bytes;
+- preserves the previous protected source as transition evidence rather than silently blessing replacement bytes;
+- issues no mutation, Runtime, integrity or release Authority;
+- does not alter Project Brain state merely because protected machine tooling changed.
+
+Removing the ordinary npm CLI must not silently delete the protected bootstrap source, Guardian records/state, Runtime-trust evidence, release-authorization evidence, or project state. Conversely, removal of protected system state is an explicit system-administration operation, not an npm-uninstall side effect.
+
+For the exact Fresh-Install/Stage-A/Stage-B procedure, see [Installation & First Project](installation.md).
+
 ## The lifecycle authorization flow
 
 For initialization, updates/migrations, and recovery, use three separate phases:
 
 ```text
 plan / inspect
-→ --authorize
-→ --apply
+-> --authorize
+-> --apply
 ```
 
 `--authorize` and `--apply` cannot be combined in one invocation.
@@ -30,7 +68,7 @@ Inspect the current initialization plan first:
 livariant init
 ```
 
-Request exact lifecycle Authority only after reviewing that plan:
+Request exact lifecycle Authority only after reviewing that plan and after `livariant guardian status` confirms readiness:
 
 ```bash
 livariant init --authorize
@@ -44,6 +82,8 @@ livariant init --apply
 
 If the project state changes between authorization and apply, the material no longer matches and Livariant stops instead of reusing stale Authority.
 
+On a fresh machine, do not interpret a failed `init --authorize` as an invitation to bypass Guardian. First Run and `guardian status` should direct the user to missing Stage-A/Stage-B prerequisites before this point.
+
 ## Plan an update
 
 Use the release manifest that belongs to the Livariant release you obtained from the canonical GitHub repository:
@@ -53,6 +93,8 @@ livariant update --manifest ./release-manifest.json
 ```
 
 The plan shows the source and target versions, release channel, source ID, artifact identity and SHA-256, project impact, and whether a migration or checkpoint is required. No changes are applied during planning.
+
+A release manifest may additionally describe protected-bootstrap distribution assets. Those assets belong to the separate protected machine lifecycle above; their presence in the manifest does not make project lifecycle Authority or Runtime trust implicit.
 
 ## Authorize a reviewed update
 
@@ -86,17 +128,17 @@ The supported normal-update order is conceptually:
 
 ```text
 resolve and review target release
-→ issue exact protected lifecycle Authority
-→ re-resolve the same plan
-→ consume exact lifecycle Authority
-→ verify release identity and trusted source
-→ verify artifact SHA-256 and protected release/Runtime trust
-→ install the target Runtime without lifecycle scripts
-→ write and verify release evidence
-→ measure the installed Runtime tree
-→ execute candidate Runtime attestation only after trust
-→ recheck lifecycle and preservation conditions
-→ commit the canonical Project Brain framework pin
+-> issue exact protected lifecycle Authority
+-> re-resolve the same plan
+-> consume exact lifecycle Authority
+-> verify release identity and trusted source
+-> verify artifact SHA-256 and protected release/Runtime trust
+-> install the target Runtime without lifecycle scripts
+-> write and verify release evidence
+-> measure the installed Runtime tree
+-> execute candidate Runtime attestation only after trust
+-> recheck lifecycle and preservation conditions
+-> commit the canonical Project Brain framework pin
 ```
 
 The Project Brain pin is the final activation decision. A newer Runtime being present on disk does not make it active.
@@ -113,7 +155,7 @@ livariant update --manifest ./release-manifest.json
 
 Unsupported or incomplete migration paths stop safely. Livariant does not guess how one schema should be transformed into another.
 
-The current executable Preview baseline proves one explicit schema migration path: Project Brain schema `1 → 2`.
+The current executable Preview baseline proves one explicit schema migration path: Project Brain schema `1 -> 2`.
 
 ## If a migration is interrupted
 
@@ -165,20 +207,32 @@ One-shot lifecycle Authority is non-reusable after protected consumption. If an 
 
 A target Runtime installed during an interrupted attempt may be reused only when all bound release evidence still matches: version, channel, source ID, artifact ID, artifact digest, package identity, installed package-tree integrity, and protected Runtime trust.
 
-## Do not repair lifecycle state by hand
+## Do not repair lifecycle or protected state by hand
 
 > [!CAUTION]
-> Do not manually replace Project Brain files, Livariant-managed lifecycle state, Guardian records, Runtime trust records, or release-authorization records to finish or repair an update.
+> Do not manually replace Project Brain files, Livariant-managed lifecycle state, protected bootstrap files, Guardian records, Runtime trust records, or release-authorization records to finish or repair an update.
 
-Manual replacement bypasses compatibility checks, Authority, checkpoints, replay safety, integrity verification, and activation rules. If state is unclear, inspect the actual state with:
+Manual replacement bypasses compatibility checks, Authority, release provenance, OS protection, checkpoints, replay safety, integrity verification, and activation rules. A protected-looking path is not trusted merely because files are present there.
+
+If project lifecycle state is unclear, inspect it with:
 
 ```bash
 livariant doctor
 livariant recover
 ```
 
+If protected-machine state is unclear, inspect it read-only with:
+
+```bash
+livariant guardian status
+```
+
+An `unsafe` protected state is a stop condition, not an automatic repair target.
+
 ## Public Preview distribution
 
-The Public Preview distribution path is the canonical `Kryt3r/livariant` GitHub Release. The release bundle provides the Livariant package, `release-manifest.json`, and `SHA256SUMS` for the exact candidate.
+The currently published `v0.1.0-rc.4` remains historical release truth: its ordinary CLI artifact was qualified, but its public distribution does not complete the protected Stage-A Fresh-Install prerequisite discovered by Windows dogfooding.
 
-Initial CLI installation is described in [Installation & First Project](installation.md). Publishing a release does not let project-controlled input create lifecycle, release, or Runtime Authority.
+A future qualified release containing WP-044 must carry the explicit ordinary CLI package, protected bootstrap package, platform Stage-A installers, release manifest/checksums and provenance evidence through the deliberate GitHub Release asset path. GitHub-generated Source archives are not installable Livariant packages.
+
+Initial installation and provenance verification are described in [Installation & First Project](installation.md). Publishing or installing a release does not let project-controlled input create lifecycle, release, Runtime, or Guardian Authority.

@@ -37,9 +37,7 @@ function runNpm(args, options = {}) {
 }
 
 function assertInertOutput(result, label) {
-  if (result.stdout.includes(hostileExternalText)) {
-    throw new Error(`${label} exposed hostile external prose as raw machine-facing text`);
-  }
+  if (result.stdout.includes(hostileExternalText)) throw new Error(`${label} exposed hostile external prose as raw machine-facing text`);
   const report = JSON.parse(result.stdout.trim());
   const bundle = label === "installed external-source"
     ? report
@@ -56,9 +54,7 @@ function assertInertOutput(result, label) {
     item?.grantsAuthority !== false ||
     item?.encoding !== "base64" ||
     Buffer.from(item?.payloadBase64 ?? "", "base64").toString("utf8") !== hostileExternalText
-  ) {
-    throw new Error(`${label} did not preserve the inert external-data envelope`);
-  }
+  ) throw new Error(`${label} did not preserve the inert external-data envelope`);
   return report;
 }
 
@@ -77,8 +73,13 @@ try {
   const filename = packResult?.[0]?.filename;
   if (typeof filename !== "string") throw new Error("npm pack did not return a package filename");
   const entries = packResult[0]?.files?.map((file) => file.path) ?? [];
-  if (!entries.includes("dist/src/cli/first-run-command.js") || !entries.includes("dist/src/external-knowledge/inert-data.js")) {
-    throw new Error("Packed artifact is missing First-Run or inert external-data runtime bytes");
+  for (const required of [
+    "dist/src/cli/first-run-command.js",
+    "dist/src/cli/localization.js",
+    "dist/src/guardian/readiness.js",
+    "dist/src/external-knowledge/inert-data.js",
+  ]) {
+    if (!entries.includes(required)) throw new Error(`Packed artifact is missing required First-Run runtime byte: ${required}`);
   }
 
   await writeFile(resolve(installHost, "package.json"), JSON.stringify({ name: "first-run-install-host", private: true }), "utf8");
@@ -93,20 +94,12 @@ try {
   const commonEnv = { PBF_RUNTIME_DELEGATION_BYPASS: "1" };
 
   const externalSourceResult = run(process.execPath, [
-    cliPath,
-    "external-source", "inspect",
-    "--type", "local-directory",
-    "--path", secondBrain,
-    "--json",
+    cliPath, "external-source", "inspect", "--type", "local-directory", "--path", secondBrain, "--json",
   ], { cwd: projectDir, env: commonEnv });
   assertInertOutput(externalSourceResult, "installed external-source");
 
   const understandResult = run(process.execPath, [
-    cliPath,
-    "understand",
-    "--external-source-type", "local-directory",
-    "--external-source", secondBrain,
-    "--json",
+    cliPath, "understand", "--external-source-type", "local-directory", "--external-source", secondBrain, "--json",
   ], { cwd: projectDir, env: commonEnv });
   const understanding = assertInertOutput(understandResult, "installed understand");
   if (understanding.candidateEvidence?.length !== 0 || understanding.boundaries?.externalDataIsInstructions !== false) {
@@ -124,21 +117,46 @@ try {
   ], { cwd: projectDir, env: commonEnv });
 
   const report = assertInertOutput(result, "installed first-run");
-  if (report.preferredLanguage !== "Deutsch") throw new Error("Installed first-run lost the language preference");
-  if (report.boundaries?.changesMade !== 0 || report.boundaries?.mutationAuthorized !== false) {
-    throw new Error(`Installed first-run returned unsafe mutation boundaries:\n${result.stdout}`);
+  if (report.preferredLanguage !== "Deutsch" || report.interactionLocale !== "de" || report.interactionLanguageSupported !== true) {
+    throw new Error("Installed first-run lost the German interaction-locale selection");
   }
+  if (
+    report.boundaries?.changesMade !== 0 ||
+    report.boundaries?.mutationAuthorized !== false ||
+    report.boundaries?.machineReadinessGrantsAuthority !== false ||
+    report.machine?.grantsAuthority !== false ||
+    report.machine?.changesMade !== 0
+  ) throw new Error(`Installed first-run returned unsafe mutation/readiness boundaries:\n${result.stdout}`);
   if (report.understanding?.candidateEvidence?.length !== 0 || report.understanding?.boundaries?.externalDataIsInstructions !== false) {
     throw new Error("Installed first-run weakened the external-data/candidate boundary");
+  }
+  if (!report.machine?.lifecycleAuthorizationReady) {
+    if (report.nextActions?.some((item) => item.command === "livariant init --authorize" || item.command === "livariant init --apply")) {
+      throw new Error("Installed first-run recommended lifecycle authorization/application before Guardian machine readiness");
+    }
   }
   const provider = report.nextActions?.find((item) => item.id === "configure-provider");
   if (
     provider?.command !== "livariant mcp setup --provider codex" ||
     provider?.changesProject !== false ||
     provider?.requiresSeparateAuthorization !== false ||
-    !/no provider-configuration write/i.test(provider?.purpose ?? "")
-  ) {
-    throw new Error("Installed first-run misreported the zero-write MCP setup guidance boundary");
+    !/keine Provider-Konfiguration/i.test(provider?.purpose ?? "")
+  ) throw new Error("Installed first-run misreported the localized zero-write MCP setup guidance boundary");
+
+  const human = run(process.execPath, [
+    cliPath, "first-run", "--language", "Deutsch", "--autonomy-profile", "ask-important",
+  ], { cwd: projectDir, env: commonEnv });
+  for (const germanSurface of [
+    "Livariant – Ersteinrichtung",
+    "Was Livariant gefunden hat:",
+    "Wichtige Sicherheitsgrenze:",
+    "Nächste Schritte:",
+    "Vorgenommene Änderungen: 0",
+  ]) {
+    if (!human.stdout.includes(germanSurface)) throw new Error(`Installed German First-Run output is missing localized surface: ${germanSurface}`);
+  }
+  for (const englishLeak of ["What Livariant found:", "Important safety boundary:", "Next actions:", "Changes made: 0"]) {
+    if (human.stdout.includes(englishLeak)) throw new Error(`Installed German First-Run output leaked English surface: ${englishLeak}`);
   }
 
   const after = (await readdir(projectDir)).sort();
@@ -146,7 +164,7 @@ try {
     throw new Error("Installed external-evidence/first-run surfaces mutated the inspected project");
   }
 
-  console.log("First-run package smoke passed: installed external-source, understand, and first-run keep hostile external prose inside inert machine-facing data while preserving zero-write and no-authority boundaries.");
+  console.log("First-run package smoke passed: installed German localization, machine readiness, inert external-data handling, zero-write provider guidance, and no-authority boundaries remain intact.");
 } finally {
   await rm(temp, { recursive: true, force: true });
 }

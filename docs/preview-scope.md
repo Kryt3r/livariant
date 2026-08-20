@@ -16,7 +16,7 @@ RC4 was qualified from exact source:
 4f547751d9d53e7325e6ea1f2401f1dea45779dc
 ```
 
-Qualified release artifact:
+Qualified installable CLI artifact:
 
 ```text
 livariant-0.1.0-rc.4.tgz
@@ -29,6 +29,21 @@ SHA-256:
 ```
 
 `v0.1.0-rc.3` remains immutable historical Foundation Preview evidence. RC4 does not rewrite RC3 history; it is the later separately qualified Public Preview candidate.
+
+## Important RC4 Fresh Install limitation
+
+Real Windows dogfooding found an important distribution gap in RC4:
+
+- the ordinary RC4 CLI `.tgz` installs and runs;
+- Guardian enforcement correctly requires an already protected bootstrap source;
+- the published RC4 installation/distribution path does **not** provision that protected Stage-A source;
+- therefore RC4 does not provide a complete supported clean-machine -> protected Guardian -> first-project initialization path.
+
+This is not a reason to weaken Guardian checks. Do not copy arbitrary/global npm package bytes into `C:\Program Files\Livariant` or `/opt/livariant` as a workaround.
+
+WP-044 is remediating this for a later separately qualified release by adding release-bound Stage-A/Stage-B provisioning, machine-readiness guidance, EN/DE First-Run localization and qualified release-asset publication/provenance. Those changes are **not retroactively part of RC4**.
+
+See [Installation & First Project](installation.md).
 
 ## What RC4 includes
 
@@ -47,7 +62,10 @@ The Public Preview includes the Project Brain and supported lifecycle surfaces f
 - update and supported migration/recovery flows;
 - Runtime/release integrity and protected Authority boundaries;
 - stable logical Project Brain identity;
-- filesystem/topology safety and clean packaged installation.
+- filesystem/topology safety for the implemented lifecycle operations;
+- an installable ordinary CLI package.
+
+The last item does **not** imply that RC4's release distribution completed the separate protected Stage-A Guardian provisioning prerequisite described above.
 
 ### Active Project Intelligence foundations
 
@@ -72,9 +90,9 @@ RC4 includes the guided entry point:
 livariant first-run
 ```
 
-First Run composes existing read-only setup/understanding surfaces, starts from an interaction-language choice, and can provide the next explicit Claude Code or Codex MCP setup steps.
+RC4 First Run composes existing read-only setup/understanding surfaces and records an interaction-language choice. Real dogfooding showed that RC4's human-readable First-Run localization is incomplete and that its next-action guidance does not sufficiently surface missing Guardian machine prerequisites. WP-044 addresses both findings for a future qualified release.
 
-It ends with `Changes made: 0`. It does not silently initialize the project, adopt evidence, configure a provider, persist Authority, or turn agent output into Project Truth.
+RC4 First Run still ends with `Changes made: 0` and does not silently initialize the project, adopt evidence, configure a provider, persist Authority, or turn agent output into Project Truth.
 
 See [First-Run Composition](first-run.md).
 
@@ -135,14 +153,20 @@ Livariant does not claim to manage every provider feature, authentication mechan
 
 ## Platform and packaging scope
 
-RC4 release qualification exercised the release-relevant pipeline across **Ubuntu and Windows**. The package declares Node.js `>=20`; release qualification uses the repository's pinned CI/toolchain configuration.
+RC4 release qualification exercised release-relevant CI across **Ubuntu and Windows**. The package declares Node.js `>=20`.
 
-See [Installation & First Project](installation.md) for the current install path.
+That CI evidence does not prove a complete clean-machine protected Guardian installation path. The real Windows Fresh-Install path is now an explicit WP-044 acceptance requirement.
+
+Guardian v1 protected provisioning is designed for Windows and Linux; macOS does not currently have a protected Guardian v1 path.
+
+See [Installation & First Project](installation.md).
 
 ## What RC4 does not claim
 
 The Public Preview does **not** claim:
 
+- a complete RC4 fresh-machine protected Guardian provisioning path;
+- complete RC4 First-Run localization for every selected language;
 - universal automatic requirement discovery;
 - automatic manufacture of trustworthy verification evidence;
 - universal correctness verification for arbitrary code;
@@ -172,7 +196,7 @@ Before a first Stable release, Livariant still needs representative real-agent w
 - failure modes;
 - provider-observed token/context behavior where practical.
 
-Build provenance/attestation and an independent AI-assisted release audit are also explicit release-hardening candidates; their Stable gate status must be decided from evidence rather than assumed.
+WP-044 separately requires provenance-attested release inputs and a real Windows Fresh-Install/First-Project qualification before its own GO. That requirement does not automatically decide every future Stable provenance/audit policy.
 
 ## Historical RC3
 

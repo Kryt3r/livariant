@@ -28,6 +28,8 @@ test("classifies workflow, packaging, authority, Guardian, external knowledge, f
   assert.equal(classifyPaths(["src/cli/guardian-command.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/guardian-trust-root.test.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/guardian-cli.test.ts"]).class, "D");
+  assert.equal(classifyPaths(["tests/protected-bootstrap-release.test.ts"]).class, "D");
+  assert.equal(classifyPaths(["tests/stage-a-installer-contract.test.ts"]).class, "D");
   assert.equal(classifyPaths(["src/cli/index.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/legacy-mutation-authority.test.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/semantic-knowledge-cli.test.ts"]).class, "D");

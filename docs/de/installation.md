@@ -1,92 +1,133 @@
 # Livariant installieren und mit einem Projekt verbinden
 
-Livariant wird einmal als lokales Rechner-/Benutzer-Tool installiert und danach im Hauptordner des Projekts verwendet, das du mit KI-Unterstützung entwickelst.
+Livariant besitzt zwei bewusst getrennte Installationsrollen:
 
-CLI-Installation und Coding-Agent-Verbindung sind **getrennte Schritte**:
+1. die normale globale CLI, die unter deinem Benutzerkonto läuft;
+2. die releasegebundene geschützte Guardian-Bootstrap-Quelle, die ausschließlich dazu dient, die geschützte Guardian-Basis des Rechners einzurichten.
 
-```text
-Livariant-CLI installieren
--> Projekt öffnen
--> First Run ausführen
--> bei Bedarf bewusst initialisieren
--> Claude Code oder Codex explizit über MCP verbinden
--> normal mit dem Coding-Agenten arbeiten
-```
+Die normale CLI ist **kein Root of Trust**. Eine globale Installation von `livariant-<version>.tgz` darf same-user/requester-controlled Paketbytes niemals allein deshalb autoritativ machen, weil sie installiert wurden.
 
-Livariant wird für den normalen lokalen Workflow nicht einfach als Anwendungsabhängigkeit in `package.json` eingetragen und schreibt Provider-Konfiguration nicht stillschweigend um.
-
-## Veröffentlichtes Release und aktueller Quellstand
+## Veröffentlichtes Release und aktueller Remediation-Stand
 
 Das aktuell veröffentlichte Release ist **`v0.1.0-rc.4` - Public-Preview-Prerelease**.
 
-RC4 enthält Guided First Run, lokale MCP-Bridge, Verification Trace, geschützte Guardian-/Self-Integrity-Härtung sowie die weiteren Fähigkeiten des exakt qualifizierten RC4-Quellstands.
+Der exakt qualifizierte RC4-Quellstand ist `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. RC4 enthält die geschützte Guardian-Enforcement-Logik, aber echtes Fresh-Install-Dogfooding unter Windows hat gezeigt, dass sein öffentlicher Installations-/Distributionspfad die dafür benötigte geschützte Stage-A-Bootstrap-Quelle **nicht** provisioniert.
 
-Zum Zeitpunkt der Veröffentlichung entspricht der kanonische Repository-`main` dem exakt qualifizierten RC4-Quellstand `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. Künftige Repository-Entwicklung kann wieder vorauslaufen; Repository-Existenz allein ist nie eine Release-Veröffentlichung.
+RC4 darf deshalb nicht als vollständiger Pfad von frischem Rechner -> geschütztem Guardian -> erstem Projekt beschrieben werden. Umgehe diese Grenze nicht, indem du beliebige CLI-/Paketdateien manuell nach `C:\Program Files\Livariant` oder `/opt/livariant` kopierst.
+
+Die unten beschriebene WP-044-Remediation ist der Installationsvertrag für das **nächste qualifizierte Release, das diese Änderungen enthält**. Repository-Implementierung ist keine Veröffentlichung; bis ein solches Release ausdrücklich qualifiziert und veröffentlicht wurde, bleibt RC4 das aktuelle öffentliche Release mit der oben beschriebenen Einschränkung.
 
 `v0.1.0-rc.3` bleibt unveränderliche historische Foundation-Preview-Evidenz und wird nicht rückwirkend umgeschrieben.
 
-## Was du brauchst
+## Unterstützte geschützte Plattformen
 
-- Node.js 20 oder neuer;
-- npm aus deiner Node.js-Installation;
-- ein lokales Softwareprojekt;
-- die geprüften RC4-Release-Dateien aus dem kanonischen GitHub Release von `Kryt3r/livariant`.
+| Plattform | Normale CLI | Protected Guardian v1 |
+| --- | --- | --- |
+| Windows | unterstützt | durch das WP-044-Stage-A-/Stage-B-Design unterstützt |
+| Linux | unterstützt | durch das WP-044-Stage-A-/Stage-B-Design unterstützt |
+| macOS | normale CLI-Oberflächen unterstützt | **von Guardian v1 nicht unterstützt** |
 
-Ein Release-Bundle enthält mindestens:
+Eine funktionierende macOS-CLI bedeutet nicht, dass Protected-Guardian-Readiness vorliegt.
+
+## Geschützte Stage-B-Node-Voraussetzung
+
+Die normale CLI darf unter jeder ansonsten unterstützten Node.js-20+-Installation laufen. Der geschützte Guardian-Bootstrap ist strenger, weil privilegiertes Stage B keinen Interpreter über requester-controlled `PATH` auflösen darf.
+
+Für den geschützten WP-044-Pfad verlangt Stage A Node.js 20+ am festen OS-geschützten Ort:
+
+```text
+Windows: C:\Program Files\nodejs\node.exe
+Linux:   /usr/bin/node
+```
+
+Stage A prüft diesen festen Interpreter und dessen Filesystem-/ACL- bzw. Ownership-Kette **vor** der privilegierten Node-Ausführung. `guardian status` prüft denselben erwarteten Stage-B-Interpreter unabhängig davon, welcher Node-Interpreter gerade die normale Benutzer-CLI ausführt.
+
+Eine benutzerlokale Node-Installation, ein Version-Manager-Shim oder ein anderer `PATH`-Eintrag kann für die normale CLI ausreichen, ist aber **nicht** ausreichend für Protected Guardian Stage B. Richte zuerst eine unterstützte systemgeschützte Node-Runtime ein; leite Livariant nicht als Workaround auf einen same-user Interpreter um.
+
+## Release-Artefakte für den remediated Pfad
+
+Ein qualifiziertes Release mit WP-044 muss explizite Release-Assets bereitstellen, darunter:
 
 ```text
 livariant-<version>.tgz
+livariant-protected-bootstrap-<version>.tgz
+install-livariant-bootstrap-<version>.ps1
+install-livariant-bootstrap-<version>.sh
 release-manifest.json
 SHA256SUMS
+PROTECTED-SHA256SUMS
+protected-bootstrap-assets.json
 ```
 
-## 1. Veröffentlichten RC4-Download prüfen
+Zusätzliche Evidenzdateien wie SBOM, RC-Metadaten, Release Decision Dossier und Attestation-bezogene Evidenz können ebenfalls vorhanden sein.
 
-Bevor du ausführbaren Release-Code installierst, vergleichst du den SHA-256 des Tarballs mit dem qualifizierten RC4-Wert und, sofern in deinem heruntergeladenen Release-Bundle vorhanden, mit `SHA256SUMS` und `release-manifest.json`.
+> [!IMPORTANT]
+> GitHubs automatisch erzeugte Downloads **Source code (zip)** und **Source code (tar.gz)** sind weder das installierbare Livariant-CLI-Paket noch das geschützte Stage-A-Paket. Verwende ausschließlich die ausdrücklich benannten qualifizierten Release-Assets.
 
-Qualifizierter RC4-Tarball SHA-256:
+## Vertrauensmodell vor privilegierter Installation
 
-```text
-6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e
+Ein in einem heruntergeladenen Installer eingebetteter Hash reicht allein nicht aus: Könnte ein Angreifer sowohl den noch unprivilegierten Installer als auch das danebenliegende Archiv ersetzen, könnte er sonst beide Werte gemeinsam austauschen.
+
+Der remediated Release-Pfad erzeugt deshalb GitHub Artifact Attestations für die installierbaren Artefakte und kritischen Release-Metadaten. Bevor Stage A mit Administrator-/root-Rechten ausgeführt wird, prüfst du die Herkunft der heruntergeladenen Artefakte mit der GitHub CLI gegen das kanonische Repository und den exakten RC-Workflow.
+
+Für jeden ausführbaren/installierbaren Input, den du verwenden möchtest:
+
+```bash
+gh attestation verify <artefakt> \
+  --repo Kryt3r/livariant \
+  --signer-workflow Kryt3r/livariant/.github/workflows/rc-bundle.yml \
+  --source-ref refs/heads/main \
+  --source-digest <exakter-qualifizierter-source-sha> \
+  --deny-self-hosted-runners
 ```
+
+Mindestens geprüft werden müssen:
+
+- `livariant-<version>.tgz`;
+- `livariant-protected-bootstrap-<version>.tgz`;
+- der plattformspezifische Stage-A-Installer;
+- `release-manifest.json`;
+- `SHA256SUMS` und `PROTECTED-SHA256SUMS`.
+
+Fehlt die Attestation oder schlägt ihre Prüfung fehl, ist das eine Stop-Bedingung. Fahre nicht mit einer privilegierten Installation fort.
+
+Artifact Attestation belegt Herkunft/Integrität der erzeugten Bytes; sie bedeutet nicht automatisch, dass der Code sicher ist. Livariants eigene Release-Qualifikation, Guardian-Schutzprüfungen und Authority-Grenzen bleiben getrennte Anforderungen.
+
+## 1. Release-Prüfsummen verifizieren
+
+Nach der Provenance-Prüfung vergleichst du den normalen CLI-Tarball mit `SHA256SUMS` und das Protected-Bootstrap-Archiv samt Installern mit `PROTECTED-SHA256SUMS`. `release-manifest.json` bindet Runtime und Protected Bootstrap an die exakte Release-Identität.
 
 ### Linux
 
 ```bash
-sha256sum livariant-0.1.0-rc.4.tgz
-```
-
-### macOS
-
-```bash
-shasum -a 256 livariant-0.1.0-rc.4.tgz
+sha256sum -c SHA256SUMS
+sha256sum -c PROTECTED-SHA256SUMS
 ```
 
 ### Windows PowerShell
 
 ```powershell
-(Get-FileHash .\livariant-0.1.0-rc.4.tgz -Algorithm SHA256).Hash.ToLower()
+Get-FileHash .\livariant-<version>.tgz -Algorithm SHA256
+Get-FileHash .\livariant-protected-bootstrap-<version>.tgz -Algorithm SHA256
+Get-FileHash .\install-livariant-bootstrap-<version>.ps1 -Algorithm SHA256
 ```
 
-Stimmt der Wert nicht exakt überein, installiere den Tarball nicht.
+Vergleiche die Windows-Werte exakt mit den entsprechenden Prüfsummendateien. Bei einer Abweichung: stoppen.
 
-> [!IMPORTANT]
-> Verwende für Release-Artefakte das kanonische Livariant-GitHub-Release. Installiere keinen ausführbaren Livariant-Code aus einem unbekannten Repository, Mirror, Chat-Anhang oder einer beliebigen Paketquelle nur deshalb, weil der Dateiname korrekt aussieht.
+## 2. Normale CLI installieren
 
-## 2. CLI installieren
-
-Im Ordner mit dem geprüften Tarball:
+Im Verzeichnis mit dem geprüften Runtime-Tarball:
 
 ### Linux / macOS
 
 ```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.4.tgz
+npm install --global --ignore-scripts ./livariant-<version>.tgz
 ```
 
 ### Windows PowerShell
 
 ```powershell
-npm install --global --ignore-scripts .\livariant-0.1.0-rc.4.tgz
+npm install --global --ignore-scripts .\livariant-<version>.tgz
 ```
 
 Danach:
@@ -95,79 +136,151 @@ Danach:
 livariant version
 ```
 
-Die Installation initialisiert kein Projekt und trägt Livariant nicht in `package.json` oder `node_modules` des Zielprojekts ein.
+Damit wird ausschließlich die normale CLI installiert. Es wird kein Projekt initialisiert, keine geschützte Guardian-Quelle provisioniert, keine Guardian-Authority erzeugt und Livariant nicht in `package.json` eines Zielprojekts eingetragen.
 
-Wenn der Befehl nicht gefunden wird, öffne ein neues Terminal und prüfe, ob das globale npm-Bin-Verzeichnis in `PATH` liegt. Nutze lieber einen benutzerbeschreibbaren npm-Prefix, statt Livariant manuell in Projekt-, Runtime- oder Trust-Verzeichnisse zu kopieren.
+## 3. Maschinen-Readiness prüfen, bevor ein Projekt-Lifecycle geöffnet wird
 
-## 3. Projekt öffnen
+Aus einem normalen Benutzerterminal:
 
-Verwende den Hauptordner des Projekts, an dem du ohnehin arbeitest.
+```bash
+livariant guardian status
+```
 
-Linux/macOS:
+Auf einem frischen unterstützten Rechner vor Stage A wird erwartet, dass die geschützte Bootstrap-Quelle noch nicht bereit ist. Das ist keine Erlaubnis, die Prüfung zu umgehen; es bedeutet, dass Stage A erforderlich ist.
+
+## 4. Stage A - exakte Release-Bytes unter OS-Schutz provisionieren
+
+Stage A ist ein separater privilegierter Installationsvorgang. Der Stage-A-Installer startet **weder** UAC noch `sudo` oder `pkexec` selbst. Nach erfolgreicher Provenance-/Prüfsummenprüfung als normaler Benutzer öffnest du bewusst ein bereits privilegiertes Terminal.
+
+### Windows
+
+Öffne eine **Administrator-PowerShell** und führe aus dem Release-Asset-Verzeichnis den geprüften Installer aus:
+
+```powershell
+& .\install-livariant-bootstrap-<version>.ps1
+```
+
+Die geschützte Quelle wird installiert unter:
+
+```text
+C:\Program Files\Livariant\Bootstrap\v1
+```
+
+Der geschützte Guardian-Parent wird vorbereitet unter:
+
+```text
+C:\ProgramData\Livariant\Guardian
+```
+
+### Linux
+
+Öffne eine bereits als root laufende Shell und führe aus:
+
+```bash
+./install-livariant-bootstrap-<version>.sh
+```
+
+Die geschützte Quelle wird installiert unter:
+
+```text
+/opt/livariant/bootstrap/v1
+```
+
+Der Guardian-Parent wird vorbereitet unter:
+
+```text
+/var/lib/livariant-guardian
+```
+
+Stage A prüft das Release-Archiv vor der Installation, verweigert unsichere Pfadformen, prüft die feste geschützte Stage-B-Node-Runtime vor ihrer Ausführung, schützt den installierten Tree und vergibt **keine Mutation-, Runtime-, Guardian-Operation-, Integrity- oder Release-Authority**.
+
+Existiert bereits eine geschützte Bootstrap-Quelle, verweigert Stage A einen impliziten Austausch. Ein Release-Übergang muss ausdrücklich erfolgen (`-Replace` unter Windows bzw. `--replace` unter Linux) und ein separat geprüftes neues Release verwenden.
+
+## 5. Stage A aus einem normalen Terminal prüfen
+
+Schließe das privilegierte Terminal. Unter dem normalen Benutzerkonto:
+
+```bash
+livariant guardian status
+```
+
+Der Statusbefehl ist read-only. Nun sollten die geschützte Quelle und der erwartete Stage-B-Interpreter als bereit erscheinen und Guardian Bootstrap als nächster erforderlicher Schritt angezeigt werden. Wird der Source-/Interpreter-Zustand als `unsafe` gemeldet, stoppe; repariere oder „segne“ ihn nicht allein aufgrund seiner Existenz.
+
+## 6. Stage B - Guardian aus geschützten Bytes bootstrappen
+
+Verwende ausschließlich den von `guardian status` angezeigten geschützten Stage-B-Launcher.
+
+### Windows
+
+Aus einer bereits erhöhten Administrator-PowerShell:
+
+```powershell
+& 'C:\Program Files\Livariant\Bootstrap\v1\guardian-bootstrap.ps1'
+```
+
+### Linux
+
+Aus einer bereits als root laufenden Shell:
+
+```bash
+/opt/livariant/bootstrap/v1/guardian-bootstrap
+```
+
+Stage B prüft, dass Bootstrap-Modul/-Helper, Release-Descriptor, geschützte Filesystem-Kette und die **tatsächlich laufende** Node-Interpreter-Kette die Guardian-Vertrauensanforderungen erfüllen. Die bestehende interaktive Bootstrap-Bestätigung bleibt erforderlich. Stage B richtet ausschließlich die geschützte Guardian-Basis ein und erzeugt **keine** Lifecycle-Authority.
+
+Schließe danach das privilegierte Terminal wieder und prüfe als normaler Benutzer:
+
+```bash
+livariant guardian status
+```
+
+Fahre nicht mit Projekt-Lifecycle-Autorisierung fort, solange Guardian Readiness nicht bestätigt ist.
+
+## 7. Bestehendes Projekt öffnen und First Run ausführen
 
 ```bash
 cd /pfad/zu/deinem-projekt
-```
-
-Windows PowerShell:
-
-```powershell
-Set-Location C:\pfad\zu\deinem-projekt
-```
-
-Livariant arbeitet preservation-first: Es soll ein bestehendes Projekt prüfen und übernehmen, ohne es still in eine bevorzugte Vorlage umzubauen.
-
-## 4. First Run verwenden
-
-Der geführte Public-Preview-Einstieg ist:
-
-```bash
-livariant first-run
-```
-
-First Run kombiniert read-only Project Discovery, Initialisierungsbewertung, Autonomy-Profile-Wahl, optionale External-Knowledge-Evidenz, Guided Project Understanding Review und optionale Provider-Setup-Hinweise.
-
-Er endet mit `Changes made: 0` und initialisiert das Projekt nicht still, persistiert kein Autonomy Profile automatisch, übernimmt keine Evidenz, konfiguriert keinen Provider und vergibt keine Authority.
-
-Für deterministische Nutzung:
-
-```bash
 livariant first-run --language Deutsch
 ```
 
-Wenn du bereits weißt, welchen unterstützten Provider du verbinden möchtest, kann First Run den Setup-Pfad direkt sichtbar machen:
+Windows-Beispiel:
 
-```bash
-livariant first-run --language Deutsch --provider claude-code
-livariant first-run --language Deutsch --provider codex
+```powershell
+Set-Location C:\pfad\zu\deinem-projekt
+livariant first-run --language Deutsch
 ```
 
-Mehr unter [First-Run Composition](first-run.md).
+Deutsch und Englisch sind im remediated First Run unterstützte Interaktions-Locals. Alle nutzerseitigen First-Run-Prompts, Überschriften und Erklärungen verwenden ab dem ersten Prompt die gewählte unterstützte Sprache. Maschinen-Identifier, Befehlsnamen, Project-Truth-Sprache und JSON-Enum-Werte bleiben davon getrennt.
 
-## 5. Bei Bedarf bewusst initialisieren
+First Run ist read-only und meldet `Vorgenommene Änderungen: 0`. Er prüft neben dem Projektzustand auch die Maschinen-Readiness. Ist der Guardian-Pfad nicht bereit oder unsicher, darf First Run nicht direkt zu Lifecycle-Autorisierung/-Anwendung führen.
 
-Wenn das Projekt ein Project Brain benötigt, prüfst du zuerst den Initialisierungsplan:
+## 8. Bewusst initialisieren
+
+Ist Guardian Readiness bestätigt und benötigt das Projekt ein Project Brain:
 
 ```bash
 livariant init
 ```
 
-Erst nach Prüfung gehst du über den unterstützten expliziten Autorisierungspfad weiter. First Run selbst führt die Initialisierung niemals aus.
+Prüfe zuerst den Plan. Erst danach folgt bei passendem Zustand die unterstützte explizite Autorisierungs-/Anwendungssequenz:
 
-Nach erfolgreicher unterstützter Initialisierung sind unter anderem diese read-only Checks nützlich:
+```bash
+livariant init --authorize
+livariant init --apply
+```
+
+Danach:
 
 ```bash
 livariant status
 livariant doctor
-livariant context
-livariant resume
 ```
 
-## 6. Claude Code oder Codex explizit über MCP verbinden
+Für die WP-044-Abnahme muss zusätzlich ein echter Fresh-Machine-/First-Project-Pfad beweisen, dass das resultierende Project Brain gültig ist. Unit Tests allein reichen nicht.
 
-Die Livariant-Installation konfiguriert deinen Coding-Agenten **nicht** automatisch.
+## 9. Claude Code oder Codex über MCP verbinden
 
-RC4 kann den nativen Setup-Pfad ausgeben:
+Die Livariant-Installation konfiguriert einen Coding-Agenten **nicht** automatisch.
 
 ### Claude Code
 
@@ -181,67 +294,27 @@ livariant mcp setup --provider claude-code
 livariant mcp setup --provider codex
 ```
 
-Dieser Befehl liefert provider-spezifische Registrierungs-/Konfigurationshinweise und führt selbst **null Provider-Konfigurationsänderungen** aus. Du bzw. der Provider wendet den angezeigten Schritt über dessen eigene Konfigurationsoberfläche an.
+Der Setup-Befehl zeigt provider-spezifische Hinweise an und führt selbst null Provider-Konfigurationsänderungen aus. MCP-Capability vergibt keine Mutation-, Runtime-, Guardian-, Integrity- oder Release-Authority.
 
-Sobald der Provider mit `livariant mcp` verbunden ist, kann der Agent Livariants MCP-Tools und Server-Instructions während der normalen MCP-Sitzung erkennen.
+## Was dieser Installationspfad nicht tut
 
-Aktuelle begrenzte MCP-Fähigkeiten sind:
+Er:
 
-- `livariant_provider_context`;
-- `livariant_provider_return`;
-- `livariant_verification_trace`.
+- vertraut keinem Paket nur deshalb, weil es in einem bekannten Verzeichnis liegt;
+- macht die normale globale npm-CLI nicht zum geschützten Root of Trust;
+- erlaubt Projektdateien, CLI-Flags oder Provider-Ausgaben keine Selbstautorisierung von Guardian-/Lifecycle-Aktionen;
+- initialisiert Projekte nicht automatisch;
+- schreibt `CLAUDE.md`, `AGENTS.md`, Provider-Memory oder Provider-Konfiguration nicht still um;
+- verwandelt Artifact Attestation, Release-Evidenz oder bloße Guardian-Existenz nicht in Mutation-/Runtime-/Release-Authority;
+- veröffentlicht oder autorisiert kein zukünftiges Livariant-Release.
 
-Damit kann die normale Nutzung agent-native sein: Du arbeitest in natürlicher Sprache mit dem Coding-Agenten, und dieser kann Livariant-Tools bei Bedarf aufrufen. Du musst nicht für jede normale Interaktion manuell einen Livariant-CLI-Befehl tippen.
+## Update- und Deinstallationsgrenzen
 
-Die CLI bleibt die direkte Kontroll- und Diagnoseoberfläche, wenn du sie ausdrücklich verwenden möchtest.
+Normale CLI-Installation, geschützte Stage-A-Quelle, Guardian-State, Runtime Trust und Release Authorization sind unterschiedliche State-Klassen.
 
-## 7. Verification Trace im Agent-Workflow
+Ein Update der npm-CLI aktualisiert oder autorisiert die geschützte Bootstrap-Quelle nicht stillschweigend. Der Austausch einer geschützten Quelle erfordert einen ausdrücklichen verifizierten Release-Übergang. Das Entfernen der normalen CLI darf Guardian-/Authority-Historie nicht still löschen; geschützter System-State darf nicht als gewöhnlicher Package-Uninstall-Nebeneffekt behandelt werden.
 
-Mit verbundener MCP-Bridge kann ein MCP-fähiger Coding-Agent folgendes Tool aufrufen:
-
-`livariant_verification_trace`
-
-Es verwendet dieselbe explizite Verification-Trace-v1-Struktur wie Core-/CLI-Assessor und liefert deterministische Zustände:
-
-```text
-SUPPORTED
-CONTRADICTED
-UNPROVEN
-```
-
-Das ist Evidenzabdeckung, keine akzeptierte Completion.
-
-Die Grenzen bleiben:
-
-```text
-Evidence != Truth
-Verification Evidence != akzeptierte Completion
-SUPPORTED != DONE
-MCP-Transport != unabhängiges Vertrauen
-Capability != Authority
-```
-
-Livariant entdeckt aktuell nicht automatisch jede Anforderung und erzeugt nicht automatisch vertrauenswürdige Verification Evidence.
-
-Mehr unter [Verification Trace](verification-trace.md).
-
-## Was Installation und MCP-Setup nicht tun
-
-Sie:
-
-- initialisieren Projekte nicht automatisch;
-- schreiben `CLAUDE.md`, `AGENTS.md` oder Provider-Memory nicht still um;
-- beobachten nicht jedes KI-Gespräch und entscheiden nicht automatisch, was Project Truth wird;
-- vergeben keine Mutation-, Runtime-, Guardian- oder Release-Authority an einen Provider;
-- behandeln Agent-Evidenz nicht automatisch als vertrauenswürdig, nur weil sie über MCP kam;
-- migrieren kein Project Brain allein deshalb, weil das CLI-Paket geändert wurde;
-- veröffentlichen oder autorisieren keinen zukünftigen Livariant-Release.
-
-## Spätere Updates sind getrennt
-
-Ein neueres Livariant-CLI-Paket zu installieren ist nicht dasselbe wie Project-Brain-State zu migrieren, eine neue Runtime zu aktivieren oder Release-/Runtime-Authority zu vergeben.
-
-Verwende die unterstützten Update-, Migrations- und Recovery-Flows aus [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md). Ersetze `.project-brain/`, verwalteten Runtime-State, Guardian-State, Runtime-Trust-Evidenz oder Release-Authorization-Evidenz nicht manuell.
+Nutze die unterstützte Lifecycle-/Update-Dokumentation, statt `.project-brain/`, geschützten Guardian-State, verwalteten Runtime-State, Runtime-Trust-Evidenz oder Release-Authorization-Evidenz manuell zu ersetzen.
 
 ## Danach lesen
 
@@ -250,4 +323,5 @@ Verwende die unterstützten Update-, Migrations- und Recovery-Flows aus [Updates
 - [Verification Trace](verification-trace.md)
 - [Bestehende Projekte](existing-projects.md)
 - [Provider-Handoff](provider-handoff.md)
+- [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md)
 - [Architektur & Sicherheit](architecture-and-safety.md)

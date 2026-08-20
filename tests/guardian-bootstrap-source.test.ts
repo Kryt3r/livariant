@@ -1,15 +1,29 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import test from "node:test";
 import {
   ancestorDirectories,
   bootstrapSourcePathAllowed,
   isProtectedPosixMode,
+  productionGuardianBootstrapNodeExecutable,
   productionGuardianBootstrapSourceRoot,
 } from "../src/guardian/bootstrap-source.js";
 
 test("Guardian bootstrap source roots are fixed system locations", () => {
   assert.equal(productionGuardianBootstrapSourceRoot("linux"), "/opt/livariant/bootstrap/v1");
   assert.equal(productionGuardianBootstrapSourceRoot("win32"), "C:\\Program Files\\Livariant\\Bootstrap\\v1");
+});
+
+test("Guardian Stage-B interpreter locations are fixed protected system paths", () => {
+  assert.equal(productionGuardianBootstrapNodeExecutable("linux"), "/usr/bin/node");
+  assert.equal(productionGuardianBootstrapNodeExecutable("win32"), "C:\\Program Files\\nodejs\\node.exe");
+});
+
+test("ordinary CLI readiness inspects the expected protected Stage-B interpreter, not its own process.execPath", async () => {
+  const readiness = await readFile(resolve(process.cwd(), "src", "guardian", "readiness.ts"), "utf8");
+  assert.match(readiness, /nodeExecutable \?\? productionGuardianBootstrapNodeExecutable\(platform\)/);
+  assert.doesNotMatch(readiness, /nodeExecutable:\s*string\s*=\s*process\.execPath/);
 });
 
 test("requester-controlled Linux package/cache/project paths cannot qualify as bootstrap source", () => {

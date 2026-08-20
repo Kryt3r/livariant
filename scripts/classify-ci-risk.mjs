@@ -29,6 +29,8 @@ function isClassD(path) {
   if (path === "tests/first-run-cli.test.ts") return true;
   if (path === "tests/guardian-trust-root.test.ts") return true;
   if (path === "tests/guardian-cli.test.ts") return true;
+  if (path === "tests/protected-bootstrap-release.test.ts") return true;
+  if (path === "tests/stage-a-installer-contract.test.ts") return true;
   if (path.startsWith("tests/project-findings")) return true;
 
   const safetySegments = [

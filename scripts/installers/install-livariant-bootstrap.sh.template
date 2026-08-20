@@ -1,0 +1,108 @@
+#!/usr/bin/env sh
+set -eu
+# Do not inherit requester-controlled command lookup into privileged Stage A.
+PATH='/usr/sbin:/usr/bin:/sbin:/bin'
+export PATH
+EXPECTED_VERSION='@@VERSION@@'
+EXPECTED_SOURCE_SHA='@@SOURCE_SHA@@'
+EXPECTED_ARCHIVE_SHA256='@@ARCHIVE_SHA256@@'
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ARCHIVE="$SCRIPT_DIR/@@ARCHIVE@@"
+REPLACE=0
+if [ "${1:-}" = "--replace" ]; then REPLACE=1; shift; fi
+if [ "$#" -gt 0 ]; then ARCHIVE="$1"; shift; fi
+if [ "$#" -ne 0 ]; then echo 'usage: install-livariant-bootstrap.sh [--replace] [archive]' >&2; exit 2; fi
+TARGET='/opt/livariant/bootstrap/v1'
+BOOTSTRAP_PARENT='/opt/livariant/bootstrap'
+LIVARIANT_OPT='/opt/livariant'
+GUARDIAN_PARENT='/var/lib/livariant-guardian'
+PROTECTED_NODE='/usr/bin/node'
+
+assert_root_owned_nowrite() {
+  path=$1
+  label=$2
+  if [ -L "$path" ]; then echo "$label must not be a symbolic link: $path" >&2; exit 1; fi
+  if [ ! -e "$path" ]; then echo "$label is missing: $path" >&2; exit 1; fi
+  uid=$(stat -c '%u' "$path")
+  mode=$(stat -c '%a' "$path")
+  if [ "$uid" -ne 0 ]; then echo "$label is not owned by root: $path" >&2; exit 1; fi
+  permissions=$((0$mode))
+  if [ $((permissions & 18)) -ne 0 ]; then echo "$label is writable by group/other principals: $path" >&2; exit 1; fi
+}
+
+assert_protected_node_chain() {
+  if [ ! -f "$PROTECTED_NODE" ] || [ -L "$PROTECTED_NODE" ]; then
+    echo "Protected Node executable must be a regular non-symlink file: $PROTECTED_NODE" >&2
+    exit 1
+  fi
+  assert_root_owned_nowrite "$PROTECTED_NODE" 'Guardian bootstrap Node executable'
+  assert_root_owned_nowrite '/usr/bin' 'Guardian bootstrap Node parent'
+  assert_root_owned_nowrite '/usr' 'Guardian bootstrap Node ancestor'
+  assert_root_owned_nowrite '/' 'Guardian bootstrap filesystem anchor'
+
+  # Only execute Node after its fixed filesystem origin passed pre-execution trust checks.
+  node_version=$($PROTECTED_NODE --version)
+  case "$node_version" in
+    v[0-9]*.*) ;;
+    *) echo 'Protected Node version could not be verified.' >&2; exit 1 ;;
+  esac
+  major=${node_version#v}
+  major=${major%%.*}
+  if [ "$major" -lt 20 ]; then echo "Protected Node.js 20+ is required; observed $node_version." >&2; exit 1; fi
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo 'Livariant Stage-A installation requires an already privileged root terminal. The installer does not initiate sudo/pkexec elevation.' >&2
+  exit 1
+fi
+assert_protected_node_chain
+if [ ! -f "$ARCHIVE" ] || [ -L "$ARCHIVE" ]; then echo "Protected bootstrap archive is missing or unsafe: $ARCHIVE" >&2; exit 1; fi
+OBSERVED=$(sha256sum "$ARCHIVE" | awk '{print $1}')
+if [ "$OBSERVED" != "$EXPECTED_ARCHIVE_SHA256" ]; then
+  echo "Protected bootstrap archive SHA-256 mismatch. Expected $EXPECTED_ARCHIVE_SHA256, observed $OBSERVED" >&2
+  exit 1
+fi
+TMP=$(mktemp -d /tmp/livariant-stage-a.XXXXXX)
+trap 'rm -rf "$TMP"' EXIT INT TERM
+
+tar -xzf "$ARCHIVE" -C "$TMP"
+PACKAGE_ROOT="$TMP/package"
+for required in bootstrap-release.json guardian-bootstrap-entry.mjs guardian-bootstrap dist/src/guardian/bootstrap.js dist/src/guardian/protected-helper.js; do
+  if [ ! -f "$PACKAGE_ROOT/$required" ] || [ -L "$PACKAGE_ROOT/$required" ]; then
+    echo "Protected bootstrap archive is missing required regular file: $required" >&2
+    exit 1
+  fi
+done
+
+mkdir -p "$LIVARIANT_OPT" "$BOOTSTRAP_PARENT" "$GUARDIAN_PARENT"
+if [ -e "$TARGET" ]; then
+  if [ -L "$TARGET" ] || [ ! -d "$TARGET" ]; then echo "Existing protected bootstrap target is unsafe: $TARGET" >&2; exit 1; fi
+  if [ "$REPLACE" -ne 1 ]; then
+    echo "Protected bootstrap source already exists at $TARGET. Re-run with --replace only for an explicit verified release transition." >&2
+    exit 1
+  fi
+  BACKUP="$BOOTSTRAP_PARENT/v1.previous-$(date -u +%Y%m%d%H%M%S)"
+  mv "$TARGET" "$BACKUP"
+  chown -R 0:0 "$BACKUP"
+  find "$BACKUP" -type d -exec chmod 755 {} +
+  find "$BACKUP" -type f -exec chmod 444 {} +
+  [ ! -f "$BACKUP/guardian-bootstrap" ] || chmod 555 "$BACKUP/guardian-bootstrap"
+fi
+mkdir "$TARGET"
+cp -R "$PACKAGE_ROOT/." "$TARGET/"
+chown -R 0:0 "$LIVARIANT_OPT" "$GUARDIAN_PARENT"
+chmod 755 "$LIVARIANT_OPT" "$BOOTSTRAP_PARENT" "$TARGET" "$GUARDIAN_PARENT"
+find "$TARGET" -type d -exec chmod 755 {} +
+find "$TARGET" -type f -exec chmod 444 {} +
+chmod 555 "$TARGET/guardian-bootstrap"
+assert_protected_node_chain
+
+printf '%s\n' \
+  'Livariant protected Stage-A installation complete.' \
+  "Release: $EXPECTED_VERSION" \
+  "Source SHA: $EXPECTED_SOURCE_SHA" \
+  "Protected source: $TARGET" \
+  "Protected Node: $PROTECTED_NODE" \
+  "Guardian parent prepared: $GUARDIAN_PARENT" \
+  'Authority issued: no' \
+  'Next: close this root terminal, run `livariant guardian status` as the ordinary user, then use the protected Stage-B launcher shown there.'
