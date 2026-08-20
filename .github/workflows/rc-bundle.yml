@@ -6,6 +6,8 @@ on:
 permissions:
   contents: read
   actions: read
+  attestations: write
+  id-token: write
 
 jobs:
   build-rc-bundle:
@@ -52,6 +54,7 @@ jobs:
           set -euo pipefail
           node scripts/build-release-bundle.mjs \
             --source-id github:Kryt3r/livariant \
+            --source-sha "${{ github.sha }}" \
             --channel preview \
             --schema 1 \
             --compatible-from 0.1.0-rc.1,0.1.0-rc.2,0.1.0-rc.3 \
@@ -151,10 +154,9 @@ jobs:
           }
 
           const dir = 'rc-bundle';
-          const tarballs = readdirSync(dir).filter((name) => name.endsWith('.tgz'));
-          if (tarballs.length !== 1) throw new Error(`Expected exactly one tarball, observed ${tarballs.length}.`);
-
-          const artifact = tarballs[0];
+          const entries = new Set(readdirSync(dir));
+          const artifact = `livariant-${expectedVersion}.tgz`;
+          if (!entries.has(artifact)) throw new Error(`Expected runtime package is missing: ${artifact}.`);
           const bytes = readFileSync(path.join(dir, artifact));
           const sha256 = createHash('sha256').update(bytes).digest('hex');
           const manifest = JSON.parse(readFileSync(path.join(dir, 'release-manifest.json'), 'utf8'));
@@ -164,16 +166,45 @@ jobs:
           if (release.channel !== 'preview') throw new Error('Manifest channel mismatch.');
           if (release.projectBrainSchema !== 1) throw new Error('Manifest Project Brain schema mismatch.');
           if (release.sourceId !== 'github:Kryt3r/livariant') throw new Error('Manifest sourceId mismatch.');
+          if (release.sourceSha !== sourceSha) throw new Error('Manifest source SHA mismatch.');
           for (const predecessor of ['0.1.0-rc.1', '0.1.0-rc.2', '0.1.0-rc.3']) {
             if (!release.compatibility?.from?.includes(predecessor)) {
               throw new Error(`Manifest missing ${predecessor} compatibility.`);
             }
           }
-          if (release.artifact?.id !== 'runtime-node-cli') throw new Error('Manifest artifact id mismatch.');
-          if (release.artifact?.sha256 !== sha256) throw new Error('Manifest SHA-256 does not match artifact bytes.');
+          if (release.artifact?.id !== 'runtime-node-cli' || release.artifact?.filename !== artifact) throw new Error('Manifest runtime artifact identity mismatch.');
+          if (release.artifact?.sha256 !== sha256) throw new Error('Manifest SHA-256 does not match runtime artifact bytes.');
 
           const sums = readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8');
           if (sums !== `${sha256}  ${artifact}\n`) throw new Error('SHA256SUMS mismatch.');
+
+          const protectedAssets = JSON.parse(readFileSync(path.join(dir, 'protected-bootstrap-assets.json'), 'utf8'));
+          if (protectedAssets.version !== expectedVersion || protectedAssets.channel !== 'preview' || protectedAssets.sourceId !== release.sourceId || protectedAssets.sourceSha !== sourceSha) {
+            throw new Error('Protected bootstrap asset identity mismatch.');
+          }
+          if (protectedAssets.authorityIssued !== false || release.protectedBootstrap?.authorityIssued !== false) {
+            throw new Error('Protected bootstrap build must not issue Authority.');
+          }
+          const protectedArchive = protectedAssets.archive?.filename;
+          if (typeof protectedArchive !== 'string' || !entries.has(protectedArchive)) throw new Error('Protected bootstrap archive is missing.');
+          const protectedArchiveSha = createHash('sha256').update(readFileSync(path.join(dir, protectedArchive))).digest('hex');
+          if (protectedArchiveSha !== protectedAssets.archive.sha256 || protectedArchiveSha !== release.protectedBootstrap?.archive?.sha256 || release.protectedBootstrap?.archive?.filename !== protectedArchive) {
+            throw new Error('Protected bootstrap archive is not manifest/digest bound.');
+          }
+          const protectedChecksumRows = [];
+          for (const platform of ['win32', 'linux']) {
+            const installer = protectedAssets.installers?.[platform];
+            if (!installer || typeof installer.filename !== 'string' || !entries.has(installer.filename)) throw new Error(`Protected ${platform} Stage-A installer is missing.`);
+            const installerSha = createHash('sha256').update(readFileSync(path.join(dir, installer.filename))).digest('hex');
+            if (installerSha !== installer.sha256 || installerSha !== release.protectedBootstrap?.installers?.[platform]?.sha256 || release.protectedBootstrap?.installers?.[platform]?.filename !== installer.filename) {
+              throw new Error(`Protected ${platform} Stage-A installer is not manifest/digest bound.`);
+            }
+            protectedChecksumRows.push(`${installerSha}  ${installer.filename}`);
+          }
+          protectedChecksumRows.push(`${protectedArchiveSha}  ${protectedArchive}`);
+          protectedChecksumRows.sort();
+          const protectedSums = readFileSync(path.join(dir, 'PROTECTED-SHA256SUMS'), 'utf8');
+          if (protectedSums !== `${protectedChecksumRows.join('\n')}\n`) throw new Error('PROTECTED-SHA256SUMS mismatch.');
 
           const sbomFile = 'release-sbom.spdx.json';
           const sbomBytes = readFileSync(path.join(dir, sbomFile));
@@ -197,6 +228,12 @@ jobs:
               sourceId: release.sourceId,
               artifact,
               sha256,
+              protectedBootstrap: {
+                archive: protectedArchive,
+                sha256: protectedArchiveSha,
+                installers: protectedAssets.installers,
+                authorityIssued: false,
+              },
               sbom: {
                 file: sbomFile,
                 format: 'SPDX-2.3',
@@ -207,8 +244,11 @@ jobs:
           );
           appendFileSync(process.env.GITHUB_OUTPUT, `version=${release.version}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `sha256=${sha256}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `protected_archive=${protectedArchive}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `windows_installer=${protectedAssets.installers.win32.filename}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `linux_installer=${protectedAssets.installers.linux.filename}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `sbom_sha256=${sbomSha256}\n`);
-          console.log(JSON.stringify({ sourceSha, version: release.version, artifact, sha256, sbomFile, sbomSha256 }, null, 2));
+          console.log(JSON.stringify({ sourceSha, version: release.version, artifact, sha256, protectedArchive, sbomFile, sbomSha256 }, null, 2));
           NODE
           cp RC-SOURCE-COMMIT rc-bundle/RC-SOURCE-COMMIT
 
@@ -262,6 +302,18 @@ jobs:
           appendFileSync(process.env.GITHUB_OUTPUT, `json_sha256=${jsonSha256}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `markdown_sha256=${markdownSha256}\n`);
           NODE
+
+      - name: Attest installable RC provenance
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-path: |
+            rc-bundle/livariant-${{ steps.verify.outputs.version }}.tgz
+            rc-bundle/${{ steps.verify.outputs.protected_archive }}
+            rc-bundle/${{ steps.verify.outputs.windows_installer }}
+            rc-bundle/${{ steps.verify.outputs.linux_installer }}
+            rc-bundle/release-manifest.json
+            rc-bundle/SHA256SUMS
+            rc-bundle/PROTECTED-SHA256SUMS
 
       - name: Upload verified RC bundle artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
