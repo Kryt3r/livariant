@@ -29,6 +29,21 @@ The WP-044 remediation described below is the installation contract for the **ne
 
 Do not interpret a working macOS CLI as protected Guardian readiness.
 
+## Protected Stage-B Node prerequisite
+
+The ordinary CLI may run under any otherwise supported Node.js 20+ installation. The protected Guardian bootstrap is stricter because privileged Stage B must not resolve an interpreter through requester-controlled `PATH` state.
+
+For the WP-044 protected path, Stage A requires Node.js 20+ at the fixed OS-protected location:
+
+```text
+Windows: C:\Program Files\nodejs\node.exe
+Linux:   /usr/bin/node
+```
+
+Stage A verifies that fixed interpreter and its filesystem/ACL or ownership chain **before** privileged Node execution. `guardian status` inspects the same expected Stage-B interpreter independently of whichever Node executable happens to run the ordinary user CLI.
+
+A user-local Node installation, version-manager shim, or alternate `PATH` entry may be sufficient for the ordinary CLI but is **not** sufficient for protected Guardian Stage B. Install/provision a supported system-protected Node runtime first; do not redirect Livariant to a same-user interpreter as a workaround.
+
 ## Release assets for the remediated path
 
 A qualified release containing WP-044 must expose explicit release assets including:
@@ -179,7 +194,7 @@ and the Guardian parent is prepared beneath:
 /var/lib/livariant-guardian
 ```
 
-Stage A validates the release archive before installation, refuses unsafe path forms, protects the installed tree, and issues **no mutation, Runtime, Guardian-operation, integrity, or release Authority**.
+Stage A validates the release archive before installation, refuses unsafe path forms, verifies the fixed protected Stage-B Node runtime before executing it, protects the installed tree, and issues **no mutation, Runtime, Guardian-operation, integrity, or release Authority**.
 
 If a protected bootstrap source already exists, Stage A refuses implicit replacement. A release transition must be explicit (`-Replace` on Windows or `--replace` on Linux) and must use a separately verified new release.
 
@@ -191,7 +206,7 @@ Close the privileged terminal. From the ordinary user account run:
 livariant guardian status
 ```
 
-The status command is read-only. It should now report that the protected source is ready and that Guardian bootstrap is the next required step. If the source is reported `unsafe`, stop; do not repair/bless it by presence.
+The status command is read-only. It should now report that the protected source and expected Stage-B interpreter are ready and that Guardian bootstrap is the next required step. If the source/interpreter state is reported `unsafe`, stop; do not repair/bless it by presence.
 
 ## 6. Stage B - bootstrap Guardian from protected bytes
 
@@ -213,7 +228,7 @@ From an already-root terminal:
 /opt/livariant/bootstrap/v1/guardian-bootstrap
 ```
 
-Stage B verifies that its bootstrap module/helper, release descriptor, protected filesystem chain and Node interpreter chain satisfy the Guardian trust requirements. It requires the existing interactive bootstrap confirmation and establishes only the protected Guardian foundation. It does **not** manufacture lifecycle Authority.
+Stage B verifies that its bootstrap module/helper, release descriptor, protected filesystem chain and the **actually running** Node interpreter chain satisfy the Guardian trust requirements. It requires the existing interactive bootstrap confirmation and establishes only the protected Guardian foundation. It does **not** manufacture lifecycle Authority.
 
 After Stage B, close the privileged terminal again and verify from the ordinary account:
 
