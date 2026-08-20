@@ -1,4 +1,5 @@
 import type { AutonomyProfile } from "../autonomy/profile.js";
+import type { GuardianMachineReadiness } from "../guardian/readiness.js";
 import type { BootstrapDiscoveryAttention } from "../project/bootstrap-discovery.js";
 import type { UnderstandingReviewQuestion } from "../project/understanding-review.js";
 
@@ -35,6 +36,18 @@ const EN = {
   "report.project": "Project",
   "report.workspace": "Workspace",
   "report.projectBrain": "Project Brain",
+  "report.machine": "Machine protection readiness:",
+  "report.machine.platform": "Platform",
+  "report.machine.source": "Protected bootstrap source",
+  "report.machine.guardian": "Guardian",
+  "report.machine.lifecycle": "Lifecycle authorization prerequisite ready",
+  "report.machine.ready": "ready",
+  "report.machine.missingSource": "not installed",
+  "report.machine.guardianBootstrap": "protected source ready; Guardian bootstrap still required",
+  "report.machine.unsafe": "unsafe — stop and repair the protected installation path before lifecycle authorization",
+  "report.machine.unsupported": "unsupported on this platform",
+  "report.yes": "yes",
+  "report.no": "no",
   "report.found": "What Livariant found:",
   "report.noConfirmed": "no confirmed project evidence yet",
   "report.noInferences": "no strong inferences",
@@ -47,10 +60,15 @@ const EN = {
   "report.safety.evidence": "Discovery and external knowledge are evidence, not Project Truth.",
   "report.safety.autonomy": "Autonomy preference changes how often an agent should ask; it is not mutation, Runtime, or Release Authority.",
   "report.safety.firstRun": "This first-run does not persist autonomy, authorize initialization/adoption, configure providers, change runtime trust, or authorize release.",
+  "report.safety.machine": "Machine readiness and Guardian readiness do not themselves grant project mutation, Runtime, integrity, or Release Authority.",
   "report.nextActions": "Next actions:",
   "report.action.optional": "optional",
   "report.action.next": "next",
   "report.changes": "Changes made: 0",
+  "next.installProtectedSource": "Install the exact verified Livariant protected-bootstrap release material through the privileged Stage-A installation path before Guardian bootstrap or lifecycle authorization.",
+  "next.bootstrapGuardian": "Run Guardian bootstrap from the already protected Livariant bootstrap source in a local privileged terminal, then verify readiness from an ordinary terminal.",
+  "next.stopUnsafe": "Stop. The protected machine state is unsafe or ambiguous. Do not authorize initialization and do not bless or repair it through requester-controlled project/CLI state.",
+  "next.unsupported": "This platform does not currently support protected Guardian v1; lifecycle authorization that requires Guardian cannot proceed here.",
   "next.initialize": "Initialize Project Brain only after you explicitly approve the bootstrap plan and required machine protection is ready.",
   "next.persist.valid": "Persist this autonomy preference machine-locally for this stable project identity. This does not grant Authority.",
   "next.persist.afterInit": "After Project Brain initialization establishes a stable project identity, persist this autonomy preference machine-locally. This does not grant Authority.",
@@ -73,7 +91,7 @@ const EN = {
   "question.fallback": "Please clarify: {topic}.",
 } as const;
 
-type CliMessageKey = keyof typeof EN;
+export type CliMessageKey = keyof typeof EN;
 
 const DE: Record<CliMessageKey, string> = {
   "language.prompt": "Preferred interaction language / Bevorzugte Sprache: ",
@@ -99,6 +117,18 @@ const DE: Record<CliMessageKey, string> = {
   "report.project": "Projekt",
   "report.workspace": "Arbeitsbereich",
   "report.projectBrain": "Project Brain",
+  "report.machine": "Bereitschaft der Maschinenabsicherung:",
+  "report.machine.platform": "Plattform",
+  "report.machine.source": "Geschützte Bootstrap-Quelle",
+  "report.machine.guardian": "Guardian",
+  "report.machine.lifecycle": "Voraussetzung für Lifecycle-Autorisierung bereit",
+  "report.machine.ready": "bereit",
+  "report.machine.missingSource": "nicht installiert",
+  "report.machine.guardianBootstrap": "geschützte Quelle bereit; Guardian-Bootstrap noch erforderlich",
+  "report.machine.unsafe": "unsicher — geschützten Installationspfad vor einer Lifecycle-Autorisierung reparieren",
+  "report.machine.unsupported": "auf dieser Plattform nicht unterstützt",
+  "report.yes": "ja",
+  "report.no": "nein",
   "report.found": "Was Livariant gefunden hat:",
   "report.noConfirmed": "noch keine bestätigten Projektinformationen",
   "report.noInferences": "keine starken Schlussfolgerungen",
@@ -111,10 +141,15 @@ const DE: Record<CliMessageKey, string> = {
   "report.safety.evidence": "Discovery und externe Wissensquellen sind Evidenz, nicht Project Truth.",
   "report.safety.autonomy": "Die Autonomiepräferenz bestimmt, wie oft ein Agent nachfragen soll; sie ist keine Mutation-, Runtime- oder Release-Authority.",
   "report.safety.firstRun": "Dieser First Run speichert keine Autonomiepräferenz dauerhaft, autorisiert keine Initialisierung oder Übernahme, konfiguriert keinen Provider, verändert kein Runtime-Vertrauen und autorisiert keinen Release.",
+  "report.safety.machine": "Maschinen- und Guardian-Bereitschaft erteilen für sich genommen keine Projektmutation-, Runtime-, Integrity- oder Release-Authority.",
   "report.nextActions": "Nächste Schritte:",
   "report.action.optional": "optional",
   "report.action.next": "als Nächstes",
   "report.changes": "Vorgenommene Änderungen: 0",
+  "next.installProtectedSource": "Installiere das exakt verifizierte Livariant-Release-Material für die geschützte Bootstrap-Quelle über den privilegierten Stage-A-Installationspfad, bevor Guardian-Bootstrap oder Lifecycle-Autorisierung ausgeführt werden.",
+  "next.bootstrapGuardian": "Führe den Guardian-Bootstrap aus der bereits geschützten Livariant-Bootstrap-Quelle in einem lokalen privilegierten Terminal aus und prüfe die Bereitschaft danach aus einem normalen Terminal.",
+  "next.stopUnsafe": "Stopp. Der geschützte Maschinenzustand ist unsicher oder mehrdeutig. Initialisierung nicht autorisieren und den Zustand nicht über projekt- oder CLI-kontrollierte Daten segnen oder reparieren.",
+  "next.unsupported": "Diese Plattform unterstützt den geschützten Guardian v1 derzeit nicht; eine Lifecycle-Autorisierung, die Guardian voraussetzt, kann hier nicht fortgesetzt werden.",
   "next.initialize": "Initialisiere das Project Brain erst, nachdem du den Bootstrap-Plan ausdrücklich geprüft und freigegeben hast und die erforderliche Maschinenabsicherung bereit ist.",
   "next.persist.valid": "Speichere diese Autonomiepräferenz maschinenlokal für diese stabile Projektidentität. Dadurch wird keine Authority erteilt.",
   "next.persist.afterInit": "Speichere diese Autonomiepräferenz nach der Project-Brain-Initialisierung maschinenlokal, sobald eine stabile Projektidentität existiert. Dadurch wird keine Authority erteilt.",
@@ -147,36 +182,24 @@ function normalizedLanguageKey(value: string): string {
 export function resolveCliLocale(preferredLanguage: string): CliLocaleResolution {
   const requestedLanguage = preferredLanguage.trim();
   const key = normalizedLanguageKey(requestedLanguage);
-  if (GERMAN_ALIASES.has(key)) {
-    return { locale: "de", supported: true, requestedLanguage, canonicalLanguage: "Deutsch" };
-  }
-  if (ENGLISH_ALIASES.has(key)) {
-    return { locale: "en", supported: true, requestedLanguage, canonicalLanguage: "English" };
-  }
+  if (GERMAN_ALIASES.has(key)) return { locale: "de", supported: true, requestedLanguage, canonicalLanguage: "Deutsch" };
+  if (ENGLISH_ALIASES.has(key)) return { locale: "en", supported: true, requestedLanguage, canonicalLanguage: "English" };
   return { locale: "en", supported: false, requestedLanguage, canonicalLanguage: "English" };
 }
 
 export function cliMessage(locale: CliLocale, key: CliMessageKey, values: Record<string, string | number> = {}): string {
   const table = locale === "de" ? DE : EN;
-  let message = table[key];
-  for (const [name, value] of Object.entries(values)) {
-    message = message.replaceAll(`{${name}}`, String(value));
-  }
+  let message: string = table[key];
+  for (const [name, value] of Object.entries(values)) message = message.replaceAll(`{${name}}`, String(value));
   return message;
 }
 
 export function localizeAutonomyPolicy(locale: CliLocale, profile: AutonomyProfile): { label: string; summary: string; warning?: string } {
   if (profile === "ask-always") {
-    return {
-      label: cliMessage(locale, "autonomy.label.ask-always"),
-      summary: cliMessage(locale, "autonomy.summary.ask-always"),
-    };
+    return { label: cliMessage(locale, "autonomy.label.ask-always"), summary: cliMessage(locale, "autonomy.summary.ask-always") };
   }
   if (profile === "ask-important") {
-    return {
-      label: cliMessage(locale, "autonomy.label.ask-important"),
-      summary: cliMessage(locale, "autonomy.summary.ask-important"),
-    };
+    return { label: cliMessage(locale, "autonomy.label.ask-important"), summary: cliMessage(locale, "autonomy.summary.ask-important") };
   }
   return {
     label: cliMessage(locale, "autonomy.label.continue-without-confirmation"),
@@ -221,29 +244,19 @@ export function localizeDiscoveryValue(locale: CliLocale, value: string): string
 export function localizeAttention(locale: CliLocale, item: BootstrapDiscoveryAttention): string {
   if (locale === "en") return item.message;
   const first = item.provenance[0] ?? "Datei";
-  if (item.code === "discovery-unsafe-package-manifest") {
-    return "package.json ist vorhanden, aber keine reguläre Datei ohne Symlink; Livariant hat sie nicht interpretiert.";
-  }
-  if (item.code === "discovery-unreadable-package-manifest") {
-    return "package.json konnte nicht als JSON gelesen werden; Abhängigkeits- und Skriptinformationen wurden nicht abgeleitet.";
-  }
-  if (item.code === "discovery-unsafe-high-signal-file") {
-    return `${first} ist vorhanden, aber keine reguläre Datei ohne Symlink; Livariant hat sie nicht interpretiert.`;
-  }
-  if (item.code === "discovery-multiple-node-lockfiles") {
-    return "Mehrere Node-Paketmanager-Lockfiles sind vorhanden; die aktive Paketmanager-Konvention ist unklar.";
-  }
-  if (item.code === "discovery-sensitive-file-present") {
-    return `${first} ist vorhanden. Discovery erfasst nur die Existenz und liest oder klassifiziert den Inhalt nicht.`;
-  }
+  if (item.code === "discovery-unsafe-package-manifest") return "package.json ist vorhanden, aber keine reguläre Datei ohne Symlink; Livariant hat sie nicht interpretiert.";
+  if (item.code === "discovery-unreadable-package-manifest") return "package.json konnte nicht als JSON gelesen werden; Abhängigkeits- und Skriptinformationen wurden nicht abgeleitet.";
+  if (item.code === "discovery-unsafe-high-signal-file") return `${first} ist vorhanden, aber keine reguläre Datei ohne Symlink; Livariant hat sie nicht interpretiert.`;
+  if (item.code === "discovery-multiple-node-lockfiles") return "Mehrere Node-Paketmanager-Lockfiles sind vorhanden; die aktive Paketmanager-Konvention ist unklar.";
+  if (item.code === "discovery-sensitive-file-present") return `${first} ist vorhanden. Discovery erfasst nur die Existenz und liest oder klassifiziert den Inhalt nicht.`;
   return item.message;
 }
 
 export function localizeQuestion(locale: CliLocale, question: UnderstandingReviewQuestion): string {
   if (locale === "en") return question.prompt;
   const suffix = question.id.replace(/^unknown:/, "");
-  const key = `question.${suffix}` as CliMessageKey;
-  if (key in DE) return cliMessage(locale, key);
+  const candidate = `question.${suffix}`;
+  if (candidate in DE) return cliMessage(locale, candidate as CliMessageKey);
   return cliMessage(locale, "question.fallback", { topic: question.topic });
 }
 
@@ -261,4 +274,12 @@ export function localizeProjectBrainHealth(locale: CliLocale, health: string): s
   if (health === "invalid") return "ungültig";
   if (health === "partial") return "unvollständig";
   return health;
+}
+
+export function localizeReadinessState(locale: CliLocale, readiness: GuardianMachineReadiness): string {
+  if (readiness.state === "ready") return cliMessage(locale, "report.machine.ready");
+  if (readiness.state === "protected-source-required") return cliMessage(locale, "report.machine.missingSource");
+  if (readiness.state === "guardian-bootstrap-required") return cliMessage(locale, "report.machine.guardianBootstrap");
+  if (readiness.state === "unsafe") return cliMessage(locale, "report.machine.unsafe");
+  return cliMessage(locale, "report.machine.unsupported");
 }
