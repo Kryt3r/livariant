@@ -1,32 +1,41 @@
 # First-Run Composition
 
-`livariant first-run` is the guided entry point for bringing Livariant into a project without silently changing that project.
+`livariant first-run` is the guided, read-only entry point for bringing Livariant into a project without silently changing that project.
 
-The command composes capabilities that already exist independently: read-only project discovery, initialization assessment, Autonomy Profile selection, optional external knowledge evidence, Guided Project Understanding Review, and optional provider setup guidance.
+The remediated First Run composes project discovery, initialization assessment, Autonomy Profile selection, optional external knowledge evidence, Guided Project Understanding Review, provider setup guidance **and machine Guardian readiness**.
 
-## Start with a language preference
+## Interaction localization
 
-Interactive use asks for the preferred interaction language first.
-
-For deterministic or agent-driven use, provide it explicitly:
+For deterministic use, provide the preferred interaction language explicitly:
 
 ```bash
 livariant first-run --language English
 livariant first-run --language Deutsch
-livariant first-run --language Español --json
 ```
 
-The language value is a communication preference only. It is not trust evidence and grants no authority.
+English and German are built-in supported CLI interaction locales in the WP-044 remediation. When either is selected, user-facing First-Run prompts, warnings, headings, explanations and next-action descriptions use that language from the first localized prompt onward.
 
-The current CLI records and reports the preference so a human or connected agent can carry it through the onboarding experience. Built-in deterministic CLI labels are not automatically translated into every possible language by Livariant itself.
+Common aliases such as `en`, `en-US`, `de`, `de-DE`, `English` and `Deutsch` resolve to the corresponding locale.
+
+A language that is not yet implemented as a CLI locale may still be preserved as the preferred interaction-language value for machine-readable/project context, but the CLI explicitly reports that its visible UI is falling back to English. Livariant does not pretend that arbitrary languages are fully localized when they are not.
+
+Interaction localization is separate from:
+
+- Project Truth language;
+- command names;
+- machine identifiers and enum values;
+- provider protocol fields;
+- Authority or trust evidence.
+
+Language preference grants no Authority.
 
 ## Choose how often the agent should ask
 
-First-Run now includes an Autonomy Profile choice:
+First Run includes an Autonomy Profile choice:
 
 - `ask-always` - stop before routine and important discretionary next steps;
-- `ask-important` - continue routine/read-only work, stop before important or consequential discretionary decisions; this is the balanced default;
-- `continue-without-confirmation` - continue through discretionary workflow decisions without extra confirmation where no hard Livariant Authority is required.
+- `ask-important` - continue routine/read-only work, stop before important or consequential discretionary decisions; balanced default;
+- `continue-without-confirmation` - continue discretionary workflow decisions without extra confirmation where no hard Livariant Authority is required.
 
 Example:
 
@@ -34,7 +43,7 @@ Example:
 livariant first-run --language English --autonomy-profile ask-important
 ```
 
-The highest-autonomy profile requires a clear risk acknowledgement in deterministic/non-interactive use:
+The highest-autonomy profile requires explicit risk acknowledgement in deterministic/non-interactive use:
 
 ```bash
 livariant first-run \
@@ -44,11 +53,37 @@ livariant first-run \
   --json
 ```
 
-Autonomy Profile != Authority. Even `continue-without-confirmation` cannot bypass mutation authorization, Semantic Apply validation, Runtime Authority, or Release Authority.
+Autonomy Profile != Authority. Even `continue-without-confirmation` cannot bypass mutation authorization, Runtime Authority, Guardian Authority or Release Authority.
 
-First-Run does not persist the profile. It remains read-only and surfaces a separate explicit `livariant autonomy set ...` next step. Persistent profile state is machine-local and bound to the stable project identity.
+First Run does not persist the profile. Persistent Autonomy Profile state remains a separate explicit machine-local action bound to a stable project identity.
 
-See [Autonomy Profiles](autonomy-profiles.md) for the complete behavior and trust model.
+## Machine readiness is part of onboarding
+
+First Run now inspects the protected machine lifecycle foundation as well as the project.
+
+The report distinguishes at least these states:
+
+```text
+protected bootstrap source missing
+protected bootstrap source unsafe
+guardian bootstrap required
+guardian ready
+unsupported Guardian platform
+```
+
+This inspection is read-only and grants no Authority.
+
+### Fresh supported machine
+
+If the protected Stage-A source has not been provisioned, First Run must direct the user to the verified protected installation path. It must **not** present `livariant init --authorize` or `livariant init --apply` as the immediate lifecycle path.
+
+If Stage A is ready but Guardian has not yet been bootstrapped, First Run points to the protected Stage-B flow.
+
+If protected state is `unsafe`, First Run stops lifecycle guidance rather than blessing, repairing or trusting the state by presence.
+
+Only after Guardian readiness is established may First Run surface the normal project initialization sequence.
+
+See [Installation & First Project](installation.md) for the Stage-A/Stage-B trust path.
 
 ## Add an existing Second Brain optionally
 
@@ -61,72 +96,73 @@ livariant first-run \
   --external-source ../my-notes
 ```
 
-External material remains External Evidence. It does not become Project Brain truth and cannot be adopted directly.
+External material remains External Evidence. It does not become Project Truth and cannot be adopted directly.
 
 ## Surface a provider setup path
 
-You may ask First-Run to include the separate MCP setup command as an optional next step:
+You may ask First Run to include the separate MCP setup command as an optional next step:
 
 ```bash
 livariant first-run --language English --provider claude-code
 livariant first-run --language English --provider codex
 ```
 
-First-Run does not execute provider setup. It only tells you which explicit command would do so.
+First Run does not execute provider setup and performs zero provider-configuration writes.
 
-## What First-Run does
+## What First Run does
 
-First-Run:
+First Run:
 
-1. establishes the preferred interaction language;
+1. resolves the preferred interaction language and supported CLI locale;
 2. surfaces/selects an Autonomy Profile without persisting it;
 3. inspects the project and current Project Brain state read-only;
-4. optionally reads a supported external knowledge source through the existing safe adapter boundary;
-5. builds the initial Guided Project Understanding Review;
-6. reports concrete findings and open review items;
-7. explains that discovery and external material are evidence, not Project Truth;
-8. lists the next explicit commands that may be useful.
+4. inspects protected bootstrap/Guardian machine readiness read-only;
+5. optionally reads a supported external knowledge source through the safe adapter boundary;
+6. builds the initial Guided Project Understanding Review;
+7. reports concrete findings and open review items;
+8. explains evidence/Project Truth and capability/Authority boundaries;
+9. lists only next actions that are valid for the current machine/project state.
 
-## What First-Run does not do
+## What First Run does not do
 
-First-Run does **not**:
+First Run does **not**:
 
+- provision Stage A;
+- bootstrap Guardian;
+- create Guardian/lifecycle Authority;
 - persist the Autonomy Profile;
-- grant Authority through the Autonomy Profile;
-- run `livariant init --apply`;
 - create or rewrite Project Brain state;
-- turn discovery into Project Truth;
-- turn external evidence into Project Truth;
+- run `init --authorize` or `init --apply` automatically;
+- convert discovery or external evidence into Project Truth;
 - create adoption candidates from raw external text;
-- adopt candidate evidence;
 - configure Claude Code or Codex;
-- grant Runtime Authority;
-- grant Release Authority.
+- grant Runtime or Release Authority;
+- treat a protected-looking path as trusted merely because it exists.
 
-Human output ends with `Changes made: 0`.
+Human output ends with zero changes (`Changes made: 0` in English; localized equivalent in German).
 
-Machine-readable use is available with `--json`. In JSON mode, `--language` is required so automated use cannot stall on an interactive prompt. High-autonomy selection additionally requires `--acknowledge-autonomy-risk`.
+Machine-readable use is available with `--json`. In JSON mode `--language` remains required so automated use cannot stall on an interactive prompt. The report preserves stable machine identifiers while exposing interaction-locale state separately.
 
-## The next authority boundaries remain separate
+## Lifecycle next actions remain state-dependent
 
-If Project Brain initialization is needed, First-Run may surface:
+When Guardian is not ready, First Run surfaces machine preparation/diagnostic actions rather than project lifecycle authorization.
+
+When Guardian is ready and Project Brain initialization is needed, the safe sequence remains explicit:
 
 ```bash
+livariant init
+livariant init --authorize
 livariant init --apply
 ```
 
-That command remains a separate explicit mutation authorization.
+The plan, authorization and application remain distinct operations. First Run itself performs none of them.
 
-After a stable project identity exists, First-Run may surface the explicit machine-local profile persistence command, for example:
+After a stable project identity exists, First Run may separately surface Autonomy Profile persistence, for example:
 
 ```bash
 livariant autonomy set --profile ask-important
 ```
 
-That changes machine-local preference state only. It does not grant mutation, Runtime, or Release Authority.
+That changes machine-local preference state only; it grants no mutation, Runtime, Guardian or Release Authority.
 
-If Guided Project Understanding Review reveals unknowns, use the existing review flow to provide answers or corrections. Only reviewed candidate material may later enter Controlled Starting Understanding Adoption.
-
-If native agent access is desired, run the separately surfaced provider setup command explicitly.
-
-First-Run is therefore composition and guidance, not a shortcut around Livariant's safety model.
+First Run is therefore composition and state-aware guidance, not a shortcut around Livariant's safety model.
