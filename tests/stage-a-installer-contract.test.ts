@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -13,7 +14,6 @@ test("Windows Stage-A installer requires existing elevation and never initiates 
   assert.match(text, /already elevated Administrator terminal/i);
   assert.doesNotMatch(text, /Start-Process[^\n]*-Verb\s+RunAs/i);
   assert.doesNotMatch(text, /runas\.exe/i);
-  assert.match(text, /C:\\Windows\\System32\\icacls\.exe/);
   assert.match(text, /C:\\Windows\\System32\\tar\.exe/);
 });
 
@@ -39,6 +39,40 @@ test("Windows Stage-A verifies fixed protected Node before executing it", async 
   assert.match(builder, /\$Node = 'C:\\\\Program Files\\\\nodejs\\\\node\.exe'/);
   assert.doesNotMatch(builder, /Get-Command node\.exe/i);
 });
+
+test("Windows Stage-A hardens directories and leaf files with distinct effective ACLs", async () => {
+  const installer = await source("scripts/installers/install-livariant-bootstrap.ps1.template");
+  assert.match(installer, /function Set-ProtectedDirectoryAcl/);
+  assert.match(installer, /function Set-ProtectedFileAcl/);
+  assert.match(installer, /DirectorySecurity/);
+  assert.match(installer, /FileSecurity/);
+  assert.match(installer, /ReadAndExecute/);
+  assert.doesNotMatch(installer, /icacls[^\n]*\/T/i);
+});
+
+test(
+  "Windows Stage-A ACL smoke preserves real leaf readability after hardening",
+  { skip: process.platform !== "win32" },
+  () => {
+    const powershell = resolve(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    );
+    const script = resolve(process.cwd(), "scripts", "windows-stage-a-acl-smoke.ps1");
+    const result = spawnSync(powershell, ["-NoProfile", "-NonInteractive", "-File", script], {
+      encoding: "utf8",
+    });
+    assert.equal(
+      result.status,
+      0,
+      `Windows Stage-A ACL smoke failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+    );
+    assert.match(result.stdout, /Windows Stage-A ACL smoke passed/);
+  },
+);
 
 test("Linux Stage-A installer requires existing root privilege and never initiates elevation", async () => {
   const text = await source("scripts/installers/install-livariant-bootstrap.sh.template");
