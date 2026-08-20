@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, isAbsolute, resolve } from "node:path";
 
 const args = process.argv.slice(2);
 const bundleDir = resolve(process.cwd(), args[0] ?? "rc-bundle");
@@ -11,21 +11,38 @@ function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+function assetPath(filename) {
+  if (typeof filename !== "string" || filename.length === 0) throw new Error("Release asset filename is missing.");
+  if (
+    isAbsolute(filename) ||
+    filename === "." ||
+    filename === ".." ||
+    filename.includes("/") ||
+    filename.includes("\\") ||
+    basename(filename) !== filename
+  ) {
+    throw new Error(`Release asset filename must be a single safe bundle leaf: ${filename}`);
+  }
+  return resolve(bundleDir, filename);
+}
+
 async function readJson(name) {
-  return JSON.parse(await readFile(resolve(bundleDir, name), "utf8"));
+  return JSON.parse(await readFile(assetPath(name), "utf8"));
 }
 
 async function assertDigest(filename, expected) {
-  if (typeof filename !== "string" || filename.length === 0) throw new Error("Release asset filename is missing.");
+  const path = assetPath(filename);
   if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) throw new Error(`Release asset digest is invalid: ${filename}`);
-  const observed = sha256(await readFile(resolve(bundleDir, filename)));
+  const observed = sha256(await readFile(path));
   if (observed !== expected) throw new Error(`Release asset digest mismatch: ${filename}`);
 }
 
 const manifest = await readJson("release-manifest.json");
 const release = manifest?.[0];
 if (!release || manifest.length !== 1) throw new Error("Release asset verification requires exactly one release descriptor.");
-if (typeof release.version !== "string" || release.version.length === 0) throw new Error("Release version is missing.");
+if (typeof release.version !== "string" || !/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(release.version)) {
+  throw new Error("Release version is missing or not a safe SemVer-compatible release identifier.");
+}
 if (typeof release.sourceSha !== "string" || !/^[a-f0-9]{40}$/.test(release.sourceSha)) throw new Error("Release manifest is not exact-source bound.");
 if (expectedSourceSha && release.sourceSha !== expectedSourceSha) throw new Error(`Release source SHA mismatch: expected ${expectedSourceSha}, observed ${release.sourceSha}.`);
 if (release.sourceId !== "github:Kryt3r/livariant") throw new Error("Release sourceId is not canonical Livariant source.");
@@ -44,14 +61,16 @@ await assertDigest(protectedBootstrap.archive.filename, protectedBootstrap.archi
 for (const platform of ["win32", "linux"]) {
   const installer = protectedBootstrap.installers?.[platform];
   if (!installer) throw new Error(`Protected bootstrap installer is missing for ${platform}.`);
-  const expectedSuffix = platform === "win32" ? ".ps1" : ".sh";
-  if (!installer.filename.endsWith(expectedSuffix) || !installer.filename.includes(release.version)) throw new Error(`Protected bootstrap ${platform} installer filename is not release-bound.`);
+  const expectedInstaller = platform === "win32"
+    ? `install-livariant-bootstrap-${release.version}.ps1`
+    : `install-livariant-bootstrap-${release.version}.sh`;
+  if (installer.filename !== expectedInstaller) throw new Error(`Protected bootstrap ${platform} installer filename does not match exact release convention.`);
   await assertDigest(installer.filename, installer.sha256);
 }
 
-const runtimeSums = await readFile(resolve(bundleDir, "SHA256SUMS"), "utf8");
+const runtimeSums = await readFile(assetPath("SHA256SUMS"), "utf8");
 if (runtimeSums !== `${release.artifact.sha256}  ${release.artifact.filename}\n`) throw new Error("SHA256SUMS does not exactly bind the runtime install artifact.");
-const protectedSums = await readFile(resolve(bundleDir, "PROTECTED-SHA256SUMS"), "utf8");
+const protectedSums = await readFile(assetPath("PROTECTED-SHA256SUMS"), "utf8");
 const expectedProtected = [
   [protectedBootstrap.archive.sha256, protectedBootstrap.archive.filename],
   [protectedBootstrap.installers.win32.sha256, protectedBootstrap.installers.win32.filename],
@@ -76,7 +95,7 @@ const requiredAssets = [
 ];
 
 if (requireRcEvidence) {
-  const sourceCommit = (await readFile(resolve(bundleDir, "RC-SOURCE-COMMIT"), "utf8")).trim();
+  const sourceCommit = (await readFile(assetPath("RC-SOURCE-COMMIT"), "utf8")).trim();
   if (sourceCommit !== release.sourceSha) throw new Error("RC-SOURCE-COMMIT does not match release source SHA.");
   const metadata = await readJson("RC-BUILD-METADATA.json");
   if (metadata.sourceSha !== release.sourceSha || metadata.version !== release.version || metadata.sha256 !== release.artifact.sha256) {
@@ -90,7 +109,7 @@ if (requireRcEvidence) {
     "release-decision-dossier.md",
     "release-decision-evidence.json",
   ]) {
-    await readFile(resolve(bundleDir, filename));
+    await readFile(assetPath(filename));
     requiredAssets.push(filename);
   }
 }
