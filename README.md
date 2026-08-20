@@ -53,27 +53,30 @@ Ambiguous consequential state -> Fail Closed
 
 ## What the user experience is becoming
 
-Current `main` is designed for an **agent-native** workflow rather than a command-heavy daily routine.
+Current development is designed for an **agent-native** workflow rather than a command-heavy daily routine.
 
-The intended current-main first-use path is:
+For a fresh supported machine, the remediated first-use path is deliberately staged:
 
 ```text
-install Livariant
+verify exact qualified release artifacts
+-> install ordinary Livariant CLI
+-> provision protected Stage-A release material
+-> bootstrap Guardian from protected Stage-B bytes
+-> verify Guardian ready
 -> open project
 -> livariant first-run
 -> initialize deliberately if needed
 -> explicitly connect Claude Code or Codex through MCP
 -> work normally with the coding agent
--> agent uses Livariant tools when relevant
 ```
 
-The CLI remains important for setup, diagnosis, direct inspection, explicit control, and provider-independent workflows. But after an MCP-capable coding agent is connected, the user does **not** need to type a Livariant command into every normal interaction.
+The ordinary global CLI and the protected Guardian bootstrap source have separate trust roles. The CLI remains important for setup, diagnosis, direct inspection, explicit control, and provider-independent workflows, but it does not become a root of trust merely because it is globally installed.
 
-For example, the user can simply ask the coding agent to implement a feature and verify the requested outcomes. The agent can call Livariant through MCP and return the result in the normal conversation.
+After an MCP-capable coding agent is connected, the user does **not** need to type a Livariant command into every normal interaction. For example, the user can simply ask the coding agent to implement a feature and verify the requested outcomes. The agent can call Livariant through MCP and return the result in the normal conversation.
 
 ## The current reliability moment
 
-Current `main` exposes a read-only MCP tool:
+Current development exposes a read-only MCP tool:
 
 `livariant_verification_trace`
 
@@ -118,22 +121,24 @@ See [Verification Trace](docs/verification-trace.md).
 
 ## First Run
 
-The guided current-main entry point is:
+The guided entry point is:
 
 ```bash
 livariant first-run
 ```
 
-First Run starts with an interaction-language preference and can compose:
+The WP-044 remediation makes First Run state-aware across both project state and protected machine readiness. It can compose:
 
+- EN/DE interaction localization;
 - read-only project discovery;
 - Project Brain initialization assessment;
+- protected bootstrap / Guardian readiness assessment;
 - an Autonomy Profile choice;
 - optional external knowledge evidence;
 - Guided Project Understanding Review;
 - optional Claude Code or Codex MCP setup guidance.
 
-It ends with `Changes made: 0`. It does not silently initialize the project, configure the provider, adopt evidence, persist an Autonomy Profile, or grant Authority.
+First Run remains read-only. It does not silently initialize the project, configure the provider, adopt evidence, persist an Autonomy Profile, provision Guardian state, or grant Authority. If protected machine prerequisites are missing or unsafe, it must not direct the user straight to lifecycle authorization/application.
 
 See [First-Run Composition](docs/first-run.md).
 
@@ -141,7 +146,7 @@ See [First-Run Composition](docs/first-run.md).
 
 Installing Livariant and connecting a coding agent are separate operations.
 
-Current `main` can render provider-native setup guidance:
+Livariant can render provider-native setup guidance:
 
 ```bash
 livariant mcp setup --provider claude-code
@@ -190,7 +195,7 @@ Inspect
 -> Verify
 ```
 
-Current `main` includes protected Guardian-origin Authority for consequential consumers including semantic mutation authorization, Project Brain integrity protection, Runtime trust, and release authorization.
+Current development includes protected Guardian-origin Authority for consequential consumers including semantic mutation authorization, Project Brain integrity protection, Runtime trust, and release authorization.
 
 ## Existing projects first
 
@@ -208,7 +213,7 @@ Existing project files, provider instructions, external notes, and AI output mus
 
 ## External knowledge stays external until deliberately adopted
 
-Current `main` includes a foundation for treating supported external text/Markdown knowledge sources as separate provenance-aware evidence.
+Current development includes a foundation for treating supported external text/Markdown knowledge sources as separate provenance-aware evidence.
 
 ```text
 external knowledge
@@ -224,16 +229,14 @@ Future retrieval, relationship, graph, and token-efficiency work is intended to 
 
 ### Current published Public Preview
 
-`v0.1.0-rc.4` is the current published **Public Preview prerelease**. It includes the agent-native First Run/MCP workflow, Verification Trace, Active Project Intelligence foundations, external-knowledge foundations, Autonomy Profiles, and the Guardian/Self-Integrity hardening present in the qualified RC4 source.
+`v0.1.0-rc.4` is the current published **Public Preview prerelease**. It includes the agent-native First Run/MCP workflow, Verification Trace, Active Project Intelligence foundations, external-knowledge foundations, Autonomy Profiles, and the Guardian/Self-Integrity enforcement present in the qualified RC4 source.
 
-Install the verified RC4 release tarball:
+RC4 was qualified from exact source `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. Its installable CLI artifact SHA-256 is `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
 
-```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.4.tgz
-livariant version
-```
+> [!WARNING]
+> Real Windows Fresh-Install dogfooding found that the published RC4 distribution does **not** include/provision the protected Stage-A bootstrap source required before Guardian-backed first-project lifecycle authorization. Installing the RC4 `.tgz` alone therefore does not provide a complete safe fresh-machine -> first-project path. Do not bypass this by manually copying requester-controlled package files into protected system locations. See [Installation & First Project](docs/installation.md).
 
-RC4 was qualified from exact source `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. Its release artifact SHA-256 is `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
+The WP-044 remediation is being developed for the next qualified release that contains it. Repository code or documentation does not retroactively change RC4.
 
 ### Historical RC3 Foundation Preview
 
@@ -241,11 +244,13 @@ RC4 was qualified from exact source `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. 
 
 ### Current repository `main`
 
-At the time of RC4 publication, canonical `main` is the qualified RC4 source. Future repository development may move ahead again after new work is merged, so repository presence alone must still never be treated as release publication.
+At the time of RC4 publication, canonical `main` was the qualified RC4 source. Repository development may move ahead after later work is merged, so repository presence alone must never be treated as release publication.
 
 ### Future qualified releases
 
-A future release still requires its own exact-candidate CI/security/Self-Integrity qualification, appropriate user/reliability evidence, a release decision, and explicit publication Authority.
+A future release still requires its own exact-candidate CI/security/Self-Integrity qualification, real Fresh-Install evidence where required, release decision, and explicit publication Authority.
+
+The WP-044 release path additionally requires exact release assets, provenance attestations, protected Stage-A/Stage-B qualification, and a real Windows clean-state first-project path before GO.
 
 No README statement or CI result publishes a release automatically.
 
@@ -264,7 +269,7 @@ See [Privacy & Network Behavior](docs/privacy-and-network.md).
 
 ## Start here
 
-For the current Public Preview experience:
+For installation and current development truth:
 
 1. [Installation & First Project](docs/installation.md)
 2. [Five-Minute Quickstart](docs/quickstart.md)
