@@ -102,13 +102,14 @@ try {
   if (/\bsudo\b|\bpkexec\b/.test(linuxInstallerSource)) throw new Error("Linux Stage-A installer must not initiate privilege elevation itself.");
 
   const sums = await readFile(resolve(bundle, "SHA256SUMS"), "utf8");
-  const expectedChecksums = [
-    [observedSha, summary.artifact],
+  if (sums !== `${observedSha}  ${summary.artifact}\n`) throw new Error("SHA256SUMS no longer preserves the runtime package checksum contract.");
+  const protectedSums = await readFile(resolve(bundle, "PROTECTED-SHA256SUMS"), "utf8");
+  const expectedProtectedChecksums = [
     [protectedBootstrap.archive.sha256, protectedBootstrap.archive.filename],
     [protectedBootstrap.installers.win32.sha256, protectedBootstrap.installers.win32.filename],
     [protectedBootstrap.installers.linux.sha256, protectedBootstrap.installers.linux.filename],
   ].sort((a, b) => a[1].localeCompare(b[1])).map(([hash, filename]) => `${hash}  ${filename}`).join("\n") + "\n";
-  if (sums !== expectedChecksums) throw new Error("SHA256SUMS does not bind the complete installable release asset set.");
+  if (protectedSums !== expectedProtectedChecksums) throw new Error("PROTECTED-SHA256SUMS does not bind the complete Stage-A release asset set.");
 
   const protectedAssets = JSON.parse(await readFile(resolve(bundle, "protected-bootstrap-assets.json"), "utf8"));
   if (protectedAssets.sourceSha !== sourceSha || protectedAssets.version !== expectedVersion || protectedAssets.authorityIssued !== false) {
@@ -129,7 +130,7 @@ try {
     throw new Error(`Release-bundle consumer identity mismatch: ${JSON.stringify(version)}`);
   }
 
-  console.log(`Release bundle smoke passed for Livariant ${expectedVersion}: runtime and protected-bootstrap assets are exact-source bound, checksum-bound, installable inputs, and preserve the no-Authority Stage-A boundary.`);
+  console.log(`Release bundle smoke passed for Livariant ${expectedVersion}: runtime and protected-bootstrap assets are exact-source bound, separately checksum-bound, and preserve the no-Authority Stage-A boundary.`);
 } finally {
   await rm(temp, { recursive: true, force: true });
 }
