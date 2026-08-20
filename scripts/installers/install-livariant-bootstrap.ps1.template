@@ -1,0 +1,104 @@
+param(
+  [string]$ArchivePath = (Join-Path $PSScriptRoot '@@ARCHIVE@@'),
+  [switch]$Replace
+)
+$ErrorActionPreference = 'Stop'
+$ExpectedVersion = '@@VERSION@@'
+$ExpectedSourceSha = '@@SOURCE_SHA@@'
+$ExpectedArchiveSha256 = '@@ARCHIVE_SHA256@@'
+$Target = 'C:\Program Files\Livariant\Bootstrap\v1'
+$BootstrapParent = 'C:\Program Files\Livariant\Bootstrap'
+$LivariantProgramFiles = 'C:\Program Files\Livariant'
+$GuardianParent = 'C:\ProgramData\Livariant\Guardian'
+$LivariantProgramData = 'C:\ProgramData\Livariant'
+$Icacls = 'C:\Windows\System32\icacls.exe'
+$Tar = 'C:\Windows\System32\tar.exe'
+
+function Assert-Administrator {
+  $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+  if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw 'Livariant Stage-A installation requires an already elevated Administrator terminal. The installer does not initiate UAC elevation.'
+  }
+}
+
+function Assert-RealDirectory([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Container)) { throw "Required directory is missing: $Path" }
+  $item = Get-Item -LiteralPath $Path -Force
+  if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Directory must not be a reparse point: $Path" }
+}
+
+function Ensure-RealDirectory([string]$Path) {
+  if (Test-Path -LiteralPath $Path) { Assert-RealDirectory $Path; return }
+  New-Item -ItemType Directory -Path $Path | Out-Null
+  Assert-RealDirectory $Path
+}
+
+function Harden-LivariantTree([string]$Path) {
+  & $Icacls $Path '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' '/T' '/C' '/Q' | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "Failed to harden ACLs for $Path" }
+  & $Icacls $Path '/setowner' '*S-1-5-32-544' '/T' '/C' '/Q' | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "Failed to set protected owner for $Path" }
+}
+
+function Assert-DescriptorFiles([string]$Root) {
+  $descriptorPath = Join-Path $Root 'bootstrap-release.json'
+  if (-not (Test-Path -LiteralPath $descriptorPath -PathType Leaf)) { throw 'Protected bootstrap release descriptor is missing.' }
+  $descriptor = Get-Content -LiteralPath $descriptorPath -Raw | ConvertFrom-Json
+  if ($descriptor.schemaVersion -ne 1 -or $descriptor.kind -ne 'livariant-protected-bootstrap-release') { throw 'Protected bootstrap release descriptor schema mismatch.' }
+  if ($descriptor.version -ne $ExpectedVersion -or $descriptor.sourceSha -ne $ExpectedSourceSha) { throw 'Protected bootstrap release identity mismatch.' }
+  foreach ($file in $descriptor.files) {
+    $relative = [string]$file.path
+    if ($relative.Contains('..') -or $relative.StartsWith('/') -or $relative.Contains('\')) { throw "Unsafe descriptor path: $relative" }
+    $candidate = Join-Path $Root ($relative -replace '/', '\')
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw "Protected bootstrap file is missing: $relative" }
+    $item = Get-Item -LiteralPath $candidate -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Protected bootstrap file must not be a reparse point: $relative" }
+    $observed = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($observed -ne ([string]$file.sha256).ToLowerInvariant()) { throw "Protected bootstrap file digest mismatch: $relative" }
+  }
+}
+
+Assert-Administrator
+if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { throw "Protected bootstrap archive is missing: $ArchivePath" }
+$archiveHash = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($archiveHash -ne $ExpectedArchiveSha256) { throw "Protected bootstrap archive SHA-256 mismatch. Expected $ExpectedArchiveSha256, observed $archiveHash" }
+if (-not (Test-Path -LiteralPath $Tar -PathType Leaf)) { throw 'Windows system tar.exe is required for Stage-A installation.' }
+
+$temp = Join-Path ([IO.Path]::GetTempPath()) ('livariant-stage-a-' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $temp | Out-Null
+try {
+  & $Tar -xzf $ArchivePath -C $temp
+  if ($LASTEXITCODE -ne 0) { throw 'Failed to extract protected bootstrap archive.' }
+  $packageRoot = Join-Path $temp 'package'
+  Assert-RealDirectory $packageRoot
+  Assert-DescriptorFiles $packageRoot
+
+  Ensure-RealDirectory $LivariantProgramFiles
+  Ensure-RealDirectory $BootstrapParent
+  if (Test-Path -LiteralPath $Target) {
+    Assert-RealDirectory $Target
+    if (-not $Replace) { throw "Protected bootstrap source already exists at $Target. Re-run with -Replace only for an explicit verified release transition." }
+    $backup = Join-Path $BootstrapParent ('v1.previous-' + (Get-Date -Format 'yyyyMMddHHmmss'))
+    Move-Item -LiteralPath $Target -Destination $backup
+    Harden-LivariantTree $backup
+  }
+  New-Item -ItemType Directory -Path $Target | Out-Null
+  Copy-Item -Path (Join-Path $packageRoot '*') -Destination $Target -Recurse -Force
+  Assert-DescriptorFiles $Target
+  Harden-LivariantTree $LivariantProgramFiles
+
+  Ensure-RealDirectory $LivariantProgramData
+  Ensure-RealDirectory $GuardianParent
+  Harden-LivariantTree $LivariantProgramData
+  Assert-DescriptorFiles $Target
+
+  Write-Output 'Livariant protected Stage-A installation complete.'
+  Write-Output "Release: $ExpectedVersion"
+  Write-Output "Source SHA: $ExpectedSourceSha"
+  Write-Output "Protected source: $Target"
+  Write-Output "Guardian parent prepared: $GuardianParent"
+  Write-Output 'Authority issued: no'
+  Write-Output 'Next: close this Administrator terminal, run `livariant guardian status` from an ordinary terminal, then use the protected Stage-B launcher shown there.'
+} finally {
+  Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+}
