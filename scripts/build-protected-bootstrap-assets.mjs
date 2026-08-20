@@ -52,184 +52,11 @@ function portableRelative(base, path) {
   return rel.split(sep).join("/");
 }
 
-function windowsInstaller({ version, sourceSha, archive, archiveSha256 }) {
-  return `param(
-  [string]$ArchivePath = (Join-Path $PSScriptRoot '${archive}'),
-  [switch]$Replace
-)
-$ErrorActionPreference = 'Stop'
-$ExpectedVersion = '${version}'
-$ExpectedSourceSha = '${sourceSha}'
-$ExpectedArchiveSha256 = '${archiveSha256}'
-$Target = 'C:\\Program Files\\Livariant\\Bootstrap\\v1'
-$BootstrapParent = 'C:\\Program Files\\Livariant\\Bootstrap'
-$LivariantProgramFiles = 'C:\\Program Files\\Livariant'
-$GuardianParent = 'C:\\ProgramData\\Livariant\\Guardian'
-$LivariantProgramData = 'C:\\ProgramData\\Livariant'
-$Icacls = 'C:\\Windows\\System32\\icacls.exe'
-$Tar = 'C:\\Windows\\System32\\tar.exe'
-
-function Assert-Administrator {
-  $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-  if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw 'Livariant Stage-A installation requires an already elevated Administrator terminal. The installer does not initiate UAC elevation.'
-  }
-}
-
-function Assert-RealDirectory([string]$Path) {
-  if (-not (Test-Path -LiteralPath $Path -PathType Container)) { throw "Required directory is missing: $Path" }
-  $item = Get-Item -LiteralPath $Path -Force
-  if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Directory must not be a reparse point: $Path" }
-}
-
-function Ensure-RealDirectory([string]$Path) {
-  if (Test-Path -LiteralPath $Path) { Assert-RealDirectory $Path; return }
-  New-Item -ItemType Directory -Path $Path | Out-Null
-  Assert-RealDirectory $Path
-}
-
-function Harden-LivariantTree([string]$Path) {
-  & $Icacls $Path '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' '/T' '/C' '/Q' | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "Failed to harden ACLs for $Path" }
-  & $Icacls $Path '/setowner' '*S-1-5-32-544' '/T' '/C' '/Q' | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "Failed to set protected owner for $Path" }
-}
-
-function Assert-DescriptorFiles([string]$Root) {
-  $descriptorPath = Join-Path $Root 'bootstrap-release.json'
-  if (-not (Test-Path -LiteralPath $descriptorPath -PathType Leaf)) { throw 'Protected bootstrap release descriptor is missing.' }
-  $descriptor = Get-Content -LiteralPath $descriptorPath -Raw | ConvertFrom-Json
-  if ($descriptor.schemaVersion -ne 1 -or $descriptor.kind -ne 'livariant-protected-bootstrap-release') { throw 'Protected bootstrap release descriptor schema mismatch.' }
-  if ($descriptor.version -ne $ExpectedVersion -or $descriptor.sourceSha -ne $ExpectedSourceSha) { throw 'Protected bootstrap release identity mismatch.' }
-  foreach ($file in $descriptor.files) {
-    $relative = [string]$file.path
-    if ($relative.Contains('..') -or $relative.StartsWith('/') -or $relative.Contains('\\')) { throw "Unsafe descriptor path: $relative" }
-    $candidate = Join-Path $Root ($relative -replace '/', '\\')
-    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw "Protected bootstrap file is missing: $relative" }
-    $item = Get-Item -LiteralPath $candidate -Force
-    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Protected bootstrap file must not be a reparse point: $relative" }
-    $observed = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($observed -ne ([string]$file.sha256).ToLowerInvariant()) { throw "Protected bootstrap file digest mismatch: $relative" }
-  }
-}
-
-Assert-Administrator
-if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { throw "Protected bootstrap archive is missing: $ArchivePath" }
-$archiveHash = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($archiveHash -ne $ExpectedArchiveSha256) { throw "Protected bootstrap archive SHA-256 mismatch. Expected $ExpectedArchiveSha256, observed $archiveHash" }
-if (-not (Test-Path -LiteralPath $Tar -PathType Leaf)) { throw 'Windows system tar.exe is required for Stage-A installation.' }
-
-$temp = Join-Path ([IO.Path]::GetTempPath()) ('livariant-stage-a-' + [Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $temp | Out-Null
-try {
-  & $Tar -xzf $ArchivePath -C $temp
-  if ($LASTEXITCODE -ne 0) { throw 'Failed to extract protected bootstrap archive.' }
-  $packageRoot = Join-Path $temp 'package'
-  Assert-RealDirectory $packageRoot
-  Assert-DescriptorFiles $packageRoot
-
-  Ensure-RealDirectory $LivariantProgramFiles
-  Ensure-RealDirectory $BootstrapParent
-  if (Test-Path -LiteralPath $Target) {
-    Assert-RealDirectory $Target
-    if (-not $Replace) { throw "Protected bootstrap source already exists at $Target. Re-run with -Replace only for an explicit verified release transition." }
-    $backup = Join-Path $BootstrapParent ('v1.previous-' + (Get-Date -Format 'yyyyMMddHHmmss'))
-    Move-Item -LiteralPath $Target -Destination $backup
-    Harden-LivariantTree $backup
-  }
-  New-Item -ItemType Directory -Path $Target | Out-Null
-  Copy-Item -Path (Join-Path $packageRoot '*') -Destination $Target -Recurse -Force
-  Assert-DescriptorFiles $Target
-  Harden-LivariantTree $LivariantProgramFiles
-
-  Ensure-RealDirectory $LivariantProgramData
-  Ensure-RealDirectory $GuardianParent
-  Harden-LivariantTree $LivariantProgramData
-  Assert-DescriptorFiles $Target
-
-  Write-Output 'Livariant protected Stage-A installation complete.'
-  Write-Output "Release: $ExpectedVersion"
-  Write-Output "Source SHA: $ExpectedSourceSha"
-  Write-Output "Protected source: $Target"
-  Write-Output "Guardian parent prepared: $GuardianParent"
-  Write-Output 'Authority issued: no'
-  Write-Output 'Next: close this Administrator terminal, run `livariant guardian status` from an ordinary terminal, then use the protected Stage-B launcher shown there.'
-} finally {
-  Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
-}
-`;
-}
-
-function linuxInstaller({ version, sourceSha, archive, archiveSha256 }) {
-  return `#!/usr/bin/env sh
-set -eu
-EXPECTED_VERSION='${version}'
-EXPECTED_SOURCE_SHA='${sourceSha}'
-EXPECTED_ARCHIVE_SHA256='${archiveSha256}'
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ARCHIVE="$SCRIPT_DIR/${archive}"
-REPLACE=0
-if [ "${1:-}" = "--replace" ]; then REPLACE=1; shift; fi
-if [ "$#" -gt 0 ]; then ARCHIVE="$1"; shift; fi
-if [ "$#" -ne 0 ]; then echo 'usage: install-livariant-bootstrap.sh [--replace] [archive]' >&2; exit 2; fi
-TARGET='/opt/livariant/bootstrap/v1'
-BOOTSTRAP_PARENT='/opt/livariant/bootstrap'
-LIVARIANT_OPT='/opt/livariant'
-GUARDIAN_PARENT='/var/lib/livariant-guardian'
-
-if [ "$(id -u)" -ne 0 ]; then
-  echo 'Livariant Stage-A installation requires an already privileged root terminal. The installer does not initiate sudo/pkexec elevation.' >&2
-  exit 1
-fi
-if [ ! -f "$ARCHIVE" ] || [ -L "$ARCHIVE" ]; then echo "Protected bootstrap archive is missing or unsafe: $ARCHIVE" >&2; exit 1; fi
-OBSERVED=$(sha256sum "$ARCHIVE" | awk '{print $1}')
-if [ "$OBSERVED" != "$EXPECTED_ARCHIVE_SHA256" ]; then
-  echo "Protected bootstrap archive SHA-256 mismatch. Expected $EXPECTED_ARCHIVE_SHA256, observed $OBSERVED" >&2
-  exit 1
-fi
-TMP=$(mktemp -d /tmp/livariant-stage-a.XXXXXX)
-trap 'rm -rf "$TMP"' EXIT INT TERM
-
-tar -xzf "$ARCHIVE" -C "$TMP"
-PACKAGE_ROOT="$TMP/package"
-for required in bootstrap-release.json guardian-bootstrap-entry.mjs guardian-bootstrap dist/src/guardian/bootstrap.js dist/src/guardian/protected-helper.js; do
-  if [ ! -f "$PACKAGE_ROOT/$required" ] || [ -L "$PACKAGE_ROOT/$required" ]; then
-    echo "Protected bootstrap archive is missing required regular file: $required" >&2
-    exit 1
-  fi
-done
-
-mkdir -p "$LIVARIANT_OPT" "$BOOTSTRAP_PARENT" "$GUARDIAN_PARENT"
-if [ -e "$TARGET" ]; then
-  if [ -L "$TARGET" ] || [ ! -d "$TARGET" ]; then echo "Existing protected bootstrap target is unsafe: $TARGET" >&2; exit 1; fi
-  if [ "$REPLACE" -ne 1 ]; then
-    echo "Protected bootstrap source already exists at $TARGET. Re-run with --replace only for an explicit verified release transition." >&2
-    exit 1
-  fi
-  BACKUP="$BOOTSTRAP_PARENT/v1.previous-$(date -u +%Y%m%d%H%M%S)"
-  mv "$TARGET" "$BACKUP"
-  chown -R 0:0 "$BACKUP"
-  find "$BACKUP" -type d -exec chmod 755 {} +
-  find "$BACKUP" -type f -exec chmod 444 {} +
-  [ ! -f "$BACKUP/guardian-bootstrap" ] || chmod 555 "$BACKUP/guardian-bootstrap"
-fi
-mkdir "$TARGET"
-cp -R "$PACKAGE_ROOT/." "$TARGET/"
-chown -R 0:0 "$LIVARIANT_OPT" "$GUARDIAN_PARENT"
-chmod 755 "$LIVARIANT_OPT" "$BOOTSTRAP_PARENT" "$TARGET" "$GUARDIAN_PARENT"
-find "$TARGET" -type d -exec chmod 755 {} +
-find "$TARGET" -type f -exec chmod 444 {} +
-chmod 555 "$TARGET/guardian-bootstrap"
-
-printf '%s\n' \
-  'Livariant protected Stage-A installation complete.' \
-  "Release: $EXPECTED_VERSION" \
-  "Source SHA: $EXPECTED_SOURCE_SHA" \
-  "Protected source: $TARGET" \
-  "Guardian parent prepared: $GUARDIAN_PARENT" \
-  'Authority issued: no' \
-  'Next: close this root terminal, run `livariant guardian status` as the ordinary user, then use the protected Stage-B launcher shown there.'
-`;
+function renderTemplate(template, values) {
+  let rendered = template;
+  for (const [name, value] of Object.entries(values)) rendered = rendered.replaceAll(`@@${name}@@`, String(value));
+  if (/@@[A-Z0-9_]+@@/.test(rendered)) throw new Error("Protected bootstrap installer template contains an unresolved placeholder.");
+  return rendered;
 }
 
 const sourceId = option("--source-id");
@@ -259,9 +86,27 @@ try {
     files: ["dist/src", "bootstrap-release.json", "guardian-bootstrap-entry.mjs", "guardian-bootstrap.ps1", "guardian-bootstrap"],
   }, null, 2)}\n`);
 
-  await writeFile(resolve(staging, "guardian-bootstrap-entry.mjs"), `import { bootstrapProductionGuardian } from "./dist/src/guardian/bootstrap.js";\ntry {\n  const result = await bootstrapProductionGuardian();\n  console.log("Livariant Guardian bootstrap");\n  console.log(\`State: \${result.state}\`);\n  console.log(\`Platform: \${result.platform}\`);\n  console.log(\`Root: \${result.root}\`);\n  console.log(\`Helper SHA-256: \${result.helperSha256}\`);\n  console.log("Authority issued: no");\n  console.log(\`Changes made: \${result.changesMade}\`);\n  console.log(\`Next: \${result.nextStep}\`);\n} catch (error) {\n  console.error(\`Runtime error: \${error instanceof Error ? error.message : String(error)}\`);\n  process.exitCode = 1;\n}\n`);
-  await writeFile(resolve(staging, "guardian-bootstrap.ps1"), `$ErrorActionPreference = 'Stop'\n$Node = (Get-Command node.exe -ErrorAction Stop).Source\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n`);
-  await writeFile(resolve(staging, "guardian-bootstrap"), `#!/usr/bin/env sh\nset -eu\nROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nNODE=$(command -v node)\nexec "$NODE" "$ROOT/guardian-bootstrap-entry.mjs"\n`);
+  const entry = [
+    'import { bootstrapProductionGuardian } from "./dist/src/guardian/bootstrap.js";',
+    "try {",
+    "  const result = await bootstrapProductionGuardian();",
+    '  console.log("Livariant Guardian bootstrap");',
+    '  console.log(`State: ${result.state}`);',
+    '  console.log(`Platform: ${result.platform}`);',
+    '  console.log(`Root: ${result.root}`);',
+    '  console.log(`Helper SHA-256: ${result.helperSha256}`);',
+    '  console.log("Authority issued: no");',
+    '  console.log(`Changes made: ${result.changesMade}`);',
+    '  console.log(`Next: ${result.nextStep}`);',
+    "} catch (error) {",
+    '  console.error(`Runtime error: ${error instanceof Error ? error.message : String(error)}`);',
+    "  process.exitCode = 1;",
+    "}",
+    "",
+  ].join("\n");
+  await writeFile(resolve(staging, "guardian-bootstrap-entry.mjs"), entry);
+  await writeFile(resolve(staging, "guardian-bootstrap.ps1"), "$ErrorActionPreference = 'Stop'\n$Node = (Get-Command node.exe -ErrorAction Stop).Source\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n");
+  await writeFile(resolve(staging, "guardian-bootstrap"), "#!/usr/bin/env sh\nset -eu\nROOT=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nNODE=$(command -v node)\nexec \"$NODE\" \"$ROOT/guardian-bootstrap-entry.mjs\"\n");
   await chmod(resolve(staging, "guardian-bootstrap"), 0o755);
 
   const hashedFiles = [];
@@ -283,17 +128,23 @@ try {
 
   const packed = runNpm(["pack", "--json", "--ignore-scripts", "--pack-destination", output], staging);
   const packResult = JSON.parse(packed.stdout)?.[0];
-  if (!packResult || packResult.name !== "livariant-protected-bootstrap" || packResult.version !== version) {
-    throw new Error("Protected bootstrap npm pack identity mismatch.");
-  }
+  if (!packResult || packResult.name !== "livariant-protected-bootstrap" || packResult.version !== version) throw new Error("Protected bootstrap npm pack identity mismatch.");
   const archive = packResult.filename;
   const archivePath = resolve(output, archive);
   const archiveSha256 = sha256(await readFile(archivePath));
 
+  const templateValues = {
+    VERSION: version,
+    SOURCE_SHA: sourceSha,
+    ARCHIVE: archive,
+    ARCHIVE_SHA256: archiveSha256,
+  };
+  const windowsTemplate = await readFile(resolve(root, "scripts", "installers", "install-livariant-bootstrap.ps1.template"), "utf8");
+  const linuxTemplate = await readFile(resolve(root, "scripts", "installers", "install-livariant-bootstrap.sh.template"), "utf8");
   const windowsName = `install-livariant-bootstrap-${version}.ps1`;
   const linuxName = `install-livariant-bootstrap-${version}.sh`;
-  await writeFile(resolve(output, windowsName), windowsInstaller({ version, sourceSha, archive, archiveSha256 }));
-  await writeFile(resolve(output, linuxName), linuxInstaller({ version, sourceSha, archive, archiveSha256 }));
+  await writeFile(resolve(output, windowsName), renderTemplate(windowsTemplate, templateValues));
+  await writeFile(resolve(output, linuxName), renderTemplate(linuxTemplate, templateValues));
   await chmod(resolve(output, linuxName), 0o755);
 
   const assets = {
