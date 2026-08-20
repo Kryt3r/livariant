@@ -99,7 +99,11 @@ try {
   if (/Start-Process[^\n]*-Verb\s+RunAs/i.test(windowsInstallerSource)) throw new Error("Windows Stage-A installer must not initiate UAC elevation itself.");
   const linuxInstallerSource = await readFile(resolve(bundle, protectedBootstrap.installers.linux.filename), "utf8");
   if (!linuxInstallerSource.includes("/opt/livariant/bootstrap/v1")) throw new Error("Linux installer does not target the fixed protected bootstrap source root.");
-  if (/\bsudo\b|\bpkexec\b/.test(linuxInstallerSource)) throw new Error("Linux Stage-A installer must not initiate privilege elevation itself.");
+  // Security prose may explicitly mention sudo/pkexec to say they are *not* invoked.
+  // Reject only executable command-shaped use, matching the dedicated installer contract tests.
+  if (/(^|[;&|()]\s*)sudo\s/m.test(linuxInstallerSource) || /(^|[;&|()]\s*)pkexec\s/m.test(linuxInstallerSource)) {
+    throw new Error("Linux Stage-A installer must not initiate privilege elevation itself.");
+  }
 
   const sums = await readFile(resolve(bundle, "SHA256SUMS"), "utf8");
   if (sums !== `${observedSha}  ${summary.artifact}\n`) throw new Error("SHA256SUMS no longer preserves the runtime package checksum contract.");
