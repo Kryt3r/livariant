@@ -54,7 +54,7 @@ test("RC qualification requires signed provenance for installable release inputs
   const workflow = await source(".github/workflows/rc-bundle.yml");
   assert.match(workflow, /attestations:\s*write/);
   assert.match(workflow, /id-token:\s*write/);
-  assert.match(workflow, /actions\/attest@a1948c3f048ba23858d222213b7c278aabede763\s+# v4\.1\.1/);
+  assert.match(workflow, /actions\/attest@1e69f48acb82d1966a394da916b4c1698aa569d6\s+# v4\.2\.2/);
   for (const subject of [
     "release-manifest.json",
     "SHA256SUMS",
