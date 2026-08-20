@@ -8,14 +8,52 @@ Livariant führt Updates, Schema-Migrationen und Wiederherstellung über die ins
 
 `--apply` drückt die Absicht aus, eine bereits geprüfte Lifecycle-Operation auszuführen. Das Flag ist **nicht** selbst Lifecycle Authority.
 
+## Geschützte Maschinenbasis besitzt einen getrennten Lifecycle
+
+Der Lifecycle des normalen CLI-Pakets und der Lifecycle der geschützten Guardian-Bootstrap-Basis sind bewusst getrennt.
+
+Für einen frischen unterstützten Windows-/Linux-Rechner muss die geschützte Basis bereits hergestellt sein, bevor Guardian-gestützte Projekt-Lifecycle-Autorisierung funktionieren kann:
+
+```text
+verifiziertes qualifiziertes Release
+-> normale CLI-Installation
+-> geschützte Stage-A-Provisionierung
+-> geschützter Stage-B-Guardian-Bootstrap
+-> guardian status: ready
+-> Projekt-Lifecycle-Autorisierung/-Anwendung
+```
+
+Die globale npm-CLI zu installieren oder zu aktualisieren erstellt, ersetzt oder autorisiert die geschützte Bootstrap-Quelle nicht stillschweigend.
+
+Die geschützte Stage-A-Quelle ist releasegebundener System-State:
+
+```text
+Windows: C:\Program Files\Livariant\Bootstrap\v1
+Linux:   /opt/livariant/bootstrap/v1
+```
+
+Eine bereits vorhandene geschützte Quelle wird nicht überschrieben, nur weil ein neues CLI-Paket installiert wurde. Ihr Austausch erfordert ein separat verifiziertes qualifiziertes Release und einen expliziten Stage-A-Release-Übergang (`-Replace` unter Windows bzw. `--replace` unter Linux im WP-044-Installer-Design).
+
+Dieser Austausch:
+
+- verifiziert vor Privilegierung das neue Release/die Provenance und den exakten geschützten Payload;
+- hält normale CLI-Bytes und geschützte Bootstrap-Bytes in getrennten Rollen;
+- bewahrt die vorherige geschützte Quelle als Transition-Evidenz, statt Ersatzbytes still zu segnen;
+- vergibt keine Mutation-, Runtime-, Integrity- oder Release-Authority;
+- verändert Project-Brain-State nicht nur deshalb, weil sich geschütztes Maschinen-Tooling geändert hat.
+
+Das Entfernen der normalen npm-CLI darf die geschützte Bootstrap-Quelle, Guardian-Records/-State, Runtime-Trust-Evidenz, Release-Authorization-Evidenz oder Projektstate nicht still löschen. Umgekehrt ist das Entfernen geschützten Systemstates eine ausdrückliche Systemadministrationsoperation und kein npm-Uninstall-Nebeneffekt.
+
+Der genaue Fresh-Install-/Stage-A-/Stage-B-Pfad steht unter [Installation & erstes Projekt](installation.md).
+
 ## Der Lifecycle-Autorisierungsablauf
 
 Für Initialisierung, Updates/Migrationen und Recovery gelten drei getrennte Phasen:
 
 ```text
 planen / prüfen
-→ --authorize
-→ --apply
+-> --authorize
+-> --apply
 ```
 
 `--authorize` und `--apply` dürfen nicht in derselben Invocation kombiniert werden.
@@ -34,7 +72,7 @@ Prüfe zuerst den aktuellen Initialisierungsplan:
 livariant init
 ```
 
-Fordere erst nach der Prüfung exakte Lifecycle Authority an:
+Fordere erst nach der Prüfung und erst nach bestätigter Readiness durch `livariant guardian status` exakte Lifecycle Authority an:
 
 ```bash
 livariant init --authorize
@@ -48,6 +86,8 @@ livariant init --apply
 
 Ändert sich der Projektzustand zwischen Autorisierung und Anwendung, passt das gebundene Material nicht mehr und Livariant bricht ab, statt veraltete Authority wiederzuverwenden.
 
+Auf einem frischen Rechner ist ein fehlgeschlagenes `init --authorize` keine Aufforderung, Guardian zu umgehen. First Run und `guardian status` sollen fehlende Stage-A-/Stage-B-Voraussetzungen anzeigen, bevor dieser Punkt erreicht wird.
+
 ## Update zuerst planen
 
 Verwende das Release-Manifest aus der kanonischen Livariant-Release-Quelle:
@@ -57,6 +97,8 @@ livariant update --manifest ./release-manifest.json
 ```
 
 Der Plan zeigt Quell- und Zielversion, Update-Channel, Source-ID, Artefaktidentität und SHA-256, Auswirkungen auf das Projekt sowie den Bedarf an Migration oder Checkpoint. Während der Planung werden keine Änderungen angewendet.
+
+Ein Release-Manifest kann zusätzlich Protected-Bootstrap-Distributionsartefakte beschreiben. Diese gehören zum getrennten geschützten Maschinen-Lifecycle oben; ihre Manifest-Präsenz macht weder Projekt-Lifecycle-Authority noch Runtime Trust implizit.
 
 ## Geprüftes Update autorisieren
 
@@ -90,17 +132,17 @@ Der sichere normale Ablauf ist konzeptionell:
 
 ```text
 Zielrelease auflösen und prüfen
-→ exakte geschützte Lifecycle Authority ausstellen
-→ denselben Plan erneut auflösen
-→ exakte Lifecycle Authority verbrauchen
-→ Release-Identität und Trusted Source prüfen
-→ Artefakt-SHA-256 sowie geschützte Release-/Runtime-Trust-Grenzen prüfen
-→ Ziel-Runtime ohne Lifecycle-Skripte installieren
-→ gebundene Release-Evidence schreiben und prüfen
-→ installierten Runtime-Baum messen
-→ Candidate-Runtime-Attestation erst nach Trust ausführen
-→ Lifecycle- und Preservation-Bedingungen erneut prüfen
-→ kanonischen Project-Brain-Framework-Pin committen
+-> exakte geschützte Lifecycle Authority ausstellen
+-> denselben Plan erneut auflösen
+-> exakte Lifecycle Authority verbrauchen
+-> Release-Identität und Trusted Source prüfen
+-> Artefakt-SHA-256 sowie geschützte Release-/Runtime-Trust-Grenzen prüfen
+-> Ziel-Runtime ohne Lifecycle-Skripte installieren
+-> gebundene Release-Evidence schreiben und prüfen
+-> installierten Runtime-Baum messen
+-> Candidate-Runtime-Attestation erst nach Trust ausführen
+-> Lifecycle- und Preservation-Bedingungen erneut prüfen
+-> kanonischen Project-Brain-Framework-Pin committen
 ```
 
 Der Framework-Pin im Project Brain ist die finale Aktivierungsentscheidung. Eine neuere Runtime ist nicht automatisch aktiv, nur weil sie bereits auf der Festplatte liegt.
@@ -115,7 +157,7 @@ Der Einstieg bleibt derselbe Plan-Befehl:
 livariant update --manifest ./release-manifest.json
 ```
 
-Fehlt ein unterstützter oder vollständiger Migrationspfad, bricht Livariant geschlossen ab. Die aktuelle ausführbare Preview-Baseline weist einen expliziten Schema-Migrationspfad nach: Project Brain `1 → 2`.
+Fehlt ein unterstützter oder vollständiger Migrationspfad, bricht Livariant geschlossen ab. Die aktuelle ausführbare Preview-Baseline weist einen expliziten Schema-Migrationspfad nach: Project Brain `1 -> 2`.
 
 ## Was bei einer unterbrochenen Migration passiert
 
@@ -167,20 +209,32 @@ One-Shot-Lifecycle-Authority ist nach geschütztem Verbrauch nicht wiederverwend
 
 Eine bereits installierte Ziel-Runtime darf nur wiederverwendet werden, wenn alle gebundenen Release-Evidence weiterhin exakt übereinstimmt: Version, Channel, Source-ID, Artefakt-ID, Artefakt-Digest, Paketidentität, Integrität des installierten Paketbaums und geschützter Runtime Trust.
 
-## Keine manuelle Reparatur
+## Lifecycle- oder Protected-State nicht manuell reparieren
 
 > [!CAUTION]
-> Ersetze Project Brain, Livariant-verwalteten Lifecycle-State, Guardian-Records, Runtime-Trust-Records oder Release-Authorization-Records niemals manuell, um ein Update abzuschließen oder zu reparieren.
+> Ersetze Project Brain, Livariant-verwalteten Lifecycle-State, geschützte Bootstrap-Dateien, Guardian-Records, Runtime-Trust-Records oder Release-Authorization-Records niemals manuell, um ein Update abzuschließen oder zu reparieren.
 
-Dadurch würden Kompatibilität, Authority, Checkpoints, Replay-Sicherheit, Integritätsprüfung und Aktivierungssemantik umgangen. Wenn der Zustand unklar ist, beginne mit:
+Dadurch würden Kompatibilität, Authority, Release-Provenance, OS-Schutz, Checkpoints, Replay-Sicherheit, Integritätsprüfung und Aktivierungssemantik umgangen. Ein geschützt wirkender Pfad ist nicht allein deshalb vertrauenswürdig, weil dort Dateien liegen.
+
+Wenn Projekt-Lifecycle-State unklar ist, beginne mit:
 
 ```bash
 livariant doctor
 livariant recover
 ```
 
+Wenn geschützter Maschinen-State unklar ist, prüfe ihn read-only mit:
+
+```bash
+livariant guardian status
+```
+
+Ein `unsafe`-Zustand ist eine Stop-Bedingung und kein automatisches Reparaturziel.
+
 ## Preview-Distribution
 
-Der unterstützte Preview-Distributionsweg ist das kanonische `Kryt3r/livariant` GitHub Release. Das Release stellt Paket, `release-manifest.json` und `SHA256SUMS` für den exakten Candidate bereit.
+Das aktuell veröffentlichte `v0.1.0-rc.4` bleibt historische Release-Truth: Sein normales CLI-Artefakt wurde qualifiziert, aber seine öffentliche Distribution erfüllt die beim Windows-Dogfooding entdeckte Protected-Stage-A-Fresh-Install-Voraussetzung nicht vollständig.
 
-Die initiale CLI-Installation ist unter [Installation & erstes Projekt](installation.md) beschrieben. Die Veröffentlichung eines Releases erlaubt projektkontrolliertem Input nicht, Lifecycle-, Release- oder Runtime-Authority selbst zu erzeugen.
+Ein zukünftiges qualifiziertes Release mit WP-044 muss normales CLI-Paket, Protected-Bootstrap-Paket, plattformspezifische Stage-A-Installer, Release-Manifest/Prüfsummen und Provenance-Evidenz bewusst durch den GitHub-Release-Asset-Pfad tragen. GitHub-generierte Source-Archive sind keine installierbaren Livariant-Pakete.
+
+Initiale Installation und Provenance-Prüfung sind unter [Installation & erstes Projekt](installation.md) beschrieben. Veröffentlichung oder Installation eines Releases erlaubt projektkontrolliertem Input nicht, Lifecycle-, Release-, Runtime- oder Guardian-Authority selbst zu erzeugen.
