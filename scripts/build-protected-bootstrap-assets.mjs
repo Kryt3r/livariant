@@ -105,8 +105,18 @@ try {
     "",
   ].join("\n");
   await writeFile(resolve(staging, "guardian-bootstrap-entry.mjs"), entry);
-  await writeFile(resolve(staging, "guardian-bootstrap.ps1"), "$ErrorActionPreference = 'Stop'\n$Node = (Get-Command node.exe -ErrorAction Stop).Source\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n");
-  await writeFile(resolve(staging, "guardian-bootstrap"), "#!/usr/bin/env sh\nset -eu\nROOT=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nNODE=$(command -v node)\nexec \"$NODE\" \"$ROOT/guardian-bootstrap-entry.mjs\"\n");
+
+  // Stage B must never resolve its privileged interpreter from ambient PATH.
+  // Stage A verifies these fixed OS-protected paths before this launcher is used;
+  // bootstrap.ts re-verifies the same interpreter chain in-process as defense-in-depth.
+  await writeFile(
+    resolve(staging, "guardian-bootstrap.ps1"),
+    "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\nodejs\\node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Node executable is missing. Re-run the verified Stage-A installer after installing system-wide Node.js 20+.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n",
+  );
+  await writeFile(
+    resolve(staging, "guardian-bootstrap"),
+    "#!/usr/bin/env sh\nset -eu\nROOT=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\nNODE='/usr/bin/node'\nif [ ! -f \"$NODE\" ] || [ -L \"$NODE\" ]; then echo 'Protected Node executable is missing or redirected. Re-run the verified Stage-A installer after installing system-wide Node.js 20+.' >&2; exit 1; fi\nexec \"$NODE\" \"$ROOT/guardian-bootstrap-entry.mjs\"\n",
+  );
   await chmod(resolve(staging, "guardian-bootstrap"), 0o755);
 
   const hashedFiles = [];
