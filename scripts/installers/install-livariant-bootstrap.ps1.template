@@ -15,7 +15,6 @@ $ProtectedNode = 'C:\Program Files\nodejs\node.exe'
 $ProtectedNodeParent = 'C:\Program Files\nodejs'
 $ProgramFilesAnchor = 'C:\Program Files'
 $DriveAnchor = 'C:\'
-$Icacls = 'C:\Windows\System32\icacls.exe'
 $Tar = 'C:\Windows\System32\tar.exe'
 $SystemSid = 'S-1-5-18'
 $AdministratorsSid = 'S-1-5-32-544'
@@ -117,11 +116,59 @@ function Assert-ProtectedNodeChain {
   if ([int]$Matches[1] -lt 20) { throw "Protected Node.js 20+ is required; observed $nodeVersion." }
 }
 
+function Set-ProtectedDirectoryAcl([string]$Path) {
+  $system = New-Object System.Security.Principal.SecurityIdentifier($SystemSid)
+  $admins = New-Object System.Security.Principal.SecurityIdentifier($AdministratorsSid)
+  $users = New-Object System.Security.Principal.SecurityIdentifier($UsersSid)
+  $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+  $none = [System.Security.AccessControl.PropagationFlags]::None
+  $allow = [System.Security.AccessControl.AccessControlType]::Allow
+  $acl = New-Object System.Security.AccessControl.DirectorySecurity
+  $acl.SetOwner($admins)
+  $acl.SetAccessRuleProtection($true, $false)
+  $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $inherit, $none, $allow)))
+  $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $inherit, $none, $allow)))
+  $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $inherit, $none, $allow)))
+  [System.IO.Directory]::SetAccessControl($Path, $acl)
+}
+
+function Set-ProtectedFileAcl([string]$Path) {
+  $system = New-Object System.Security.Principal.SecurityIdentifier($SystemSid)
+  $admins = New-Object System.Security.Principal.SecurityIdentifier($AdministratorsSid)
+  $users = New-Object System.Security.Principal.SecurityIdentifier($UsersSid)
+  $allow = [System.Security.AccessControl.AccessControlType]::Allow
+  $acl = New-Object System.Security.AccessControl.FileSecurity
+  $acl.SetOwner($admins)
+  $acl.SetAccessRuleProtection($true, $false)
+  $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $allow)))
+  $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $allow)))
+  $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $allow)))
+  [System.IO.File]::SetAccessControl($Path, $acl)
+}
+
 function Harden-LivariantTree([string]$Path) {
-  & $Icacls $Path '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' '/T' '/C' '/Q' | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "Failed to harden ACLs for $Path" }
-  & $Icacls $Path '/setowner' '*S-1-5-32-544' '/T' '/C' '/Q' | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "Failed to set protected owner for $Path" }
+  Assert-RealDirectory $Path
+  $items = @(Get-ChildItem -LiteralPath $Path -Force -Recurse)
+  foreach ($item in $items) {
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+      throw "Protected tree must not contain a reparse point: $($item.FullName)"
+    }
+  }
+
+  # Leaf files need direct effective ACEs. Recursive grants with directory inheritance flags
+  # can leave file rules ineffective. Harden files and directories with object-appropriate ACLs.
+  foreach ($file in @($items | Where-Object { -not $_.PSIsContainer })) {
+    Set-ProtectedFileAcl $file.FullName
+  }
+  foreach ($directory in @($items | Where-Object { $_.PSIsContainer } | Sort-Object { $_.FullName.Length } -Descending)) {
+    Set-ProtectedDirectoryAcl $directory.FullName
+  }
+  Set-ProtectedDirectoryAcl $Path
+
+  foreach ($item in $items) {
+    Assert-ProtectedPath $item.FullName 'Hardened Livariant tree entry'
+  }
+  Assert-ProtectedPath $Path 'Hardened Livariant tree root'
 }
 
 function Assert-DescriptorFiles([string]$Root) {
