@@ -57,7 +57,7 @@ jobs:
             --source-sha "${{ github.sha }}" \
             --channel preview \
             --schema 1 \
-            --compatible-from 0.1.0-rc.1,0.1.0-rc.2,0.1.0-rc.3 \
+            --compatible-from 0.1.0-rc.1,0.1.0-rc.2,0.1.0-rc.3,0.1.0-rc.4 \
             --output rc-bundle
 
       - name: Generate exact-source Q-07 context and token evidence
@@ -167,7 +167,7 @@ jobs:
           if (release.projectBrainSchema !== 1) throw new Error('Manifest Project Brain schema mismatch.');
           if (release.sourceId !== 'github:Kryt3r/livariant') throw new Error('Manifest sourceId mismatch.');
           if (release.sourceSha !== sourceSha) throw new Error('Manifest source SHA mismatch.');
-          for (const predecessor of ['0.1.0-rc.1', '0.1.0-rc.2', '0.1.0-rc.3']) {
+          for (const predecessor of ['0.1.0-rc.1', '0.1.0-rc.2', '0.1.0-rc.3', '0.1.0-rc.4']) {
             if (!release.compatibility?.from?.includes(predecessor)) throw new Error(`Manifest missing ${predecessor} compatibility.`);
           }
           if (release.artifact?.id !== 'runtime-node-cli' || release.artifact?.filename !== artifact) throw new Error('Manifest runtime artifact identity mismatch.');
