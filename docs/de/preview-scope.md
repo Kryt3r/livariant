@@ -16,7 +16,7 @@ RC4 wurde aus folgendem exakten Quellstand qualifiziert:
 4f547751d9d53e7325e6ea1f2401f1dea45779dc
 ```
 
-Qualifiziertes Release-Artefakt:
+Qualifiziertes installierbares CLI-Artefakt:
 
 ```text
 livariant-0.1.0-rc.4.tgz
@@ -29,6 +29,21 @@ SHA-256:
 ```
 
 `v0.1.0-rc.3` bleibt unveränderliche historische Foundation-Preview-Evidenz. RC4 schreibt die RC3-Historie nicht um, sondern ist der spätere separat qualifizierte Public-Preview-Kandidat.
+
+## Wichtige RC4-Fresh-Install-Einschränkung
+
+Echtes Windows-Dogfooding hat eine wichtige Distributionslücke in RC4 gezeigt:
+
+- die normale RC4-CLI-`.tgz` lässt sich installieren und ausführen;
+- Guardian Enforcement verlangt korrekt eine bereits geschützte Bootstrap-Quelle;
+- der veröffentlichte RC4-Installations-/Distributionspfad provisioniert diese geschützte Stage-A-Quelle **nicht**;
+- RC4 bietet deshalb keinen vollständigen unterstützten Clean-Machine -> Protected-Guardian -> First-Project-Initialisierungspfad.
+
+Das ist kein Grund, Guardian-Prüfungen abzuschwächen. Kopiere keine beliebigen/globalen npm-Paketbytes als Workaround nach `C:\Program Files\Livariant` oder `/opt/livariant`.
+
+WP-044 remediates dies für ein späteres separat qualifiziertes Release durch releasegebundene Stage-A-/Stage-B-Provisionierung, Maschinen-Readiness-Führung, EN/DE-First-Run-Lokalisierung und qualifizierte Release-Asset-Veröffentlichung/Provenance. Diese Änderungen sind **nicht rückwirkend Teil von RC4**.
+
+Siehe [Installation & erstes Projekt](installation.md).
 
 ## Was RC4 enthält
 
@@ -47,7 +62,10 @@ Das Public Preview enthält das Project Brain und unterstützte Lifecycle-Oberfl
 - Update- und unterstützte Migrations-/Recovery-Flows;
 - Runtime-/Release-Integrität und geschützte Authority-Grenzen;
 - stabile logische Project-Brain-Identität;
-- Dateisystem-/Topologie-Sicherheit und saubere Paketinstallation.
+- Dateisystem-/Topologie-Sicherheit für die implementierten Lifecycle-Operationen;
+- ein installierbares normales CLI-Paket.
+
+Der letzte Punkt bedeutet **nicht**, dass RC4s Release-Distribution die getrennte Protected-Stage-A-Guardian-Provisioning-Voraussetzung vollständig erfüllt.
 
 ### Active-Project-Intelligence-Grundlagen
 
@@ -72,11 +90,11 @@ RC4 enthält den geführten Einstieg:
 livariant first-run
 ```
 
-First Run kombiniert bestehende read-only Setup-/Understanding-Oberflächen, beginnt mit der Wahl einer Interaktionssprache und kann die nächsten expliziten Claude-Code- oder Codex-MCP-Setup-Schritte ausgeben.
+RC4 First Run kombiniert bestehende read-only Setup-/Understanding-Oberflächen und erfasst eine Interaktionssprache. Echtes Dogfooding hat gezeigt, dass RC4s Human-Readable-First-Run-Lokalisierung unvollständig ist und seine Next-Action-Führung fehlende Guardian-Maschinenvoraussetzungen nicht ausreichend sichtbar macht. WP-044 behebt beide Findings für ein zukünftiges qualifiziertes Release.
 
-Er endet mit `Changes made: 0`. Er initialisiert das Projekt nicht stillschweigend, übernimmt keine Evidenz automatisch, konfiguriert keinen Provider, persistiert keine Authority und macht Agent-Ausgabe nicht zu Project Truth.
+RC4 First Run endet weiterhin mit `Changes made: 0` und initialisiert das Projekt nicht stillschweigend, übernimmt keine Evidenz automatisch, konfiguriert keinen Provider, persistiert keine Authority und macht Agent-Ausgabe nicht zu Project Truth.
 
-Siehe [First-Run Composition](first-run.md).
+Siehe [First-Run-Komposition](first-run.md).
 
 ### Lokale MCP-Agent-Bridge
 
@@ -135,14 +153,20 @@ Livariant behauptet nicht, jede Provider-Funktion, jeden Authentifizierungsmecha
 
 ## Plattform- und Paketumfang
 
-Die RC4-Release-Qualifikation hat die release-relevante Pipeline unter **Ubuntu und Windows** ausgeführt. Das Paket deklariert Node.js `>=20`; die Release-Qualifikation verwendet die im Repository festgelegte CI-/Toolchain-Konfiguration.
+Die RC4-Release-Qualifikation hat release-relevante CI unter **Ubuntu und Windows** ausgeführt. Das Paket deklariert Node.js `>=20`.
 
-Siehe [Installation & erstes Projekt](installation.md) für den aktuellen Installationspfad.
+Diese CI-Evidenz beweist keinen vollständigen Clean-Machine-Protected-Guardian-Installationspfad. Der reale Windows-Fresh-Install-Pfad ist jetzt ein explizites WP-044-Acceptance-Kriterium.
+
+Guardian-v1-Protected-Provisioning ist für Windows und Linux vorgesehen; für macOS existiert aktuell kein geschützter Guardian-v1-Pfad.
+
+Siehe [Installation & erstes Projekt](installation.md).
 
 ## Was RC4 nicht behauptet
 
 Das Public Preview behauptet **nicht**:
 
+- einen vollständigen RC4-Fresh-Machine-Protected-Guardian-Provisioning-Pfad;
+- vollständige RC4-First-Run-Lokalisierung für jede gewählte Sprache;
 - universelle automatische Anforderungsentdeckung;
 - automatische Erzeugung vertrauenswürdiger Verification Evidence;
 - universelle Korrektheitsverifikation für beliebigen Code;
@@ -172,7 +196,7 @@ Vor einem ersten Stable Release benötigt Livariant weiterhin repräsentative Re
 - Fehlermodi;
 - provider-beobachtetes Token-/Kontextverhalten, soweit praktikabel.
 
-Build-Provenance/Attestation und ein unabhängiger KI-gestützter Release-Audit sind ebenfalls explizite Release-Hardening-Kandidaten; ob sie für Stable Pflicht-Gates werden, muss evidenzbasiert entschieden werden.
+WP-044 verlangt separat provenance-attestierte Release-Inputs und eine reale Windows-Fresh-Install-/First-Project-Qualifikation vor seinem eigenen GO. Diese Anforderung entscheidet nicht automatisch jede künftige Stable-Provenance-/Audit-Policy.
 
 ## Historisches RC3
 
