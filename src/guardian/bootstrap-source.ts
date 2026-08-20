@@ -1,6 +1,7 @@
 import { lstat, realpath } from "node:fs/promises";
 import { posix, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyProtectedBootstrapReleaseDescriptor } from "./bootstrap-release.js";
 import { isProtectedPosixOwner, type GuardianPlatform } from "./trust-root.js";
 import { assertWindowsProtectedParentAnchor, assertWindowsProtectedPath } from "./windows-protection.js";
 
@@ -110,12 +111,19 @@ export interface GuardianBootstrapSourceInspection {
   bootstrapModule: string;
   helperSource: string;
   nodeExecutable: string;
+  release: {
+    version: string;
+    channel: "preview" | "stable" | "development";
+    sourceId: string;
+    sourceSha: string;
+  };
 }
 
 /**
- * Verifies the already-protected code origin required before Guardian provisioning.
- * This is not a self-elevation mechanism. The source root must have been provisioned
- * separately from exact release material before this code is invoked privileged.
+ * Verifies the already-protected, release-bound code origin required before
+ * Guardian provisioning. This is not a self-elevation or self-authorization
+ * mechanism. Stage A must have provisioned exact qualified release material
+ * under OS protection before this code is invoked.
  */
 export async function assertProtectedGuardianBootstrapSource(
   platform: GuardianPlatform,
@@ -135,6 +143,7 @@ export async function assertProtectedGuardianBootstrapSource(
   }
 
   await assertProtectedSourceChain(sourceRoot, platform);
+  const verifiedRelease = await verifyProtectedBootstrapReleaseDescriptor(physicalRoot);
 
   const [physicalHelper, physicalBootstrap, physicalNode] = await Promise.all([
     realpath(helperSource),
@@ -147,9 +156,11 @@ export async function assertProtectedGuardianBootstrapSource(
   }
 
   if (platform === "linux") {
+    await assertLinuxProtected(verifiedRelease.descriptorPath, "Guardian bootstrap release descriptor");
     await assertLinuxProtected(physicalBootstrap, "Guardian bootstrap module");
     await assertLinuxProtected(physicalHelper, "Guardian bootstrap helper source");
   } else {
+    assertWindowsProtectedPath(verifiedRelease.descriptorPath, "Guardian bootstrap release descriptor");
     assertWindowsProtectedPath(physicalBootstrap, "Guardian bootstrap module");
     assertWindowsProtectedPath(physicalHelper, "Guardian bootstrap helper source");
   }
@@ -160,5 +171,11 @@ export async function assertProtectedGuardianBootstrapSource(
     bootstrapModule: physicalBootstrap,
     helperSource: physicalHelper,
     nodeExecutable: physicalNode,
+    release: {
+      version: verifiedRelease.descriptor.version,
+      channel: verifiedRelease.descriptor.channel,
+      sourceId: verifiedRelease.descriptor.sourceId,
+      sourceSha: verifiedRelease.descriptor.sourceSha,
+    },
   };
 }
