@@ -4,6 +4,7 @@ import {
   productionGuardianBootstrapSourceRoot,
 } from "./bootstrap-source.js";
 import {
+  inspectGuardianRootAt,
   inspectProductionGuardianRoot,
   productionGuardianRoot,
   type GuardianInspectionState,
@@ -94,6 +95,13 @@ export async function inspectProtectedGuardianBootstrapSource(
   }
 }
 
+async function inspectGuardianForPlatform(projectRoot: string, platform: GuardianPlatform) {
+  if (platform === process.platform) return inspectProductionGuardianRoot(projectRoot);
+  const root = productionGuardianRoot(platform);
+  if (!root) throw new Error("Guardian production root is unavailable for this platform.");
+  return inspectGuardianRootAt(root, projectRoot, platform);
+}
+
 export async function inspectGuardianMachineReadiness(
   projectRoot: string = process.cwd(),
   platform: NodeJS.Platform = process.platform,
@@ -119,7 +127,7 @@ export async function inspectGuardianMachineReadiness(
     };
   }
 
-  const guardian = await inspectProductionGuardianRoot(projectRoot, { platform });
+  const guardian = await inspectGuardianForPlatform(projectRoot, platform);
   const guardianSummary = {
     state: guardian.state,
     root: guardian.root ?? productionGuardianRoot(platform),
