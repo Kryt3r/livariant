@@ -47,7 +47,10 @@ test("Windows Stage-A hardens directories and leaf files with distinct effective
   assert.match(installer, /DirectorySecurity/);
   assert.match(installer, /FileSecurity/);
   assert.match(installer, /ReadAndExecute/);
-  assert.doesNotMatch(installer, /icacls[^\n]*\/T/i);
+  assert.match(installer, /\[System\.IO\.Directory\]::SetAccessControl/);
+  assert.match(installer, /\[System\.IO\.File\]::SetAccessControl/);
+  assert.doesNotMatch(installer, /&\s*\$Icacls\b/i);
+  assert.doesNotMatch(installer, /\bSet-Acl\b/i);
 });
 
 test(
