@@ -91,3 +91,13 @@ test("RC qualification requires signed provenance for installable release inputs
   assert.doesNotMatch(workflow, /Expected exactly one tarball/);
   assert.match(workflow, /Expected runtime package is missing/);
 });
+
+test("draft Release asset attachment binds targetCommitish to exact qualified source before tag publication", async () => {
+  const workflow = await source(".github/workflows/publish-qualified-rc-assets.yml");
+  assert.match(workflow, /--json isDraft,tagName,targetCommitish,assets/);
+  assert.match(workflow, /target_commitish=.*targetCommitish/);
+  assert.match(workflow, /\[\[ "\$target_commitish" =~ \^\[a-f0-9\]\{40\}\$ \]\]/);
+  assert.match(workflow, /test "\$target_commitish" = "\$SOURCE_SHA"/);
+  assert.doesNotMatch(workflow, /commits\/\$RELEASE_TAG/);
+  assert.match(workflow, /Release remains DRAFT; publication is still separately authorized/);
+});
