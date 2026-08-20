@@ -39,14 +39,14 @@ function runNode(args) {
 }
 
 const sourceId = option("--source-id");
-const sourceSha = option("--source-sha");
+const sourceSha = option("--source-sha") ?? process.env.GITHUB_SHA;
 const channel = option("--channel");
 const schemaRaw = option("--schema");
 const compatibleRaw = option("--compatible-from");
 const outputRaw = option("--output") ?? "release-bundle";
 
 if (!sourceId || !/^github:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(sourceId)) throw new Error("--source-id must use the canonical GitHub source form: github:<owner>/<repository>.");
-if (!sourceSha || !/^[a-f0-9]{40}$/.test(sourceSha)) throw new Error("--source-sha must be an exact 40-character lowercase Git commit SHA.");
+if (!sourceSha || !/^[a-f0-9]{40}$/.test(sourceSha)) throw new Error("--source-sha or GITHUB_SHA must provide an exact 40-character lowercase Git commit SHA.");
 if (!channel || !["stable", "preview", "development"].includes(channel)) throw new Error("--channel must be stable, preview, or development.");
 const schema = Number(schemaRaw);
 if (!Number.isInteger(schema) || schema < 1) throw new Error("--schema must be a positive integer.");
@@ -106,15 +106,15 @@ const manifest = [{
   },
 }];
 
-const checksumEntries = [
-  [sha256, entry.filename],
+const protectedChecksumEntries = [
   [protectedAssets.archive.sha256, protectedAssets.archive.filename],
   [protectedAssets.installers.win32.sha256, protectedAssets.installers.win32.filename],
   [protectedAssets.installers.linux.sha256, protectedAssets.installers.linux.filename],
 ].sort((a, b) => a[1].localeCompare(b[1]));
 
 await writeFile(resolve(output, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-await writeFile(resolve(output, "SHA256SUMS"), `${checksumEntries.map(([digest, filename]) => `${digest}  ${filename}`).join("\n")}\n`, "utf8");
+await writeFile(resolve(output, "SHA256SUMS"), `${sha256}  ${entry.filename}\n`, "utf8");
+await writeFile(resolve(output, "PROTECTED-SHA256SUMS"), `${protectedChecksumEntries.map(([digest, filename]) => `${digest}  ${filename}`).join("\n")}\n`, "utf8");
 
 console.log(JSON.stringify({
   package: entry.name,
@@ -129,4 +129,5 @@ console.log(JSON.stringify({
   protectedBootstrap: protectedAssets,
   manifest: "release-manifest.json",
   checksums: "SHA256SUMS",
+  protectedChecksums: "PROTECTED-SHA256SUMS",
 }, null, 2));
