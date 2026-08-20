@@ -101,3 +101,14 @@ test("draft Release asset attachment binds targetCommitish to exact qualified so
   assert.doesNotMatch(workflow, /commits\/\$RELEASE_TAG/);
   assert.match(workflow, /Release remains DRAFT; publication is still separately authorized/);
 });
+
+test("release asset verifier confines manifest-controlled filenames to exact bundle leaves", async () => {
+  const verifier = await source("scripts/verify-release-asset-set.mjs");
+  assert.match(verifier, /filename\.includes\("\/"\)/);
+  assert.match(verifier, /filename\.includes\("\\\\"\)/);
+  assert.match(verifier, /basename\(filename\) !== filename/);
+  assert.match(verifier, /Release asset filename must be a single safe bundle leaf/);
+  assert.match(verifier, /install-livariant-bootstrap-\$\{release\.version\}\.ps1/);
+  assert.match(verifier, /install-livariant-bootstrap-\$\{release\.version\}\.sh/);
+  assert.doesNotMatch(verifier, /installer\.filename\.includes\(release\.version\)/);
+});
