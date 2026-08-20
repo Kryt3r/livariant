@@ -32,13 +32,10 @@ test("Guardian routing remains local before any active Runtime delegation", asyn
   const delegation = builtCli.indexOf("await delegateToActiveRuntime()");
   assert.notEqual(guardianRoute, -1, "compiled CLI must contain the Guardian local route");
   assert.notEqual(delegation, -1, "compiled CLI must contain active Runtime delegation for non-Guardian commands");
-  assert.ok(
-    guardianRoute < delegation,
-    "Guardian status/bootstrap must be handled by the current protected CLI before any active Runtime can intercept the command",
-  );
+  assert.ok(guardianRoute < delegation, "Guardian diagnostics must be handled locally before active Runtime delegation");
 });
 
-test("Guardian bootstrap requires both input and output to be interactive terminals", () => {
+test("protected Stage-B core still requires both input and output to be interactive terminals", () => {
   assert.equal(guardianBootstrapHasInteractiveTerminal(true, true), true);
   assert.equal(guardianBootstrapHasInteractiveTerminal(false, true), false);
   assert.equal(guardianBootstrapHasInteractiveTerminal(true, false), false);
@@ -47,7 +44,7 @@ test("Guardian bootstrap requires both input and output to be interactive termin
   assert.equal(guardianBootstrapHasInteractiveTerminal(true, undefined), false);
 });
 
-test("guardian status is read-only structured diagnostics", async () => {
+test("guardian status is read-only machine-readiness diagnostics with a next action", async () => {
   await withProject(async (project) => {
     const result = spawnSync(process.execPath, [cliPath, "guardian", "status", "--json"], {
       cwd: project,
@@ -59,19 +56,26 @@ test("guardian status is read-only structured diagnostics", async () => {
     const report = JSON.parse(result.stdout) as {
       schemaVersion: number;
       state: string;
-      guardianReady: boolean;
+      protectedSource: { state: string; changesMade: number };
+      guardian: { ready: boolean };
+      lifecycleAuthorizationReady: boolean;
+      grantsAuthority: boolean;
       changesMade: number;
-      limitations: string[];
+      nextStep: string;
     };
     assert.equal(report.schemaVersion, 1);
-    assert.ok(["ready", "unavailable", "unsafe", "unsupported-platform"].includes(report.state));
-    assert.equal(typeof report.guardianReady, "boolean");
+    assert.ok(["ready", "protected-source-required", "guardian-bootstrap-required", "unsafe", "unsupported-platform"].includes(report.state));
+    assert.ok(["ready", "missing", "unsafe", "unsupported-platform"].includes(report.protectedSource.state));
+    assert.equal(typeof report.guardian.ready, "boolean");
+    assert.equal(typeof report.lifecycleAuthorizationReady, "boolean");
+    assert.equal(report.grantsAuthority, false);
+    assert.equal(report.protectedSource.changesMade, 0);
     assert.equal(report.changesMade, 0);
-    assert.ok(report.limitations.some((value) => /does not by itself grant/i.test(value)));
+    assert.ok(report.nextStep.length > 0);
   });
 });
 
-test("guardian bootstrap cannot use requester-controlled package bytes as privileged source", async () => {
+test("ordinary global guardian bootstrap is guidance only and never runs requester-controlled bytes privileged", async () => {
   await withProject(async (project) => {
     const result = spawnSync(process.execPath, [cliPath, "guardian", "bootstrap", "--json"], {
       cwd: project,
@@ -79,11 +83,20 @@ test("guardian bootstrap cannot use requester-controlled package bytes as privil
       shell: false,
       env: { ...process.env, PBF_RUNTIME_DELEGATION_BYPASS: "1" },
     });
-    assert.notEqual(result.status, 0);
-    assert.match(
-      `${result.stdout}\n${result.stderr}`,
-      /protected Guardian bootstrap source is not provisioned|refuses requester-controlled code/i,
-    );
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout) as {
+      state: string;
+      protectedSource: { state: string };
+      authorityIssued: boolean;
+      changesMade: number;
+      nextStep: string;
+      boundary: string;
+    };
+    assert.equal(report.authorityIssued, false);
+    assert.equal(report.changesMade, 0);
+    assert.match(report.boundary, /ordinary global CLI does not execute privileged Guardian bootstrap/i);
+    assert.ok(report.nextStep.length > 0);
+    if (report.protectedSource.state === "missing") assert.match(report.nextStep, /Stage-A|exact verified/i);
   });
 });
 
