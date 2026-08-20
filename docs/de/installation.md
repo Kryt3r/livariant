@@ -29,6 +29,21 @@ Die unten beschriebene WP-044-Remediation ist der Installationsvertrag für das 
 
 Eine funktionierende macOS-CLI bedeutet nicht, dass Protected-Guardian-Readiness vorliegt.
 
+## Geschützte Stage-B-Node-Voraussetzung
+
+Die normale CLI darf unter jeder ansonsten unterstützten Node.js-20+-Installation laufen. Der geschützte Guardian-Bootstrap ist strenger, weil privilegiertes Stage B keinen Interpreter über requester-controlled `PATH` auflösen darf.
+
+Für den geschützten WP-044-Pfad verlangt Stage A Node.js 20+ am festen OS-geschützten Ort:
+
+```text
+Windows: C:\Program Files\nodejs\node.exe
+Linux:   /usr/bin/node
+```
+
+Stage A prüft diesen festen Interpreter und dessen Filesystem-/ACL- bzw. Ownership-Kette **vor** der privilegierten Node-Ausführung. `guardian status` prüft denselben erwarteten Stage-B-Interpreter unabhängig davon, welcher Node-Interpreter gerade die normale Benutzer-CLI ausführt.
+
+Eine benutzerlokale Node-Installation, ein Version-Manager-Shim oder ein anderer `PATH`-Eintrag kann für die normale CLI ausreichen, ist aber **nicht** ausreichend für Protected Guardian Stage B. Richte zuerst eine unterstützte systemgeschützte Node-Runtime ein; leite Livariant nicht als Workaround auf einen same-user Interpreter um.
+
 ## Release-Artefakte für den remediated Pfad
 
 Ein qualifiziertes Release mit WP-044 muss explizite Release-Assets bereitstellen, darunter:
@@ -177,7 +192,7 @@ Der Guardian-Parent wird vorbereitet unter:
 /var/lib/livariant-guardian
 ```
 
-Stage A prüft das Release-Archiv vor der Installation, verweigert unsichere Pfadformen, schützt den installierten Tree und vergibt **keine Mutation-, Runtime-, Guardian-Operation-, Integrity- oder Release-Authority**.
+Stage A prüft das Release-Archiv vor der Installation, verweigert unsichere Pfadformen, prüft die feste geschützte Stage-B-Node-Runtime vor ihrer Ausführung, schützt den installierten Tree und vergibt **keine Mutation-, Runtime-, Guardian-Operation-, Integrity- oder Release-Authority**.
 
 Existiert bereits eine geschützte Bootstrap-Quelle, verweigert Stage A einen impliziten Austausch. Ein Release-Übergang muss ausdrücklich erfolgen (`-Replace` unter Windows bzw. `--replace` unter Linux) und ein separat geprüftes neues Release verwenden.
 
@@ -189,7 +204,7 @@ Schließe das privilegierte Terminal. Unter dem normalen Benutzerkonto:
 livariant guardian status
 ```
 
-Der Statusbefehl ist read-only. Nun sollte die geschützte Quelle als bereit erscheinen und Guardian Bootstrap als nächster erforderlicher Schritt angezeigt werden. Wird die Quelle als `unsafe` gemeldet, stoppe; repariere oder „segne“ sie nicht allein aufgrund ihrer Existenz.
+Der Statusbefehl ist read-only. Nun sollten die geschützte Quelle und der erwartete Stage-B-Interpreter als bereit erscheinen und Guardian Bootstrap als nächster erforderlicher Schritt angezeigt werden. Wird der Source-/Interpreter-Zustand als `unsafe` gemeldet, stoppe; repariere oder „segne“ ihn nicht allein aufgrund seiner Existenz.
 
 ## 6. Stage B - Guardian aus geschützten Bytes bootstrappen
 
@@ -211,7 +226,7 @@ Aus einer bereits als root laufenden Shell:
 /opt/livariant/bootstrap/v1/guardian-bootstrap
 ```
 
-Stage B prüft, dass Bootstrap-Modul/-Helper, Release-Descriptor, geschützte Filesystem-Kette und Node-Interpreter-Kette die Guardian-Vertrauensanforderungen erfüllen. Die bestehende interaktive Bootstrap-Bestätigung bleibt erforderlich. Stage B richtet ausschließlich die geschützte Guardian-Basis ein und erzeugt **keine** Lifecycle-Authority.
+Stage B prüft, dass Bootstrap-Modul/-Helper, Release-Descriptor, geschützte Filesystem-Kette und die **tatsächlich laufende** Node-Interpreter-Kette die Guardian-Vertrauensanforderungen erfüllen. Die bestehende interaktive Bootstrap-Bestätigung bleibt erforderlich. Stage B richtet ausschließlich die geschützte Guardian-Basis ein und erzeugt **keine** Lifecycle-Authority.
 
 Schließe danach das privilegierte Terminal wieder und prüfe als normaler Benutzer:
 
