@@ -1,0 +1,136 @@
+name: Attach Qualified RC Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      rc_run_id:
+        description: "Successful Build RC Bundle workflow run ID containing the exact qualified artifact"
+        required: true
+        type: string
+      release_tag:
+        description: "Existing draft GitHub Release tag (for example v0.1.0-rc.5)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  attach-qualified-assets:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canonical main verifier
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Resolve exact successful RC workflow evidence
+        id: rc
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ inputs.rc_run_id }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID")"
+          conclusion="$(jq -r '.conclusion' <<<"$run_json")"
+          head_branch="$(jq -r '.head_branch' <<<"$run_json")"
+          source_sha="$(jq -r '.head_sha' <<<"$run_json")"
+          event="$(jq -r '.event' <<<"$run_json")"
+          workflow_name="$(jq -r '.name' <<<"$run_json")"
+          test "$conclusion" = "success"
+          test "$head_branch" = "main"
+          test "$event" = "workflow_dispatch"
+          test "$workflow_name" = "Build RC Bundle"
+          [[ "$source_sha" =~ ^[a-f0-9]{40}$ ]]
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download the single exact RC Actions artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ inputs.rc_run_id }}
+        run: |
+          set -euo pipefail
+          artifacts="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
+          count="$(jq '[.artifacts[] | select(.expired == false and (.name | startswith("livariant-")))] | length' <<<"$artifacts")"
+          test "$count" = "1"
+          artifact_id="$(jq -r '.artifacts[] | select(.expired == false and (.name | startswith("livariant-"))) | .id' <<<"$artifacts")"
+          mkdir qualified
+          gh api "repos/$REPOSITORY/actions/artifacts/$artifact_id/zip" > qualified.zip
+          unzip -q qualified.zip -d qualified
+
+      - name: Verify exact qualified asset set before touching the Release
+        id: verify
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.rc.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-release-asset-set.mjs qualified "$SOURCE_SHA" --require-rc-evidence > verified-assets.json
+          version="$(jq -r '.version' verified-assets.json)"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Require an existing matching draft Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_SHA: ${{ steps.rc.outputs.source_sha }}
+          VERSION: ${{ steps.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          test "$RELEASE_TAG" = "v$VERSION"
+          release_json="$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json isDraft,tagName,targetCommitish,assets)"
+          test "$(jq -r '.isDraft' <<<"$release_json")" = "true"
+          test "$(jq -r '.tagName' <<<"$release_json")" = "$RELEASE_TAG"
+          tag_sha="$(gh api "repos/$REPOSITORY/commits/$RELEASE_TAG" --jq '.sha')"
+          test "$tag_sha" = "$SOURCE_SHA"
+
+          mapfile -t required < <(jq -r '.requiredAssets[]' verified-assets.json)
+          mapfile -t existing < <(jq -r '.assets[].name' <<<"$release_json")
+          for name in "${required[@]}"; do
+            for present in "${existing[@]}"; do
+              if [ "$name" = "$present" ]; then
+                echo "Refusing to overwrite existing Release asset: $name" >&2
+                exit 1
+              fi
+            done
+          done
+
+      - name: Attach only the qualified exact bytes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mapfile -t required < <(jq -r '.requiredAssets[]' verified-assets.json)
+          for name in "${required[@]}"; do
+            test -f "qualified/$name"
+            gh release upload "$RELEASE_TAG" "qualified/$name" --repo "$REPOSITORY"
+          done
+
+      - name: Re-download and verify the actual draft Release attachments
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_SHA: ${{ steps.rc.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          mkdir published-check
+          mapfile -t required < <(jq -r '.requiredAssets[]' verified-assets.json)
+          for name in "${required[@]}"; do
+            gh release download "$RELEASE_TAG" --repo "$REPOSITORY" --pattern "$name" --dir published-check
+          done
+          node scripts/verify-release-asset-set.mjs published-check "$SOURCE_SHA" --require-rc-evidence
+          test "$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json isDraft --jq '.isDraft')" = "true"
+          echo "Qualified assets are attached and re-verified. Release remains DRAFT; publication is still separately authorized."
