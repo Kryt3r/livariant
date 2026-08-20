@@ -29,6 +29,17 @@ test("Windows Stage-A installer verifies release bytes and refuses implicit repl
   assert.match(text, /Authority issued: no/i);
 });
 
+test("Windows Stage-A verifies fixed protected Node before executing it", async () => {
+  const installer = await source("scripts/installers/install-livariant-bootstrap.ps1.template");
+  const builder = await source("scripts/build-protected-bootstrap-assets.mjs");
+  assert.match(installer, /\$ProtectedNode = 'C:\\Program Files\\nodejs\\node\.exe'/);
+  assert.match(installer, /Assert-ProtectedNodeChain/);
+  assert.match(installer, /Only execute Node after its fixed filesystem origin has passed the pre-execution ACL checks/i);
+  assert.doesNotMatch(installer, /Get-Command\s+node/i);
+  assert.match(builder, /\$Node = 'C:\\\\Program Files\\\\nodejs\\\\node\.exe'/);
+  assert.doesNotMatch(builder, /Get-Command node\.exe/i);
+});
+
 test("Linux Stage-A installer requires existing root privilege and never initiates elevation", async () => {
   const text = await source("scripts/installers/install-livariant-bootstrap.sh.template");
   assert.match(text, /id -u/);
@@ -39,6 +50,18 @@ test("Linux Stage-A installer requires existing root privilege and never initiat
   assert.match(text, /Protected bootstrap archive SHA-256 mismatch/i);
   assert.match(text, /--replace/);
   assert.match(text, /Authority issued: no/i);
+});
+
+test("Linux Stage-A sanitizes PATH and verifies fixed protected Node before executing it", async () => {
+  const installer = await source("scripts/installers/install-livariant-bootstrap.sh.template");
+  const builder = await source("scripts/build-protected-bootstrap-assets.mjs");
+  assert.match(installer, /PATH='\/usr\/sbin:\/usr\/bin:\/sbin:\/bin'/);
+  assert.match(installer, /PROTECTED_NODE='\/usr\/bin\/node'/);
+  assert.match(installer, /assert_protected_node_chain/);
+  assert.match(installer, /Only execute Node after its fixed filesystem origin passed pre-execution trust checks/i);
+  assert.doesNotMatch(installer, /command -v node/i);
+  assert.match(builder, /NODE='\/usr\/bin\/node'/);
+  assert.doesNotMatch(builder, /command -v node/i);
 });
 
 test("Stage-A targets remain fixed OS-protected locations", async () => {
