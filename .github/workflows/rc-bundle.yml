@@ -168,9 +168,7 @@ jobs:
           if (release.sourceId !== 'github:Kryt3r/livariant') throw new Error('Manifest sourceId mismatch.');
           if (release.sourceSha !== sourceSha) throw new Error('Manifest source SHA mismatch.');
           for (const predecessor of ['0.1.0-rc.1', '0.1.0-rc.2', '0.1.0-rc.3']) {
-            if (!release.compatibility?.from?.includes(predecessor)) {
-              throw new Error(`Manifest missing ${predecessor} compatibility.`);
-            }
+            if (!release.compatibility?.from?.includes(predecessor)) throw new Error(`Manifest missing ${predecessor} compatibility.`);
           }
           if (release.artifact?.id !== 'runtime-node-cli' || release.artifact?.filename !== artifact) throw new Error('Manifest runtime artifact identity mismatch.');
           if (release.artifact?.sha256 !== sha256) throw new Error('Manifest SHA-256 does not match runtime artifact bytes.');
@@ -182,16 +180,14 @@ jobs:
           if (protectedAssets.version !== expectedVersion || protectedAssets.channel !== 'preview' || protectedAssets.sourceId !== release.sourceId || protectedAssets.sourceSha !== sourceSha) {
             throw new Error('Protected bootstrap asset identity mismatch.');
           }
-          if (protectedAssets.authorityIssued !== false || release.protectedBootstrap?.authorityIssued !== false) {
-            throw new Error('Protected bootstrap build must not issue Authority.');
-          }
+          if (protectedAssets.authorityIssued !== false || release.protectedBootstrap?.authorityIssued !== false) throw new Error('Protected bootstrap build must not issue Authority.');
           const protectedArchive = protectedAssets.archive?.filename;
           if (typeof protectedArchive !== 'string' || !entries.has(protectedArchive)) throw new Error('Protected bootstrap archive is missing.');
           const protectedArchiveSha = createHash('sha256').update(readFileSync(path.join(dir, protectedArchive))).digest('hex');
           if (protectedArchiveSha !== protectedAssets.archive.sha256 || protectedArchiveSha !== release.protectedBootstrap?.archive?.sha256 || release.protectedBootstrap?.archive?.filename !== protectedArchive) {
             throw new Error('Protected bootstrap archive is not manifest/digest bound.');
           }
-          const protectedChecksumRows = [];
+          const protectedChecksumEntries = [];
           for (const platform of ['win32', 'linux']) {
             const installer = protectedAssets.installers?.[platform];
             if (!installer || typeof installer.filename !== 'string' || !entries.has(installer.filename)) throw new Error(`Protected ${platform} Stage-A installer is missing.`);
@@ -199,12 +195,13 @@ jobs:
             if (installerSha !== installer.sha256 || installerSha !== release.protectedBootstrap?.installers?.[platform]?.sha256 || release.protectedBootstrap?.installers?.[platform]?.filename !== installer.filename) {
               throw new Error(`Protected ${platform} Stage-A installer is not manifest/digest bound.`);
             }
-            protectedChecksumRows.push(`${installerSha}  ${installer.filename}`);
+            protectedChecksumEntries.push([installer.filename, installerSha]);
           }
-          protectedChecksumRows.push(`${protectedArchiveSha}  ${protectedArchive}`);
-          protectedChecksumRows.sort();
+          protectedChecksumEntries.push([protectedArchive, protectedArchiveSha]);
+          protectedChecksumEntries.sort((a, b) => a[0].localeCompare(b[0]));
+          const expectedProtectedSums = `${protectedChecksumEntries.map(([filename, digest]) => `${digest}  ${filename}`).join('\n')}\n`;
           const protectedSums = readFileSync(path.join(dir, 'PROTECTED-SHA256SUMS'), 'utf8');
-          if (protectedSums !== `${protectedChecksumRows.join('\n')}\n`) throw new Error('PROTECTED-SHA256SUMS mismatch.');
+          if (protectedSums !== expectedProtectedSums) throw new Error('PROTECTED-SHA256SUMS mismatch.');
 
           const sbomFile = 'release-sbom.spdx.json';
           const sbomBytes = readFileSync(path.join(dir, sbomFile));
@@ -219,29 +216,26 @@ jobs:
             if (releasePackageNames.has(devDependency)) throw new Error(`Release SBOM unexpectedly includes build-only devDependency: ${devDependency}`);
           }
 
-          writeFileSync(
-            path.join(dir, 'RC-BUILD-METADATA.json'),
-            `${JSON.stringify({
-              sourceSha,
-              version: release.version,
-              channel: release.channel,
-              sourceId: release.sourceId,
-              artifact,
-              sha256,
-              protectedBootstrap: {
-                archive: protectedArchive,
-                sha256: protectedArchiveSha,
-                installers: protectedAssets.installers,
-                authorityIssued: false,
-              },
-              sbom: {
-                file: sbomFile,
-                format: 'SPDX-2.3',
-                sha256: sbomSha256,
-                excludesDevDependencies: true,
-              },
-            }, null, 2)}\n`,
-          );
+          writeFileSync(path.join(dir, 'RC-BUILD-METADATA.json'), `${JSON.stringify({
+            sourceSha,
+            version: release.version,
+            channel: release.channel,
+            sourceId: release.sourceId,
+            artifact,
+            sha256,
+            protectedBootstrap: {
+              archive: protectedArchive,
+              sha256: protectedArchiveSha,
+              installers: protectedAssets.installers,
+              authorityIssued: false,
+            },
+            sbom: {
+              file: sbomFile,
+              format: 'SPDX-2.3',
+              sha256: sbomSha256,
+              excludesDevDependencies: true,
+            },
+          }, null, 2)}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `version=${release.version}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `sha256=${sha256}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `protected_archive=${protectedArchive}\n`);
@@ -258,17 +252,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          node scripts/collect-release-decision-evidence.mjs \
-            rc-bundle/RC-BUILD-METADATA.json \
-            rc-bundle/release-decision-evidence.json
+          node scripts/collect-release-decision-evidence.mjs rc-bundle/RC-BUILD-METADATA.json rc-bundle/release-decision-evidence.json
 
       - name: Build release decision dossier
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/build-release-decision-dossier.mjs \
-            --input rc-bundle/release-decision-evidence.json \
-            --output-dir rc-bundle
+          node scripts/build-release-decision-dossier.mjs --input rc-bundle/release-decision-evidence.json --output-dir rc-bundle
 
       - name: Bind dossier identity into RC metadata
         id: dossier
@@ -289,14 +279,7 @@ jobs:
           const dossier = JSON.parse(jsonBytes.toString('utf8'));
           const jsonSha256 = createHash('sha256').update(jsonBytes).digest('hex');
           const markdownSha256 = createHash('sha256').update(markdownBytes).digest('hex');
-          metadata.releaseDecisionDossier = {
-            recommendation: dossier.recommendation,
-            jsonFile,
-            jsonSha256,
-            markdownFile,
-            markdownSha256,
-            authority: false,
-          };
+          metadata.releaseDecisionDossier = { recommendation: dossier.recommendation, jsonFile, jsonSha256, markdownFile, markdownSha256, authority: false };
           writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `recommendation=${dossier.recommendation}\n`);
           appendFileSync(process.env.GITHUB_OUTPUT, `json_sha256=${jsonSha256}\n`);
