@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       release_tag:
-        description: "Existing draft GitHub Release tag (for example v0.1.0-rc.5)"
+        description: "Existing draft GitHub Release tag name (for example v0.1.0-rc.5)"
         required: true
         type: string
 
@@ -75,7 +75,7 @@ jobs:
           version="$(jq -r '.version' verified-assets.json)"
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
-      - name: Require an existing matching draft Release
+      - name: Require an existing exact-source draft Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -89,8 +89,10 @@ jobs:
           release_json="$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" --json isDraft,tagName,targetCommitish,assets)"
           test "$(jq -r '.isDraft' <<<"$release_json")" = "true"
           test "$(jq -r '.tagName' <<<"$release_json")" = "$RELEASE_TAG"
-          tag_sha="$(gh api "repos/$REPOSITORY/commits/$RELEASE_TAG" --jq '.sha')"
-          test "$tag_sha" = "$SOURCE_SHA"
+
+          target_commitish="$(jq -r '.targetCommitish' <<<"$release_json")"
+          [[ "$target_commitish" =~ ^[a-f0-9]{40}$ ]]
+          test "$target_commitish" = "$SOURCE_SHA"
 
           mapfile -t required < <(jq -r '.requiredAssets[]' verified-assets.json)
           mapfile -t existing < <(jq -r '.assets[].name' <<<"$release_json")
