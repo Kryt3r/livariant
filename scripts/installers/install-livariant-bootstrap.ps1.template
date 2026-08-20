@@ -129,7 +129,7 @@ function Set-ProtectedDirectoryAcl([string]$Path) {
   $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $inherit, $none, $allow)))
   $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $inherit, $none, $allow)))
   $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $inherit, $none, $allow)))
-  Set-Acl -LiteralPath $Path -AclObject $acl
+  [System.IO.Directory]::SetAccessControl($Path, $acl)
 }
 
 function Set-ProtectedFileAcl([string]$Path) {
@@ -143,7 +143,7 @@ function Set-ProtectedFileAcl([string]$Path) {
   $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($system, 'FullControl', $allow)))
   $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($admins, 'FullControl', $allow)))
   $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($users, 'ReadAndExecute', $allow)))
-  Set-Acl -LiteralPath $Path -AclObject $acl
+  [System.IO.File]::SetAccessControl($Path, $acl)
 }
 
 function Harden-LivariantTree([string]$Path) {
@@ -155,9 +155,8 @@ function Harden-LivariantTree([string]$Path) {
     }
   }
 
-  # Leaf files need direct effective ACEs. Applying directory inheritance flags to every
-  # leaf via `icacls /T` can create inherit-only file ACEs and lock even Administrators
-  # out of the installed source. Harden files and directories with object-appropriate ACLs.
+  # Leaf files need direct effective ACEs. Recursive grants with directory inheritance flags
+  # can leave file rules ineffective. Harden files and directories with object-appropriate ACLs.
   foreach ($file in @($items | Where-Object { -not $_.PSIsContainer })) {
     Set-ProtectedFileAcl $file.FullName
   }
