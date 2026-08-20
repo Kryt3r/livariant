@@ -53,27 +53,30 @@ Mehrdeutiger folgenreicher Zustand -> Fail Closed
 
 ## Wie sich die Nutzung entwickeln soll
 
-Der aktuelle `main` ist auf einen **agent-nativen** Workflow ausgerichtet und nicht auf einen command-lastigen Alltag.
+Die aktuelle Entwicklung ist auf einen **agent-nativen** Workflow ausgerichtet und nicht auf einen command-lastigen Alltag.
 
-Der aktuelle First-Use-Pfad ist:
+Für einen frischen unterstützten Rechner ist der remediated First-Use-Pfad bewusst gestuft:
 
 ```text
-Livariant installieren
+exakte qualifizierte Release-Artefakte verifizieren
+-> normale Livariant-CLI installieren
+-> geschütztes Stage-A-Release-Material provisionieren
+-> Guardian aus geschützten Stage-B-Bytes bootstrappen
+-> Guardian Readiness verifizieren
 -> Projekt öffnen
 -> livariant first-run
 -> bei Bedarf bewusst initialisieren
 -> Claude Code oder Codex explizit über MCP verbinden
 -> normal mit dem Coding-Agenten arbeiten
--> Agent nutzt Livariant-Tools bei Bedarf
 ```
 
-Die CLI bleibt wichtig für Setup, Diagnose, direkte Inspektion, explizite Kontrolle und providerunabhängige Abläufe. Nach Verbindung eines MCP-fähigen Coding-Agenten muss der Nutzer aber **nicht** in jede normale Interaktion einen Livariant-Command schreiben.
+Normale globale CLI und geschützte Guardian-Bootstrap-Quelle besitzen getrennte Trust-Rollen. Die CLI bleibt wichtig für Setup, Diagnose, direkte Inspektion, explizite Kontrolle und providerunabhängige Abläufe, wird aber nicht allein deshalb zum Root of Trust, weil sie global installiert ist.
 
-Zum Beispiel kann der Nutzer einfach den Coding-Agenten bitten, ein Feature zu implementieren und anschließend zu prüfen, ob die angeforderten Ergebnisse wirklich belegt sind. Der Agent kann Livariant über MCP aufrufen und das Ergebnis im normalen Gespräch zurückgeben.
+Nach Verbindung eines MCP-fähigen Coding-Agenten muss der Nutzer **nicht** in jede normale Interaktion einen Livariant-Command schreiben. Zum Beispiel kann er den Coding-Agenten einfach bitten, ein Feature zu implementieren und anschließend zu prüfen, ob die angeforderten Ergebnisse wirklich belegt sind. Der Agent kann Livariant über MCP aufrufen und das Ergebnis im normalen Gespräch zurückgeben.
 
 ## Der aktuelle Reliability-Moment
 
-Der aktuelle `main` stellt ein read-only MCP-Tool bereit:
+Die aktuelle Entwicklung stellt ein read-only MCP-Tool bereit:
 
 `livariant_verification_trace`
 
@@ -118,30 +121,32 @@ Mehr unter [Verification Trace](docs/de/verification-trace.md).
 
 ## First Run
 
-Der geführte Einstieg auf aktuellem `main` ist:
+Der geführte Einstieg ist:
 
 ```bash
 livariant first-run
 ```
 
-First Run startet mit einer Interaktionssprache und kann kombinieren:
+Die WP-044-Remediation macht First Run zustandsbewusst über Projektzustand und geschützte Maschinen-Readiness. Er kann kombinieren:
 
+- EN/DE-Interaktionslokalisierung;
 - read-only Project Discovery;
 - Project-Brain-Initialisierungsbewertung;
+- Protected-Bootstrap-/Guardian-Readiness;
 - Wahl eines Autonomy Profiles;
 - optionale External-Knowledge-Evidenz;
 - Guided Project Understanding Review;
 - optionale Claude-Code-/Codex-MCP-Setup-Hinweise.
 
-Er endet mit `Changes made: 0`. Er initialisiert das Projekt nicht still, konfiguriert keinen Provider automatisch, übernimmt keine Evidenz, persistiert kein Autonomy Profile und vergibt keine Authority.
+First Run bleibt read-only. Er initialisiert das Projekt nicht still, konfiguriert keinen Provider automatisch, übernimmt keine Evidenz, persistiert kein Autonomy Profile, provisioniert keinen Guardian-State und vergibt keine Authority. Fehlen geschützte Maschinenvoraussetzungen oder sind sie unsicher, darf er nicht direkt zu Lifecycle-Autorisierung/-Anwendung führen.
 
-Mehr unter [First-Run Composition](docs/de/first-run.md).
+Mehr unter [First-Run-Komposition](docs/de/first-run.md).
 
 ## MCP-Verbindung
 
 Livariant zu installieren und einen Coding-Agenten zu verbinden sind getrennte Vorgänge.
 
-Der aktuelle `main` kann provider-native Setup-Hinweise erzeugen:
+Livariant kann provider-native Setup-Hinweise erzeugen:
 
 ```bash
 livariant mcp setup --provider claude-code
@@ -190,7 +195,7 @@ Prüfen
 -> Verifizieren
 ```
 
-Der aktuelle `main` enthält geschützte Guardian-origin Authority für folgenschwere Consumer, darunter semantische Änderungsautorisierung, Project-Brain-Integritätsschutz, Runtime Trust und Release Authorization.
+Die aktuelle Entwicklung enthält geschützte Guardian-origin Authority für folgenschwere Consumer, darunter semantische Änderungsautorisierung, Project-Brain-Integritätsschutz, Runtime Trust und Release Authorization.
 
 ## Bestehende Projekte zuerst
 
@@ -208,7 +213,7 @@ Bestehende Projektdateien, Provider-Instruktionen, externe Notizen und KI-Ausgab
 
 ## Externes Wissen bleibt extern, bis es bewusst übernommen wird
 
-Der aktuelle `main` enthält eine Grundlage, um unterstützte externe Text-/Markdown-Wissensquellen als getrennte provenienzbewusste Evidenz zu behandeln.
+Die aktuelle Entwicklung enthält eine Grundlage, um unterstützte externe Text-/Markdown-Wissensquellen als getrennte provenienzbewusste Evidenz zu behandeln.
 
 ```text
 externes Wissen
@@ -224,16 +229,14 @@ Künftige Retrieval-, Relationship-, Graph- und Token-Effizienz-Arbeit soll auf 
 
 ### Aktuelles veröffentlichtes Public Preview
 
-`v0.1.0-rc.4` ist das aktuell veröffentlichte **Public-Preview-Prerelease**. Es enthält den agent-nativen First-Run-/MCP-Workflow, Verification Trace, Active-Project-Intelligence-Grundlagen, External-Knowledge-Grundlagen, Autonomy Profiles sowie die Guardian-/Self-Integrity-Härtung des qualifizierten RC4-Quellstands.
+`v0.1.0-rc.4` ist das aktuell veröffentlichte **Public-Preview-Prerelease**. Es enthält den agent-nativen First-Run-/MCP-Workflow, Verification Trace, Active-Project-Intelligence-Grundlagen, External-Knowledge-Grundlagen, Autonomy Profiles sowie die Guardian-/Self-Integrity-Enforcement-Logik des qualifizierten RC4-Quellstands.
 
-Installiere den geprüften RC4-Release-Tarball:
+RC4 wurde aus dem exakten Quellstand `4f547751d9d53e7325e6ea1f2401f1dea45779dc` qualifiziert. Der SHA-256 des installierbaren CLI-Artefakts lautet `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
 
-```bash
-npm install --global --ignore-scripts ./livariant-0.1.0-rc.4.tgz
-livariant version
-```
+> [!WARNING]
+> Echtes Windows-Fresh-Install-Dogfooding hat gezeigt, dass die veröffentlichte RC4-Distribution die geschützte Stage-A-Bootstrap-Quelle, die vor Guardian-gestützter First-Project-Lifecycle-Autorisierung erforderlich ist, **nicht** enthält/provisioniert. Eine Installation nur der RC4-`.tgz` liefert deshalb keinen vollständigen sicheren Fresh-Machine -> First-Project-Pfad. Umgehe das nicht, indem du requester-controlled Paketdateien manuell in geschützte Systempfade kopierst. Siehe [Installation & erstes Projekt](docs/de/installation.md).
 
-RC4 wurde aus dem exakten Quellstand `4f547751d9d53e7325e6ea1f2401f1dea45779dc` qualifiziert. Der SHA-256 des Release-Artefakts lautet `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
+Die WP-044-Remediation wird für das nächste qualifizierte Release entwickelt, das sie enthält. Repository-Code oder Doku ändern RC4 nicht rückwirkend.
 
 ### Historisches RC3 Foundation Preview
 
@@ -241,11 +244,13 @@ RC4 wurde aus dem exakten Quellstand `4f547751d9d53e7325e6ea1f2401f1dea45779dc` 
 
 ### Aktueller Repository-`main`
 
-Zum Zeitpunkt der RC4-Veröffentlichung entspricht der kanonische `main` dem qualifizierten RC4-Quellstand. Künftige Repository-Entwicklung kann wieder vorauslaufen; Repository-Existenz allein darf daher weiterhin nie als Release-Veröffentlichung behandelt werden.
+Zum Zeitpunkt der RC4-Veröffentlichung war der kanonische `main` der qualifizierte RC4-Quellstand. Repository-Entwicklung kann nach späteren Merges vorauslaufen; Repository-Existenz allein darf daher nie als Release-Veröffentlichung behandelt werden.
 
 ### Künftige qualifizierte Releases
 
-Ein künftiger Release benötigt weiterhin seine eigene Exact-Candidate-CI-/Security-/Self-Integrity-Qualifikation, passende User-/Reliability-Evidenz, eine Release-Entscheidung und ausdrückliche Publication Authority.
+Ein künftiges Release benötigt weiterhin seine eigene Exact-Candidate-CI-/Security-/Self-Integrity-Qualifikation, bei Bedarf reale Fresh-Install-Evidenz, eine Release-Entscheidung und ausdrückliche Publication Authority.
+
+Der WP-044-Release-Pfad benötigt zusätzlich exakte Release-Assets, Provenance Attestations, Protected-Stage-A-/Stage-B-Qualifikation und einen realen Windows-Clean-State-First-Project-Pfad vor GO.
 
 Keine README-Aussage und kein CI-Ergebnis veröffentlicht automatisch einen Release.
 
@@ -264,11 +269,11 @@ Mehr unter [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md).
 
 ## Hier starten
 
-Für die aktuelle Public-Preview-Nutzung:
+Für Installation und aktuellen Entwicklungsstand:
 
 1. [Installation & erstes Projekt](docs/de/installation.md)
 2. [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
-3. [First-Run Composition](docs/de/first-run.md)
+3. [First-Run-Komposition](docs/de/first-run.md)
 4. [Verification Trace](docs/de/verification-trace.md)
 5. [Bestehende Projekte](docs/de/existing-projects.md)
 6. [Provider-Handoff](docs/de/provider-handoff.md)
