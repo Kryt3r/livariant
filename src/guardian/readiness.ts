@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import {
   assertProtectedGuardianBootstrapSource,
+  productionGuardianBootstrapNodeExecutable,
   productionGuardianBootstrapSourceRoot,
 } from "./bootstrap-source.js";
 import {
@@ -60,7 +61,7 @@ function sourceFailureState(message: string): Exclude<ProtectedBootstrapSourceSt
 
 export async function inspectProtectedGuardianBootstrapSource(
   platform: NodeJS.Platform = process.platform,
-  nodeExecutable: string = process.execPath,
+  nodeExecutable?: string,
 ): Promise<ProtectedBootstrapSourceInspection> {
   if (!supportedGuardianPlatform(platform)) {
     return {
@@ -74,13 +75,14 @@ export async function inspectProtectedGuardianBootstrapSource(
 
   const root = productionGuardianBootstrapSourceRoot(platform);
   const expected = expectedProtectedBootstrapPaths(root);
+  const protectedNode = nodeExecutable ?? productionGuardianBootstrapNodeExecutable(platform);
   try {
-    await assertProtectedGuardianBootstrapSource(platform, expected.helper, expected.bootstrap, nodeExecutable);
+    await assertProtectedGuardianBootstrapSource(platform, expected.helper, expected.bootstrap, protectedNode);
     return {
       state: "ready",
       platform,
       root,
-      reason: "Protected Guardian bootstrap source and interpreter chain satisfy the current protection checks.",
+      reason: "Protected Guardian bootstrap source and Stage-B interpreter chain satisfy the current protection checks.",
       changesMade: 0,
     };
   } catch (error) {
@@ -105,7 +107,7 @@ async function inspectGuardianForPlatform(projectRoot: string, platform: Guardia
 export async function inspectGuardianMachineReadiness(
   projectRoot: string = process.cwd(),
   platform: NodeJS.Platform = process.platform,
-  nodeExecutable: string = process.execPath,
+  nodeExecutable?: string,
 ): Promise<GuardianMachineReadiness> {
   const protectedSource = await inspectProtectedGuardianBootstrapSource(platform, nodeExecutable);
 
