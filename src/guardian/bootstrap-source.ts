@@ -15,6 +15,12 @@ export function productionGuardianBootstrapSourceRoot(platform: GuardianPlatform
     : "/opt/livariant/bootstrap/v1";
 }
 
+export function productionGuardianBootstrapNodeExecutable(platform: GuardianPlatform): string {
+  return platform === "win32"
+    ? "C:\\Program Files\\nodejs\\node.exe"
+    : "/usr/bin/node";
+}
+
 function pathApiFor(platform: GuardianPlatform) {
   return platform === "win32" ? win32 : posix;
 }
@@ -124,6 +130,10 @@ export interface GuardianBootstrapSourceInspection {
  * Guardian provisioning. This is not a self-elevation or self-authorization
  * mechanism. Stage A must have provisioned exact qualified release material
  * under OS protection before this code is invoked.
+ *
+ * The default interpreter is deliberately process.execPath: when privileged
+ * Stage B is actually executing, the verifier must validate the interpreter
+ * that is running the bootstrap, not merely some expected interpreter path.
  */
 export async function assertProtectedGuardianBootstrapSource(
   platform: GuardianPlatform,
