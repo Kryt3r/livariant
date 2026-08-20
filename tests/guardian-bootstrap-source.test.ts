@@ -4,12 +4,18 @@ import {
   ancestorDirectories,
   bootstrapSourcePathAllowed,
   isProtectedPosixMode,
+  productionGuardianBootstrapNodeExecutable,
   productionGuardianBootstrapSourceRoot,
 } from "../src/guardian/bootstrap-source.js";
 
 test("Guardian bootstrap source roots are fixed system locations", () => {
   assert.equal(productionGuardianBootstrapSourceRoot("linux"), "/opt/livariant/bootstrap/v1");
   assert.equal(productionGuardianBootstrapSourceRoot("win32"), "C:\\Program Files\\Livariant\\Bootstrap\\v1");
+});
+
+test("Guardian Stage-B interpreter locations are fixed protected system paths", () => {
+  assert.equal(productionGuardianBootstrapNodeExecutable("linux"), "/usr/bin/node");
+  assert.equal(productionGuardianBootstrapNodeExecutable("win32"), "C:\\Program Files\\nodejs\\node.exe");
 });
 
 test("requester-controlled Linux package/cache/project paths cannot qualify as bootstrap source", () => {
