@@ -11,8 +11,17 @@ $BootstrapParent = 'C:\Program Files\Livariant\Bootstrap'
 $LivariantProgramFiles = 'C:\Program Files\Livariant'
 $GuardianParent = 'C:\ProgramData\Livariant\Guardian'
 $LivariantProgramData = 'C:\ProgramData\Livariant'
+$ProtectedNode = 'C:\Program Files\nodejs\node.exe'
+$ProtectedNodeParent = 'C:\Program Files\nodejs'
+$ProgramFilesAnchor = 'C:\Program Files'
+$DriveAnchor = 'C:\'
 $Icacls = 'C:\Windows\System32\icacls.exe'
 $Tar = 'C:\Windows\System32\tar.exe'
+$SystemSid = 'S-1-5-18'
+$AdministratorsSid = 'S-1-5-32-544'
+$EveryoneSid = 'S-1-1-0'
+$AuthenticatedUsersSid = 'S-1-5-11'
+$UsersSid = 'S-1-5-32-545'
 
 function Assert-Administrator {
   $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -27,10 +36,85 @@ function Assert-RealDirectory([string]$Path) {
   if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Directory must not be a reparse point: $Path" }
 }
 
+function Assert-RealFile([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Required file is missing: $Path" }
+  $item = Get-Item -LiteralPath $Path -Force
+  if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "File must not be a reparse point: $Path" }
+}
+
 function Ensure-RealDirectory([string]$Path) {
   if (Test-Path -LiteralPath $Path) { Assert-RealDirectory $Path; return }
   New-Item -ItemType Directory -Path $Path | Out-Null
   Assert-RealDirectory $Path
+}
+
+function Get-LivariantProtection([string]$Path) {
+  $acl = if ([System.IO.Directory]::Exists($Path)) {
+    [System.IO.Directory]::GetAccessControl($Path)
+  } elseif ([System.IO.File]::Exists($Path)) {
+    [System.IO.File]::GetAccessControl($Path)
+  } else {
+    throw "Protected ACL target does not exist: $Path"
+  }
+  $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+  $owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+  $protected = @($SystemSid, $AdministratorsSid)
+  $blocked = @($EveryoneSid, $AuthenticatedUsersSid, $UsersSid, $identity.User.Value)
+  foreach ($group in $identity.Groups) {
+    try { $sid = $group.Value } catch { continue }
+    if ($protected -notcontains $sid) { $blocked += $sid }
+  }
+  $blocked = @($blocked | Select-Object -Unique)
+  $writeDanger = [System.Security.AccessControl.FileSystemRights]::WriteData `
+    -bor [System.Security.AccessControl.FileSystemRights]::AppendData `
+    -bor [System.Security.AccessControl.FileSystemRights]::WriteExtendedAttributes `
+    -bor [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles `
+    -bor [System.Security.AccessControl.FileSystemRights]::WriteAttributes `
+    -bor [System.Security.AccessControl.FileSystemRights]::Delete `
+    -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions `
+    -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership
+  $replaceDanger = [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles `
+    -bor [System.Security.AccessControl.FileSystemRights]::ChangePermissions `
+    -bor [System.Security.AccessControl.FileSystemRights]::TakeOwnership
+  $unsafeWrite = $false
+  $unsafeReplace = $false
+  $rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+  foreach ($rule in $rules) {
+    try { $sid = $rule.IdentityReference.Value } catch { continue }
+    if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or $blocked -notcontains $sid) { continue }
+    if (($rule.FileSystemRights -band $writeDanger) -ne 0) { $unsafeWrite = $true }
+    if (($rule.FileSystemRights -band $replaceDanger) -ne 0) { $unsafeReplace = $true }
+  }
+  return [PSCustomObject]@{ Owner = $owner; UnsafeWrite = $unsafeWrite; UnsafeReplace = $unsafeReplace }
+}
+
+function Assert-ProtectedPath([string]$Path, [string]$Label) {
+  $protection = Get-LivariantProtection $Path
+  if (@($SystemSid, $AdministratorsSid) -notcontains $protection.Owner) {
+    throw "$Label is not owned by SYSTEM or built-in Administrators: $Path"
+  }
+  if ($protection.UnsafeWrite) { throw "$Label grants write-capable rights to an ordinary requester principal: $Path" }
+}
+
+function Assert-ProtectedAnchor([string]$Path, [string]$Label) {
+  $protection = Get-LivariantProtection $Path
+  if ($protection.UnsafeReplace) { throw "$Label permits an ordinary requester to replace protected descendants: $Path" }
+}
+
+function Assert-ProtectedNodeChain {
+  Assert-RealFile $ProtectedNode
+  Assert-RealDirectory $ProtectedNodeParent
+  Assert-RealDirectory $ProgramFilesAnchor
+  Assert-RealDirectory $DriveAnchor
+  Assert-ProtectedPath $ProtectedNode 'Guardian bootstrap Node executable'
+  Assert-ProtectedPath $ProtectedNodeParent 'Guardian bootstrap Node parent'
+  Assert-ProtectedAnchor $ProgramFilesAnchor 'Guardian bootstrap Program Files anchor'
+  Assert-ProtectedAnchor $DriveAnchor 'Guardian bootstrap drive anchor'
+
+  # Only execute Node after its fixed filesystem origin has passed the pre-execution ACL checks.
+  $nodeVersion = (& $ProtectedNode --version).Trim()
+  if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v([0-9]+)\.') { throw 'Protected Node version could not be verified.' }
+  if ([int]$Matches[1] -lt 20) { throw "Protected Node.js 20+ is required; observed $nodeVersion." }
 }
 
 function Harden-LivariantTree([string]$Path) {
@@ -59,6 +143,7 @@ function Assert-DescriptorFiles([string]$Root) {
 }
 
 Assert-Administrator
+Assert-ProtectedNodeChain
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { throw "Protected bootstrap archive is missing: $ArchivePath" }
 $archiveHash = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($archiveHash -ne $ExpectedArchiveSha256) { throw "Protected bootstrap archive SHA-256 mismatch. Expected $ExpectedArchiveSha256, observed $archiveHash" }
@@ -91,11 +176,13 @@ try {
   Ensure-RealDirectory $GuardianParent
   Harden-LivariantTree $LivariantProgramData
   Assert-DescriptorFiles $Target
+  Assert-ProtectedNodeChain
 
   Write-Output 'Livariant protected Stage-A installation complete.'
   Write-Output "Release: $ExpectedVersion"
   Write-Output "Source SHA: $ExpectedSourceSha"
   Write-Output "Protected source: $Target"
+  Write-Output "Protected Node: $ProtectedNode"
   Write-Output "Guardian parent prepared: $GuardianParent"
   Write-Output 'Authority issued: no'
   Write-Output 'Next: close this Administrator terminal, run `livariant guardian status` from an ordinary terminal, then use the protected Stage-B launcher shown there.'
