@@ -146,6 +146,67 @@ function Set-ProtectedFileAcl([string]$Path) {
   [System.IO.File]::SetAccessControl($Path, $acl)
 }
 
+function Repair-LegacyLivariantTreeAcl([string]$Path) {
+  $expected = [IO.Path]::GetFullPath($Target).TrimEnd('\')
+  $observed = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+  if (-not [string]::Equals($expected, $observed, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Legacy Stage-A ACL recovery is confined to the fixed Livariant bootstrap target: $Target"
+  }
+  Assert-RealDirectory $Path
+
+  # WP-044 recovery is intentionally narrow: restore only Livariant's fixed protected bootstrap
+  # tree to the same protected ACL model used by a clean Stage-A install. This is not a generic
+  # Windows ACL repair mechanism and is reachable only after explicit -Replace authorization.
+  Set-ProtectedDirectoryAcl $Path
+  $pending = New-Object 'System.Collections.Generic.Stack[string]'
+  $pending.Push($Path)
+  while ($pending.Count -gt 0) {
+    $directory = $pending.Pop()
+    Set-ProtectedDirectoryAcl $directory
+    foreach ($item in @(Get-ChildItem -LiteralPath $directory -Force)) {
+      if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Legacy protected tree must not contain a reparse point: $($item.FullName)"
+      }
+      if ($item.PSIsContainer) {
+        Set-ProtectedDirectoryAcl $item.FullName
+        $pending.Push($item.FullName)
+      } else {
+        Set-ProtectedFileAcl $item.FullName
+      }
+    }
+  }
+
+  Harden-LivariantTree $Path
+}
+
+function Assert-ExistingLivariantRelease([string]$Root) {
+  $descriptorPath = Join-Path $Root 'bootstrap-release.json'
+  Assert-RealFile $descriptorPath
+  $descriptor = Get-Content -LiteralPath $descriptorPath -Raw | ConvertFrom-Json
+  if ($descriptor.schemaVersion -ne 1 -or $descriptor.kind -ne 'livariant-protected-bootstrap-release') {
+    throw 'Existing protected bootstrap release descriptor schema mismatch after bounded ACL recovery.'
+  }
+  if ($descriptor.sourceId -ne 'github:Kryt3r/livariant') {
+    throw 'Existing protected bootstrap source identity is not the canonical Livariant repository.'
+  }
+  if ([string]$descriptor.version -notmatch '^0\.1\.0-rc\.[0-9]+$') {
+    throw 'Existing protected bootstrap version is not a supported Livariant RC identity.'
+  }
+  if ([string]$descriptor.sourceSha -notmatch '^[a-f0-9]{40}$') {
+    throw 'Existing protected bootstrap source SHA is malformed.'
+  }
+  foreach ($file in $descriptor.files) {
+    $relative = [string]$file.path
+    if ($relative.Contains('..') -or $relative.StartsWith('/') -or $relative.Contains('\')) { throw "Unsafe existing descriptor path: $relative" }
+    $candidate = Join-Path $Root ($relative -replace '/', '\')
+    Assert-RealFile $candidate
+    $observed = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($observed -ne ([string]$file.sha256).ToLowerInvariant()) {
+      throw "Existing protected bootstrap file digest mismatch after bounded ACL recovery: $relative"
+    }
+  }
+}
+
 function Harden-LivariantTree([string]$Path) {
   Assert-RealDirectory $Path
   $items = @(Get-ChildItem -LiteralPath $Path -Force -Recurse)
@@ -210,6 +271,8 @@ try {
   if (Test-Path -LiteralPath $Target) {
     Assert-RealDirectory $Target
     if (-not $Replace) { throw "Protected bootstrap source already exists at $Target. Re-run with -Replace only for an explicit verified release transition." }
+    Repair-LegacyLivariantTreeAcl $Target
+    Assert-ExistingLivariantRelease $Target
     $backup = Join-Path $BootstrapParent ('v1.previous-' + (Get-Date -Format 'yyyyMMddHHmmss'))
     Move-Item -LiteralPath $Target -Destination $backup
     Harden-LivariantTree $backup
