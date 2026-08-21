@@ -11,11 +11,13 @@ if ($parseErrors.Count -ne 0) {
 
 $requiredFunctions = @(
   'Assert-RealDirectory',
+  'Assert-RealFile',
   'Get-LivariantProtection',
   'Assert-ProtectedPath',
   'Set-ProtectedDirectoryAcl',
   'Set-ProtectedFileAcl',
-  'Harden-LivariantTree'
+  'Harden-LivariantTree',
+  'Repair-LegacyLivariantTreeAcl'
 )
 
 foreach ($name in $requiredFunctions) {
@@ -39,6 +41,10 @@ $root = Join-Path $env:RUNNER_TEMP ('livariant-stage-a-acl-smoke-' + [Guid]::New
 $nested = Join-Path $root 'nested'
 $rootFile = Join-Path $root 'bootstrap-release.json'
 $nestedFile = Join-Path $nested 'guardian-bootstrap-entry.mjs'
+$legacyRoot = Join-Path $env:RUNNER_TEMP ('livariant-stage-a-legacy-recovery-' + [Guid]::NewGuid().ToString('N'))
+$legacyNested = Join-Path $legacyRoot 'dist'
+$legacyFile = Join-Path $legacyRoot 'bootstrap-release.json'
+$legacyNestedFile = Join-Path $legacyNested 'guardian-bootstrap-entry.mjs'
 
 try {
   New-Item -ItemType Directory -Path $nested -Force | Out-Null
@@ -76,7 +82,64 @@ try {
     }
   }
 
-  Write-Output 'Windows Stage-A ACL smoke passed: hardened directories and leaf files remain readable while requester write rights remain blocked.'
+  # Reproduce the real RC5 partial state: directories remain enumerable but leaf files have a
+  # protected DACL with no effective ACEs. The elevated owner can repair the DACL but cannot
+  # read the file until the bounded recovery path restores Livariant's protected ACL model.
+  New-Item -ItemType Directory -Path $legacyNested -Force | Out-Null
+  Set-Content -LiteralPath $legacyFile -Value 'legacy-descriptor-readable-after-recovery' -NoNewline
+  Set-Content -LiteralPath $legacyNestedFile -Value 'legacy-entry-readable-after-recovery' -NoNewline
+  foreach ($file in @($legacyFile, $legacyNestedFile)) {
+    $broken = New-Object System.Security.AccessControl.FileSecurity
+    $broken.SetOwner($admins)
+    $broken.SetAccessRuleProtection($true, $false)
+    [System.IO.File]::SetAccessControl($file, $broken)
+  }
+
+  $readWasBlocked = $false
+  try {
+    Get-Content -LiteralPath $legacyFile -Raw | Out-Null
+  } catch [System.UnauthorizedAccessException] {
+    $readWasBlocked = $true
+  }
+  if (-not $readWasBlocked) {
+    throw 'Legacy RC5 fixture did not reproduce the expected unreadable leaf ACL state.'
+  }
+
+  $Target = $legacyRoot
+  Repair-LegacyLivariantTreeAcl $legacyRoot
+
+  if ((Get-Content -LiteralPath $legacyFile -Raw) -ne 'legacy-descriptor-readable-after-recovery') {
+    throw 'Bounded legacy recovery did not restore root leaf readability.'
+  }
+  if ((Get-Content -LiteralPath $legacyNestedFile -Raw) -ne 'legacy-entry-readable-after-recovery') {
+    throw 'Bounded legacy recovery did not restore nested leaf readability.'
+  }
+  foreach ($path in @($legacyRoot, $legacyNested, $legacyFile, $legacyNestedFile)) {
+    Assert-ProtectedPath $path 'Recovered legacy Stage-A ACL smoke target'
+  }
+
+  $outside = Join-Path $env:RUNNER_TEMP ('livariant-stage-a-outside-' + [Guid]::NewGuid().ToString('N'))
+  try {
+    New-Item -ItemType Directory -Path $outside -Force | Out-Null
+    $rejectedOutside = $false
+    try {
+      Repair-LegacyLivariantTreeAcl $outside
+    } catch {
+      if ($_.Exception.Message -match 'confined to the fixed Livariant bootstrap target') {
+        $rejectedOutside = $true
+      } else {
+        throw
+      }
+    }
+    if (-not $rejectedOutside) {
+      throw 'Legacy ACL recovery accepted a path outside the fixed target.'
+    }
+  } finally {
+    Remove-Item -LiteralPath $outside -Recurse -Force -ErrorAction SilentlyContinue
+  }
+
+  Write-Output 'Windows Stage-A ACL smoke passed: clean hardening remains readable and bounded RC5 partial-state recovery restores protected leaf access without broad ACL repair.'
 } finally {
   Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $legacyRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
