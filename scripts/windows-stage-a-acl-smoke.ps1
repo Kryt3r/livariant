@@ -82,15 +82,17 @@ try {
     }
   }
 
-  # Reproduce the real RC5 partial state: directories remain enumerable but leaf files have a
-  # protected DACL with no effective ACEs. The elevated owner can repair the DACL but cannot
-  # read the file until the bounded recovery path restores Livariant's protected ACL model.
+  # Reproduce the RC5 failure semantics: directories remain enumerable while leaf files carry a
+  # protected DACL with zero effective ACEs and are unreadable. GitHub-hosted Windows runners are
+  # not elevated, so this fixture keeps the leaf owner as the current runner identity; the real
+  # Administrators-owner/elevated-token variant is covered by the physical Windows acceptance test.
   New-Item -ItemType Directory -Path $legacyNested -Force | Out-Null
   Set-Content -LiteralPath $legacyFile -Value 'legacy-descriptor-readable-after-recovery' -NoNewline
   Set-Content -LiteralPath $legacyNestedFile -Value 'legacy-entry-readable-after-recovery' -NoNewline
+  $currentOwner = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
   foreach ($file in @($legacyFile, $legacyNestedFile)) {
     $broken = New-Object System.Security.AccessControl.FileSecurity
-    $broken.SetOwner($admins)
+    $broken.SetOwner($currentOwner)
     $broken.SetAccessRuleProtection($true, $false)
     [System.IO.File]::SetAccessControl($file, $broken)
   }
