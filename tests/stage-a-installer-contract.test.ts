@@ -67,7 +67,7 @@ test("Windows Stage-A hardens directories and leaf files with distinct effective
 });
 
 test(
-  "Windows Stage-A ACL smoke preserves real leaf readability after hardening and recovers RC5 partial ACL state",
+  "Windows Stage-A ACL smoke preserves real leaf readability and bounds recovery traversal to the fixed target",
   { skip: process.platform !== "win32" },
   () => {
     const powershell = resolve(
@@ -86,7 +86,8 @@ test(
       0,
       `Windows Stage-A ACL smoke failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
     );
-    assert.match(result.stdout, /bounded RC5 partial-state recovery restores protected leaf access/i);
+    assert.match(result.stdout, /bounded recovery traversal preserves protected leaf access/i);
+    assert.match(result.stdout, /rejecting paths outside the fixed target/i);
   },
 );
 
