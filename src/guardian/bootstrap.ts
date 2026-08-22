@@ -155,19 +155,40 @@ async function hardenLinux(root: string): Promise<void> {
   await chmod(helper, 0o555);
 }
 
-function hardenWindows(root: string): void {
+function hardenWindowsDirectory(path: string): void {
   runIcacls([
-    root,
+    path,
     "/inheritance:r",
     "/grant:r",
     `${WINDOWS_SYSTEM_SID}:(OI)(CI)F`,
     `${WINDOWS_ADMINISTRATORS_SID}:(OI)(CI)F`,
     `${WINDOWS_USERS_SID}:(OI)(CI)RX`,
-    "/T",
     "/C",
     "/Q",
   ]);
-  runIcacls([root, "/setowner", WINDOWS_ADMINISTRATORS_SID, "/T", "/C", "/Q"]);
+  runIcacls([path, "/setowner", WINDOWS_ADMINISTRATORS_SID, "/C", "/Q"]);
+}
+
+function hardenWindowsFile(path: string): void {
+  runIcacls([
+    path,
+    "/inheritance:r",
+    "/grant:r",
+    `${WINDOWS_SYSTEM_SID}:F`,
+    `${WINDOWS_ADMINISTRATORS_SID}:F`,
+    `${WINDOWS_USERS_SID}:RX`,
+    "/C",
+    "/Q",
+  ]);
+  runIcacls([path, "/setowner", WINDOWS_ADMINISTRATORS_SID, "/C", "/Q"]);
+}
+
+function hardenWindows(root: string): void {
+  const { descriptor, helper, records } = guardianLayoutPaths(root);
+  hardenWindowsDirectory(root);
+  hardenWindowsDirectory(records);
+  hardenWindowsFile(descriptor);
+  hardenWindowsFile(helper);
 }
 
 export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapResult> {
