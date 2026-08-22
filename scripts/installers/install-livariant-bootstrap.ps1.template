@@ -146,6 +146,83 @@ function Set-ProtectedFileAcl([string]$Path) {
   [System.IO.File]::SetAccessControl($Path, $acl)
 }
 
+function Assert-LegacyAdministratorsOwner([string]$Path) {
+  $acl = if ([System.IO.Directory]::Exists($Path)) {
+    [System.IO.Directory]::GetAccessControl($Path)
+  } elseif ([System.IO.File]::Exists($Path)) {
+    [System.IO.File]::GetAccessControl($Path)
+  } else {
+    throw "Legacy ACL recovery target does not exist: $Path"
+  }
+  $owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+  if ($owner -ne $AdministratorsSid) {
+    throw "Legacy ACL recovery requires built-in Administrators ownership and will not take ownership: $Path"
+  }
+}
+
+function Set-LegacyProtectedDacl([string]$Path, [bool]$Directory) {
+  Assert-LegacyAdministratorsOwner $Path
+  if (-not ('LivariantLegacyAclRepair' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
+
+public static class LivariantLegacyAclRepair
+{
+    private const int SE_FILE_OBJECT = 1;
+    private const uint DACL_SECURITY_INFORMATION = 0x00000004;
+    private const uint PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000;
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint SetNamedSecurityInfo(
+        string pObjectName,
+        int objectType,
+        uint securityInfo,
+        IntPtr owner,
+        IntPtr group,
+        IntPtr dacl,
+        IntPtr sacl);
+
+    public static void SetProtectedDacl(string path, bool directory)
+    {
+        RawAcl dacl = new RawAcl(GenericAcl.AclRevision, 3);
+        AceFlags flags = directory ? AceFlags.ContainerInherit | AceFlags.ObjectInherit : AceFlags.None;
+        dacl.InsertAce(0, new CommonAce(flags, AceQualifier.AccessAllowed, (int)FileSystemRights.FullControl, new SecurityIdentifier("S-1-5-18"), false, null));
+        dacl.InsertAce(1, new CommonAce(flags, AceQualifier.AccessAllowed, (int)FileSystemRights.FullControl, new SecurityIdentifier("S-1-5-32-544"), false, null));
+        dacl.InsertAce(2, new CommonAce(flags, AceQualifier.AccessAllowed, (int)FileSystemRights.ReadAndExecute, new SecurityIdentifier("S-1-5-32-545"), false, null));
+
+        byte[] bytes = new byte[dacl.BinaryLength];
+        dacl.GetBinaryForm(bytes, 0);
+        GCHandle handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+        try
+        {
+            uint error = SetNamedSecurityInfo(
+                path,
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                handle.AddrOfPinnedObject(),
+                IntPtr.Zero);
+            if (error != 0)
+            {
+                throw new Win32Exception((int)error, "Failed to restore the protected Livariant DACL.");
+            }
+        }
+        finally
+        {
+            handle.Free();
+        }
+    }
+}
+'@
+  }
+  [LivariantLegacyAclRepair]::SetProtectedDacl($Path, $Directory)
+}
+
 function Repair-LegacyLivariantTreeAcl([string]$Path) {
   $expected = [IO.Path]::GetFullPath($Target).TrimEnd('\')
   $observed = [IO.Path]::GetFullPath($Path).TrimEnd('\')
@@ -155,23 +232,23 @@ function Repair-LegacyLivariantTreeAcl([string]$Path) {
   Assert-RealDirectory $Path
 
   # WP-044 recovery is intentionally narrow: restore only Livariant's fixed protected bootstrap
-  # tree to the same protected ACL model used by a clean Stage-A install. This is not a generic
-  # Windows ACL repair mechanism and is reachable only after explicit -Replace authorization.
-  Set-ProtectedDirectoryAcl $Path
+  # tree to the same protected ACL model used by a clean Stage-A install. Existing ownership must
+  # already be built-in Administrators; recovery changes only the DACL and never takes ownership.
+  Set-LegacyProtectedDacl $Path $true
   $pending = New-Object 'System.Collections.Generic.Stack[string]'
   $pending.Push($Path)
   while ($pending.Count -gt 0) {
     $directory = $pending.Pop()
-    Set-ProtectedDirectoryAcl $directory
+    Set-LegacyProtectedDacl $directory $true
     foreach ($item in @(Get-ChildItem -LiteralPath $directory -Force)) {
       if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "Legacy protected tree must not contain a reparse point: $($item.FullName)"
       }
       if ($item.PSIsContainer) {
-        Set-ProtectedDirectoryAcl $item.FullName
+        Set-LegacyProtectedDacl $item.FullName $true
         $pending.Push($item.FullName)
       } else {
-        Set-ProtectedFileAcl $item.FullName
+        Set-LegacyProtectedDacl $item.FullName $false
       }
     }
   }
