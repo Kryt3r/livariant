@@ -29,15 +29,21 @@ test("Windows Stage-A installer verifies release bytes and refuses implicit repl
   assert.match(text, /Authority issued: no/i);
 });
 
-test("Windows Stage-A legacy ACL recovery is explicit, fixed-path bounded, and verifies prior Livariant bytes", async () => {
+test("Windows Stage-A legacy ACL recovery is explicit, fixed-path bounded, DACL-only, and verifies prior Livariant bytes", async () => {
   const text = await source("scripts/installers/install-livariant-bootstrap.ps1.template");
   assert.match(text, /function Repair-LegacyLivariantTreeAcl/);
+  assert.match(text, /function Assert-LegacyAdministratorsOwner/);
+  assert.match(text, /function Set-LegacyProtectedDacl/);
   assert.match(text, /confined to the fixed Livariant bootstrap target/i);
   assert.match(text, /Repair-LegacyLivariantTreeAcl \$Target/);
   assert.match(text, /Assert-ExistingLivariantRelease \$Target/);
   assert.match(text, /sourceId -ne 'github:Kryt3r\/livariant'/);
   assert.match(text, /Existing protected bootstrap file digest mismatch after bounded ACL recovery/i);
   assert.match(text, /if \(-not \$Replace\).*explicit verified release transition/s);
+  assert.match(text, /Legacy ACL recovery requires built-in Administrators ownership and will not take ownership/i);
+  assert.match(text, /SetNamedSecurityInfo/);
+  assert.match(text, /DACL_SECURITY_INFORMATION \| PROTECTED_DACL_SECURITY_INFORMATION/);
+  assert.match(text, /IntPtr\.Zero,\s*IntPtr\.Zero,\s*handle\.AddrOfPinnedObject\(\)/s);
   assert.doesNotMatch(text, /takeown(?:\.exe)?\b/i);
   assert.doesNotMatch(text, /\bicacls(?:\.exe)?\b/i);
 });

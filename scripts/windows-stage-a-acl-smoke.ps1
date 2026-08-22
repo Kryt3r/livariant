@@ -16,6 +16,8 @@ $requiredFunctions = @(
   'Assert-ProtectedPath',
   'Set-ProtectedDirectoryAcl',
   'Set-ProtectedFileAcl',
+  'Assert-LegacyAdministratorsOwner',
+  'Set-LegacyProtectedDacl',
   'Harden-LivariantTree',
   'Repair-LegacyLivariantTreeAcl'
 )
@@ -80,9 +82,10 @@ try {
 
   # GitHub-hosted Windows runners are not elevated, so they cannot faithfully execute the
   # privileged zero-ACE recovery case seen on the physical RC5 dogfood machine. CI still proves
-  # that the recovery traversal is fixed-target bounded, idempotently restores Livariant's exact
-  # protected ACL model on a real tree, and rejects any path outside that target. The actual
-  # Administrators-owned zero-ACE recovery remains a mandatory physical Windows acceptance test.
+  # that the DACL-only native recovery helper is fixed-target bounded, preserves ownership,
+  # idempotently restores Livariant's exact protected ACL model on a real tree, and rejects any
+  # path outside that target. The Administrators-owned zero-ACE recovery remains mandatory on
+  # the physical Windows acceptance machine.
   $Target = $root
   Repair-LegacyLivariantTreeAcl $root
 
@@ -94,6 +97,15 @@ try {
   }
   foreach ($path in @($root, $nested, $rootFile, $nestedFile)) {
     Assert-ProtectedPath $path 'Recovered Stage-A ACL smoke target'
+    $acl = if ([System.IO.Directory]::Exists($path)) {
+      [System.IO.Directory]::GetAccessControl($path)
+    } else {
+      [System.IO.File]::GetAccessControl($path)
+    }
+    $owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+    if ($owner -ne $AdministratorsSid) {
+      throw "Bounded DACL recovery changed protected ownership: $path"
+    }
   }
 
   $outside = Join-Path $env:RUNNER_TEMP ('livariant-stage-a-outside-' + [Guid]::NewGuid().ToString('N'))
