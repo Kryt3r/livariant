@@ -29,6 +29,19 @@ test("Windows Stage-A installer verifies release bytes and refuses implicit repl
   assert.match(text, /Authority issued: no/i);
 });
 
+test("Windows Stage-A legacy ACL recovery is explicit, fixed-path bounded, and verifies prior Livariant bytes", async () => {
+  const text = await source("scripts/installers/install-livariant-bootstrap.ps1.template");
+  assert.match(text, /function Repair-LegacyLivariantTreeAcl/);
+  assert.match(text, /confined to the fixed Livariant bootstrap target/i);
+  assert.match(text, /Repair-LegacyLivariantTreeAcl \$Target/);
+  assert.match(text, /Assert-ExistingLivariantRelease \$Target/);
+  assert.match(text, /sourceId -ne 'github:Kryt3r\/livariant'/);
+  assert.match(text, /Existing protected bootstrap file digest mismatch after bounded ACL recovery/i);
+  assert.match(text, /if \(-not \$Replace\).*explicit verified release transition/s);
+  assert.doesNotMatch(text, /takeown(?:\.exe)?\b/i);
+  assert.doesNotMatch(text, /\bicacls(?:\.exe)?\b/i);
+});
+
 test("Windows Stage-A verifies fixed protected Node before executing it", async () => {
   const installer = await source("scripts/installers/install-livariant-bootstrap.ps1.template");
   const builder = await source("scripts/build-protected-bootstrap-assets.mjs");
@@ -54,7 +67,7 @@ test("Windows Stage-A hardens directories and leaf files with distinct effective
 });
 
 test(
-  "Windows Stage-A ACL smoke preserves real leaf readability after hardening",
+  "Windows Stage-A ACL smoke preserves real leaf readability and bounds recovery traversal to the fixed target",
   { skip: process.platform !== "win32" },
   () => {
     const powershell = resolve(
@@ -73,7 +86,8 @@ test(
       0,
       `Windows Stage-A ACL smoke failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
     );
-    assert.match(result.stdout, /Windows Stage-A ACL smoke passed/);
+    assert.match(result.stdout, /bounded recovery traversal preserves protected leaf access/i);
+    assert.match(result.stdout, /rejecting paths outside the fixed target/i);
   },
 );
 

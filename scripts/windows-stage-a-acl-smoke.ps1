@@ -11,11 +11,13 @@ if ($parseErrors.Count -ne 0) {
 
 $requiredFunctions = @(
   'Assert-RealDirectory',
+  'Assert-RealFile',
   'Get-LivariantProtection',
   'Assert-ProtectedPath',
   'Set-ProtectedDirectoryAcl',
   'Set-ProtectedFileAcl',
-  'Harden-LivariantTree'
+  'Harden-LivariantTree',
+  'Repair-LegacyLivariantTreeAcl'
 )
 
 foreach ($name in $requiredFunctions) {
@@ -76,7 +78,45 @@ try {
     }
   }
 
-  Write-Output 'Windows Stage-A ACL smoke passed: hardened directories and leaf files remain readable while requester write rights remain blocked.'
+  # GitHub-hosted Windows runners are not elevated, so they cannot faithfully execute the
+  # privileged zero-ACE recovery case seen on the physical RC5 dogfood machine. CI still proves
+  # that the recovery traversal is fixed-target bounded, idempotently restores Livariant's exact
+  # protected ACL model on a real tree, and rejects any path outside that target. The actual
+  # Administrators-owned zero-ACE recovery remains a mandatory physical Windows acceptance test.
+  $Target = $root
+  Repair-LegacyLivariantTreeAcl $root
+
+  if ((Get-Content -LiteralPath $rootFile -Raw) -ne 'descriptor-readable') {
+    throw 'Bounded recovery traversal made root leaf unreadable.'
+  }
+  if ((Get-Content -LiteralPath $nestedFile -Raw) -ne 'entry-readable') {
+    throw 'Bounded recovery traversal made nested leaf unreadable.'
+  }
+  foreach ($path in @($root, $nested, $rootFile, $nestedFile)) {
+    Assert-ProtectedPath $path 'Recovered Stage-A ACL smoke target'
+  }
+
+  $outside = Join-Path $env:RUNNER_TEMP ('livariant-stage-a-outside-' + [Guid]::NewGuid().ToString('N'))
+  try {
+    New-Item -ItemType Directory -Path $outside -Force | Out-Null
+    $rejectedOutside = $false
+    try {
+      Repair-LegacyLivariantTreeAcl $outside
+    } catch {
+      if ($_.Exception.Message -match 'confined to the fixed Livariant bootstrap target') {
+        $rejectedOutside = $true
+      } else {
+        throw
+      }
+    }
+    if (-not $rejectedOutside) {
+      throw 'Legacy ACL recovery accepted a path outside the fixed target.'
+    }
+  } finally {
+    Remove-Item -LiteralPath $outside -Recurse -Force -ErrorAction SilentlyContinue
+  }
+
+  Write-Output 'Windows Stage-A ACL smoke passed: clean hardening remains readable and bounded recovery traversal preserves protected leaf access while rejecting paths outside the fixed target.'
 } finally {
   Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
 }
