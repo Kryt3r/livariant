@@ -49,8 +49,8 @@ test("Windows Stage-B hardening gives leaf files effective requester read withou
   const builtBootstrap = await readFile(bootstrapPath, "utf8");
   assert.match(builtBootstrap, /function hardenWindowsDirectory\(/u);
   assert.match(builtBootstrap, /function hardenWindowsFile\(/u);
-  assert.match(builtBootstrap, /WINDOWS_USERS_SID}:\(OI\)\(CI\)RX/u);
-  assert.match(builtBootstrap, /WINDOWS_USERS_SID}:RX/u);
+  assert.ok(builtBootstrap.includes("${WINDOWS_USERS_SID}:(OI)(CI)RX"));
+  assert.ok(builtBootstrap.includes("${WINDOWS_USERS_SID}:RX"));
   assert.doesNotMatch(builtBootstrap, /"\/T"/u, "Stage-B must not apply one inheritance-shaped ACL recursively to leaf files");
   assert.match(builtBootstrap, /hardenWindowsFile\(descriptor\)/u);
   assert.match(builtBootstrap, /hardenWindowsFile\(helper\)/u);
