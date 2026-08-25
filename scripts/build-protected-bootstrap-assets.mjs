@@ -83,7 +83,15 @@ try {
     private: true,
     type: "module",
     description: "Release-bound Livariant Guardian protected bootstrap source.",
-    files: ["dist/src", "bootstrap-release.json", "guardian-bootstrap-entry.mjs", "guardian-bootstrap.ps1", "guardian-bootstrap"],
+    files: [
+      "dist/src",
+      "bootstrap-release.json",
+      "guardian-bootstrap-entry.mjs",
+      "guardian-bootstrap.ps1",
+      "guardian-bootstrap",
+      "guardian-recover-entry.mjs",
+      "guardian-recover.ps1",
+    ],
   }, null, 2)}\n`);
 
   const entry = [
@@ -106,12 +114,36 @@ try {
   ].join("\n");
   await writeFile(resolve(staging, "guardian-bootstrap-entry.mjs"), entry);
 
+  const recoveryEntry = [
+    'import { recoverProductionGuardianPreAuthority } from "./dist/src/guardian/bootstrap.js";',
+    "try {",
+    "  const result = await recoverProductionGuardianPreAuthority();",
+    '  console.log("Livariant Guardian recovery");',
+    '  console.log(`State: ${result.state}`);',
+    '  console.log(`Platform: ${result.platform}`);',
+    '  console.log(`Root: ${result.root}`);',
+    '  console.log(`Helper SHA-256: ${result.helperSha256}`);',
+    '  console.log("Authority issued: no");',
+    '  console.log(`Changes made: ${result.changesMade}`);',
+    '  console.log(`Next: ${result.nextStep}`);',
+    "} catch (error) {",
+    '  console.error(`Runtime error: ${error instanceof Error ? error.message : String(error)}`);',
+    "  process.exitCode = 1;",
+    "}",
+    "",
+  ].join("\n");
+  await writeFile(resolve(staging, "guardian-recover-entry.mjs"), recoveryEntry);
+
   // Stage B must never resolve its privileged interpreter from ambient PATH.
-  // Stage A verifies these fixed OS-protected paths before this launcher is used;
+  // Stage A verifies these fixed OS-protected paths before these launchers are used;
   // bootstrap.ts re-verifies the same interpreter chain in-process as defense-in-depth.
   await writeFile(
     resolve(staging, "guardian-bootstrap.ps1"),
     "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\nodejs\\node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Node executable is missing. Re-run the verified Stage-A installer after installing system-wide Node.js 20+.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n",
+  );
+  await writeFile(
+    resolve(staging, "guardian-recover.ps1"),
+    "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\nodejs\\node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Node executable is missing. Re-run the verified Stage-A installer after installing system-wide Node.js 20+.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-recover-entry.mjs')\nexit $LASTEXITCODE\n",
   );
   await writeFile(
     resolve(staging, "guardian-bootstrap"),
