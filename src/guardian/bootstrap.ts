@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { chmod, chown, copyFile, lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { chmod, chown, copyFile, lstat, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
@@ -12,6 +12,7 @@ import {
   isProtectedPosixOwner,
   productionGuardianRoot,
   type GuardianPlatform,
+  type GuardianRootDescriptor,
 } from "./trust-root.js";
 import { assertWindowsProtectedParentAnchor, assertWindowsProtectedPath } from "./windows-protection.js";
 
@@ -31,6 +32,18 @@ export interface GuardianBootstrapResult {
   changesMade: number;
   nextStep: string;
   bootstrapTrustAssumption: string;
+}
+
+export interface GuardianRecoveryResult {
+  schemaVersion: 1;
+  state: "recovered";
+  platform: "win32";
+  root: string;
+  helperSha256: string;
+  authorityIssued: false;
+  changesMade: number;
+  nextStep: string;
+  recoveryBoundary: string;
 }
 
 function errno(error: unknown, code: string): boolean {
@@ -58,6 +71,11 @@ async function assertRealDirectory(path: string, label: string): Promise<void> {
     throw error;
   }
   if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error(`${label} must be a real directory and must not be a symbolic link or junction.`);
+}
+
+async function assertRealFile(path: string, label: string): Promise<void> {
+  const stats = await lstat(path);
+  if (!stats.isFile() || stats.isSymbolicLink()) throw new Error(`${label} must be a regular file and must not be a symbolic link or junction.`);
 }
 
 async function assertLinuxProtectedStatic(path: string, label: string): Promise<void> {
@@ -135,6 +153,26 @@ async function requireInteractiveBootstrap(root: string, helperSource: string, h
   }
 }
 
+async function requireInteractiveRecovery(root: string, helperSha256: string): Promise<void> {
+  if (!guardianBootstrapHasInteractiveTerminal(stdin.isTTY, stderr.isTTY)) {
+    throw new Error("Guardian recovery requires a local interactive terminal. Non-interactive agents, scripts, redirected input, and CI cannot repair the production Guardian.");
+  }
+  const phrase = `RECOVER GUARDIAN ACL ${helperSha256.slice(0, 12)}`;
+  stderr.write("Livariant Guardian pre-Authority recovery\n");
+  stderr.write(`Protected root: ${root}\n`);
+  stderr.write(`Verified helper SHA-256: ${helperSha256}\n`);
+  stderr.write("This path changes only Windows ACLs on the exact pre-Authority Guardian layout after validating protected parentage, helper bytes, descriptor identity, and an empty records directory.\n");
+  stderr.write("It issues NO mutation, Runtime, integrity, lifecycle, or release Authority.\n");
+  stderr.write(`Type exactly: ${phrase}\n`);
+  const terminal = createInterface({ input: stdin, output: stderr });
+  try {
+    const answer = await terminal.question("> ");
+    if (answer !== phrase) throw new Error("Guardian recovery confirmation did not match the exact helper digest challenge.");
+  } finally {
+    terminal.close();
+  }
+}
+
 function runIcacls(args: string[]): void {
   const result = spawnSync(WINDOWS_ICACLS, args, { encoding: "utf8", shell: false, windowsHide: true });
   if (result.error || result.status !== 0) {
@@ -155,7 +193,7 @@ async function hardenLinux(root: string): Promise<void> {
   await chmod(helper, 0o555);
 }
 
-function hardenWindowsDirectory(path: string): void {
+function setWindowsDirectoryAcl(path: string): void {
   runIcacls([
     path,
     "/inheritance:r",
@@ -166,10 +204,9 @@ function hardenWindowsDirectory(path: string): void {
     "/C",
     "/Q",
   ]);
-  runIcacls([path, "/setowner", WINDOWS_ADMINISTRATORS_SID, "/C", "/Q"]);
 }
 
-function hardenWindowsFile(path: string): void {
+function setWindowsFileAcl(path: string): void {
   runIcacls([
     path,
     "/inheritance:r",
@@ -180,6 +217,15 @@ function hardenWindowsFile(path: string): void {
     "/C",
     "/Q",
   ]);
+}
+
+function hardenWindowsDirectory(path: string): void {
+  setWindowsDirectoryAcl(path);
+  runIcacls([path, "/setowner", WINDOWS_ADMINISTRATORS_SID, "/C", "/Q"]);
+}
+
+function hardenWindowsFile(path: string): void {
+  setWindowsFileAcl(path);
   runIcacls([path, "/setowner", WINDOWS_ADMINISTRATORS_SID, "/C", "/Q"]);
 }
 
@@ -189,6 +235,107 @@ function hardenWindows(root: string): void {
   hardenWindowsDirectory(records);
   hardenWindowsFile(descriptor);
   hardenWindowsFile(helper);
+}
+
+function strictRecoveryDescriptor(value: unknown, expected: GuardianRootDescriptor): GuardianRootDescriptor {
+  if (typeof value !== "object" || value === null || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) {
+    throw new Error("Guardian recovery descriptor is invalid.");
+  }
+  const record = value as Record<string, unknown>;
+  const expectedKeys = ["schemaVersion", "kind", "guardianVersion", "platform", "helperSha256", "rootBindingSha256"] as const;
+  const actualKeys = Object.keys(record).sort();
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== [...expectedKeys].sort()[index])) {
+    throw new Error("Guardian recovery descriptor contains missing or unsupported fields.");
+  }
+  for (const key of expectedKeys) {
+    if (record[key] !== expected[key]) throw new Error(`Guardian recovery descriptor does not match protected material: ${key}.`);
+  }
+  return expected;
+}
+
+async function assertEmptyAuthorityRecords(records: string): Promise<void> {
+  const entries = await readdir(records, { withFileTypes: true });
+  if (entries.length !== 0) {
+    throw new Error("Guardian recovery refuses any existing Authority records. Only an empty pre-Authority records directory is recoverable.");
+  }
+}
+
+async function assertRecoverableWindowsGuardian(root: string, helperSource: string): Promise<{ physicalRoot: string; helperSha256: string }> {
+  await assertProtectedProductionParent(root, "win32");
+  await assertRealDirectory(root, "Guardian production root");
+  const physicalRoot = await realpath(root);
+  const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
+  await assertRealDirectory(records, "Guardian records directory");
+  await assertRealFile(descriptor, "Guardian root descriptor");
+  await assertRealFile(helper, "Guardian helper");
+
+  assertWindowsProtectedPath(physicalRoot, "Guardian root");
+  assertWindowsProtectedPath(records, "Guardian records directory");
+  assertWindowsProtectedPath(descriptor, "Guardian root descriptor");
+  assertWindowsProtectedPath(helper, "Guardian helper");
+  await assertEmptyAuthorityRecords(records);
+
+  const [protectedHelperBytes, installedHelperBytes] = await Promise.all([readFile(helperSource), readFile(helper)]);
+  const helperSha256 = createHash("sha256").update(protectedHelperBytes).digest("hex");
+  if (!protectedHelperBytes.equals(installedHelperBytes)) {
+    throw new Error("Guardian recovery refuses helper bytes that differ from the current protected release-bound Stage-B source.");
+  }
+
+  let descriptorValue: unknown;
+  try {
+    descriptorValue = JSON.parse(await readFile(descriptor, "utf8")) as unknown;
+  } catch {
+    throw new Error("Guardian recovery descriptor is unreadable or invalid JSON.");
+  }
+  strictRecoveryDescriptor(descriptorValue, buildGuardianRootDescriptor(installedHelperBytes, physicalRoot, "win32"));
+  return { physicalRoot, helperSha256 };
+}
+
+async function revalidateRecoverableWindowsGuardian(physicalRoot: string, helperSource: string, expectedHelperSha256: string): Promise<void> {
+  await assertProtectedProductionParent(physicalRoot, "win32");
+  const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
+  await assertEmptyAuthorityRecords(records);
+  const [protectedHelperBytes, installedHelperBytes] = await Promise.all([readFile(helperSource), readFile(helper)]);
+  const currentSha = createHash("sha256").update(protectedHelperBytes).digest("hex");
+  if (currentSha !== expectedHelperSha256 || !protectedHelperBytes.equals(installedHelperBytes)) {
+    throw new Error("Guardian recovery material changed after review. Recovery aborted before ACL mutation.");
+  }
+  const descriptorValue = JSON.parse(await readFile(descriptor, "utf8")) as unknown;
+  strictRecoveryDescriptor(descriptorValue, buildGuardianRootDescriptor(installedHelperBytes, physicalRoot, "win32"));
+}
+
+export async function recoverProductionGuardianPreAuthority(): Promise<GuardianRecoveryResult> {
+  if (process.platform !== "win32") {
+    throw new Error("Guardian pre-Authority recovery v1 is Windows-only because it remediates the historical Windows Stage-B leaf ACL defect.");
+  }
+  const root = productionGuardianRoot("win32");
+  if (!root) throw new Error("Guardian production root is unavailable for this platform.");
+  const bootstrapModule = fileURLToPath(import.meta.url);
+  const helperSource = fileURLToPath(new URL("./protected-helper.js", import.meta.url));
+
+  await assertProtectedGuardianBootstrapSource("win32", helperSource, bootstrapModule, process.execPath);
+  requirePrivilegedProcess("win32");
+  const { physicalRoot, helperSha256 } = await assertRecoverableWindowsGuardian(root, helperSource);
+  await requireInteractiveRecovery(physicalRoot, helperSha256);
+  await revalidateRecoverableWindowsGuardian(physicalRoot, helperSource, helperSha256);
+
+  const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
+  setWindowsDirectoryAcl(physicalRoot);
+  setWindowsDirectoryAcl(records);
+  setWindowsFileAcl(descriptor);
+  setWindowsFileAcl(helper);
+
+  return {
+    schemaVersion: 1,
+    state: "recovered",
+    platform: "win32",
+    root: physicalRoot,
+    helperSha256,
+    authorityIssued: false,
+    changesMade: 4,
+    nextStep: "Close the privileged terminal and run `livariant guardian status` from an ordinary user terminal. Do not authorize lifecycle changes unless Guardian readiness is reported as ready.",
+    recoveryBoundary: "Recovery is bounded to the exact fixed Windows Guardian v1 layout, requires the existing helper and descriptor to match the current OS-protected release-bound Stage-B source, requires zero Authority records, preserves ownership, and changes ACLs only.",
+  };
 }
 
 export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapResult> {
