@@ -16,7 +16,7 @@ const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 const guardianCommandPath = fileURLToPath(new URL("../src/cli/guardian-command.js", import.meta.url));
 const bootstrapPath = fileURLToPath(new URL("../src/guardian/bootstrap.js", import.meta.url));
 const helperPath = fileURLToPath(new URL("../src/guardian/protected-helper.js", import.meta.url));
-const protectedBuildPath = fileURLToPath(new URL("../scripts/build-protected-bootstrap-assets.mjs", import.meta.url));
+const protectedBuildPath = resolve(process.cwd(), "scripts", "build-protected-bootstrap-assets.mjs");
 
 async function withProject(run: (project: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(resolve(tmpdir(), "livariant-guardian-cli-"));
