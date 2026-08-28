@@ -20,7 +20,9 @@
         "resizable": true,
         "fullscreen": false,
         "transparent": true,
-        "windowEffects": ["acrylic"]
+        "windowEffects": {
+          "effects": ["acrylic"]
+        }
       }
     ]
   },
