@@ -52,3 +52,22 @@ jobs:
 
       - name: Build Windows desktop executable without installer bundling
         run: npm run tauri:build -- --no-bundle --ci
+
+      - name: Smoke native Windows app launch
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD "src-tauri\target\release\livariant-desktop.exe"
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
+            throw "Expected desktop executable not found: $exe"
+          }
+
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 8
+
+          if ($process.HasExited) {
+            throw "Livariant Desktop exited during launch smoke with code $($process.ExitCode)."
+          }
+
+          Stop-Process -Id $process.Id -Force
+          $process.WaitForExit()
+          Write-Host "Livariant Desktop stayed alive through the Windows launch smoke."
