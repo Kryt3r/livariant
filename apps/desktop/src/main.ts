@@ -62,8 +62,8 @@ const render = () => {
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark">
-            <img src="${livariantLogo}" alt="Livariant logo" />
+          <div class="brand-mark" style="overflow:hidden;border:0;background:transparent;box-shadow:none;">
+            <img src="${livariantLogo}" alt="Livariant logo" style="width:100%;height:100%;object-fit:contain;display:block;" />
           </div>
           <div>
             <strong>Livariant</strong>
