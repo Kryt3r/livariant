@@ -152,7 +152,7 @@ const renderStep = (step: FirstStep) => {
           <p>${step.prompt}</p>
         </div>
       </div>
-      <div class="step-editor ${step.state === "answered" ? "visible" : ""}">
+      <div class="step-editor">
         <textarea aria-label="${step.title}" placeholder="Write your answer here…">${escapeHtml(step.value)}</textarea>
         <div class="step-actions editor-actions">
           <button class="button secondary cancel-answer" type="button">Cancel</button>
