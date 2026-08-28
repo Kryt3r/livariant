@@ -1,0 +1,121 @@
+:root {
+  --glass-bg: rgba(5, 12, 28, .64);
+  --glass-panel: rgba(13, 30, 57, .52);
+  --glass-panel-strong: rgba(10, 24, 48, .70);
+  --glass-line: rgba(151, 190, 246, .14);
+  --glass-line-strong: rgba(111, 164, 255, .28);
+  --glass-cyan: #35e7ff;
+  --glass-blue: #3e8dff;
+  --glass-violet: #8c4dff;
+  --glass-magenta: #d83dff;
+}
+
+html, body, #app { background: transparent !important; }
+body { color: #f1f5ff; }
+
+.app-shell {
+  background:
+    radial-gradient(circle at 12% 6%, rgba(53,231,255,.09), transparent 28%),
+    radial-gradient(circle at 70% 0%, rgba(49,85,255,.15), transparent 34%),
+    radial-gradient(circle at 88% 86%, rgba(216,61,255,.085), transparent 30%),
+    linear-gradient(135deg, rgba(4,11,27,.66), rgba(7,17,37,.57) 56%, rgba(18,10,37,.59));
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+}
+
+.sidebar {
+  background: linear-gradient(180deg, rgba(5,14,30,.64), rgba(5,12,26,.48));
+  border-right-color: rgba(137,181,243,.11);
+  box-shadow: inset -1px 0 rgba(255,255,255,.018);
+  backdrop-filter: blur(26px) saturate(135%);
+  -webkit-backdrop-filter: blur(26px) saturate(135%);
+}
+
+.brand-mark img { filter: drop-shadow(0 7px 18px rgba(56,112,255,.22)); }
+
+.nav-item { border: 1px solid transparent; transition: background .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease; }
+.nav-item.active {
+  color: #f5f7ff;
+  border-color: rgba(104,163,255,.14);
+  background: linear-gradient(100deg, rgba(43,116,255,.22), rgba(120,68,255,.11));
+  box-shadow: inset 0 1px rgba(255,255,255,.035), 0 8px 22px rgba(37,89,200,.07);
+}
+.nav-item.active svg { color: #81c8ff; }
+
+.project-chip,
+.health-card,
+.progress-panel,
+.step-card,
+.truth-note {
+  backdrop-filter: blur(20px) saturate(130%);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+  box-shadow: inset 0 1px rgba(255,255,255,.032);
+}
+
+.project-chip {
+  border-color: var(--glass-line);
+  background: linear-gradient(145deg, rgba(16,35,66,.62), rgba(9,24,49,.48));
+}
+.project-chip:hover { border-color: rgba(121,170,255,.30); background: rgba(18,39,72,.68); }
+.project-icon {
+  background: linear-gradient(145deg, rgba(48,132,255,.19), rgba(126,68,255,.12));
+  border-color: rgba(113,171,255,.25);
+  color: #8bd5ff;
+}
+
+.health-card {
+  border-color: var(--glass-line);
+  background: linear-gradient(145deg, rgba(17,37,68,.47), rgba(8,23,47,.40));
+}
+.health-icon { border-color: rgba(109,165,255,.26); background: rgba(37,104,216,.055); }
+
+.progress-panel {
+  border-color: rgba(126,174,245,.14);
+  background: linear-gradient(112deg, rgba(35,105,222,.17), rgba(52,49,153,.09) 50%, rgba(14,29,57,.46));
+  box-shadow: inset 0 1px rgba(255,255,255,.04), 0 26px 70px rgba(0,0,0,.16);
+}
+.progress-ring {
+  background: conic-gradient(#45dfff var(--progress), rgba(255,255,255,.075) 0);
+  box-shadow: 0 0 28px rgba(66,126,255,.08);
+}
+.progress-ring::before { background: rgba(7,19,40,.88); border: 1px solid rgba(255,255,255,.025); }
+.progress-ring span { color: #84d2ff; }
+
+.step-card {
+  border-color: var(--glass-line);
+  background: linear-gradient(145deg, rgba(14,32,61,.54), rgba(7,20,42,.47));
+}
+.step-card:hover {
+  border-color: rgba(126,174,248,.23);
+  background: linear-gradient(145deg, rgba(18,39,72,.58), rgba(9,23,47,.50));
+}
+.step-number {
+  color: #86d0ff;
+  background: linear-gradient(145deg, rgba(42,125,255,.20), rgba(118,71,255,.11));
+  border-color: rgba(108,165,255,.24);
+}
+
+.button.primary {
+  background: linear-gradient(135deg, #338fff 0%, #446dff 62%, #7656f8 100%);
+  border-color: rgba(137,182,255,.20);
+  box-shadow: 0 8px 22px rgba(48,106,238,.17), inset 0 1px rgba(255,255,255,.14);
+}
+.button.secondary { background: rgba(15,31,57,.42); }
+
+.step-editor textarea {
+  background: rgba(3,11,25,.50);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.step-editor textarea:focus {
+  border-color: rgba(74,153,255,.55);
+  box-shadow: 0 0 0 3px rgba(67,137,255,.08), 0 0 24px rgba(115,66,255,.05);
+}
+
+.truth-note {
+  border-color: rgba(126,174,245,.11);
+  background: linear-gradient(145deg, rgba(37,91,177,.052), rgba(101,57,165,.025));
+}
+
+.eyebrow { color: #75cfff; }
+h1 { text-shadow: 0 8px 30px rgba(52,92,210,.09); }
