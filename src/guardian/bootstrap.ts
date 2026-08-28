@@ -160,9 +160,10 @@ async function requireInteractiveRecovery(root: string, helperSha256: string): P
   const phrase = `RECOVER GUARDIAN ACL ${helperSha256.slice(0, 12)}`;
   stderr.write("Livariant Guardian pre-Authority recovery\n");
   stderr.write(`Protected root: ${root}\n`);
-  stderr.write(`Verified helper SHA-256: ${helperSha256}\n`);
-  stderr.write("This path changes only Windows ACLs on the exact pre-Authority Guardian layout after validating protected parentage, helper bytes, descriptor identity, and an empty records directory.\n");
-  stderr.write("It issues NO mutation, Runtime, integrity, lifecycle, or release Authority.\n");
+  stderr.write(`Protected release helper SHA-256: ${helperSha256}\n`);
+  stderr.write("This path first narrows only the known descriptor/helper leaf ACLs to SYSTEM and Administrators so the already privileged recovery process can read the historical broken files.\n");
+  stderr.write("It then validates exact helper bytes, descriptor identity, protected parentage, and an empty records directory before granting ordinary Users read/execute access.\n");
+  stderr.write("It preserves ownership and issues NO mutation, Runtime, integrity, lifecycle, or release Authority.\n");
   stderr.write(`Type exactly: ${phrase}\n`);
   const terminal = createInterface({ input: stdin, output: stderr });
   try {
@@ -214,6 +215,20 @@ function setWindowsFileAcl(path: string): void {
     `${WINDOWS_SYSTEM_SID}:F`,
     `${WINDOWS_ADMINISTRATORS_SID}:F`,
     `${WINDOWS_USERS_SID}:RX`,
+    "/C",
+    "/Q",
+  ]);
+}
+
+function setWindowsRecoveryPrereadFileAcl(path: string): void {
+  runIcacls([
+    path,
+    "/inheritance:r",
+    "/remove:g",
+    WINDOWS_USERS_SID,
+    "/grant:r",
+    `${WINDOWS_SYSTEM_SID}:F`,
+    `${WINDOWS_ADMINISTRATORS_SID}:F`,
     "/C",
     "/Q",
   ]);
@@ -275,9 +290,35 @@ async function assertRecoverableWindowsGuardian(root: string, helperSource: stri
   assertWindowsProtectedPath(helper, "Guardian helper");
   await assertEmptyAuthorityRecords(records);
 
-  const [protectedHelperBytes, installedHelperBytes] = await Promise.all([readFile(helperSource), readFile(helper)]);
+  const protectedHelperBytes = await readFile(helperSource);
   const helperSha256 = createHash("sha256").update(protectedHelperBytes).digest("hex");
-  if (!protectedHelperBytes.equals(installedHelperBytes)) {
+  return { physicalRoot, helperSha256 };
+}
+
+async function revalidateRecoverableWindowsGuardian(physicalRoot: string, helperSource: string, expectedHelperSha256: string): Promise<void> {
+  await assertProtectedProductionParent(physicalRoot, "win32");
+  const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
+  await assertRealDirectory(records, "Guardian records directory");
+  await assertRealFile(descriptor, "Guardian root descriptor");
+  await assertRealFile(helper, "Guardian helper");
+  assertWindowsProtectedPath(physicalRoot, "Guardian root");
+  assertWindowsProtectedPath(records, "Guardian records directory");
+  assertWindowsProtectedPath(descriptor, "Guardian root descriptor");
+  assertWindowsProtectedPath(helper, "Guardian helper");
+  await assertEmptyAuthorityRecords(records);
+  const protectedHelperBytes = await readFile(helperSource);
+  const currentSha = createHash("sha256").update(protectedHelperBytes).digest("hex");
+  if (currentSha !== expectedHelperSha256) {
+    throw new Error("Guardian recovery protected source changed after review. Recovery aborted before ACL mutation.");
+  }
+}
+
+async function validateRecoverableWindowsGuardianMaterial(physicalRoot: string, helperSource: string, expectedHelperSha256: string): Promise<void> {
+  const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
+  await assertEmptyAuthorityRecords(records);
+  const [protectedHelperBytes, installedHelperBytes] = await Promise.all([readFile(helperSource), readFile(helper)]);
+  const currentSha = createHash("sha256").update(protectedHelperBytes).digest("hex");
+  if (currentSha !== expectedHelperSha256 || !protectedHelperBytes.equals(installedHelperBytes)) {
     throw new Error("Guardian recovery refuses helper bytes that differ from the current protected release-bound Stage-B source.");
   }
 
@@ -285,22 +326,8 @@ async function assertRecoverableWindowsGuardian(root: string, helperSource: stri
   try {
     descriptorValue = JSON.parse(await readFile(descriptor, "utf8")) as unknown;
   } catch {
-    throw new Error("Guardian recovery descriptor is unreadable or invalid JSON.");
+    throw new Error("Guardian recovery descriptor is unreadable or invalid JSON after restricted preread ACL repair.");
   }
-  strictRecoveryDescriptor(descriptorValue, buildGuardianRootDescriptor(installedHelperBytes, physicalRoot, "win32"));
-  return { physicalRoot, helperSha256 };
-}
-
-async function revalidateRecoverableWindowsGuardian(physicalRoot: string, helperSource: string, expectedHelperSha256: string): Promise<void> {
-  await assertProtectedProductionParent(physicalRoot, "win32");
-  const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
-  await assertEmptyAuthorityRecords(records);
-  const [protectedHelperBytes, installedHelperBytes] = await Promise.all([readFile(helperSource), readFile(helper)]);
-  const currentSha = createHash("sha256").update(protectedHelperBytes).digest("hex");
-  if (currentSha !== expectedHelperSha256 || !protectedHelperBytes.equals(installedHelperBytes)) {
-    throw new Error("Guardian recovery material changed after review. Recovery aborted before ACL mutation.");
-  }
-  const descriptorValue = JSON.parse(await readFile(descriptor, "utf8")) as unknown;
   strictRecoveryDescriptor(descriptorValue, buildGuardianRootDescriptor(installedHelperBytes, physicalRoot, "win32"));
 }
 
@@ -320,6 +347,12 @@ export async function recoverProductionGuardianPreAuthority(): Promise<GuardianR
   await revalidateRecoverableWindowsGuardian(physicalRoot, helperSource, helperSha256);
 
   const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
+  setWindowsRecoveryPrereadFileAcl(descriptor);
+  setWindowsRecoveryPrereadFileAcl(helper);
+  await validateRecoverableWindowsGuardianMaterial(physicalRoot, helperSource, helperSha256);
+  await assertProtectedProductionParent(physicalRoot, "win32");
+  await assertEmptyAuthorityRecords(records);
+
   setWindowsDirectoryAcl(physicalRoot);
   setWindowsDirectoryAcl(records);
   setWindowsFileAcl(descriptor);
@@ -332,9 +365,9 @@ export async function recoverProductionGuardianPreAuthority(): Promise<GuardianR
     root: physicalRoot,
     helperSha256,
     authorityIssued: false,
-    changesMade: 4,
+    changesMade: 6,
     nextStep: "Close the privileged terminal and run `livariant guardian status` from an ordinary user terminal. Do not authorize lifecycle changes unless Guardian readiness is reported as ready.",
-    recoveryBoundary: "Recovery is bounded to the exact fixed Windows Guardian v1 layout, requires the existing helper and descriptor to match the current OS-protected release-bound Stage-B source, requires zero Authority records, preserves ownership, and changes ACLs only.",
+    recoveryBoundary: "Recovery is bounded to the exact fixed Windows Guardian v1 layout. Before any mutation it requires protected parentage, protected ownership/DACL state, real non-symlink layout, zero Authority records, local interactive confirmation, and unchanged protected release material. It then narrows only descriptor/helper ACLs to SYSTEM and Administrators for privileged preread, validates exact helper bytes and descriptor identity, preserves ownership, and grants ordinary Users read/execute only after validation. It issues no Authority.",
   };
 }
 
