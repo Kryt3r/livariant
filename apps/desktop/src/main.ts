@@ -1,7 +1,9 @@
 import "./styles.css";
 import "./glass.css";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
+const appWindow = getCurrentWindow();
 
 type StepState = "open" | "skipped" | "answered";
 
@@ -60,84 +62,98 @@ const render = () => {
   const deferred = steps.filter((step) => step.state === "skipped").length;
 
   app.innerHTML = `
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-mark" style="overflow:hidden;border:0;background:transparent;box-shadow:none;">
-            <img src="${livariantLogo}" alt="Livariant logo" style="width:100%;height:100%;object-fit:contain;display:block;" />
-          </div>
-          <div>
-            <strong>Livariant</strong>
-            <small>Desktop Foundation</small>
-          </div>
+    <div class="desktop-frame">
+      <header class="window-titlebar" data-tauri-drag-region>
+        <div class="window-brand" data-tauri-drag-region>
+          <img src="${livariantLogo}" alt="" aria-hidden="true" />
+          <span data-tauri-drag-region>Livariant</span>
         </div>
-
-        <nav class="nav" aria-label="Primary navigation">
-          <button class="nav-item">${icon("home")}<span>Overview</span></button>
-          <button class="nav-item active">${icon("steps")}<span>First Steps</span><b>${completed}/${steps.length}</b></button>
-          <button class="nav-item">${icon("updates")}<span>Updates</span></button>
-          <button class="nav-item">${icon("settings")}<span>Settings</span></button>
-          <button class="nav-item">${icon("diagnostics")}<span>Diagnostics</span></button>
-        </nav>
-
-        <div class="sidebar-footer">
-          <div class="status-dot"></div>
-          <div>
-            <strong>Foundation preview</strong>
-            <small>Live runtime wiring comes next</small>
-          </div>
+        <div class="window-controls" aria-label="Window controls">
+          <button class="window-control" data-window-action="minimize" type="button" aria-label="Minimize">−</button>
+          <button class="window-control" data-window-action="maximize" type="button" aria-label="Maximize">□</button>
+          <button class="window-control close" data-window-action="close" type="button" aria-label="Close">×</button>
         </div>
-      </aside>
+      </header>
 
-      <main class="content">
-        <header class="topbar">
-          <div>
-            <span class="eyebrow">Project setup</span>
-            <h1>First Steps</h1>
-            <p>Build Livariant's understanding at your pace. Nothing here becomes Authority just because it was entered.</p>
+      <div class="app-shell">
+        <aside class="sidebar">
+          <div class="brand">
+            <div class="brand-mark" style="overflow:hidden;border:0;background:transparent;box-shadow:none;">
+              <img src="${livariantLogo}" alt="Livariant logo" style="width:100%;height:100%;object-fit:contain;display:block;" />
+            </div>
+            <div>
+              <strong>Livariant</strong>
+              <small>Desktop Foundation</small>
+            </div>
           </div>
-          <button class="project-chip" type="button">
-            <span class="project-icon">L</span>
-            <span><small>Current project</small><strong>No project selected</strong></span>
-            <span class="chevron">⌄</span>
-          </button>
-        </header>
 
-        <section class="health-strip" aria-label="System readiness preview">
-          <div class="health-card muted">
-            <span class="health-icon">○</span>
-            <div><small>Installation</small><strong>Not connected</strong></div>
-          </div>
-          <div class="health-card muted">
-            <span class="health-icon">○</span>
-            <div><small>Protected components</small><strong>Not connected</strong></div>
-          </div>
-          <div class="health-card muted">
-            <span class="health-icon">○</span>
-            <div><small>Guardian</small><strong>Not connected</strong></div>
-          </div>
-        </section>
+          <nav class="nav" aria-label="Primary navigation">
+            <button class="nav-item">${icon("home")}<span>Overview</span></button>
+            <button class="nav-item active">${icon("steps")}<span>First Steps</span><b>${completed}/${steps.length}</b></button>
+            <button class="nav-item">${icon("updates")}<span>Updates</span></button>
+            <button class="nav-item">${icon("settings")}<span>Settings</span></button>
+            <button class="nav-item">${icon("diagnostics")}<span>Diagnostics</span></button>
+          </nav>
 
-        <section class="progress-panel">
-          <div>
-            <span class="eyebrow">Your setup, not a gate</span>
-            <h2>${completed} of ${steps.length} answered</h2>
-            <p>${deferred > 0 ? `${deferred} deferred. ` : ""}You can skip anything that is not needed yet and return later.</p>
+          <div class="sidebar-footer">
+            <div class="status-dot"></div>
+            <div>
+              <strong>Foundation preview</strong>
+              <small>Live runtime wiring comes next</small>
+            </div>
           </div>
-          <div class="progress-ring" style="--progress:${Math.round((completed / steps.length) * 100)}%">
-            <span>${Math.round((completed / steps.length) * 100)}%</span>
-          </div>
-        </section>
+        </aside>
 
-        <section class="steps" aria-label="First Steps questions">
-          ${steps.map(renderStep).join("")}
-        </section>
+        <main class="content">
+          <header class="topbar">
+            <div>
+              <span class="eyebrow">Project setup</span>
+              <h1>First Steps</h1>
+              <p>Build Livariant's understanding at your pace. Nothing here becomes Authority just because it was entered.</p>
+            </div>
+            <button class="project-chip" type="button">
+              <span class="project-icon">L</span>
+              <span><small>Current project</small><strong>No project selected</strong></span>
+              <span class="chevron">⌄</span>
+            </button>
+          </header>
 
-        <footer class="truth-note">
-          <span class="truth-icon">i</span>
-          <p><strong>Truth boundary:</strong> answers in this preview are UI state only. Future persistence must preserve Livariant's Evidence → Review → Project Truth rules and must never grant mutation, runtime, lifecycle or release Authority.</p>
-        </footer>
-      </main>
+          <section class="health-strip" aria-label="System readiness preview">
+            <div class="health-card muted">
+              <span class="health-icon">○</span>
+              <div><small>Installation</small><strong>Not connected</strong></div>
+            </div>
+            <div class="health-card muted">
+              <span class="health-icon">○</span>
+              <div><small>Protected components</small><strong>Not connected</strong></div>
+            </div>
+            <div class="health-card muted">
+              <span class="health-icon">○</span>
+              <div><small>Guardian</small><strong>Not connected</strong></div>
+            </div>
+          </section>
+
+          <section class="progress-panel">
+            <div>
+              <span class="eyebrow">Your setup, not a gate</span>
+              <h2>${completed} of ${steps.length} answered</h2>
+              <p>${deferred > 0 ? `${deferred} deferred. ` : ""}You can skip anything that is not needed yet and return later.</p>
+            </div>
+            <div class="progress-ring" style="--progress:${Math.round((completed / steps.length) * 100)}%">
+              <span>${Math.round((completed / steps.length) * 100)}%</span>
+            </div>
+          </section>
+
+          <section class="steps" aria-label="First Steps questions">
+            ${steps.map(renderStep).join("")}
+          </section>
+
+          <footer class="truth-note">
+            <span class="truth-icon">i</span>
+            <p><strong>Truth boundary:</strong> answers in this preview are UI state only. Future persistence must preserve Livariant's Evidence → Review → Project Truth rules and must never grant mutation, runtime, lifecycle or release Authority.</p>
+          </footer>
+        </main>
+      </div>
     </div>
   `;
 
@@ -211,6 +227,20 @@ const bindEvents = () => {
       step.state = "answered";
       render();
     });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-window-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.windowAction;
+      if (action === "minimize") await appWindow.minimize();
+      if (action === "maximize") await appWindow.toggleMaximize();
+      if (action === "close") await appWindow.close();
+    });
+  });
+
+  document.querySelector<HTMLElement>(".window-titlebar")?.addEventListener("dblclick", async (event) => {
+    if ((event.target as HTMLElement).closest(".window-controls")) return;
+    await appWindow.toggleMaximize();
   });
 };
 
