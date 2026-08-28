@@ -1,0 +1,54 @@
+name: Desktop Windows Foundation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop-windows-foundation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Tauri foundation on Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Report Windows toolchain
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+
+      - name: Install desktop dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build renderer
+        run: npm run build
+
+      - name: Check Rust host
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Build Windows desktop executable without installer bundling
+        run: npm run tauri:build -- --no-bundle --ci
