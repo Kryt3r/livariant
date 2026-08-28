@@ -34,6 +34,7 @@ jobs:
           npm run build
           node --test \
             dist/tests/project-brain-integrity.test.js \
+            dist/tests/project-brain-integrity-directory-race.test.js \
             dist/tests/autonomy-profile.test.js \
             dist/tests/external-evidence-inert-data.test.js \
             dist/tests/guardian-authority-record.test.js \
