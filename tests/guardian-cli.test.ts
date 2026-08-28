@@ -13,8 +13,10 @@ import {
 import { guardianAuthorityMaterialDigest } from "../src/guardian/authority-record.js";
 
 const cliPath = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
+const guardianCommandPath = fileURLToPath(new URL("../src/cli/guardian-command.js", import.meta.url));
 const bootstrapPath = fileURLToPath(new URL("../src/guardian/bootstrap.js", import.meta.url));
 const helperPath = fileURLToPath(new URL("../src/guardian/protected-helper.js", import.meta.url));
+const protectedBuildPath = resolve(process.cwd(), "scripts", "build-protected-bootstrap-assets.mjs");
 
 async function withProject(run: (project: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(resolve(tmpdir(), "livariant-guardian-cli-"));
@@ -54,6 +56,45 @@ test("Windows Stage-B hardening gives leaf files effective requester read withou
   assert.doesNotMatch(builtBootstrap, /"\/T"/u, "Stage-B must not apply one inheritance-shaped ACL recursively to leaf files");
   assert.match(builtBootstrap, /hardenWindowsFile\(descriptor\)/u);
   assert.match(builtBootstrap, /hardenWindowsFile\(helper\)/u);
+});
+
+test("Windows pre-Authority recovery is exact-material-bound, zero-record and ACL-only", async () => {
+  const builtBootstrap = await readFile(bootstrapPath, "utf8");
+  const start = builtBootstrap.indexOf("async function recoverProductionGuardianPreAuthority");
+  const end = builtBootstrap.indexOf("async function bootstrapProductionGuardian", start);
+  assert.notEqual(start, -1, "compiled Stage-B must expose the bounded recovery core");
+  assert.notEqual(end, -1, "compiled Stage-B must keep recovery separate from fresh bootstrap");
+  const recovery = builtBootstrap.slice(start, end);
+
+  assert.match(recovery, /process\.platform !== "win32"/u);
+  assert.match(recovery, /assertRecoverableWindowsGuardian/u);
+  assert.match(recovery, /requireInteractiveRecovery/u);
+  assert.match(recovery, /revalidateRecoverableWindowsGuardian/u);
+  assert.match(recovery, /setWindowsDirectoryAcl\(physicalRoot\)/u);
+  assert.match(recovery, /setWindowsFileAcl\(descriptor\)/u);
+  assert.match(recovery, /setWindowsFileAcl\(helper\)/u);
+  assert.doesNotMatch(recovery, /setowner|hardenWindowsDirectory|hardenWindowsFile/u, "recovery must preserve existing protected ownership and repair ACLs only");
+
+  assert.match(builtBootstrap, /assertEmptyAuthorityRecords/u);
+  assert.match(builtBootstrap, /Only an empty pre-Authority records directory is recoverable/u);
+  assert.match(builtBootstrap, /protectedHelperBytes\.equals\(installedHelperBytes\)/u);
+  assert.match(builtBootstrap, /strictRecoveryDescriptor/u);
+  assert.match(builtBootstrap, /Recovery aborted before ACL mutation/u);
+});
+
+test("protected bootstrap bundle contains the Windows recovery launcher and binds it into release material", async () => {
+  const buildScript = await readFile(protectedBuildPath, "utf8");
+  assert.match(buildScript, /guardian-recover-entry\.mjs/u);
+  assert.match(buildScript, /guardian-recover\.ps1/u);
+  assert.match(buildScript, /recoverProductionGuardianPreAuthority/u);
+  assert.match(buildScript, /filesBelow\(staging\)/u, "release descriptor hashing must cover all staged recovery launcher files");
+});
+
+test("guardian diagnostics surface only the protected recovery launcher for an unsafe Windows machine", async () => {
+  const guardianCommand = await readFile(guardianCommandPath, "utf8");
+  assert.match(guardianCommand, /C:\\\\Program Files\\\\Livariant\\\\Bootstrap\\\\v1\\\\guardian-recover\.ps1/u);
+  assert.match(guardianCommand, /historical pre-Authority Windows Stage-B ACL failure/u);
+  assert.match(guardianCommand, /zero Authority records/u);
 });
 
 test("guardian status is read-only machine-readiness diagnostics with a next action", async () => {

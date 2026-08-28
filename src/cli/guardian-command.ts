@@ -15,6 +15,11 @@ function protectedBootstrapCommand(platform: NodeJS.Platform): string | null {
   return null;
 }
 
+function protectedRecoveryCommand(platform: NodeJS.Platform): string | null {
+  if (platform === "win32") return "& 'C:\\Program Files\\Livariant\\Bootstrap\\v1\\guardian-recover.ps1'";
+  return null;
+}
+
 function nextAction(readiness: Awaited<ReturnType<typeof inspectGuardianMachineReadiness>>): string {
   if (readiness.state === "ready") {
     return "Guardian is ready. No bootstrap action is required.";
@@ -29,7 +34,10 @@ function nextAction(readiness: Awaited<ReturnType<typeof inspectGuardianMachineR
       : "Run the protected Stage-B launcher from the OS-protected Livariant bootstrap source.";
   }
   if (readiness.state === "unsafe") {
-    return "STOP. Do not bootstrap or authorize lifecycle changes. Repair/reinstall the protected machine state from exact qualified release material; do not bless it through project files, CLI flags, or requester-controlled copies.";
+    const recovery = readiness.protectedSource.state === "ready" ? protectedRecoveryCommand(readiness.platform) : null;
+    return recovery
+      ? `STOP. Do not authorize lifecycle changes. If this is the historical pre-Authority Windows Stage-B ACL failure, run the protected bounded recovery launcher from a local privileged terminal: ${recovery}. The recovery path validates exact protected bytes, descriptor identity, protected ownership, and zero Authority records before changing ACLs; otherwise it fails closed.`
+      : "STOP. Do not bootstrap or authorize lifecycle changes. Repair/reinstall the protected machine state from exact qualified release material; do not bless it through project files, CLI flags, or requester-controlled copies.";
   }
   return "Protected Guardian v1 is unsupported on this platform. Do not proceed with Guardian-dependent lifecycle authorization.";
 }
@@ -54,7 +62,7 @@ export async function handleGuardianCommand(args: string[]): Promise<void> {
       authorityIssued: false,
       changesMade: 0,
       nextStep: next,
-      boundary: "The ordinary global CLI does not execute privileged Guardian bootstrap from requester-writable package bytes. Stage B executes only from the already OS-protected release-bound bootstrap source.",
+      boundary: "The ordinary global CLI does not execute privileged Guardian bootstrap or recovery from requester-writable package bytes. Protected Stage-B operations execute only from the already OS-protected release-bound bootstrap source.",
     };
     if (jsonRequested(args)) {
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
