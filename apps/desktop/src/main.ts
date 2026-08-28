@@ -1,5 +1,7 @@
 import "./styles.css";
 
+const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
+
 type StepState = "open" | "skipped" | "answered";
 
 type FirstStep = {
@@ -60,7 +62,9 @@ const render = () => {
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark"><span></span><span></span></div>
+          <div class="brand-mark">
+            <img src="${livariantLogo}" alt="Livariant logo" />
+          </div>
           <div>
             <strong>Livariant</strong>
             <small>Desktop Foundation</small>
