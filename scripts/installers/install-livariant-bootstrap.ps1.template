@@ -361,7 +361,15 @@ try {
 
   Ensure-RealDirectory $LivariantProgramData
   Ensure-RealDirectory $GuardianParent
-  Harden-LivariantTree $LivariantProgramData
+
+  # Stage A owns only the protected parent chain for Guardian bootstrap. It must never recurse into
+  # an existing Guardian production root: historical pre-Authority Guardian state is inspected and
+  # repaired only by the separately protected Stage-B recovery path.
+  Set-ProtectedDirectoryAcl $LivariantProgramData
+  Set-ProtectedDirectoryAcl $GuardianParent
+  Assert-ProtectedPath $LivariantProgramData 'Livariant ProgramData parent'
+  Assert-ProtectedPath $GuardianParent 'Guardian parent'
+
   Assert-DescriptorFiles $Target
   Assert-ProtectedNodeChain
 
