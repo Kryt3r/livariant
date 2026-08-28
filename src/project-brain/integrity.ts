@@ -62,7 +62,13 @@ async function assertRealDirectory(path: string, label: string): Promise<boolean
 }
 
 async function ensureRealDirectory(path: string, label: string): Promise<void> {
-  if (!await assertRealDirectory(path, label)) await mkdir(path, { recursive: false });
+  if (!await assertRealDirectory(path, label)) {
+    try {
+      await mkdir(path, { recursive: false });
+    } catch (error) {
+      if (!errno(error, "EEXIST")) throw error;
+    }
+  }
   if (!await assertRealDirectory(path, label)) throw new Error(`${label} could not be established.`);
 }
 
@@ -88,7 +94,7 @@ async function safeIntegrityBase(
   if (create) {
     const livariantRoot = resolve(home, ".livariant");
     const integrityRoot = resolve(livariantRoot, "integrity");
-    if (!await assertRealDirectory(livariantRoot, "Machine-local Livariant root")) await mkdir(livariantRoot, { recursive: false });
+    await ensureRealDirectory(livariantRoot, "Machine-local Livariant root");
     await ensureRealDirectory(integrityRoot, "Machine-local integrity root");
     await ensureRealDirectory(base, "Machine-local Project Brain integrity root");
   } else if (!await assertRealDirectory(base, "Machine-local Project Brain integrity root")) {
