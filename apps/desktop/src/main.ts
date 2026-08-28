@@ -1,4 +1,5 @@
 import "./styles.css";
+import "./glass.css";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
 
