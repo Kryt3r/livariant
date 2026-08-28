@@ -1,17 +1,17 @@
 :root {
-  --bg-ink: #060912;
-  --bg-deep: #0a1020;
-  --glass-fill: rgba(12, 18, 32, 0.32);
-  --glass-fill-strong: rgba(10, 15, 28, 0.44);
-  --glass-border: rgba(198, 177, 255, 0.18);
-  --glass-border-soft: rgba(186, 166, 255, 0.10);
-  --glass-highlight: rgba(255, 255, 255, 0.10);
-  --text-main: rgba(241, 246, 255, 0.96);
-  --text-soft: rgba(190, 203, 226, 0.78);
-  --text-dim: rgba(155, 171, 198, 0.54);
-  --accent-cyan: #34dcff;
-  --accent-blue: #4a7dff;
-  --accent-violet: #9357ff;
+  --bg-ink: #030814;
+  --bg-deep: #071426;
+  --glass-fill: rgba(7, 20, 38, 0.30);
+  --glass-fill-strong: rgba(6, 17, 33, 0.40);
+  --glass-border: rgba(134, 174, 255, 0.18);
+  --glass-border-soft: rgba(124, 160, 235, 0.10);
+  --glass-highlight: rgba(225, 238, 255, 0.09);
+  --text-main: rgba(241, 247, 255, 0.96);
+  --text-soft: rgba(185, 204, 232, 0.80);
+  --text-dim: rgba(143, 166, 200, 0.56);
+  --accent-cyan: #42d8ff;
+  --accent-blue: #4d83ff;
+  --accent-violet: #925cff;
   --accent-magenta: #d247ff;
 }
 
@@ -31,10 +31,10 @@ body {
   grid-template-rows: 38px minmax(0, 1fr);
   overflow: hidden;
   background:
-    radial-gradient(circle at 86% 76%, rgba(147, 87, 255, 0.14), transparent 18%),
-    radial-gradient(circle at 92% 84%, rgba(210, 71, 255, 0.05), transparent 26%),
-    radial-gradient(circle at 20% 10%, rgba(74, 125, 255, 0.03), transparent 22%),
-    rgba(5, 8, 16, 0.09);
+    radial-gradient(circle at 16% 8%, rgba(65, 130, 255, 0.075), transparent 26%),
+    radial-gradient(circle at 86% 76%, rgba(146, 92, 255, 0.085), transparent 20%),
+    radial-gradient(circle at 94% 88%, rgba(210, 71, 255, 0.018), transparent 24%),
+    rgba(2, 9, 20, 0.08);
 }
 
 .window-titlebar {
@@ -45,13 +45,13 @@ body {
   height: 38px;
   border-bottom: 1px solid var(--glass-border-soft);
   background:
-    radial-gradient(circle at 86% 120%, rgba(147, 87, 255, 0.15), transparent 32%),
-    linear-gradient(180deg, rgba(18, 24, 40, 0.36), rgba(13, 18, 32, 0.28));
-  backdrop-filter: blur(24px) saturate(155%);
-  -webkit-backdrop-filter: blur(24px) saturate(155%);
+    radial-gradient(circle at 84% 120%, rgba(146, 92, 255, 0.09), transparent 34%),
+    linear-gradient(180deg, rgba(10, 27, 49, 0.34), rgba(6, 19, 37, 0.27));
+  backdrop-filter: blur(18px) saturate(148%);
+  -webkit-backdrop-filter: blur(18px) saturate(148%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.025);
+    inset 0 1px 0 rgba(225, 238, 255, 0.08),
+    inset 0 -1px 0 rgba(174, 201, 255, 0.02);
   user-select: none;
 }
 
@@ -73,8 +73,8 @@ body {
   height: 17px;
   object-fit: contain;
   filter:
-    drop-shadow(0 0 8px rgba(147, 87, 255, 0.30))
-    drop-shadow(0 0 14px rgba(210, 71, 255, 0.10));
+    drop-shadow(0 0 8px rgba(146, 92, 255, 0.28))
+    drop-shadow(0 0 15px rgba(210, 71, 255, 0.055));
 }
 
 .window-controls {
@@ -87,9 +87,9 @@ body {
   width: 46px;
   height: 100%;
   border: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.02);
+  border-left: 1px solid rgba(190, 216, 255, 0.025);
   background: transparent;
-  color: rgba(212, 223, 244, 0.72);
+  color: rgba(205, 221, 247, 0.72);
   font-size: 16px;
   line-height: 1;
   cursor: default;
@@ -99,9 +99,9 @@ body {
 .window-control:hover {
   color: #fff;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01)),
-    radial-gradient(circle at 50% 120%, rgba(147, 87, 255, 0.22), transparent 52%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    linear-gradient(180deg, rgba(212,232,255,0.035), rgba(126,174,255,0.012)),
+    radial-gradient(circle at 50% 120%, rgba(146, 92, 255, 0.15), transparent 52%);
+  box-shadow: inset 0 1px 0 rgba(222,237,255,0.045);
 }
 
 .window-control.close:hover {
@@ -116,12 +116,12 @@ body {
   scrollbar-width: none;
   -ms-overflow-style: none;
   background:
-    radial-gradient(circle at 88% 74%, rgba(147, 87, 255, 0.13), transparent 18%),
-    radial-gradient(circle at 94% 84%, rgba(210, 71, 255, 0.045), transparent 24%),
-    radial-gradient(circle at 18% 5%, rgba(52, 220, 255, 0.018), transparent 18%),
-    rgba(5, 9, 18, 0.16);
-  backdrop-filter: blur(24px) saturate(155%);
-  -webkit-backdrop-filter: blur(24px) saturate(155%);
+    radial-gradient(circle at 15% 5%, rgba(61, 126, 255, 0.07), transparent 24%),
+    radial-gradient(circle at 88% 74%, rgba(146, 92, 255, 0.075), transparent 20%),
+    radial-gradient(circle at 95% 86%, rgba(210, 71, 255, 0.015), transparent 24%),
+    rgba(3, 12, 25, 0.13);
+  backdrop-filter: blur(18px) saturate(148%);
+  -webkit-backdrop-filter: blur(18px) saturate(148%);
 }
 
 .app-shell::-webkit-scrollbar {
@@ -132,20 +132,21 @@ body {
 
 .sidebar {
   background:
-    radial-gradient(circle at 20% 86%, rgba(147, 87, 255, 0.085), transparent 30%),
-    linear-gradient(180deg, rgba(8, 13, 24, 0.38), rgba(6, 10, 18, 0.31));
-  border-right-color: rgba(198, 177, 255, 0.09);
+    radial-gradient(circle at 18% 82%, rgba(74, 125, 255, 0.075), transparent 34%),
+    radial-gradient(circle at 94% 70%, rgba(146, 92, 255, 0.035), transparent 28%),
+    linear-gradient(180deg, rgba(5, 19, 38, 0.36), rgba(3, 14, 29, 0.29));
+  border-right-color: rgba(128, 168, 245, 0.09);
   box-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.025),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(26px) saturate(150%);
-  -webkit-backdrop-filter: blur(26px) saturate(150%);
+    inset -1px 0 0 rgba(194, 216, 255, 0.022),
+    inset 0 1px 0 rgba(215, 232, 255, 0.028);
+  backdrop-filter: blur(20px) saturate(145%);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
 }
 
 .brand-mark img {
   filter:
-    drop-shadow(0 0 8px rgba(147, 87, 255, 0.28))
-    drop-shadow(0 0 14px rgba(210, 71, 255, 0.09));
+    drop-shadow(0 0 8px rgba(146, 92, 255, 0.26))
+    drop-shadow(0 0 15px rgba(210, 71, 255, 0.05));
 }
 
 .nav-item {
@@ -154,19 +155,19 @@ body {
 }
 
 .nav-item.active {
-  color: #f8f7ff;
-  border-color: rgba(196, 172, 255, 0.17);
+  color: #f8f9ff;
+  border-color: rgba(139, 174, 255, 0.16);
   background:
-    radial-gradient(circle at 88% 50%, rgba(147, 87, 255, 0.21), transparent 36%),
-    linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.009)),
-    rgba(20, 24, 45, 0.24);
+    radial-gradient(circle at 88% 50%, rgba(146, 92, 255, 0.13), transparent 38%),
+    linear-gradient(180deg, rgba(126,174,255,0.035), rgba(126,174,255,0.008)),
+    rgba(8, 27, 52, 0.25);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.055),
-    0 0 18px rgba(147, 87, 255, 0.09);
+    inset 0 1px 0 rgba(214,231,255,0.05),
+    0 0 18px rgba(146, 92, 255, 0.065);
 }
 
 .nav-item.active svg {
-  color: #bc90ff;
+  color: #a986ff;
 }
 
 .project-chip,
@@ -177,14 +178,14 @@ body {
   position: relative;
   border: 1px solid var(--glass-border);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.011)),
-    rgba(12, 18, 32, 0.27);
-  backdrop-filter: blur(24px) saturate(152%);
-  -webkit-backdrop-filter: blur(24px) saturate(152%);
+    linear-gradient(180deg, rgba(190,218,255,0.035), rgba(118,166,255,0.008)),
+    rgba(6, 21, 41, 0.25);
+  backdrop-filter: blur(18px) saturate(146%);
+  -webkit-backdrop-filter: blur(18px) saturate(146%);
   box-shadow:
     inset 0 1px 0 var(--glass-highlight),
-    inset 0 -1px 0 rgba(255,255,255,0.018),
-    0 10px 26px rgba(0,0,0,0.07);
+    inset 0 -1px 0 rgba(121,165,242,0.018),
+    0 10px 26px rgba(0,0,0,0.065);
 }
 
 .project-chip::before,
@@ -198,56 +199,57 @@ body {
   border-radius: inherit;
   pointer-events: none;
   background:
-    radial-gradient(circle at 92% 80%, rgba(147, 87, 255, 0.145), transparent 22%),
-    radial-gradient(circle at 88% 88%, rgba(210, 71, 255, 0.035), transparent 30%),
-    linear-gradient(180deg, rgba(255,255,255,0.025), transparent 28%);
+    radial-gradient(circle at 92% 80%, rgba(146, 92, 255, 0.085), transparent 24%),
+    radial-gradient(circle at 88% 88%, rgba(210, 71, 255, 0.012), transparent 31%),
+    linear-gradient(180deg, rgba(194,220,255,0.02), transparent 28%);
 }
 
 .project-chip {
-  border-color: rgba(199, 177, 255, 0.18);
+  border-color: rgba(142, 177, 255, 0.17);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.012)),
-    rgba(12, 18, 32, 0.30);
+    linear-gradient(180deg, rgba(197,222,255,0.04), rgba(118,166,255,0.009)),
+    rgba(6, 22, 44, 0.28);
 }
 
 .project-chip:hover {
-  border-color: rgba(211, 188, 255, 0.26);
+  border-color: rgba(156, 187, 255, 0.25);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.10),
-    0 0 20px rgba(147, 87, 255, 0.10);
+    inset 0 1px 0 rgba(217,233,255,0.085),
+    0 0 20px rgba(146, 92, 255, 0.07);
 }
 
 .project-icon {
   background:
-    radial-gradient(circle at 65% 70%, rgba(147, 87, 255, 0.18), transparent 58%),
-    rgba(25, 32, 58, 0.40);
-  border-color: rgba(198, 175, 255, 0.20);
-  color: #c9a5ff;
-  box-shadow: 0 0 12px rgba(147, 87, 255, 0.12);
+    radial-gradient(circle at 65% 70%, rgba(146, 92, 255, 0.11), transparent 58%),
+    rgba(17, 42, 77, 0.38);
+  border-color: rgba(142, 178, 255, 0.19);
+  color: #b89cff;
+  box-shadow: 0 0 12px rgba(146, 92, 255, 0.08);
 }
 
 .health-card {
   background:
-    radial-gradient(circle at 92% 80%, rgba(147, 87, 255, 0.09), transparent 28%),
-    linear-gradient(180deg, rgba(255,255,255,0.038), rgba(255,255,255,0.010)),
-    rgba(11, 17, 30, 0.24);
+    radial-gradient(circle at 92% 80%, rgba(146, 92, 255, 0.045), transparent 30%),
+    linear-gradient(180deg, rgba(188,217,255,0.03), rgba(111,160,240,0.007)),
+    rgba(5, 20, 40, 0.23);
 }
 
 .health-icon {
-  border-color: rgba(194, 173, 255, 0.20);
-  background: rgba(255,255,255,0.018);
+  border-color: rgba(138, 175, 250, 0.19);
+  background: rgba(110, 159, 240, 0.018);
 }
 
 .progress-panel {
-  border-color: rgba(202, 180, 255, 0.19);
+  border-color: rgba(145, 179, 255, 0.19);
   background:
-    radial-gradient(circle at 88% 68%, rgba(147, 87, 255, 0.20), transparent 23%),
-    radial-gradient(circle at 83% 76%, rgba(210, 71, 255, 0.045), transparent 30%),
-    linear-gradient(180deg, rgba(255,255,255,0.044), rgba(255,255,255,0.012)),
-    rgba(11, 17, 30, 0.26);
+    radial-gradient(circle at 88% 68%, rgba(146, 92, 255, 0.12), transparent 25%),
+    radial-gradient(circle at 83% 76%, rgba(210, 71, 255, 0.015), transparent 31%),
+    radial-gradient(circle at 12% 20%, rgba(74, 125, 255, 0.055), transparent 28%),
+    linear-gradient(180deg, rgba(192,220,255,0.035), rgba(109,159,242,0.009)),
+    rgba(5, 20, 40, 0.25);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.10),
-    0 0 26px rgba(147, 87, 255, 0.07);
+    inset 0 1px 0 rgba(216,233,255,0.085),
+    0 0 26px rgba(146, 92, 255, 0.045);
 }
 
 .progress-panel h2 {
@@ -255,92 +257,92 @@ body {
 }
 
 .progress-ring {
-  background: conic-gradient(#ad55ff var(--progress), rgba(255,255,255,0.065) 0);
+  background: conic-gradient(#8b63ff var(--progress), rgba(131,171,238,0.085) 0);
   box-shadow:
-    0 0 16px rgba(147, 87, 255, 0.20),
-    0 0 26px rgba(210, 71, 255, 0.06);
+    0 0 16px rgba(146, 92, 255, 0.16),
+    0 0 26px rgba(210, 71, 255, 0.025);
 }
 
 .progress-ring::before {
-  background: rgba(8, 12, 22, 0.58);
-  border: 1px solid rgba(202, 180, 255, 0.09);
-  backdrop-filter: blur(14px) saturate(145%);
+  background: rgba(4, 16, 31, 0.55);
+  border: 1px solid rgba(140, 176, 250, 0.085);
+  backdrop-filter: blur(10px) saturate(140%);
 }
 
 .progress-ring span {
-  color: #debaff;
+  color: #d5c3ff;
 }
 
 .step-card {
   background:
-    radial-gradient(circle at 92% 80%, rgba(147, 87, 255, 0.14), transparent 23%),
-    radial-gradient(circle at 88% 88%, rgba(210, 71, 255, 0.025), transparent 31%),
-    linear-gradient(180deg, rgba(255,255,255,0.039), rgba(255,255,255,0.009)),
-    rgba(10, 16, 29, 0.26);
+    radial-gradient(circle at 92% 80%, rgba(146, 92, 255, 0.075), transparent 25%),
+    radial-gradient(circle at 88% 88%, rgba(210, 71, 255, 0.008), transparent 32%),
+    linear-gradient(180deg, rgba(185,215,255,0.03), rgba(105,157,241,0.007)),
+    rgba(5, 20, 40, 0.245);
 }
 
 .step-card:hover {
-  border-color: rgba(211, 187, 255, 0.27);
+  border-color: rgba(157, 188, 255, 0.26);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.11),
-    0 0 20px rgba(147, 87, 255, 0.10);
+    inset 0 1px 0 rgba(218,234,255,0.095),
+    0 0 20px rgba(146, 92, 255, 0.07);
 }
 
 .step-number {
-  color: #d9baff;
+  color: #cebaff;
   background:
-    radial-gradient(circle at 68% 75%, rgba(147, 87, 255, 0.18), transparent 58%),
-    rgba(24, 31, 56, 0.36);
-  border-color: rgba(198, 175, 255, 0.20);
-  box-shadow: 0 0 12px rgba(147, 87, 255, 0.10);
-  backdrop-filter: blur(14px) saturate(150%);
+    radial-gradient(circle at 68% 75%, rgba(146, 92, 255, 0.10), transparent 58%),
+    rgba(16, 40, 73, 0.34);
+  border-color: rgba(140, 177, 251, 0.19);
+  box-shadow: 0 0 12px rgba(146, 92, 255, 0.065);
+  backdrop-filter: blur(10px) saturate(145%);
 }
 
 .button.primary {
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.025)),
-    linear-gradient(135deg, #4f78ff 0%, #7554ff 56%, #b653ff 100%);
-  border-color: rgba(218, 196, 255, 0.24);
+    linear-gradient(180deg, rgba(229,240,255,0.085), rgba(168,198,255,0.02)),
+    linear-gradient(135deg, #3f79ff 0%, #5d67ff 58%, #8757f5 100%);
+  border-color: rgba(178, 201, 255, 0.23);
   box-shadow:
-    0 0 14px rgba(147, 87, 255, 0.20),
-    0 0 24px rgba(210, 71, 255, 0.06),
-    inset 0 1px 0 rgba(255,255,255,0.14);
+    0 0 14px rgba(111, 100, 255, 0.16),
+    0 0 24px rgba(210, 71, 255, 0.025),
+    inset 0 1px 0 rgba(229,239,255,0.13);
 }
 
 .button.primary:hover {
   box-shadow:
-    0 0 20px rgba(147, 87, 255, 0.26),
-    0 0 30px rgba(210, 71, 255, 0.08),
-    inset 0 1px 0 rgba(255,255,255,0.16);
+    0 0 20px rgba(126, 105, 255, 0.21),
+    0 0 30px rgba(210, 71, 255, 0.035),
+    inset 0 1px 0 rgba(234,242,255,0.15);
 }
 
 .button.secondary {
-  background: rgba(12, 18, 32, 0.31);
-  border-color: rgba(202, 180, 255, 0.12);
-  backdrop-filter: blur(14px) saturate(150%);
+  background: rgba(5, 20, 40, 0.29);
+  border-color: rgba(137, 174, 247, 0.12);
+  backdrop-filter: blur(10px) saturate(145%);
 }
 
 .step-editor textarea {
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.028), rgba(255,255,255,0.008)),
-    rgba(8, 12, 22, 0.35);
-  border-color: rgba(204, 182, 255, 0.14);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
+    linear-gradient(180deg, rgba(170,207,255,0.022), rgba(93,148,235,0.006)),
+    rgba(3, 15, 31, 0.34);
+  border-color: rgba(137, 174, 247, 0.14);
+  backdrop-filter: blur(12px) saturate(145%);
+  -webkit-backdrop-filter: blur(12px) saturate(145%);
 }
 
 .step-editor textarea:focus {
-  border-color: rgba(190, 153, 255, 0.46);
+  border-color: rgba(151, 139, 255, 0.42);
   box-shadow:
-    0 0 0 3px rgba(147, 87, 255, 0.10),
-    0 0 18px rgba(147, 87, 255, 0.13);
+    0 0 0 3px rgba(146, 92, 255, 0.075),
+    0 0 18px rgba(146, 92, 255, 0.09);
 }
 
 .truth-note {
   background:
-    radial-gradient(circle at 90% 80%, rgba(147, 87, 255, 0.085), transparent 28%),
-    linear-gradient(180deg, rgba(255,255,255,0.032), rgba(255,255,255,0.008)),
-    rgba(10, 16, 29, 0.24);
+    radial-gradient(circle at 90% 80%, rgba(146, 92, 255, 0.04), transparent 30%),
+    linear-gradient(180deg, rgba(181,213,255,0.026), rgba(101,153,238,0.006)),
+    rgba(5, 20, 40, 0.225);
 }
 
 .eyebrow {
@@ -349,6 +351,6 @@ body {
 
 h1 {
   text-shadow:
-    0 0 10px rgba(147, 87, 255, 0.10),
-    0 0 18px rgba(210, 71, 255, 0.035);
+    0 0 10px rgba(146, 92, 255, 0.075),
+    0 0 18px rgba(210, 71, 255, 0.018);
 }
