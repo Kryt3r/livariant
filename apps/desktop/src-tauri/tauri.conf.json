@@ -18,7 +18,12 @@
         "minWidth": 880,
         "minHeight": 640,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "transparent": true,
+        "noRedirectionBitmap": true,
+        "windowEffects": {
+          "effects": ["acrylic"]
+        }
       }
     ]
   },
