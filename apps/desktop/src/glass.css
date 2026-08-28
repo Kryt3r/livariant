@@ -13,7 +13,83 @@
 html, body, #app { background: transparent !important; }
 body { color: #f1f5ff; }
 
+.desktop-frame {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 38px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.window-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  height: 38px;
+  border-bottom: 1px solid rgba(147, 186, 241, .10);
+  background:
+    linear-gradient(90deg, rgba(10, 28, 58, .70), rgba(18, 27, 58, .62) 58%, rgba(43, 20, 64, .52));
+  backdrop-filter: blur(28px) saturate(145%);
+  -webkit-backdrop-filter: blur(28px) saturate(145%);
+  box-shadow: inset 0 1px rgba(255,255,255,.045);
+  user-select: none;
+}
+
+.window-brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding-left: 12px;
+  color: rgba(238,245,255,.88);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+.window-brand img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(71, 104, 255, .22));
+}
+
+.window-controls {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.window-control {
+  width: 46px;
+  height: 100%;
+  border: 0;
+  border-left: 1px solid rgba(255,255,255,.025);
+  background: transparent;
+  color: rgba(205,220,241,.72);
+  font-size: 16px;
+  line-height: 1;
+  cursor: default;
+  transition: background .14s ease, color .14s ease;
+}
+
+.window-control:hover {
+  color: #f7fbff;
+  background: linear-gradient(180deg, rgba(75,137,255,.13), rgba(107,70,255,.10));
+}
+
+.window-control.close:hover {
+  background: linear-gradient(180deg, rgba(218,65,122,.88), rgba(174,44,97,.88));
+  color: white;
+}
+
 .app-shell {
+  min-height: 0;
+  height: calc(100vh - 38px);
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(86, 127, 255, .50) transparent;
   background:
     radial-gradient(circle at 12% 6%, rgba(53,231,255,.09), transparent 28%),
     radial-gradient(circle at 70% 0%, rgba(49,85,255,.15), transparent 34%),
@@ -22,6 +98,21 @@ body { color: #f1f5ff; }
   backdrop-filter: blur(10px) saturate(120%);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
 }
+
+.app-shell::-webkit-scrollbar { width: 9px; height: 9px; }
+.app-shell::-webkit-scrollbar-track { background: transparent; }
+.app-shell::-webkit-scrollbar-thumb {
+  min-height: 42px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(55,191,255,.54), rgba(70,105,255,.58) 55%, rgba(132,74,255,.54)) padding-box;
+}
+.app-shell::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(180deg, rgba(66,218,255,.82), rgba(75,119,255,.86) 52%, rgba(155,79,255,.82)) padding-box;
+}
+.app-shell::-webkit-scrollbar-corner { background: transparent; }
 
 .sidebar {
   background: linear-gradient(180deg, rgba(5,14,30,.64), rgba(5,12,26,.48));
@@ -74,6 +165,7 @@ body { color: #f1f5ff; }
   background: linear-gradient(112deg, rgba(35,105,222,.17), rgba(52,49,153,.09) 50%, rgba(14,29,57,.46));
   box-shadow: inset 0 1px rgba(255,255,255,.04), 0 26px 70px rgba(0,0,0,.16);
 }
+.progress-panel h2 { margin: 6px 0 5px; }
 .progress-ring {
   background: conic-gradient(#45dfff var(--progress), rgba(255,255,255,.075) 0);
   box-shadow: 0 0 28px rgba(66,126,255,.08);
