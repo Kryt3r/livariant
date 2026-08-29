@@ -201,17 +201,20 @@ const bindEvents = () => {
     const editor = card.querySelector<HTMLElement>(".step-editor");
     const summary = card.querySelector<HTMLElement>(".step-summary");
     const textarea = card.querySelector<HTMLTextAreaElement>("textarea");
+    const defaultActions = card.querySelector<HTMLElement>(".default-actions");
 
-    card.querySelector(".answer-step")?.addEventListener("click", () => {
-      editor?.classList.add("visible");
-      textarea?.focus();
-    });
-
-    card.querySelector(".edit-answer")?.addEventListener("click", () => {
+    const openEditor = () => {
       summary?.classList.remove("visible");
       editor?.classList.add("visible");
+      if (defaultActions) {
+        defaultActions.style.display = "none";
+        defaultActions.setAttribute("aria-hidden", "true");
+      }
       textarea?.focus();
-    });
+    };
+
+    card.querySelector(".answer-step")?.addEventListener("click", openEditor);
+    card.querySelector(".edit-answer")?.addEventListener("click", openEditor);
 
     card.querySelector(".cancel-answer")?.addEventListener("click", () => render());
 

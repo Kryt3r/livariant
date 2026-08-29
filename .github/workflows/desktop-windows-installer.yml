@@ -1,0 +1,261 @@
+name: Desktop Windows Installer
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/desktop/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - ".github/workflows/desktop-windows-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-windows-installer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    name: Build and smoke branded NSIS installer on Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Resolve exact source identity
+        id: source
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          $expected = "${{ github.event.pull_request.head.sha || github.sha }}"
+          if ($actual -ne $expected) {
+            throw "Checkout identity mismatch. Expected $expected, got $actual."
+          }
+          Write-Host "Exact source SHA: $actual"
+          "sha=$actual" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Report Windows toolchain
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+
+      - name: Install and build Livariant Core
+        working-directory: .
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Stage pinned Node runtime and exact Core resources
+        working-directory: .
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ARCH -ne "X64") {
+            throw "WP-045 currently supports the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
+          }
+
+          $nodeVersion = "24.16.0"
+          $nodeArchiveName = "node-v$nodeVersion-win-x64.zip"
+          $nodeArchiveSha256 = "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56"
+          $nodeExeSha256 = "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3"
+          $nodeUrl = "https://nodejs.org/download/release/v$nodeVersion/$nodeArchiveName"
+          $download = Join-Path $env:RUNNER_TEMP $nodeArchiveName
+          $extract = Join-Path $env:RUNNER_TEMP "livariant-node-runtime"
+          $tauriRoot = Join-Path $PWD "apps\desktop\src-tauri"
+          $binaryDir = Join-Path $tauriRoot "binaries"
+          $runtimeDir = Join-Path $tauriRoot "runtime"
+          $coreDir = Join-Path $runtimeDir "core"
+          $coreDistDir = Join-Path $coreDir "dist"
+          $thirdPartyDir = Join-Path $runtimeDir "third-party"
+
+          Remove-Item -LiteralPath $binaryDir -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $runtimeDir -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $binaryDir, $coreDistDir, $thirdPartyDir -Force | Out-Null
+
+          Invoke-WebRequest -Uri $nodeUrl -OutFile $download
+          $archiveDigest = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($archiveDigest -ne $nodeArchiveSha256) {
+            throw "Pinned Node archive digest mismatch. Expected $nodeArchiveSha256, got $archiveDigest."
+          }
+
+          Expand-Archive -LiteralPath $download -DestinationPath $extract -Force
+          $nodeRoot = Join-Path $extract "node-v$nodeVersion-win-x64"
+          $nodeExe = Join-Path $nodeRoot "node.exe"
+          $nodeLicense = Join-Path $nodeRoot "LICENSE"
+          if (-not (Test-Path -LiteralPath $nodeExe -PathType Leaf)) {
+            throw "Pinned Node executable missing after archive extraction."
+          }
+          if (-not (Test-Path -LiteralPath $nodeLicense -PathType Leaf)) {
+            throw "Pinned Node LICENSE missing after archive extraction."
+          }
+
+          $exeDigest = (Get-FileHash -LiteralPath $nodeExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($exeDigest -ne $nodeExeSha256) {
+            throw "Pinned Node executable digest mismatch. Expected $nodeExeSha256, got $exeDigest."
+          }
+
+          $sidecar = Join-Path $binaryDir "livariant-node-x86_64-pc-windows-msvc.exe"
+          Copy-Item -LiteralPath $nodeExe -Destination $sidecar
+          Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $thirdPartyDir "NODE-LICENSE.txt")
+          Copy-Item -LiteralPath "dist\src" -Destination (Join-Path $coreDistDir "src") -Recurse
+
+          $rootPackage = Get-Content -LiteralPath "package.json" -Raw | ConvertFrom-Json
+          @{
+            name = "livariant-bundled-core"
+            version = $rootPackage.version
+            private = $true
+            type = "module"
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $coreDir "package.json") -Encoding utf8
+
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            coreVersion = $rootPackage.version
+            coreSourceSha = "${{ steps.source.outputs.sha }}"
+            nodeVersion = $nodeVersion
+            nodeArchive = $nodeArchiveName
+            nodeArchiveSha256 = $nodeArchiveSha256
+            nodeExecutableSha256 = $nodeExeSha256
+            authorityIssued = $false
+          }
+          $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runtimeDir "manifest.json") -Encoding utf8
+
+          Write-Host "Staged Livariant Core $($rootPackage.version) from ${{ steps.source.outputs.sha }} with pinned Node v$nodeVersion."
+
+      - name: Generate Livariant NSIS branding
+        shell: pwsh
+        run: ./src-tauri/windows/generate-installer-branding.ps1
+
+      - name: Install desktop dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build branded NSIS installer with bundled runtime
+        run: npm run tauri:build -- --config src-tauri/tauri.runtime.conf.json --bundles nsis --ci
+
+      - name: Verify installer artifact and record digest
+        id: installer
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $PWD "src-tauri\target\release\bundle\nsis"
+          $installers = @(Get-ChildItem -LiteralPath $bundle -Filter "*.exe" -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one NSIS installer in $bundle; found $($installers.Count)."
+          }
+
+          $installer = $installers[0]
+          $digest = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Installer: $($installer.Name)"
+          Write-Host "SHA256: $digest"
+          "path=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          "name=$($installer.Name)" >> $env:GITHUB_OUTPUT
+          "sha256=$digest" >> $env:GITHUB_OUTPUT
+
+      - name: Smoke silent install, bundled Core identity, launch and uninstall
+        shell: pwsh
+        run: |
+          $installer = "${{ steps.installer.outputs.path }}"
+          $installDir = Join-Path $env:RUNNER_TEMP "LivariantInstallerSmoke"
+
+          if (Test-Path -LiteralPath $installDir) {
+            Remove-Item -LiteralPath $installDir -Recurse -Force
+          }
+
+          $install = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Silent NSIS install failed with exit code $($install.ExitCode)."
+          }
+
+          $app = Join-Path $installDir "livariant-desktop.exe"
+          $node = Join-Path $installDir "livariant-node.exe"
+          $runtimeManifestPath = Join-Path $installDir "runtime\manifest.json"
+          $coreCli = Join-Path $installDir "runtime\core\dist\src\cli\index.js"
+          $nodeLicense = Join-Path $installDir "runtime\third-party\NODE-LICENSE.txt"
+
+          foreach ($required in @($app, $node, $runtimeManifestPath, $coreCli, $nodeLicense)) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw "Required installed Livariant runtime material not found: $required"
+            }
+          }
+
+          $manifest = Get-Content -LiteralPath $runtimeManifestPath -Raw | ConvertFrom-Json
+          if ($manifest.coreSourceSha -ne "${{ steps.source.outputs.sha }}") {
+            throw "Installed runtime source identity mismatch. Expected ${{ steps.source.outputs.sha }}, got $($manifest.coreSourceSha)."
+          }
+          if ($manifest.authorityIssued -ne $false) {
+            throw "Ordinary installer runtime manifest must not claim Authority."
+          }
+
+          $nodeVersion = (& $node --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $nodeVersion -ne "v24.16.0") {
+            throw "Bundled Node runtime identity mismatch: $nodeVersion"
+          }
+
+          $previousBypass = $env:PBF_RUNTIME_DELEGATION_BYPASS
+          $env:PBF_RUNTIME_DELEGATION_BYPASS = "1"
+          try {
+            $versionJson = (& $node $coreCli version --json 2>&1 | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) {
+              throw "Bundled Livariant Core version command failed: $versionJson"
+            }
+            $versionInfo = $versionJson | ConvertFrom-Json
+            if ($versionInfo.frameworkVersion -ne $manifest.coreVersion) {
+              throw "Bundled Livariant Core version mismatch. Manifest=$($manifest.coreVersion), runtime=$($versionInfo.frameworkVersion)."
+            }
+          } finally {
+            $env:PBF_RUNTIME_DELEGATION_BYPASS = $previousBypass
+          }
+
+          $process = Start-Process -FilePath $app -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) {
+            throw "Installed Livariant Desktop exited during launch smoke with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+          $process.WaitForExit()
+
+          $uninstallers = @(Get-ChildItem -LiteralPath $installDir -Filter "*uninstall*.exe" -File)
+          if ($uninstallers.Count -ne 1) {
+            throw "Expected exactly one uninstaller in $installDir; found $($uninstallers.Count)."
+          }
+
+          $uninstall = Start-Process -FilePath $uninstallers[0].FullName -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "Silent NSIS uninstall failed with exit code $($uninstall.ExitCode)."
+          }
+
+          Start-Sleep -Seconds 2
+          if (Test-Path -LiteralPath $app -PathType Leaf) {
+            throw "Livariant executable still exists after uninstall: $app"
+          }
+          if (Test-Path -LiteralPath $node -PathType Leaf) {
+            throw "Bundled Node runtime still exists after uninstall: $node"
+          }
+
+          Write-Host "Install -> bundled runtime identity -> launch -> uninstall smoke passed for exact source ${{ steps.source.outputs.sha }}."
+
+      - name: Upload exact installer artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: livariant-windows-nsis-${{ steps.source.outputs.sha }}
+          path: ${{ steps.installer.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
