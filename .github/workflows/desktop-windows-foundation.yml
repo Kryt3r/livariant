@@ -44,6 +44,10 @@ jobs:
       - name: Install desktop dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Generate Livariant NSIS branding
+        shell: pwsh
+        run: ./src-tauri/windows/generate-installer-branding.ps1
+
       - name: Build renderer
         run: npm run build
 
