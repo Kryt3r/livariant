@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { formatDesktopVersion } from "./desktop-version";
 
 type UpdateResult = {
   state: "not-configured" | "invalid-config" | "available" | "current" | "changed" | "error";
@@ -42,35 +43,36 @@ const reconcile = () => {
   document.querySelector(".install-update")?.remove();
 
   if (busy === "installing") {
-    setCopy("Installing signed update", "Applying update…", "Livariant is verifying and applying the reviewed update. On Windows the app will restart when installation succeeds.");
+    setCopy("Installing signed Desktop update", "Applying Desktop update…", "Livariant is verifying and applying the reviewed Desktop update. On Windows the app will restart when installation succeeds.");
     return;
   }
 
   if (!cachedResult) return;
 
   if (cachedResult.state === "available" && cachedResult.availableVersion) {
-    setCopy("Update available", `${cachedResult.availableVersion} is available`, cachedResult.detail);
+    const displayVersion = formatDesktopVersion(cachedResult.availableVersion);
+    setCopy("Desktop update available", `${displayVersion} is available`, cachedResult.detail);
     const panel = document.querySelector<HTMLElement>(".content .progress-panel");
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button primary install-update";
     button.dataset.version = cachedResult.availableVersion;
-    button.textContent = `Install ${cachedResult.availableVersion}`;
+    button.textContent = `Install ${displayVersion}`;
     panel?.appendChild(button);
     return;
   }
 
   if (cachedResult.state === "current") {
-    setCopy("Up to date", `Livariant ${cachedResult.currentVersion}`, cachedResult.detail);
+    setCopy("Desktop up to date", formatDesktopVersion(cachedResult.currentVersion), cachedResult.detail);
     return;
   }
 
   if (cachedResult.state === "changed") {
-    setCopy("Update changed", "Review the new version first", cachedResult.detail);
+    setCopy("Desktop update changed", "Review the new Desktop version first", cachedResult.detail);
     return;
   }
 
-  setCopy("Update check needs attention", "Update check did not complete", cachedResult.detail);
+  setCopy("Desktop update check needs attention", "Update check did not complete", cachedResult.detail);
 };
 
 const checkForUpdates = async () => {
@@ -101,7 +103,7 @@ const installUpdate = async (expectedVersion: string) => {
       state: "error",
       currentVersion: "unknown",
       availableVersion: expectedVersion,
-      detail: `Signed update installation failed without granting additional Authority: ${String(error)}`,
+      detail: `Signed Desktop update installation failed without granting additional Authority: ${String(error)}`,
     };
   } finally {
     busy = null;
