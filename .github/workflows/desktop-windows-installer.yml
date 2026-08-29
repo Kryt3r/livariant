@@ -163,9 +163,20 @@ jobs:
 
           $installer = $installers[0]
           $digest = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $artifactDir = Join-Path $env:RUNNER_TEMP "LivariantInstallerArtifact"
+          Remove-Item -LiteralPath $artifactDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+          $preservedInstaller = Join-Path $artifactDir $installer.Name
+          Copy-Item -LiteralPath $installer.FullName -Destination $preservedInstaller
+          $preservedDigest = (Get-FileHash -LiteralPath $preservedInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($preservedDigest -ne $digest) {
+            throw "Preserved installer digest mismatch. Built=$digest, preserved=$preservedDigest."
+          }
+
           Write-Host "Installer: $($installer.Name)"
           Write-Host "SHA256: $digest"
-          "path=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          Write-Host "Preserved installer: $preservedInstaller"
+          "path=$preservedInstaller" >> $env:GITHUB_OUTPUT
           "name=$($installer.Name)" >> $env:GITHUB_OUTPUT
           "sha256=$digest" >> $env:GITHUB_OUTPUT
 
