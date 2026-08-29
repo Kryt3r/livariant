@@ -15,6 +15,7 @@ let cachedHealth: RuntimeHealth | null = null;
 // the app shell, and its visual scrollbar remains intentionally hidden while
 // wheel/touchpad scrolling stays available.
 const shellGuardStyle = document.createElement("style");
+shellGuardStyle.dataset.livariantShellGuard = "true";
 shellGuardStyle.textContent = `
   html, body, #app {
     width: 100%;
