@@ -219,13 +219,15 @@ fn runtime_health() -> RuntimeHealth {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // WP-046 milestone 1 deliberately does not register the updater plugin yet.
-    // Until a public signing identity and fixed HTTPS endpoint are configured,
-    // check_for_update returns `not-configured` before touching updater/network APIs.
+    // WP-046 keeps updater access host-side. Until a public signing identity and
+    // fixed HTTPS endpoint are configured, updater commands fail closed before
+    // touching updater/network APIs. The renderer never receives direct updater,
+    // arbitrary-download or arbitrary-execute permissions.
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             runtime_health,
-            updater::check_for_update
+            updater::check_for_update,
+            updater::apply_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running Livariant Desktop");
