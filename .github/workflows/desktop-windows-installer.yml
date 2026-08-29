@@ -141,6 +141,10 @@ jobs:
 
           Write-Host "Staged Livariant Core $($rootPackage.version) from ${{ steps.source.outputs.sha }} with pinned Node v$nodeVersion."
 
+      - name: Generate Livariant NSIS branding
+        shell: pwsh
+        run: ./src-tauri/windows/generate-installer-branding.ps1
+
       - name: Install desktop dependencies
         run: npm install --no-audit --no-fund
 
