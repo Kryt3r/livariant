@@ -252,6 +252,10 @@ jobs:
 
           Write-Host "Install -> bundled runtime identity -> launch -> uninstall smoke passed for exact source ${{ steps.source.outputs.sha }}."
 
+      - name: Acceptance signed old-installed preview to newer preview
+        shell: pwsh
+        run: ./src-tauri/windows/ci-updater-acceptance.ps1 -SourceSha "${{ steps.source.outputs.sha }}"
+
       - name: Upload exact installer artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

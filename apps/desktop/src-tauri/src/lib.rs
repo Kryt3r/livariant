@@ -224,6 +224,11 @@ pub fn run() {
     // receive direct updater, arbitrary-download or arbitrary-execute permissions.
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            #[cfg(feature = "ci-updater-acceptance")]
+            updater::start_ci_acceptance_if_requested(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             runtime_health,
             updater::check_for_update,
