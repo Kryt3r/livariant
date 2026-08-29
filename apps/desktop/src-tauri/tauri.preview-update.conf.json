@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "externalBin": [
+      "binaries/livariant-node"
+    ],
+    "resources": [
+      "runtime/**/*"
+    ],
+    "createUpdaterArtifacts": true
+  }
+}

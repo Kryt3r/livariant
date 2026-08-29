@@ -1,3 +1,5 @@
+mod updater;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{env, fs, path::Path, process::Command};
@@ -217,8 +219,16 @@ fn runtime_health() -> RuntimeHealth {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // The updater plugin owns only its internal state/configuration. All check and
+    // apply operations remain behind bounded Rust commands; the renderer does not
+    // receive direct updater, arbitrary-download or arbitrary-execute permissions.
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![runtime_health])
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![
+            runtime_health,
+            updater::check_for_update,
+            updater::apply_update
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Livariant Desktop");
 }

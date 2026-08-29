@@ -1,0 +1,253 @@
+name: Desktop Preview Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact 40-character Livariant source SHA to build
+        required: true
+        type: string
+      publish_preview:
+        description: Publish signed assets to the fixed desktop-preview-feed release
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  preview-update:
+    name: Build signed Windows preview update
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+    steps:
+      - name: Validate requested source identity
+        shell: pwsh
+        working-directory: .
+        run: |
+          $requested = "${{ inputs.source_sha }}".Trim()
+          if ($requested -notmatch '^[0-9a-fA-F]{40}$') {
+            throw "source_sha must be an exact 40-character commit SHA."
+          }
+
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.source_sha }}
+
+      - name: Resolve exact source identity
+        id: source
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          $expected = "${{ inputs.source_sha }}".Trim().ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Checkout identity mismatch. Expected $expected, got $actual."
+          }
+          "sha=$actual" >> $env:GITHUB_OUTPUT
+          Write-Host "Exact source SHA: $actual"
+
+      - name: Require updater signing custody
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY is not configured."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not configured."
+          }
+          Write-Host "Updater signing secrets are present; values remain masked."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install and build Livariant Core
+        working-directory: .
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Stage pinned Node runtime and exact Core resources
+        working-directory: .
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ARCH -ne "X64") {
+            throw "WP-046 preview updater currently supports the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
+          }
+
+          $nodeVersion = "24.16.0"
+          $nodeArchiveName = "node-v$nodeVersion-win-x64.zip"
+          $nodeArchiveSha256 = "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56"
+          $nodeExeSha256 = "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3"
+          $nodeUrl = "https://nodejs.org/download/release/v$nodeVersion/$nodeArchiveName"
+          $download = Join-Path $env:RUNNER_TEMP $nodeArchiveName
+          $extract = Join-Path $env:RUNNER_TEMP "livariant-node-runtime"
+          $tauriRoot = Join-Path $PWD "apps\desktop\src-tauri"
+          $binaryDir = Join-Path $tauriRoot "binaries"
+          $runtimeDir = Join-Path $tauriRoot "runtime"
+          $coreDir = Join-Path $runtimeDir "core"
+          $coreDistDir = Join-Path $coreDir "dist"
+          $thirdPartyDir = Join-Path $runtimeDir "third-party"
+
+          Remove-Item -LiteralPath $binaryDir -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $runtimeDir -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $binaryDir, $coreDistDir, $thirdPartyDir -Force | Out-Null
+
+          Invoke-WebRequest -Uri $nodeUrl -OutFile $download
+          $archiveDigest = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($archiveDigest -ne $nodeArchiveSha256) {
+            throw "Pinned Node archive digest mismatch. Expected $nodeArchiveSha256, got $archiveDigest."
+          }
+
+          Expand-Archive -LiteralPath $download -DestinationPath $extract -Force
+          $nodeRoot = Join-Path $extract "node-v$nodeVersion-win-x64"
+          $nodeExe = Join-Path $nodeRoot "node.exe"
+          $nodeLicense = Join-Path $nodeRoot "LICENSE"
+          $exeDigest = (Get-FileHash -LiteralPath $nodeExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($exeDigest -ne $nodeExeSha256) {
+            throw "Pinned Node executable digest mismatch. Expected $nodeExeSha256, got $exeDigest."
+          }
+
+          Copy-Item -LiteralPath $nodeExe -Destination (Join-Path $binaryDir "livariant-node-x86_64-pc-windows-msvc.exe")
+          Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $thirdPartyDir "NODE-LICENSE.txt")
+          Copy-Item -LiteralPath "dist\src" -Destination (Join-Path $coreDistDir "src") -Recurse
+
+          $rootPackage = Get-Content -LiteralPath "package.json" -Raw | ConvertFrom-Json
+          @{
+            name = "livariant-bundled-core"
+            version = $rootPackage.version
+            private = $true
+            type = "module"
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $coreDir "package.json") -Encoding utf8
+
+          [ordered]@{
+            schemaVersion = 1
+            coreVersion = $rootPackage.version
+            coreSourceSha = "${{ steps.source.outputs.sha }}"
+            nodeVersion = $nodeVersion
+            nodeArchive = $nodeArchiveName
+            nodeArchiveSha256 = $nodeArchiveSha256
+            nodeExecutableSha256 = $nodeExeSha256
+            authorityIssued = $false
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runtimeDir "manifest.json") -Encoding utf8
+
+      - name: Generate Livariant NSIS branding
+        shell: pwsh
+        run: ./src-tauri/windows/generate-installer-branding.ps1
+
+      - name: Install desktop dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build signed updater artifacts
+        run: npm run tauri:build -- --config src-tauri/tauri.preview-update.conf.json --bundles nsis --ci
+
+      - name: Resolve signed updater bundle and feed
+        id: update
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $PWD "src-tauri\target\release\bundle\nsis"
+          $installers = @(Get-ChildItem -LiteralPath $bundle -Filter "*.exe" -File)
+          $updates = @(Get-ChildItem -LiteralPath $bundle -Filter "*.nsis.zip" -File)
+          $signatures = @(Get-ChildItem -LiteralPath $bundle -Filter "*.nsis.zip.sig" -File)
+          if ($installers.Count -ne 1 -or $updates.Count -ne 1 -or $signatures.Count -ne 1) {
+            throw "Expected exactly one installer, updater bundle and updater signature."
+          }
+
+          $tauriConfig = Get-Content -LiteralPath "src-tauri\tauri.conf.json" -Raw | ConvertFrom-Json
+          $version = [string]$tauriConfig.version
+          $signature = (Get-Content -LiteralPath $signatures[0].FullName -Raw).Trim()
+          if ([string]::IsNullOrWhiteSpace($signature)) {
+            throw "Updater signature file is empty."
+          }
+
+          $assetName = $updates[0].Name
+          $assetUrl = "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-feed/$assetName"
+          $latest = [ordered]@{
+            version = $version
+            notes = "Livariant Desktop preview update from exact source ${{ steps.source.outputs.sha }}."
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = $signature
+                url = $assetUrl
+              }
+            }
+          }
+          $latestPath = Join-Path $bundle "latest.json"
+          $latest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $latestPath -Encoding utf8
+
+          $parsed = Get-Content -LiteralPath $latestPath -Raw | ConvertFrom-Json
+          if ($parsed.version -ne $version -or [string]::IsNullOrWhiteSpace($parsed.platforms.'windows-x86_64'.signature)) {
+            throw "Generated latest.json failed self-validation."
+          }
+
+          "installer=$($installers[0].FullName)" >> $env:GITHUB_OUTPUT
+          "bundle=$($updates[0].FullName)" >> $env:GITHUB_OUTPUT
+          "signature=$($signatures[0].FullName)" >> $env:GITHUB_OUTPUT
+          "latest=$latestPath" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Prepared signed preview update $version from exact source ${{ steps.source.outputs.sha }}."
+
+      - name: Smoke signed preview installer
+        shell: pwsh
+        run: |
+          $installDir = Join-Path $env:RUNNER_TEMP "LivariantPreviewUpdateSmoke"
+          Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
+          $install = Start-Process -FilePath "${{ steps.update.outputs.installer }}" -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Signed preview installer failed with exit code $($install.ExitCode)."
+          }
+          $app = Join-Path $installDir "livariant-desktop.exe"
+          if (-not (Test-Path -LiteralPath $app -PathType Leaf)) {
+            throw "Installed Livariant Desktop executable not found."
+          }
+          $process = Start-Process -FilePath $app -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) {
+            throw "Signed preview Desktop exited during launch smoke with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+          $process.WaitForExit()
+
+      - name: Upload signed preview update evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: livariant-desktop-preview-update-${{ steps.source.outputs.sha }}
+          path: |
+            ${{ steps.update.outputs.installer }}
+            ${{ steps.update.outputs.bundle }}
+            ${{ steps.update.outputs.signature }}
+            ${{ steps.update.outputs.latest }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish explicitly approved preview feed
+        if: ${{ inputs.publish_preview }}
+        working-directory: .
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "desktop-preview-feed"
+          $assets = @(
+            "${{ steps.update.outputs.bundle }}",
+            "${{ steps.update.outputs.signature }}",
+            "${{ steps.update.outputs.latest }}"
+          )
+          gh release view $tag --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @assets --clobber --repo "${{ github.repository }}"
+          } else {
+            gh release create $tag @assets --prerelease --target "${{ steps.source.outputs.sha }}" --title "Livariant Desktop Preview Feed" --notes "Machine-consumable signed Desktop preview update channel. This release is a feed container, not Stable release authority." --repo "${{ github.repository }}"
+          }
