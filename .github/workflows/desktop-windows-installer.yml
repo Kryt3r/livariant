@@ -18,14 +18,28 @@ concurrency:
 
 jobs:
   installer:
-    name: Build branded NSIS installer on Windows
+    name: Build and smoke branded NSIS installer on Windows
     runs-on: windows-latest
     defaults:
       run:
         working-directory: apps/desktop
     steps:
-      - name: Checkout source
+      - name: Checkout exact source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Resolve exact source identity
+        id: source
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          $expected = "${{ github.event.pull_request.head.sha || github.sha }}"
+          if ($actual -ne $expected) {
+            throw "Checkout identity mismatch. Expected $expected, got $actual."
+          }
+          Write-Host "Exact source SHA: $actual"
+          "sha=$actual" >> $env:GITHUB_OUTPUT
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -65,10 +79,55 @@ jobs:
           "name=$($installer.Name)" >> $env:GITHUB_OUTPUT
           "sha256=$digest" >> $env:GITHUB_OUTPUT
 
+      - name: Smoke silent install, launch and uninstall
+        shell: pwsh
+        run: |
+          $installer = "${{ steps.installer.outputs.path }}"
+          $installDir = Join-Path $env:RUNNER_TEMP "LivariantInstallerSmoke"
+
+          if (Test-Path -LiteralPath $installDir) {
+            Remove-Item -LiteralPath $installDir -Recurse -Force
+          }
+
+          $install = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Silent NSIS install failed with exit code $($install.ExitCode)."
+          }
+
+          $app = Join-Path $installDir "livariant-desktop.exe"
+          if (-not (Test-Path -LiteralPath $app -PathType Leaf)) {
+            throw "Installed Livariant executable not found at $app."
+          }
+
+          $process = Start-Process -FilePath $app -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) {
+            throw "Installed Livariant Desktop exited during launch smoke with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+          $process.WaitForExit()
+
+          $uninstallers = @(Get-ChildItem -LiteralPath $installDir -Filter "*uninstall*.exe" -File)
+          if ($uninstallers.Count -ne 1) {
+            throw "Expected exactly one uninstaller in $installDir; found $($uninstallers.Count)."
+          }
+
+          $uninstall = Start-Process -FilePath $uninstallers[0].FullName -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "Silent NSIS uninstall failed with exit code $($uninstall.ExitCode)."
+          }
+
+          Start-Sleep -Seconds 2
+          if (Test-Path -LiteralPath $app -PathType Leaf) {
+            throw "Livariant executable still exists after uninstall: $app"
+          }
+
+          Write-Host "Install -> launch -> uninstall smoke passed for exact source ${{ steps.source.outputs.sha }}."
+
       - name: Upload exact installer artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: livariant-windows-nsis-${{ github.sha }}
+          name: livariant-windows-nsis-${{ steps.source.outputs.sha }}
           path: ${{ steps.installer.outputs.path }}
           if-no-files-found: error
           retention-days: 7
