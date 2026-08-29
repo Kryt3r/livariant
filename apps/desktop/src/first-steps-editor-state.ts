@@ -14,6 +14,7 @@ document.addEventListener(
     if (!defaultActions) return;
 
     defaultActions.hidden = true;
+    defaultActions.style.display = "none";
     defaultActions.setAttribute("aria-hidden", "true");
   },
   { capture: true },
