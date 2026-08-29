@@ -1,11 +1,14 @@
 import "./styles.css";
 import "./glass.css";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
 const appWindow = getCurrentWindow();
 
+type View = "steps" | "updates";
 type StepState = "open" | "skipped" | "answered";
+type UpdateState = "idle" | "checking" | "not-configured" | "invalid-config" | "available" | "current" | "error";
 
 type FirstStep = {
   id: string;
@@ -13,6 +16,13 @@ type FirstStep = {
   prompt: string;
   state: StepState;
   value: string;
+};
+
+type UpdateCheckResult = {
+  state: Exclude<UpdateState, "idle" | "checking">;
+  currentVersion: string;
+  availableVersion: string | null;
+  detail: string;
 };
 
 const steps: FirstStep[] = [
@@ -39,6 +49,10 @@ const steps: FirstStep[] = [
   },
 ];
 
+let currentView: View = "steps";
+let updateState: UpdateState = "idle";
+let updateResult: UpdateCheckResult | null = null;
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -57,9 +71,153 @@ const icon = (name: "home" | "steps" | "updates" | "settings" | "diagnostics") =
   return `<svg aria-hidden="true" viewBox="0 0 24 24">${paths[name]}</svg>`;
 };
 
-const render = () => {
+const renderHealthStrip = () => `
+  <section class="health-strip" aria-label="System readiness preview">
+    <div class="health-card muted">
+      <span class="health-icon">○</span>
+      <div><small>Installation</small><strong>Not connected</strong></div>
+    </div>
+    <div class="health-card muted">
+      <span class="health-icon">○</span>
+      <div><small>Protected components</small><strong>Not connected</strong></div>
+    </div>
+    <div class="health-card muted">
+      <span class="health-icon">○</span>
+      <div><small>Guardian</small><strong>Not connected</strong></div>
+    </div>
+  </section>
+`;
+
+const renderFirstStepsView = () => {
   const completed = steps.filter((step) => step.state === "answered").length;
   const deferred = steps.filter((step) => step.state === "skipped").length;
+
+  return `
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">Project setup</span>
+        <h1>First Steps</h1>
+        <p>Build Livariant's understanding at your pace. Nothing here becomes Authority just because it was entered.</p>
+      </div>
+      <button class="project-chip" type="button">
+        <span class="project-icon">L</span>
+        <span><small>Current project</small><strong>No project selected</strong></span>
+        <span class="chevron">⌄</span>
+      </button>
+    </header>
+
+    ${renderHealthStrip()}
+
+    <section class="progress-panel">
+      <div>
+        <span class="eyebrow">Your setup, not a gate</span>
+        <h2>${completed} of ${steps.length} answered</h2>
+        <p>${deferred > 0 ? `${deferred} deferred. ` : ""}You can skip anything that is not needed yet and return later.</p>
+      </div>
+      <div class="progress-ring" style="--progress:${Math.round((completed / steps.length) * 100)}%">
+        <span>${Math.round((completed / steps.length) * 100)}%</span>
+      </div>
+    </section>
+
+    <section class="steps" aria-label="First Steps questions">
+      ${steps.map(renderStep).join("")}
+    </section>
+
+    <footer class="truth-note">
+      <span class="truth-icon">i</span>
+      <p><strong>Truth boundary:</strong> answers in this preview are UI state only. Future persistence must preserve Livariant's Evidence → Review → Project Truth rules and must never grant mutation, runtime, lifecycle or release Authority.</p>
+    </footer>
+  `;
+};
+
+const updateCopy = () => {
+  if (updateState === "checking") {
+    return { eyebrow: "Checking update channel", title: "Checking for updates…", detail: "Livariant is asking the fixed host-side updater boundary for update state." };
+  }
+  if (updateResult?.state === "available") {
+    return { eyebrow: "Update available", title: `${updateResult.availableVersion ?? "A newer version"} is available`, detail: updateResult.detail };
+  }
+  if (updateResult?.state === "current") {
+    return { eyebrow: "Up to date", title: `Livariant ${updateResult.currentVersion}`, detail: updateResult.detail };
+  }
+  if (updateResult?.state === "not-configured") {
+    return { eyebrow: "Updater foundation", title: "Update channel not configured yet", detail: updateResult.detail };
+  }
+  if (updateResult?.state === "invalid-config" || updateResult?.state === "error") {
+    return { eyebrow: "Update check needs attention", title: "Update check did not complete", detail: updateResult.detail };
+  }
+  return {
+    eyebrow: "Secure preview updates",
+    title: "Check before changing anything",
+    detail: "This preview only checks update state. Download, installation and restart remain unavailable until signed update delivery is implemented and verified.",
+  };
+};
+
+const renderUpdatesView = () => {
+  const copy = updateCopy();
+  const checking = updateState === "checking";
+
+  return `
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">Desktop lifecycle</span>
+        <h1>Updates</h1>
+        <p>Update availability is evidence. Livariant will not replace installed code until the artifact and update authority are explicitly verified.</p>
+      </div>
+    </header>
+
+    ${renderHealthStrip()}
+
+    <section class="progress-panel">
+      <div>
+        <span class="eyebrow">${copy.eyebrow}</span>
+        <h2>${escapeHtml(copy.title)}</h2>
+        <p>${escapeHtml(copy.detail)}</p>
+      </div>
+      <button class="button primary check-updates" type="button" ${checking ? "disabled" : ""}>
+        ${checking ? "Checking…" : "Check for updates"}
+      </button>
+    </section>
+
+    <section class="steps" aria-label="Update safety state">
+      <article class="step-card state-open">
+        <div class="step-head">
+          <div class="step-number">01</div>
+          <div class="step-copy">
+            <div class="step-title-row"><h3>Signed update identity</h3><span class="state-pill">Not connected</span></div>
+            <p>The private updater signing key is never stored in the repository. The application will trust only the configured public verification identity.</p>
+          </div>
+        </div>
+      </article>
+      <article class="step-card state-open">
+        <div class="step-head">
+          <div class="step-number">02</div>
+          <div class="step-copy">
+            <div class="step-title-row"><h3>Install authority</h3><span class="state-pill">User triggered</span></div>
+            <p>Preview updates remain explicit. A successful availability check alone never authorizes download, installation, restart or Guardian changes.</p>
+          </div>
+        </div>
+      </article>
+      <article class="step-card state-open">
+        <div class="step-head">
+          <div class="step-number">03</div>
+          <div class="step-copy">
+            <div class="step-title-row"><h3>Guardian boundary</h3><span class="state-pill">Separate</span></div>
+            <p>Ordinary Desktop/Core/runtime updates do not create or replace protected Guardian Authority.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer class="truth-note">
+      <span class="truth-icon">i</span>
+      <p><strong>Update boundary:</strong> remote metadata is Evidence, not Authority. The renderer cannot supply arbitrary URLs or executable paths, and this milestone has no apply/install command.</p>
+    </footer>
+  `;
+};
+
+const render = () => {
+  const completed = steps.filter((step) => step.state === "answered").length;
 
   app.innerHTML = `
     <div class="desktop-frame">
@@ -89,8 +247,8 @@ const render = () => {
 
           <nav class="nav" aria-label="Primary navigation">
             <button class="nav-item">${icon("home")}<span>Overview</span></button>
-            <button class="nav-item active">${icon("steps")}<span>First Steps</span><b>${completed}/${steps.length}</b></button>
-            <button class="nav-item">${icon("updates")}<span>Updates</span></button>
+            <button class="nav-item ${currentView === "steps" ? "active" : ""}" data-view="steps">${icon("steps")}<span>First Steps</span><b>${completed}/${steps.length}</b></button>
+            <button class="nav-item ${currentView === "updates" ? "active" : ""}" data-view="updates">${icon("updates")}<span>Updates</span></button>
             <button class="nav-item">${icon("settings")}<span>Settings</span></button>
             <button class="nav-item">${icon("diagnostics")}<span>Diagnostics</span></button>
           </nav>
@@ -99,59 +257,13 @@ const render = () => {
             <div class="status-dot"></div>
             <div>
               <strong>Foundation preview</strong>
-              <small>Live runtime wiring comes next</small>
+              <small>Secure updater work in progress</small>
             </div>
           </div>
         </aside>
 
         <main class="content">
-          <header class="topbar">
-            <div>
-              <span class="eyebrow">Project setup</span>
-              <h1>First Steps</h1>
-              <p>Build Livariant's understanding at your pace. Nothing here becomes Authority just because it was entered.</p>
-            </div>
-            <button class="project-chip" type="button">
-              <span class="project-icon">L</span>
-              <span><small>Current project</small><strong>No project selected</strong></span>
-              <span class="chevron">⌄</span>
-            </button>
-          </header>
-
-          <section class="health-strip" aria-label="System readiness preview">
-            <div class="health-card muted">
-              <span class="health-icon">○</span>
-              <div><small>Installation</small><strong>Not connected</strong></div>
-            </div>
-            <div class="health-card muted">
-              <span class="health-icon">○</span>
-              <div><small>Protected components</small><strong>Not connected</strong></div>
-            </div>
-            <div class="health-card muted">
-              <span class="health-icon">○</span>
-              <div><small>Guardian</small><strong>Not connected</strong></div>
-            </div>
-          </section>
-
-          <section class="progress-panel">
-            <div>
-              <span class="eyebrow">Your setup, not a gate</span>
-              <h2>${completed} of ${steps.length} answered</h2>
-              <p>${deferred > 0 ? `${deferred} deferred. ` : ""}You can skip anything that is not needed yet and return later.</p>
-            </div>
-            <div class="progress-ring" style="--progress:${Math.round((completed / steps.length) * 100)}%">
-              <span>${Math.round((completed / steps.length) * 100)}%</span>
-            </div>
-          </section>
-
-          <section class="steps" aria-label="First Steps questions">
-            ${steps.map(renderStep).join("")}
-          </section>
-
-          <footer class="truth-note">
-            <span class="truth-icon">i</span>
-            <p><strong>Truth boundary:</strong> answers in this preview are UI state only. Future persistence must preserve Livariant's Evidence → Review → Project Truth rules and must never grant mutation, runtime, lifecycle or release Authority.</p>
-          </footer>
+          ${currentView === "updates" ? renderUpdatesView() : renderFirstStepsView()}
         </main>
       </div>
     </div>
@@ -193,6 +305,33 @@ const renderStep = (step: FirstStep) => {
 };
 
 const bindEvents = () => {
+  document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const view = button.dataset.view;
+      if (view !== "steps" && view !== "updates") return;
+      currentView = view;
+      render();
+    });
+  });
+
+  document.querySelector<HTMLButtonElement>(".check-updates")?.addEventListener("click", async () => {
+    updateState = "checking";
+    render();
+    try {
+      updateResult = await invoke<UpdateCheckResult>("check_for_update");
+      updateState = updateResult.state;
+    } catch (error: unknown) {
+      updateResult = {
+        state: "error",
+        currentVersion: "unknown",
+        availableVersion: null,
+        detail: `Update host bridge failed without changing the installation: ${String(error)}`,
+      };
+      updateState = "error";
+    }
+    render();
+  });
+
   document.querySelectorAll<HTMLElement>("[data-step]").forEach((card) => {
     const id = card.dataset.step;
     const step = steps.find((candidate) => candidate.id === id);
@@ -215,7 +354,6 @@ const bindEvents = () => {
 
     card.querySelector(".answer-step")?.addEventListener("click", openEditor);
     card.querySelector(".edit-answer")?.addEventListener("click", openEditor);
-
     card.querySelector(".cancel-answer")?.addEventListener("click", () => render());
 
     card.querySelector(".skip-step")?.addEventListener("click", () => {
