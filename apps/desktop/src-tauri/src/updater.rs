@@ -2,8 +2,10 @@ use serde::Serialize;
 use tauri::AppHandle;
 use tauri_plugin_updater::UpdaterExt;
 
-const UPDATER_PUBLIC_KEY: &str = "";
-const UPDATER_ENDPOINTS: &[&str] = &[];
+const UPDATER_PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEyNUJCNUJFNUNDNjc3QQpSV1I2Wjh6bFc3c2xBWnJSSFNndThoeEhoS1FubFlFU1VDSHlhNWVQS3kyZWZkZE9EYTd0eGIyaAo=";
+const UPDATER_ENDPOINTS: &[&str] = &[
+    "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-feed/latest.json",
+];
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,7 +61,7 @@ pub async fn check_for_update(app: AppHandle) -> UpdateResult {
             "not-configured",
             current_version,
             None,
-            "Updater signing identity and endpoint are intentionally not configured yet. No network request was made.",
+            "Updater signing identity or endpoint is missing. No network request was made.",
         );
     }
 
@@ -79,7 +81,7 @@ pub async fn check_for_update(app: AppHandle) -> UpdateResult {
             "current",
             current_version,
             None,
-            "This Livariant installation is current for the configured update channel.",
+            "This Livariant installation is current for the configured preview channel.",
         ),
         Err(error) => result(
             "error",
@@ -99,7 +101,7 @@ pub async fn apply_update(app: AppHandle, expected_version: String) -> UpdateRes
             "not-configured",
             current_version,
             None,
-            "Updater signing identity and endpoint are intentionally not configured yet. No installation was changed.",
+            "Updater signing identity or endpoint is missing. No installation was changed.",
         );
     }
 
@@ -158,7 +160,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn updater_is_fail_closed_until_signing_identity_and_endpoint_exist() {
-        assert!(!configured());
+    fn updater_has_fixed_preview_signing_identity_and_https_endpoint() {
+        assert!(configured());
+        assert!(UPDATER_ENDPOINTS.iter().all(|endpoint| endpoint.starts_with("https://")));
     }
 }

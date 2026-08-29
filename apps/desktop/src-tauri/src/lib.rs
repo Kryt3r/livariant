@@ -219,11 +219,11 @@ fn runtime_health() -> RuntimeHealth {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // WP-046 keeps updater access host-side. Until a public signing identity and
-    // fixed HTTPS endpoint are configured, updater commands fail closed before
-    // touching updater/network APIs. The renderer never receives direct updater,
-    // arbitrary-download or arbitrary-execute permissions.
+    // The updater plugin owns only its internal state/configuration. All check and
+    // apply operations remain behind bounded Rust commands; the renderer does not
+    // receive direct updater, arbitrary-download or arbitrary-execute permissions.
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             runtime_health,
             updater::check_for_update,
