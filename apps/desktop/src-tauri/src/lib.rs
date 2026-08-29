@@ -219,8 +219,10 @@ fn runtime_health() -> RuntimeHealth {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WP-046 milestone 1 deliberately does not register the updater plugin yet.
+    // Until a public signing identity and fixed HTTPS endpoint are configured,
+    // check_for_update returns `not-configured` before touching updater/network APIs.
     tauri::Builder::default()
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             runtime_health,
             updater::check_for_update
