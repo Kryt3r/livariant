@@ -5,16 +5,20 @@ Add-Type -AssemblyName System.Drawing
 $brandingDir = Join-Path $PSScriptRoot "branding"
 New-Item -ItemType Directory -Path $brandingDir -Force | Out-Null
 
+function New-Brush([int]$r, [int]$g, [int]$b) {
+  return [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb($r, $g, $b))
+}
+
 function New-LivariantHeaderBitmap {
   param([string]$Path)
 
-  $bitmap = New-Object System.Drawing.Bitmap 150, 57
+  $bitmap = [System.Drawing.Bitmap]::new(150, 57)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
   $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 
   try {
-    $rect = New-Object System.Drawing.Rectangle 0, 0, 150, 57
-    $background = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+    $rect = [System.Drawing.Rectangle]::new(0, 0, 150, 57)
+    $background = [System.Drawing.Drawing2D.LinearGradientBrush]::new(
       $rect,
       [System.Drawing.Color]::FromArgb(5, 10, 24),
       [System.Drawing.Color]::FromArgb(11, 18, 42),
@@ -23,27 +27,27 @@ function New-LivariantHeaderBitmap {
     $graphics.FillRectangle($background, $rect)
     $background.Dispose()
 
-    $violet = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(128, 79, 255))
-    $blue = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(48, 169, 255))
+    $violet = New-Brush 128 79 255
+    $blue = New-Brush 48 169 255
     $graphics.FillEllipse($violet, 112, -12, 56, 56)
     $graphics.FillPolygon($blue, [System.Drawing.Point[]]@(
-      (New-Object System.Drawing.Point 106, 14),
-      (New-Object System.Drawing.Point 124, 24),
-      (New-Object System.Drawing.Point 124, 42),
-      (New-Object System.Drawing.Point 106, 32)
+      [System.Drawing.Point]::new(106, 14),
+      [System.Drawing.Point]::new(124, 24),
+      [System.Drawing.Point]::new(124, 42),
+      [System.Drawing.Point]::new(106, 32)
     ))
     $graphics.FillPolygon($violet, [System.Drawing.Point[]]@(
-      (New-Object System.Drawing.Point 106, 14),
-      (New-Object System.Drawing.Point 106, 32),
-      (New-Object System.Drawing.Point 94, 25)
+      [System.Drawing.Point]::new(106, 14),
+      [System.Drawing.Point]::new(106, 32),
+      [System.Drawing.Point]::new(94, 25)
     ))
     $blue.Dispose()
     $violet.Dispose()
 
-    $titleFont = New-Object System.Drawing.Font("Segoe UI Semibold", 12, [System.Drawing.FontStyle]::Bold)
-    $subtitleFont = New-Object System.Drawing.Font("Segoe UI", 7.5)
-    $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(239, 244, 255))
-    $muted = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(152, 171, 208))
+    $titleFont = [System.Drawing.Font]::new("Segoe UI Semibold", 12, [System.Drawing.FontStyle]::Bold)
+    $subtitleFont = [System.Drawing.Font]::new("Segoe UI", 7.5)
+    $white = New-Brush 239 244 255
+    $muted = New-Brush 152 171 208
     $graphics.DrawString("LIVARIANT", $titleFont, $white, 12, 9)
     $graphics.DrawString("Windows setup", $subtitleFont, $muted, 13, 31)
     $titleFont.Dispose()
@@ -61,13 +65,13 @@ function New-LivariantHeaderBitmap {
 function New-LivariantSidebarBitmap {
   param([string]$Path)
 
-  $bitmap = New-Object System.Drawing.Bitmap 164, 314
+  $bitmap = [System.Drawing.Bitmap]::new(164, 314)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
   $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 
   try {
-    $rect = New-Object System.Drawing.Rectangle 0, 0, 164, 314
-    $background = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+    $rect = [System.Drawing.Rectangle]::new(0, 0, 164, 314)
+    $background = [System.Drawing.Drawing2D.LinearGradientBrush]::new(
       $rect,
       [System.Drawing.Color]::FromArgb(4, 8, 19),
       [System.Drawing.Color]::FromArgb(8, 15, 35),
@@ -76,41 +80,41 @@ function New-LivariantSidebarBitmap {
     $graphics.FillRectangle($background, $rect)
     $background.Dispose()
 
-    $blueGlow = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(34, 102, 205))
-    $violetGlow = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(88, 48, 181))
+    $blueGlow = New-Brush 34 102 205
+    $violetGlow = New-Brush 88 48 181
     $graphics.FillEllipse($blueGlow, -64, 66, 182, 182)
     $graphics.FillEllipse($violetGlow, 74, 202, 128, 128)
     $blueGlow.Dispose()
     $violetGlow.Dispose()
 
-    $blue = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(48, 169, 255))
-    $violet = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(128, 79, 255))
+    $blue = New-Brush 48 169 255
+    $violet = New-Brush 128 79 255
     $graphics.FillPolygon($blue, [System.Drawing.Point[]]@(
-      (New-Object System.Drawing.Point 82, 40),
-      (New-Object System.Drawing.Point 105, 53),
-      (New-Object System.Drawing.Point 105, 81),
-      (New-Object System.Drawing.Point 82, 95),
-      (New-Object System.Drawing.Point 59, 81),
-      (New-Object System.Drawing.Point 59, 53)
+      [System.Drawing.Point]::new(82, 40),
+      [System.Drawing.Point]::new(105, 53),
+      [System.Drawing.Point]::new(105, 81),
+      [System.Drawing.Point]::new(82, 95),
+      [System.Drawing.Point]::new(59, 81),
+      [System.Drawing.Point]::new(59, 53)
     ))
     $graphics.FillPolygon($violet, [System.Drawing.Point[]]@(
-      (New-Object System.Drawing.Point 82, 49),
-      (New-Object System.Drawing.Point 97, 58),
-      (New-Object System.Drawing.Point 97, 75),
-      (New-Object System.Drawing.Point 82, 84),
-      (New-Object System.Drawing.Point 82, 69),
-      (New-Object System.Drawing.Point 68, 61),
-      (New-Object System.Drawing.Point 68, 53)
+      [System.Drawing.Point]::new(82, 49),
+      [System.Drawing.Point]::new(97, 58),
+      [System.Drawing.Point]::new(97, 75),
+      [System.Drawing.Point]::new(82, 84),
+      [System.Drawing.Point]::new(82, 69),
+      [System.Drawing.Point]::new(68, 61),
+      [System.Drawing.Point]::new(68, 53)
     ))
     $blue.Dispose()
     $violet.Dispose()
 
-    $titleFont = New-Object System.Drawing.Font("Segoe UI Semibold", 16, [System.Drawing.FontStyle]::Bold)
-    $bodyFont = New-Object System.Drawing.Font("Segoe UI", 8.5)
-    $smallFont = New-Object System.Drawing.Font("Segoe UI", 8)
-    $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(239, 244, 255))
-    $muted = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(157, 176, 211))
-    $accent = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(104, 111, 255))
+    $titleFont = [System.Drawing.Font]::new("Segoe UI Semibold", 16, [System.Drawing.FontStyle]::Bold)
+    $bodyFont = [System.Drawing.Font]::new("Segoe UI", 8.5)
+    $smallFont = [System.Drawing.Font]::new("Segoe UI", 8)
+    $white = New-Brush 239 244 255
+    $muted = New-Brush 157 176 211
+    $accent = New-Brush 104 111 255
 
     $graphics.DrawString("LIVARIANT", $titleFont, $white, 27, 117)
     $graphics.DrawString("Living software framework", $bodyFont, $muted, 23, 149)
