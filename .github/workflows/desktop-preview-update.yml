@@ -158,10 +158,9 @@ jobs:
         run: |
           $bundle = Join-Path $PWD "src-tauri\target\release\bundle\nsis"
           $installers = @(Get-ChildItem -LiteralPath $bundle -Filter "*.exe" -File)
-          $updates = @(Get-ChildItem -LiteralPath $bundle -Filter "*.nsis.zip" -File)
-          $signatures = @(Get-ChildItem -LiteralPath $bundle -Filter "*.nsis.zip.sig" -File)
-          if ($installers.Count -ne 1 -or $updates.Count -ne 1 -or $signatures.Count -ne 1) {
-            throw "Expected exactly one installer, updater bundle and updater signature."
+          $signatures = @(Get-ChildItem -LiteralPath $bundle -Filter "*.exe.sig" -File)
+          if ($installers.Count -ne 1 -or $signatures.Count -ne 1) {
+            throw "Expected exactly one NSIS installer and one updater signature."
           }
 
           $tauriConfig = Get-Content -LiteralPath "src-tauri\tauri.conf.json" -Raw | ConvertFrom-Json
@@ -171,7 +170,7 @@ jobs:
             throw "Updater signature file is empty."
           }
 
-          $assetName = $updates[0].Name
+          $assetName = $installers[0].Name
           $assetUrl = "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-feed/$assetName"
           $latest = [ordered]@{
             version = $version
@@ -193,7 +192,7 @@ jobs:
           }
 
           "installer=$($installers[0].FullName)" >> $env:GITHUB_OUTPUT
-          "bundle=$($updates[0].FullName)" >> $env:GITHUB_OUTPUT
+          "bundle=$($installers[0].FullName)" >> $env:GITHUB_OUTPUT
           "signature=$($signatures[0].FullName)" >> $env:GITHUB_OUTPUT
           "latest=$latestPath" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
@@ -226,7 +225,6 @@ jobs:
           name: livariant-desktop-preview-update-${{ steps.source.outputs.sha }}
           path: |
             ${{ steps.update.outputs.installer }}
-            ${{ steps.update.outputs.bundle }}
             ${{ steps.update.outputs.signature }}
             ${{ steps.update.outputs.latest }}
           if-no-files-found: error
