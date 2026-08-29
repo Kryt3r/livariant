@@ -39,6 +39,9 @@
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico",
+        "headerImage": "windows/branding/installer-header.bmp",
+        "uninstallerHeaderImage": "windows/branding/installer-header.bmp",
+        "sidebarImage": "windows/branding/installer-sidebar.bmp",
         "languages": ["German", "English"],
         "displayLanguageSelector": false,
         "startMenuFolder": "Livariant"
