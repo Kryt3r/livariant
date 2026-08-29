@@ -2,151 +2,63 @@ $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Drawing
 
+# WP-045 physical dogfood approved the supplied Livariant campaign artwork as the
+# installer branding source. These compact JPEG crops are derived from that exact
+# artwork for the fixed NSIS Modern UI image slots (150x57 header, 164x314 sidebar).
+# Keeping the crops embedded here makes the installer build deterministic and avoids
+# inventing substitute artwork at build time.
+$headerJpegBase64 = @'
+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
+'@
+
+$sidebarJpegBase64 = @'
+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
+'@
+
 $brandingDir = Join-Path $PSScriptRoot "branding"
 New-Item -ItemType Directory -Path $brandingDir -Force | Out-Null
 
-function New-Brush([int]$r, [int]$g, [int]$b) {
-  return [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb($r, $g, $b))
-}
+function Convert-ApprovedArtworkToBmp {
+  param(
+    [Parameter(Mandatory=$true)][string]$Base64Jpeg,
+    [Parameter(Mandatory=$true)][string]$Path,
+    [Parameter(Mandatory=$true)][int]$Width,
+    [Parameter(Mandatory=$true)][int]$Height
+  )
 
-function New-LivariantHeaderBitmap {
-  param([string]$Path)
-
-  $bitmap = [System.Drawing.Bitmap]::new(150, 57)
-  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-
+  $bytes = [Convert]::FromBase64String(($Base64Jpeg -replace '\s',''))
+  $stream = [System.IO.MemoryStream]::new($bytes)
   try {
-    $rect = [System.Drawing.Rectangle]::new(0, 0, 150, 57)
-    $background = [System.Drawing.Drawing2D.LinearGradientBrush]::new(
-      $rect,
-      [System.Drawing.Color]::FromArgb(5, 10, 24),
-      [System.Drawing.Color]::FromArgb(11, 18, 42),
-      0.0
-    )
-    $graphics.FillRectangle($background, $rect)
-    $background.Dispose()
-
-    $violet = New-Brush 128 79 255
-    $blue = New-Brush 48 169 255
-    $graphics.FillEllipse($violet, 112, -12, 56, 56)
-    $graphics.FillPolygon($blue, [System.Drawing.Point[]]@(
-      [System.Drawing.Point]::new(106, 14),
-      [System.Drawing.Point]::new(124, 24),
-      [System.Drawing.Point]::new(124, 42),
-      [System.Drawing.Point]::new(106, 32)
-    ))
-    $graphics.FillPolygon($violet, [System.Drawing.Point[]]@(
-      [System.Drawing.Point]::new(106, 14),
-      [System.Drawing.Point]::new(106, 32),
-      [System.Drawing.Point]::new(94, 25)
-    ))
-    $blue.Dispose()
-    $violet.Dispose()
-
-    $titleFont = [System.Drawing.Font]::new("Segoe UI Semibold", 12, [System.Drawing.FontStyle]::Bold)
-    $subtitleFont = [System.Drawing.Font]::new("Segoe UI", 7.5)
-    $white = New-Brush 239 244 255
-    $muted = New-Brush 152 171 208
-    $graphics.DrawString("LIVARIANT", $titleFont, $white, 12, 9)
-    $graphics.DrawString("Windows setup", $subtitleFont, $muted, 13, 31)
-    $titleFont.Dispose()
-    $subtitleFont.Dispose()
-    $white.Dispose()
-    $muted.Dispose()
-
-    $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Bmp)
+    $source = [System.Drawing.Image]::FromStream($stream)
+    try {
+      if ($source.Width -ne $Width -or $source.Height -ne $Height) {
+        throw "Approved installer artwork crop has unexpected dimensions $($source.Width)x$($source.Height); expected ${Width}x${Height}."
+      }
+      $bitmap = [System.Drawing.Bitmap]::new($source)
+      try {
+        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Bmp)
+      } finally {
+        $bitmap.Dispose()
+      }
+    } finally {
+      $source.Dispose()
+    }
   } finally {
-    $graphics.Dispose()
-    $bitmap.Dispose()
-  }
-}
-
-function New-LivariantSidebarBitmap {
-  param([string]$Path)
-
-  $bitmap = [System.Drawing.Bitmap]::new(164, 314)
-  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-
-  try {
-    $rect = [System.Drawing.Rectangle]::new(0, 0, 164, 314)
-    $background = [System.Drawing.Drawing2D.LinearGradientBrush]::new(
-      $rect,
-      [System.Drawing.Color]::FromArgb(4, 8, 19),
-      [System.Drawing.Color]::FromArgb(8, 15, 35),
-      90.0
-    )
-    $graphics.FillRectangle($background, $rect)
-    $background.Dispose()
-
-    $blueGlow = New-Brush 34 102 205
-    $violetGlow = New-Brush 88 48 181
-    $graphics.FillEllipse($blueGlow, -64, 66, 182, 182)
-    $graphics.FillEllipse($violetGlow, 74, 202, 128, 128)
-    $blueGlow.Dispose()
-    $violetGlow.Dispose()
-
-    $blue = New-Brush 48 169 255
-    $violet = New-Brush 128 79 255
-    $graphics.FillPolygon($blue, [System.Drawing.Point[]]@(
-      [System.Drawing.Point]::new(82, 40),
-      [System.Drawing.Point]::new(105, 53),
-      [System.Drawing.Point]::new(105, 81),
-      [System.Drawing.Point]::new(82, 95),
-      [System.Drawing.Point]::new(59, 81),
-      [System.Drawing.Point]::new(59, 53)
-    ))
-    $graphics.FillPolygon($violet, [System.Drawing.Point[]]@(
-      [System.Drawing.Point]::new(82, 49),
-      [System.Drawing.Point]::new(97, 58),
-      [System.Drawing.Point]::new(97, 75),
-      [System.Drawing.Point]::new(82, 84),
-      [System.Drawing.Point]::new(82, 69),
-      [System.Drawing.Point]::new(68, 61),
-      [System.Drawing.Point]::new(68, 53)
-    ))
-    $blue.Dispose()
-    $violet.Dispose()
-
-    $titleFont = [System.Drawing.Font]::new("Segoe UI Semibold", 16, [System.Drawing.FontStyle]::Bold)
-    $bodyFont = [System.Drawing.Font]::new("Segoe UI", 8.5)
-    $smallFont = [System.Drawing.Font]::new("Segoe UI", 8)
-    $white = New-Brush 239 244 255
-    $muted = New-Brush 157 176 211
-    $accent = New-Brush 104 111 255
-
-    $graphics.DrawString("LIVARIANT", $titleFont, $white, 27, 117)
-    $graphics.DrawString("Living software framework", $bodyFont, $muted, 23, 149)
-    $graphics.FillRectangle($accent, 43, 181, 78, 3)
-    $graphics.DrawString("Install. Verify.", $smallFont, $white, 42, 228)
-    $graphics.DrawString("Stay in control.", $smallFont, $muted, 40, 247)
-
-    $titleFont.Dispose()
-    $bodyFont.Dispose()
-    $smallFont.Dispose()
-    $white.Dispose()
-    $muted.Dispose()
-    $accent.Dispose()
-
-    $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Bmp)
-  } finally {
-    $graphics.Dispose()
-    $bitmap.Dispose()
+    $stream.Dispose()
   }
 }
 
 $header = Join-Path $brandingDir "installer-header.bmp"
 $sidebar = Join-Path $brandingDir "installer-sidebar.bmp"
 
-New-LivariantHeaderBitmap -Path $header
-New-LivariantSidebarBitmap -Path $sidebar
+Convert-ApprovedArtworkToBmp -Base64Jpeg $headerJpegBase64 -Path $header -Width 150 -Height 57
+Convert-ApprovedArtworkToBmp -Base64Jpeg $sidebarJpegBase64 -Path $sidebar -Width 164 -Height 314
 
 foreach ($asset in @($header, $sidebar)) {
   if (-not (Test-Path -LiteralPath $asset -PathType Leaf)) {
     throw "Installer branding asset was not generated: $asset"
   }
   $digest = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
-  Write-Host "Generated installer branding asset: $asset"
+  Write-Host "Generated approved Livariant installer branding asset: $asset"
   Write-Host "SHA256: $digest"
 }
