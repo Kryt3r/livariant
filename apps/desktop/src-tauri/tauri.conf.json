@@ -30,9 +30,19 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "category": "DeveloperTool",
     "shortDescription": "Living software framework desktop foundation",
-    "longDescription": "Livariant Desktop provides the normal-user surface for installation health, Guardian readiness, projects, First Steps, updates, settings and diagnostics."
+    "longDescription": "Livariant Desktop provides the normal-user surface for installation health, Guardian readiness, projects, First Steps, updates, settings and diagnostics.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "languages": ["German", "English"],
+        "displayLanguageSelector": false,
+        "startMenuFolder": "Livariant"
+      }
+    }
   }
 }
