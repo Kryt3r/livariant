@@ -70,6 +70,7 @@ try {
     version = $newVersion
     plugins = [ordered]@{
       updater = [ordered]@{
+        pubkey = $publicKey
         dangerousInsecureTransportProtocol = $true
       }
     }
@@ -79,6 +80,7 @@ try {
     version = $oldVersion
     plugins = [ordered]@{
       updater = [ordered]@{
+        pubkey = $publicKey
         dangerousInsecureTransportProtocol = $true
       }
     }
@@ -181,16 +183,51 @@ try {
   $oldProcess = Start-Process -FilePath $app -PassThru
   Write-Host "Started installed $oldVersion CI fixture; waiting for signed update to $newVersion."
 
-  $resultReady = $false
+  $oldExited = $false
   for ($attempt = 0; $attempt -lt 90; $attempt++) {
+    if ($oldProcess.HasExited) {
+      $oldExited = $true
+      break
+    }
+    if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
+      $failureResult = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+      throw "Older Desktop returned before replacement completed: $($failureResult | ConvertTo-Json -Compress)."
+    }
+    Start-Sleep -Seconds 2
+  }
+  if (-not $oldExited) {
+    throw "Timed out waiting for the older Desktop to hand off to the updater installer."
+  }
+
+  Start-Sleep -Seconds 4
+  Get-Process -Name 'livariant-desktop' -ErrorAction SilentlyContinue | ForEach-Object {
+    try {
+      if ($_.Path -eq $app) {
+        Stop-Process -Id $_.Id -Force -ErrorAction Stop
+      }
+    } catch {
+      Write-Host "Could not inspect or stop automatically restarted Desktop process $($_.Id): $($_.Exception.Message)"
+    }
+  }
+  Start-Sleep -Seconds 1
+
+  Remove-Item -LiteralPath $resultPath -Force -ErrorAction SilentlyContinue
+  $verificationProcess = Start-Process -FilePath $app -PassThru
+  Write-Host "Restarting the updated installed Desktop explicitly for identity verification."
+
+  $resultReady = $false
+  for ($attempt = 0; $attempt -lt 60; $attempt++) {
     if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
       $resultReady = $true
       break
     }
+    if ($verificationProcess.HasExited -and $verificationProcess.ExitCode -ne 0) {
+      throw "Updated Desktop identity verification exited with code $($verificationProcess.ExitCode) before producing evidence."
+    }
     Start-Sleep -Seconds 2
   }
   if (-not $resultReady) {
-    throw "Timed out waiting for the restarted newer Desktop to confirm updater acceptance."
+    throw "Timed out waiting for the updated Desktop to confirm its installed package identity."
   }
 
   $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
