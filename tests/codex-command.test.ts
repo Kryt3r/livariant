@@ -22,7 +22,7 @@ test("Windows prefers a real Codex executable without a shell", () => {
   });
 });
 
-test("Windows resolves the official npm Codex shim to its native optional-dependency binary", () => {
+test("Windows resolves the official npm Codex cmd shim to its native optional-dependency binary", () => {
   const shim = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\codex.cmd";
   const native = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe";
   const resolution = resolveCodexCommand({
@@ -38,11 +38,30 @@ test("Windows resolves the official npm Codex shim to its native optional-depend
   });
 });
 
-test("Windows fails closed when only an unresolved cmd shim is present", () => {
+test("Windows resolves an extensionless npm Codex shim to the nested native package without a shell", () => {
+  const shim = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\codex";
+  const native = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe";
+  const resolution = resolveCodexCommand({
+    platform: "win32",
+    arch: "x64",
+    pathCandidates: [shim],
+    fileExists: (path) => path.toLowerCase() === native.toLowerCase(),
+  });
+  assert.deepEqual(resolution, {
+    command: native,
+    source: "npm-native-package",
+    shimPath: shim,
+  });
+});
+
+test("Windows fails closed when only an unresolved command shim is present", () => {
   assert.equal(resolveCodexCommand({
     platform: "win32",
     arch: "x64",
-    pathCandidates: ["C:\\Users\\Robin\\AppData\\Roaming\\npm\\codex.cmd"],
+    pathCandidates: [
+      "C:\\Users\\Robin\\AppData\\Roaming\\npm\\codex",
+      "C:\\Users\\Robin\\AppData\\Roaming\\npm\\codex.cmd",
+    ],
     fileExists: () => false,
   }), undefined);
 });
