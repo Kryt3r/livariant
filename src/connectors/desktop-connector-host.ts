@@ -6,11 +6,14 @@ import { aggregateDiagnosticEvents } from "../diagnostics/efficiency.js";
 import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
 import { DiagnosticEventStore } from "../diagnostics/store.js";
 
-const diagnosticsRoot = process.env.LIVARIANT_DIAGNOSTICS_ROOT;
-const clientVersion = process.env.LIVARIANT_CORE_VERSION;
-if (!diagnosticsRoot?.trim()) throw new Error("LIVARIANT_DIAGNOSTICS_ROOT is required.");
-if (!clientVersion?.trim()) throw new Error("LIVARIANT_CORE_VERSION is required.");
+function requiredEnv(name: "LIVARIANT_DIAGNOSTICS_ROOT" | "LIVARIANT_CORE_VERSION"): string {
+  const value = process.env[name];
+  if (!value?.trim()) throw new Error(`${name} is required.`);
+  return value;
+}
 
+const diagnosticsRoot = requiredEnv("LIVARIANT_DIAGNOSTICS_ROOT");
+const clientVersion = requiredEnv("LIVARIANT_CORE_VERSION");
 const store = new DiagnosticEventStore(diagnosticsRoot);
 const sequencer = new CodexUsageSequencer();
 let session: CodexAppServerSession | undefined;
