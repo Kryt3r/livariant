@@ -180,12 +180,13 @@ export class ConnectorRegistry {
 
   disconnect(instanceId: string): ConnectorInstance {
     const current = this.#requireInstance(instanceId);
+    const disconnectedCapabilities = Object.fromEntries(
+      Object.keys(current.observedCapabilities).map((capability) => [capability, "unknown" as const]),
+    );
     const disconnected: ConnectorInstance = {
       ...current,
       state: "disconnected",
-      observedCapabilities: Object.fromEntries(
-        Object.keys(current.observedCapabilities).map((capability) => [capability, "unknown"]),
-      ),
+      observedCapabilities: disconnectedCapabilities,
       credential: undefined,
     };
     this.replaceInstance(disconnected);
