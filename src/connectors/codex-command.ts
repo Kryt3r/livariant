@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, extname, join, win32 } from "node:path";
+import { win32 } from "node:path";
 
 export interface CodexCommandResolution {
   command: string;
@@ -50,7 +50,7 @@ export function resolveCodexCommand(options: CodexCommandResolutionOptions = {})
   const fileExists = options.fileExists ?? existsSync;
   const candidates = options.pathCandidates ?? windowsPathCandidates();
   for (const candidate of candidates) {
-    if (extname(candidate).toLowerCase() === ".exe" && fileExists(candidate)) {
+    if (win32.extname(candidate).toLowerCase() === ".exe" && fileExists(candidate)) {
       return { command: candidate, source: "native-executable" };
     }
   }
@@ -59,8 +59,8 @@ export function resolveCodexCommand(options: CodexCommandResolutionOptions = {})
   if (!target) return undefined;
 
   for (const shimPath of candidates) {
-    if (extname(shimPath).toLowerCase() !== ".cmd") continue;
-    const binRoot = dirname(shimPath);
+    if (win32.extname(shimPath).toLowerCase() !== ".cmd") continue;
+    const binRoot = win32.dirname(shimPath);
     const packageRoots = [
       win32.join(binRoot, "node_modules", "@openai", target.packageName),
       win32.join(binRoot, "node_modules", "@openai", "codex", "node_modules", "@openai", target.packageName),
