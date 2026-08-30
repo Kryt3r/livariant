@@ -163,9 +163,20 @@ jobs:
 
           $installer = $installers[0]
           $digest = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $artifactDir = Join-Path $env:RUNNER_TEMP "LivariantInstallerArtifact"
+          Remove-Item -LiteralPath $artifactDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+          $preservedInstaller = Join-Path $artifactDir $installer.Name
+          Copy-Item -LiteralPath $installer.FullName -Destination $preservedInstaller
+          $preservedDigest = (Get-FileHash -LiteralPath $preservedInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($preservedDigest -ne $digest) {
+            throw "Preserved installer digest mismatch. Built=$digest, preserved=$preservedDigest."
+          }
+
           Write-Host "Installer: $($installer.Name)"
           Write-Host "SHA256: $digest"
-          "path=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          Write-Host "Preserved installer: $preservedInstaller"
+          "path=$preservedInstaller" >> $env:GITHUB_OUTPUT
           "name=$($installer.Name)" >> $env:GITHUB_OUTPUT
           "sha256=$digest" >> $env:GITHUB_OUTPUT
 
@@ -251,6 +262,10 @@ jobs:
           }
 
           Write-Host "Install -> bundled runtime identity -> launch -> uninstall smoke passed for exact source ${{ steps.source.outputs.sha }}."
+
+      - name: Acceptance signed old-installed preview to newer preview
+        shell: pwsh
+        run: ./src-tauri/windows/ci-updater-acceptance.ps1 -SourceSha "${{ steps.source.outputs.sha }}"
 
       - name: Upload exact installer artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
