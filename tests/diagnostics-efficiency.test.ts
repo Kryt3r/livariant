@@ -13,12 +13,14 @@ const events: DiagnosticEvent[] = [
     kind: "observed",
     timestamp: "2026-08-30T08:00:00.000Z",
     attribution: { provider: "example", model: "model-a", projectId: "project-1" },
+    source: { kind: "provider", id: "example-provider.response.usage", version: "1" },
     usage: { inputTokens: 100, outputTokens: 25, cacheReadTokens: 40 },
   },
   {
     id: "observed-missing",
     kind: "observed",
     timestamp: "2026-08-30T09:00:00.000Z",
+    source: { kind: "runtime", id: "example-runtime.token-meter", version: "1" },
     usage: {},
   },
   {
@@ -83,6 +85,25 @@ test("missing observed token fields remain unknown rather than becoming observed
   assert.equal(result.observed.unknownFieldCount, 4);
   assert.equal(result.observed.inputTokens, 0);
   assert.equal(result.observed.outputTokens, 0);
+});
+
+test("observed evidence requires explicit provider or runtime provenance", () => {
+  const withoutSource = {
+    id: "bad-observed",
+    kind: "observed",
+    timestamp: "2026-08-30T10:00:00.000Z",
+    usage: { inputTokens: 10 },
+  } as unknown as DiagnosticEvent;
+  assert.throws(() => validateDiagnosticEvent(withoutSource), /source/i);
+
+  const blankSource = {
+    id: "bad-observed-source",
+    kind: "observed",
+    timestamp: "2026-08-30T10:00:00.000Z",
+    source: { kind: "provider", id: "", version: "1" },
+    usage: { inputTokens: 10 },
+  } as DiagnosticEvent;
+  assert.throws(() => validateDiagnosticEvent(blankSource), /source id and version/i);
 });
 
 test("custom ranges are start-inclusive and end-exclusive", () => {
