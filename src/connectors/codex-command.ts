@@ -34,14 +34,20 @@ function windowsTarget(arch: string): { packageName: string; triple: string } | 
   return undefined;
 }
 
+function isWindowsNpmShim(path: string): boolean {
+  const extension = win32.extname(path).toLowerCase();
+  return extension === ".cmd" || extension === "";
+}
+
 /**
- * Resolves the actual Codex executable without invoking an npm `.cmd` shim.
+ * Resolves the actual Codex executable without invoking an npm command shim.
  *
  * The official `@openai/codex` package exposes `bin/codex.js`, which in turn
  * launches the platform-specific native package. npm commonly exposes that
- * entrypoint as `codex.cmd` on Windows. Livariant deliberately avoids routing
- * that shim through cmd.exe; for standard npm global layouts it derives the
- * native optional-dependency binary and launches that executable directly.
+ * entrypoint as both an extensionless `codex` shim and `codex.cmd` on Windows.
+ * Livariant deliberately never executes either shim through cmd.exe; for
+ * standard npm/NVM layouts it derives the native optional-dependency binary
+ * and launches that executable directly.
  */
 export function resolveCodexCommand(options: CodexCommandResolutionOptions = {}): CodexCommandResolution | undefined {
   const platform = options.platform ?? process.platform;
@@ -59,7 +65,7 @@ export function resolveCodexCommand(options: CodexCommandResolutionOptions = {})
   if (!target) return undefined;
 
   for (const shimPath of candidates) {
-    if (win32.extname(shimPath).toLowerCase() !== ".cmd") continue;
+    if (!isWindowsNpmShim(shimPath)) continue;
     const binRoot = win32.dirname(shimPath);
     const packageRoots = [
       win32.join(binRoot, "node_modules", "@openai", target.packageName),
