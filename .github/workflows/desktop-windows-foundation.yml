@@ -7,6 +7,9 @@ on:
     paths:
       - "apps/desktop/**"
       - ".github/workflows/desktop-windows-foundation.yml"
+      - ".github/workflows/ci-verification-mode.yml"
+      - "scripts/classify-ci-risk.mjs"
+      - "scripts/classify-ci-risk.test.mjs"
   workflow_dispatch:
 
 permissions:
@@ -17,8 +20,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mode:
+    uses: ./.github/workflows/ci-verification-mode.yml
+
   build:
     name: Build Tauri foundation on Windows
+    needs: mode
     runs-on: windows-latest
     defaults:
       run:
@@ -40,13 +47,11 @@ jobs:
           npm --version
           rustc --version
           cargo --version
+          Write-Host "Risk class: ${{ needs.mode.outputs.risk_class }}"
+          Write-Host "Full qualification now: ${{ needs.mode.outputs.run_full }}"
 
       - name: Install desktop dependencies
         run: npm install --no-audit --no-fund
-
-      - name: Generate Livariant NSIS branding
-        shell: pwsh
-        run: ./src-tauri/windows/generate-installer-branding.ps1
 
       - name: Build renderer
         run: npm run build
@@ -54,10 +59,22 @@ jobs:
       - name: Check Rust host
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
+      - name: Fast Draft checkpoint
+        if: needs.mode.outputs.run_full != 'true'
+        shell: pwsh
+        run: Write-Host "Fast Desktop CI passed renderer build + Rust host check; native executable build and launch smoke are deferred until qualification."
+
+      - name: Generate Livariant NSIS branding
+        if: needs.mode.outputs.run_full == 'true'
+        shell: pwsh
+        run: ./src-tauri/windows/generate-installer-branding.ps1
+
       - name: Build Windows desktop executable without installer bundling
+        if: needs.mode.outputs.run_full == 'true'
         run: npm run tauri:build -- --no-bundle --ci
 
       - name: Smoke native Windows app launch
+        if: needs.mode.outputs.run_full == 'true'
         shell: pwsh
         run: |
           $exe = Join-Path $PWD "src-tauri\target\release\livariant-desktop.exe"
