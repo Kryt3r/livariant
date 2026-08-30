@@ -4,7 +4,7 @@ use tauri_plugin_updater::UpdaterExt;
 
 const UPDATER_PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEyNUJCNUJFNUNDNjc3QQpSV1I2Wjh6bFc3c2xBWnJSSFNndThoeEhoS1FubFlFU1VDSHlhNWVQS3kyZWZkZE9EYTd0eGIyaAo=";
 const UPDATER_ENDPOINTS: &[&str] = &[
-    "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-feed/latest.json",
+    "https://raw.githubusercontent.com/Kryt3r/livariant/desktop-preview-index/latest.json",
 ];
 
 #[derive(Debug, Serialize)]
