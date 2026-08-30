@@ -113,6 +113,9 @@ export function validateDiagnosticEvent(event: DiagnosticEvent): void {
   parseTimestamp(event.timestamp, "Diagnostic event timestamp");
 
   if (event.kind === "observed") {
+    if (!event.source || typeof event.source !== "object") {
+      throw new Error("Observed evidence source must be present.");
+    }
     if (event.source.kind !== "provider" && event.source.kind !== "runtime") {
       throw new Error("Observed evidence source kind must be provider or runtime.");
     }
