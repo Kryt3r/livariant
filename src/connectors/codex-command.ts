@@ -39,6 +39,10 @@ function isWindowsNpmShim(path: string): boolean {
   return extension === ".cmd" || extension === "";
 }
 
+function isNativeCodexExecutable(path: string): boolean {
+  return win32.basename(path).toLowerCase() === "codex.exe";
+}
+
 /**
  * Resolves the actual Codex executable without invoking an npm command shim.
  *
@@ -56,7 +60,7 @@ export function resolveCodexCommand(options: CodexCommandResolutionOptions = {})
   const fileExists = options.fileExists ?? existsSync;
   const candidates = options.pathCandidates ?? windowsPathCandidates();
   for (const candidate of candidates) {
-    if (win32.extname(candidate).toLowerCase() === ".exe" && fileExists(candidate)) {
+    if (isNativeCodexExecutable(candidate) && fileExists(candidate)) {
       return { command: candidate, source: "native-executable" };
     }
   }
