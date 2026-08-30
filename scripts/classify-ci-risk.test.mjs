@@ -13,9 +13,23 @@ test("classifies README and documentation truth surfaces as B", () => {
   assert.equal(classifyPaths(["docs/quickstart.md"]).class, "B");
 });
 
-test("classifies normal source and test changes as C", () => {
+test("classifies normal source, tests, and ordinary Desktop implementation as C", () => {
   assert.equal(classifyPaths(["src/cli/understand-command.ts"]).class, "C");
   assert.equal(classifyPaths(["tests/semantic-editing.test.ts"]).class, "C");
+  assert.equal(classifyPaths(["apps/desktop/src/main.ts"]).class, "C");
+  assert.equal(classifyPaths(["apps/desktop/src/styles.css"]).class, "C");
+  assert.equal(classifyPaths(["apps/desktop/src-tauri/src/lib.rs"]).class, "C");
+});
+
+test("keeps Desktop packaging, installer, capability, and distribution surfaces in D", () => {
+  assert.equal(classifyPaths(["apps/desktop/package.json"]).class, "D");
+  assert.equal(classifyPaths(["apps/desktop/package-lock.json"]).class, "D");
+  assert.equal(classifyPaths(["apps/desktop/src-tauri/Cargo.toml"]).class, "D");
+  assert.equal(classifyPaths(["apps/desktop/src-tauri/Cargo.lock"]).class, "D");
+  assert.equal(classifyPaths(["apps/desktop/src-tauri/tauri.conf.json"]).class, "D");
+  assert.equal(classifyPaths(["apps/desktop/src-tauri/tauri.runtime.conf.json"]).class, "D");
+  assert.equal(classifyPaths(["apps/desktop/src-tauri/windows/generate-installer-branding.ps1"]).class, "D");
+  assert.equal(classifyPaths(["apps/desktop/src-tauri/capabilities/default.json"]).class, "D");
 });
 
 test("classifies workflow, packaging, authority, Guardian, external knowledge, first-run, autonomy, findings, and mutation-router trust paths as D", () => {
@@ -55,6 +69,7 @@ test("uses the highest class across mixed changes", () => {
   assert.equal(classifyPaths(["README.md", "src/guardian/trust-root.ts"]).class, "D");
   assert.equal(classifyPaths(["README.md", "src/cli/index.ts"]).class, "D");
   assert.equal(classifyPaths(["docs/project-findings.md", "src/findings/project-findings.ts"]).class, "D");
+  assert.equal(classifyPaths(["apps/desktop/src/main.ts", "apps/desktop/src-tauri/tauri.conf.json"]).class, "D");
 });
 
 test("unknown and empty change sets fail safe to D", () => {
