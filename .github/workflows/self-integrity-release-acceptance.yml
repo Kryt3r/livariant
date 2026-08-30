@@ -10,24 +10,36 @@ permissions:
   contents: read
 
 jobs:
+  mode:
+    uses: ./.github/workflows/ci-verification-mode.yml
+
   self-integrity-release-acceptance:
+    needs: mode
     runs-on: ubuntu-latest
     steps:
+      - name: Fast-mode acceptance sentinel
+        if: needs.mode.outputs.run_full != 'true'
+        run: echo "Fast CI active for Class ${{ needs.mode.outputs.risk_class }}; Self-Integrity acceptance is deferred until full qualification."
+
       - name: Checkout exact source
+        if: needs.mode.outputs.run_full == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
       - name: Set up Node.js
+        if: needs.mode.outputs.run_full == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           package-manager-cache: false
 
       - name: Install locked dependencies
+        if: needs.mode.outputs.run_full == 'true'
         run: npm ci
 
       - name: Run Self-Integrity / AI-Failure Containment regression acceptance
+        if: needs.mode.outputs.run_full == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -49,6 +61,7 @@ jobs:
           npm run test:release-dossier
 
       - name: Record exact accepted source
+        if: needs.mode.outputs.run_full == 'true'
         shell: bash
         env:
           SOURCE_SHA: ${{ github.sha }}

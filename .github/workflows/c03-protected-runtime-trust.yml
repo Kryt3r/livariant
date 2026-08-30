@@ -13,8 +13,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mode:
+    uses: ./.github/workflows/ci-verification-mode.yml
+
   protected-runtime-trust:
     name: Protected Runtime trust (${{ matrix.os }})
+    needs: mode
+    if: needs.mode.outputs.run_full == 'true'
     strategy:
       fail-fast: false
       matrix:

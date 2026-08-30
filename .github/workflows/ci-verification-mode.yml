@@ -1,0 +1,97 @@
+name: CI Verification Mode
+
+on:
+  workflow_call:
+    outputs:
+      risk_class:
+        description: Highest CI risk class for the change set.
+        value: ${{ jobs.classify.outputs.risk_class }}
+      run_executable:
+        description: Whether executable verification is relevant.
+        value: ${{ jobs.classify.outputs.run_executable }}
+      run_full:
+        description: Whether full qualification must run now.
+        value: ${{ jobs.classify.outputs.run_full }}
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    name: Decide CI verification mode
+    runs-on: ubuntu-latest
+    outputs:
+      risk_class: ${{ steps.mode.outputs.risk_class }}
+      run_executable: ${{ steps.mode.outputs.run_executable }}
+      run_full: ${{ steps.mode.outputs.run_full }}
+    steps:
+      - name: Checkout full history for change classification
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Test risk classifier
+        run: node --test scripts/classify-ci-risk.test.mjs
+
+      - name: Determine changed paths
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            : > changed-files.txt
+          else
+            git diff --name-only --no-renames "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
+          fi
+          echo "Changed paths:"
+          cat changed-files.txt
+
+      - name: Classify change risk
+        id: classify
+        shell: bash
+        run: node scripts/classify-ci-risk.mjs < changed-files.txt >> "$GITHUB_OUTPUT"
+
+      - name: Decide Fast or Full verification
+        id: mode
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          IS_DRAFT: ${{ github.event.pull_request.draft || false }}
+          FORCE_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+          RISK_CLASS: ${{ steps.classify.outputs.class }}
+          RUN_EXECUTABLE: ${{ steps.classify.outputs.run_executable }}
+        run: |
+          set -euo pipefail
+          run_full=false
+
+          # Class D is safety/distribution-sensitive and always qualifies fully,
+          # even while the PR remains a Draft.
+          if [[ "$RISK_CLASS" == "D" ]]; then
+            run_full=true
+          # Explicit operator intent always upgrades verification.
+          elif [[ "$FORCE_FULL" == "true" ]]; then
+            run_full=true
+          # Normal executable work iterates cheaply while Draft and qualifies
+          # fully once review-ready. Pushes to main also receive full executable
+          # post-merge verification.
+          elif [[ "$RISK_CLASS" == "C" && ( "$EVENT_NAME" != "pull_request" || "$IS_DRAFT" != "true" ) ]]; then
+            run_full=true
+          fi
+
+          echo "risk_class=$RISK_CLASS" >> "$GITHUB_OUTPUT"
+          echo "run_executable=$RUN_EXECUTABLE" >> "$GITHUB_OUTPUT"
+          echo "run_full=$run_full" >> "$GITHUB_OUTPUT"
+
+          echo "Risk class: $RISK_CLASS"
+          echo "Draft PR: $IS_DRAFT"
+          echo "Explicit ci:full: $FORCE_FULL"
+          echo "Executable verification relevant: $RUN_EXECUTABLE"
+          echo "Full qualification now: $run_full"

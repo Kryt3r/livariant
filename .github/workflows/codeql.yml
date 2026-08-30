@@ -18,8 +18,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mode:
+    uses: ./.github/workflows/ci-verification-mode.yml
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: mode
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,15 +33,22 @@ jobs:
           - actions
 
     steps:
+      - name: Fast-mode CodeQL sentinel
+        if: needs.mode.outputs.run_full != 'true'
+        run: echo "Fast CI active for Class ${{ needs.mode.outputs.risk_class }}; CodeQL is deferred until full qualification."
+
       - name: Checkout
+        if: needs.mode.outputs.run_full == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Initialize CodeQL
+        if: needs.mode.outputs.run_full == 'true'
         uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           languages: ${{ matrix.language }}
 
       - name: Perform CodeQL Analysis
+        if: needs.mode.outputs.run_full == 'true'
         uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           category: "/language:${{ matrix.language }}"

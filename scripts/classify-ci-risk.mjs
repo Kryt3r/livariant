@@ -8,11 +8,21 @@ function maxClass(left, right) {
   return priorities[right] > priorities[left] ? right : left;
 }
 
+function isDesktopDistributionRisk(path) {
+  if (path === "apps/desktop/package.json" || path === "apps/desktop/package-lock.json") return true;
+  if (path === "apps/desktop/src-tauri/Cargo.toml" || path === "apps/desktop/src-tauri/Cargo.lock") return true;
+  if (path.startsWith("apps/desktop/src-tauri/windows/")) return true;
+  if (/^apps\/desktop\/src-tauri\/tauri(?:\.[^/]+)?\.conf\.json$/u.test(path)) return true;
+  if (path.startsWith("apps/desktop/src-tauri/capabilities/")) return true;
+  return false;
+}
+
 function isClassD(path) {
   if (path.startsWith(".github/workflows/")) return true;
   if (path === "package.json" || path === "package-lock.json") return true;
   if (path === "tsconfig.json") return true;
   if (path.startsWith("scripts/")) return true;
+  if (isDesktopDistributionRisk(path)) return true;
   if (path.startsWith("src/external-knowledge/")) return true;
   if (path.startsWith("src/autonomy/")) return true;
   if (path.startsWith("src/guardian/")) return true;
@@ -59,7 +69,12 @@ function classifyPath(path) {
     path.startsWith("core/") ||
     path.startsWith("patterns/") ||
     path.startsWith("profiles/") ||
-    path.startsWith("adapters/")
+    path.startsWith("adapters/") ||
+    path.startsWith("apps/desktop/src/") ||
+    path.startsWith("apps/desktop/src-tauri/src/") ||
+    path === "apps/desktop/index.html" ||
+    path === "apps/desktop/vite.config.ts" ||
+    path === "apps/desktop/tsconfig.json"
   ) {
     return "C";
   }
