@@ -17,8 +17,75 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  mode:
-    uses: ./.github/workflows/ci-verification-mode.yml
+  classify:
+    name: Classify CI risk
+    runs-on: ubuntu-latest
+    outputs:
+      class: ${{ steps.classify.outputs.class }}
+      run_executable: ${{ steps.classify.outputs.run_executable }}
+      run_full_now: ${{ steps.mode.outputs.run_full_now }}
+    steps:
+      - name: Checkout full history for change classification
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Test risk classifier
+        run: node --test scripts/classify-ci-risk.test.mjs
+
+      - name: Determine changed paths
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            : > changed-files.txt
+          else
+            git diff --name-only --no-renames "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
+          fi
+          echo "Changed paths:"
+          cat changed-files.txt
+
+      - name: Classify change risk
+        id: classify
+        shell: bash
+        run: node scripts/classify-ci-risk.mjs < changed-files.txt >> "$GITHUB_OUTPUT"
+
+      - name: Decide Fast or Full verification
+        id: mode
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          IS_DRAFT: ${{ github.event.pull_request.draft || false }}
+          FORCE_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+          RISK_CLASS: ${{ steps.classify.outputs.class }}
+        run: |
+          set -euo pipefail
+          run_full_now=false
+
+          if [[ "$RISK_CLASS" == "D" ]]; then
+            run_full_now=true
+          elif [[ "$FORCE_FULL" == "true" ]]; then
+            run_full_now=true
+          elif [[ "$RISK_CLASS" == "C" && "$EVENT_NAME" != "pull_request" ]]; then
+            run_full_now=true
+          elif [[ "$RISK_CLASS" == "C" && "$IS_DRAFT" != "true" ]]; then
+            run_full_now=true
+          fi
+
+          echo "run_full_now=$run_full_now" >> "$GITHUB_OUTPUT"
+          echo "CI risk class: $RISK_CLASS"
+          echo "Draft PR: $IS_DRAFT"
+          echo "Explicit ci:full: $FORCE_FULL"
+          echo "Full qualification now: $run_full_now"
 
   dependency-review:
     name: Dependency Review
@@ -34,7 +101,7 @@ jobs:
           fail-on-severity: high
 
   build-and-test:
-    needs: mode
+    needs: classify
     strategy:
       fail-fast: false
       matrix:
@@ -43,53 +110,49 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Report verification mode
-        shell: bash
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          echo "Risk class: ${{ needs.mode.outputs.risk_class }}"
-          echo "Executable verification relevant: ${{ needs.mode.outputs.run_executable }}"
-          echo "Full qualification now: ${{ needs.mode.outputs.run_full }}"
-
       - name: Lightweight compatibility check
-        if: needs.mode.outputs.run_executable != 'true' && matrix.os == 'windows-latest'
+        if: needs.classify.outputs.run_executable != 'true' && matrix.os == 'windows-latest'
         shell: pwsh
-        run: Write-Output "Class ${{ needs.mode.outputs.risk_class }} does not require Windows executable verification."
+        run: Write-Output "Class ${{ needs.classify.outputs.class }} does not require Windows executable verification."
 
       - name: Checkout
-        if: matrix.os == 'ubuntu-latest' || needs.mode.outputs.run_executable == 'true'
+        if: matrix.os == 'ubuntu-latest' || needs.classify.outputs.run_executable == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Node.js
-        if: matrix.os == 'ubuntu-latest' || needs.mode.outputs.run_executable == 'true'
+        if: matrix.os == 'ubuntu-latest' || needs.classify.outputs.run_executable == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           package-manager-cache: false
 
       - name: Verify public truth-surface consistency
-        if: matrix.os == 'ubuntu-latest' || needs.mode.outputs.run_full == 'true'
+        if: matrix.os == 'ubuntu-latest' || needs.classify.outputs.run_full_now == 'true'
         run: node scripts/check-public-doc-consistency.mjs
 
       - name: Install locked dependencies
-        if: needs.mode.outputs.run_executable == 'true'
+        if: needs.classify.outputs.run_executable == 'true'
         run: npm ci
 
       - name: Build TypeScript
-        if: needs.mode.outputs.run_executable == 'true'
+        if: needs.classify.outputs.run_executable == 'true'
         run: npm run build
 
-      - name: Run executable tests
-        if: needs.mode.outputs.run_executable == 'true' && (matrix.os == 'ubuntu-latest' || needs.mode.outputs.run_full == 'true')
+      - name: Run executable tests on Ubuntu
+        if: needs.classify.outputs.run_executable == 'true' && matrix.os == 'ubuntu-latest'
+        run: npm test
+
+      - name: Run executable tests on Windows during full qualification
+        if: needs.classify.outputs.run_full_now == 'true' && matrix.os == 'windows-latest'
         run: npm test
 
       - name: Fast Draft Windows checkpoint
-        if: needs.mode.outputs.run_executable == 'true' && needs.mode.outputs.run_full != 'true' && matrix.os == 'windows-latest'
+        if: needs.classify.outputs.run_executable == 'true' && needs.classify.outputs.run_full_now != 'true' && matrix.os == 'windows-latest'
         shell: pwsh
         run: Write-Output "Fast CI: Windows TypeScript build passed; full Windows executable tests are deferred until qualification."
 
       - name: Verify protected Guardian origin and consumed Semantic Authority on Linux
-        if: needs.mode.outputs.run_full == 'true' && matrix.os == 'ubuntu-latest'
+        if: needs.classify.outputs.run_full_now == 'true' && matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           set -euo pipefail
@@ -114,14 +177,14 @@ jobs:
           node scripts/guardian-semantic-consumed-smoke.mjs
 
       - name: Clean protected Guardian fixture on Linux
-        if: always() && needs.mode.outputs.run_full == 'true' && matrix.os == 'ubuntu-latest'
+        if: always() && needs.classify.outputs.run_full_now == 'true' && matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           sudo rm -rf /var/lib/livariant-guardian
           rm -rf "$RUNNER_TEMP/livariant-guardian-fixture"
 
       - name: Verify protected Guardian origin and consumed Semantic Authority on Windows
-        if: needs.mode.outputs.run_full == 'true' && matrix.os == 'windows-latest'
+        if: needs.classify.outputs.run_full_now == 'true' && matrix.os == 'windows-latest'
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -184,22 +247,22 @@ jobs:
           node scripts/guardian-semantic-consumed-smoke.mjs
 
       - name: Clean protected Guardian fixture on Windows
-        if: always() && needs.mode.outputs.run_full == 'true' && matrix.os == 'windows-latest'
+        if: always() && needs.classify.outputs.run_full_now == 'true' && matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           Remove-Item -LiteralPath 'C:\ProgramData\Livariant' -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'livariant-guardian-fixture') -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Pack, install, and execute clean-consumer smoke test
-        if: needs.mode.outputs.run_full == 'true'
+        if: needs.classify.outputs.run_full_now == 'true'
         run: npm run test:package
 
       - name: Build and verify manifest-bound release bundle
-        if: needs.mode.outputs.run_full == 'true'
+        if: needs.classify.outputs.run_full_now == 'true'
         run: npm run test:release-bundle
 
       - name: Generate and verify release SBOM capability
-        if: needs.mode.outputs.run_full == 'true' && matrix.os == 'ubuntu-latest'
+        if: needs.classify.outputs.run_full_now == 'true' && matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           set -euo pipefail
@@ -222,7 +285,7 @@ jobs:
     name: CI Gate
     if: always()
     needs:
-      - mode
+      - classify
       - dependency-review
       - build-and-test
     runs-on: ubuntu-latest
@@ -231,20 +294,20 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          MODE_RESULT: ${{ needs.mode.result }}
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           BUILD_RESULT: ${{ needs.build-and-test.result }}
-          RISK_CLASS: ${{ needs.mode.outputs.risk_class }}
-          FULL_NOW: ${{ needs.mode.outputs.run_full }}
+          RISK_CLASS: ${{ needs.classify.outputs.class }}
+          FULL_NOW: ${{ needs.classify.outputs.run_full_now }}
         run: |
           echo "Risk class: ${RISK_CLASS:-unknown}"
-          echo "Verification-mode result: $MODE_RESULT"
+          echo "Classifier result: $CLASSIFY_RESULT"
           echo "Full qualification now: $FULL_NOW"
           echo "Dependency Review result: $DEPENDENCY_REVIEW_RESULT"
           echo "Build/test result: $BUILD_RESULT"
 
-          if [[ "$MODE_RESULT" != "success" ]]; then
-            echo "Verification-mode classification did not succeed."
+          if [[ "$CLASSIFY_RESULT" != "success" ]]; then
+            echo "Risk classification did not succeed."
             exit 1
           fi
 
