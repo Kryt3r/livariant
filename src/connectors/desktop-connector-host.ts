@@ -1,7 +1,12 @@
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { resolveCodexCommand } from "./codex-command.js";
-import { connectCodexAppServer, inspectCodexInstallation, type CodexAppServerSession } from "./codex-runtime.js";
+import {
+  connectCodexAppServer,
+  inspectCodexInstallation,
+  type CodexAppServerSession,
+  type CodexInstallationInspection,
+} from "./codex-runtime.js";
 import { CodexWorkflowClient } from "./codex-workflow.js";
 import { aggregateDiagnosticEvents } from "../diagnostics/efficiency.js";
 import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
@@ -25,6 +30,10 @@ let pendingApprovals = 0;
 const completedTurns = new Set<string>();
 
 type Request = { id: number; method: "inspect" | "connect" | "disconnect" | "diagnostics" | "measure" };
+type ResolvedCodexInspection = {
+  resolution: ReturnType<typeof resolveCodexCommand>;
+  inspection: CodexInstallationInspection;
+};
 
 function emit(value: unknown): void { stdout.write(`${JSON.stringify(value)}\n`); }
 function completionKey(threadId: string, turnId: string): string { return `${threadId}\u0000${turnId}`; }
@@ -36,15 +45,15 @@ function assertRequest(value: unknown): Request {
   return { id: record.id as number, method: record.method as Request["method"] };
 }
 
-function inspectResolvedCodex() {
+function inspectResolvedCodex(): ResolvedCodexInspection {
   const resolution = resolveCodexCommand();
   if (!resolution) {
     return {
       resolution: undefined,
       inspection: {
-        state: "unusable" as const,
+        state: "unusable",
         command: "codex",
-        evidence: "codex --version" as const,
+        evidence: "codex --version",
         detail: "Codex was found only through a Windows command shim whose native executable could not be resolved without invoking a shell.",
       },
     };
