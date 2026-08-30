@@ -9,6 +9,8 @@ type ConnectorStatus = {
   connectionState: string;
   pendingApprovals: number;
   detail: string;
+  connectionMode?: "auto" | "manual";
+  configuredCommand?: string | null;
 };
 
 type DiagnosticsSummary = {
@@ -35,6 +37,7 @@ let connector: ConnectorStatus | null = null;
 let diagnostics: DiagnosticsSummary | null = null;
 let busy: "inspect" | "connect" | "disconnect" | "measure" | "diagnostics" | null = null;
 let error: string | null = null;
+let manualCodexPath = "";
 
 const esc = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] ?? character);
 const formatNumber = (value: number) => new Intl.NumberFormat().format(value);
@@ -59,25 +62,46 @@ export async function refreshDiagnostics(): Promise<void> {
 export function renderConnectionsView(): string {
   const detected = connector?.installationState === "available";
   const connected = connector?.connected === true;
+  const mode = connector?.connectionMode ?? "auto";
   return `
     <header class="topbar"><div><span class="eyebrow">LLMs & Agents</span><h1>Connections</h1><p>Connect coding agents without turning connection state into project Authority.</p></div></header>
     <section class="progress-panel">
       <div><span class="eyebrow">Codex App Server</span><h2>${connected ? "Connected" : detected ? "Ready to connect" : "Not connected"}</h2><p>${esc(error ?? connector?.detail ?? "Check whether Codex is installed on this machine.")}</p></div>
       <div class="step-actions">
         <button class="button secondary connector-refresh" type="button" ${busy ? "disabled" : ""}>Check</button>
-        ${connected
-          ? `<button class="button secondary connector-disconnect" type="button" ${busy ? "disabled" : ""}>Disconnect</button>`
-          : `<button class="button primary connector-connect" type="button" ${busy || !detected ? "disabled" : ""}>Connect</button>`}
+        ${connected ? `<button class="button secondary connector-disconnect" type="button" ${busy ? "disabled" : ""}>Disconnect</button>` : ""}
       </div>
+    </section>
+    <section class="steps" aria-label="Codex connection setup">
+      <article class="step-card state-open">
+        <div class="step-head"><div class="step-number">01</div><div class="step-copy">
+          <div class="step-title-row"><h3>Automatic detection</h3><span class="state-pill">Recommended</span></div>
+          <p>Livariant safely resolves a native Codex executable from the local installation without invoking npm command shims through a shell.</p>
+          <div class="step-actions"><button class="button primary connector-connect" type="button" ${busy || connected || !detected ? "disabled" : ""}>${busy === "connect" ? "Connecting…" : "Connect detected Codex"}</button></div>
+        </div></div>
+      </article>
+      <article class="step-card state-open">
+        <div class="step-head"><div class="step-number">02</div><div class="step-copy">
+          <div class="step-title-row"><h3>Specific local Codex executable</h3><span class="state-pill">Manual</span></div>
+          <p>If auto-detection cannot resolve your installation, provide the native <code>codex.exe</code>. Livariant validates it as Codex before starting App Server and never treats this as general process authority.</p>
+          <div class="step-editor visible" style="display:block;">
+            <input class="connection-path-input" type="text" value="${esc(manualCodexPath)}" placeholder="C:\\path\\to\\codex.exe" aria-label="Native Codex executable path" ${busy || connected ? "disabled" : ""}/>
+            <div class="step-actions editor-actions" style="display:flex;">
+              <button class="button primary connector-connect-manual" type="button" ${busy || connected || !manualCodexPath.trim() ? "disabled" : ""}>${busy === "connect" ? "Connecting…" : "Use this Codex"}</button>
+            </div>
+          </div>
+        </div></div>
+      </article>
     </section>
     <section class="health-strip">
       <div class="health-card ${detected ? "" : "muted"}"><span class="health-icon">${detected ? "●" : "○"}</span><div><small>Installation</small><strong>${detected ? `Codex ${esc(connector?.version ?? "")}` : connector?.installationState ?? "Unknown"}</strong></div></div>
       <div class="health-card ${connected ? "" : "muted"}"><span class="health-icon">${connected ? "●" : "○"}</span><div><small>App Server</small><strong>${connected ? "Handshake verified" : "Disconnected"}</strong></div></div>
+      <div class="health-card ${connected ? "" : "muted"}"><span class="health-icon">${connected ? "●" : "○"}</span><div><small>Connection mode</small><strong>${connected ? (mode === "manual" ? "Manual local" : "Auto-detected") : "Not selected"}</strong></div></div>
       <div class="health-card ${connector?.pendingApprovals ? "" : "muted"}"><span class="health-icon">○</span><div><small>Approvals</small><strong>${connector?.pendingApprovals ?? 0} pending</strong></div></div>
     </section>
     <section class="steps">
-      <article class="step-card state-open"><div class="step-head"><div class="step-number">01</div><div class="step-copy"><div class="step-title-row"><h3>Connection boundary</h3><span class="state-pill">${connected ? "Verified" : "Inactive"}</span></div><p>Livariant starts Codex through the official App Server boundary. The renderer receives no arbitrary shell or executable capability.</p></div></div></article>
-      <article class="step-card state-open"><div class="step-head"><div class="step-number">02</div><div class="step-copy"><div class="step-title-row"><h3>Measure a real turn</h3><span class="state-pill">Observed only</span></div><p>Runs one fixed harmless Codex turn and records provider/runtime-owned token usage. The test prompt is fixed in Core and cannot be supplied by the renderer.</p><div class="step-actions"><button class="button primary diagnostics-measure" type="button" ${busy || !connected ? "disabled" : ""}>${busy === "measure" ? "Measuring…" : "Run measurement test"}</button></div></div></div></article>
+      <article class="step-card state-open"><div class="step-head"><div class="step-number">03</div><div class="step-copy"><div class="step-title-row"><h3>Connection boundary</h3><span class="state-pill">${connected ? "Verified" : "Inactive"}</span></div><p>Livariant starts Codex through the official App Server boundary. Choosing a Codex executable does not grant arbitrary renderer shell or process capability.</p></div></div></article>
+      <article class="step-card state-open"><div class="step-head"><div class="step-number">04</div><div class="step-copy"><div class="step-title-row"><h3>Measure a real turn</h3><span class="state-pill">Observed only</span></div><p>Runs one fixed harmless Codex turn and records provider/runtime-owned token usage. The test prompt is fixed in Core and cannot be supplied by the renderer.</p><div class="step-actions"><button class="button primary diagnostics-measure" type="button" ${busy || !connected ? "disabled" : ""}>${busy === "measure" ? "Measuring…" : "Run measurement test"}</button></div></div></div></article>
     </section>
     <footer class="truth-note"><span class="truth-icon">i</span><p><strong>Authority boundary:</strong> Connect does not authorize file changes, commands, merges or releases. Codex approval requests remain pending/fail-closed in this milestone.</p></footer>`;
 }
@@ -99,9 +123,22 @@ export function renderDiagnosticsView(): string {
 
 export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   document.querySelector<HTMLButtonElement>(".connector-refresh")?.addEventListener("click", async () => { await refreshConnector(); rerender(); });
+  document.querySelector<HTMLInputElement>(".connection-path-input")?.addEventListener("input", (event) => {
+    manualCodexPath = (event.currentTarget as HTMLInputElement).value;
+    const button = document.querySelector<HTMLButtonElement>(".connector-connect-manual");
+    if (button) button.disabled = !manualCodexPath.trim() || Boolean(busy) || connector?.connected === true;
+  });
   document.querySelector<HTMLButtonElement>(".connector-connect")?.addEventListener("click", async () => {
     busy = "connect"; error = null; rerender();
-    try { connector = await invoke<ConnectorStatus>("codex_connector_connect"); }
+    try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); }
+    catch (cause) { error = String(cause); }
+    finally { busy = null; rerender(); }
+  });
+  document.querySelector<HTMLButtonElement>(".connector-connect-manual")?.addEventListener("click", async () => {
+    const path = manualCodexPath.trim();
+    if (!path) return;
+    busy = "connect"; error = null; rerender();
+    try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: path }); }
     catch (cause) { error = String(cause); }
     finally { busy = null; rerender(); }
   });
