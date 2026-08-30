@@ -62,8 +62,10 @@ test("aggregation preserves observed, avoided and estimated categories", () => {
     outputTokens: 25,
     cacheReadTokens: 40,
     cacheWriteTokens: 0,
+    reasoningTokens: 0,
+    totalTokens: 0,
     knownFieldCount: 3,
-    unknownFieldCount: 5,
+    unknownFieldCount: 9,
   });
   assert.deepEqual(result.avoided, {
     eventCount: 1,
@@ -82,7 +84,7 @@ test("missing observed token fields remain unknown rather than becoming observed
 
   assert.equal(result.observed.eventCount, 1);
   assert.equal(result.observed.knownFieldCount, 0);
-  assert.equal(result.observed.unknownFieldCount, 4);
+  assert.equal(result.observed.unknownFieldCount, 6);
   assert.equal(result.observed.inputTokens, 0);
   assert.equal(result.observed.outputTokens, 0);
 });
