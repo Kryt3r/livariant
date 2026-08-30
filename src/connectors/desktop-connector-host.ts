@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
+import { resolveCodexCommand } from "./codex-command.js";
 import { connectCodexAppServer, inspectCodexInstallation, type CodexAppServerSession } from "./codex-runtime.js";
 import { CodexWorkflowClient } from "./codex-workflow.js";
 import { aggregateDiagnosticEvents } from "../diagnostics/efficiency.js";
@@ -35,14 +36,31 @@ function assertRequest(value: unknown): Request {
   return { id: record.id as number, method: record.method as Request["method"] };
 }
 
+function inspectResolvedCodex() {
+  const resolution = resolveCodexCommand();
+  if (!resolution) {
+    return {
+      resolution: undefined,
+      inspection: {
+        state: "unusable" as const,
+        command: "codex",
+        evidence: "codex --version" as const,
+        detail: "Codex was found only through a Windows command shim whose native executable could not be resolved without invoking a shell.",
+      },
+    };
+  }
+  return { resolution, inspection: inspectCodexInstallation(resolution.command) };
+}
+
 function connectionStatus() {
-  const inspection = inspectCodexInstallation();
+  const { resolution, inspection } = inspectResolvedCodex();
   return {
     installationState: inspection.state,
     version: inspection.version ?? null,
     connected: Boolean(session?.isOpen()),
     connectionState: session?.connector.state ?? "disconnected",
     pendingApprovals,
+    launchSource: resolution?.source ?? null,
     detail: inspection.detail ?? (inspection.state === "available" ? "Codex is installed and can be connected through App Server." : "Codex is not currently connectable."),
   };
 }
@@ -62,11 +80,11 @@ async function disconnect(): Promise<void> {
 async function connect() {
   if (session?.isOpen() && workflow) return connectionStatus();
   await disconnect();
-  const inspection = inspectCodexInstallation();
-  if (inspection.state !== "available") throw new Error(`Codex is not connectable: ${inspection.state}.`);
+  const { resolution, inspection } = inspectResolvedCodex();
+  if (!resolution || inspection.state !== "available") throw new Error(`Codex is not connectable: ${inspection.state}.`);
   if (!inspection.version) throw new Error("Codex responded but its version could not be identified; measured provenance would be incomplete.");
 
-  session = await connectCodexAppServer({ clientVersion });
+  session = await connectCodexAppServer({ clientVersion, command: resolution.command });
   workflow = new CodexWorkflowClient(session, { appServerVersion: inspection.version });
   unsubscribeWorkflow = workflow.onEvent((event) => {
     if (event.kind === "approval-request") {
