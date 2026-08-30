@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       publish_preview:
-        description: Publish signed assets to the fixed desktop-preview-feed release
+        description: Publish a new immutable preview candidate and advance the preview index
         required: true
         default: false
         type: boolean
@@ -152,7 +152,7 @@ jobs:
       - name: Build signed updater artifacts
         run: npm run tauri:build -- --config src-tauri/tauri.preview-update.conf.json --bundles nsis --ci
 
-      - name: Resolve signed updater bundle and feed
+      - name: Resolve signed updater bundle and immutable candidate identity
         id: update
         shell: pwsh
         run: |
@@ -170,8 +170,10 @@ jobs:
             throw "Updater signature file is empty."
           }
 
+          $shortSha = "${{ steps.source.outputs.sha }}".Substring(0, 12)
+          $previewTag = "desktop-preview-$version-$shortSha"
           $assetName = $installers[0].Name
-          $assetUrl = "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-feed/$assetName"
+          $assetUrl = "https://github.com/Kryt3r/livariant/releases/download/$previewTag/$assetName"
           $latest = [ordered]@{
             version = $version
             notes = "Livariant Desktop preview update from exact source ${{ steps.source.outputs.sha }}."
@@ -190,13 +192,17 @@ jobs:
           if ($parsed.version -ne $version -or [string]::IsNullOrWhiteSpace($parsed.platforms.'windows-x86_64'.signature)) {
             throw "Generated latest.json failed self-validation."
           }
+          if ($parsed.platforms.'windows-x86_64'.url -notlike "*/releases/download/$previewTag/*") {
+            throw "Generated latest.json does not bind the immutable preview release tag."
+          }
 
           "installer=$($installers[0].FullName)" >> $env:GITHUB_OUTPUT
           "bundle=$($installers[0].FullName)" >> $env:GITHUB_OUTPUT
           "signature=$($signatures[0].FullName)" >> $env:GITHUB_OUTPUT
           "latest=$latestPath" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Prepared signed preview update $version from exact source ${{ steps.source.outputs.sha }}."
+          "preview_tag=$previewTag" >> $env:GITHUB_OUTPUT
+          Write-Host "Prepared signed immutable preview candidate $previewTag from exact source ${{ steps.source.outputs.sha }}."
 
       - name: Smoke signed preview installer
         shell: pwsh
@@ -230,22 +236,63 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Publish explicitly approved preview feed
+      - name: Publish immutable preview candidate
         if: ${{ inputs.publish_preview }}
         working-directory: .
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "desktop-preview-feed"
-          $assets = @(
-            "${{ steps.update.outputs.bundle }}",
-            "${{ steps.update.outputs.signature }}",
-            "${{ steps.update.outputs.latest }}"
-          )
+          $tag = "${{ steps.update.outputs.preview_tag }}"
           gh release view $tag --repo "${{ github.repository }}" *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag @assets --clobber --repo "${{ github.repository }}"
-          } else {
-            gh release create $tag @assets --prerelease --target "${{ steps.source.outputs.sha }}" --title "Livariant Desktop Preview Feed" --notes "Machine-consumable signed Desktop preview update channel. This release is a feed container, not Stable release authority." --repo "${{ github.repository }}"
+            throw "Immutable preview release $tag already exists. Refusing to overwrite or replace it."
           }
+
+          gh release create $tag --draft --target "${{ steps.source.outputs.sha }}" --title "Livariant Desktop Preview ${{ steps.update.outputs.version }} (${{ steps.source.outputs.sha }})" --notes "Immutable machine-consumable Livariant Desktop preview candidate from exact source ${{ steps.source.outputs.sha }}. This is not Stable release authority." --repo "${{ github.repository }}"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create draft immutable preview release $tag." }
+
+          gh release upload $tag "${{ steps.update.outputs.bundle }}" "${{ steps.update.outputs.signature }}" "${{ steps.update.outputs.latest }}" --repo "${{ github.repository }}"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to attach preview candidate assets before publication." }
+
+          gh release edit $tag --draft=false --prerelease --repo "${{ github.repository }}"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to publish immutable preview candidate $tag." }
+
+      - name: Advance preview index to immutable candidate
+        if: ${{ inputs.publish_preview }}
+        working-directory: .
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $feedBranch = "desktop-preview-index"
+          $path = "latest.json"
+          $apiPath = "repos/${{ github.repository }}/contents/$path"
+          $latestPath = "${{ steps.update.outputs.latest }}"
+          $encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes($latestPath))
+
+          $existingSha = gh api "$apiPath`?ref=$feedBranch" --jq '.sha' 2>$null
+          $lookupExit = $LASTEXITCODE
+
+          $payload = [ordered]@{
+            message = "Preview index: ${{ steps.update.outputs.preview_tag }}"
+            content = $encoded
+            branch = $feedBranch
+          }
+          if ($lookupExit -eq 0 -and -not [string]::IsNullOrWhiteSpace($existingSha)) {
+            $payload.sha = $existingSha.Trim()
+          }
+
+          $payload | ConvertTo-Json -Depth 5 | gh api --method PUT $apiPath --input - *> $null
+          if ($LASTEXITCODE -ne 0) {
+            throw "Immutable preview candidate was published, but advancing desktop-preview-index/latest.json failed. Do not rebuild or overwrite the candidate; repair only the index pointer."
+          }
+
+          $published = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/Kryt3r/livariant/desktop-preview-index/latest.json"
+          if ($published.version -ne "${{ steps.update.outputs.version }}") {
+            throw "Preview index verification returned an unexpected version."
+          }
+          if ($published.platforms.'windows-x86_64'.url -notlike "*/releases/download/${{ steps.update.outputs.preview_tag }}/*") {
+            throw "Preview index verification is not bound to the newly published immutable candidate."
+          }
+          Write-Host "Preview index now points to immutable candidate ${{ steps.update.outputs.preview_tag }}."
