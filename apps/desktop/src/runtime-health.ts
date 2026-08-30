@@ -66,9 +66,19 @@ const setHealthCard = (
   card.title = detail;
 };
 
+const foundationHealthCards = (): HTMLElement[] | null => {
+  for (const strip of document.querySelectorAll<HTMLElement>(".health-strip")) {
+    const cards = Array.from(strip.querySelectorAll<HTMLElement>(".health-card"));
+    if (cards.length < 3) continue;
+    const labels = cards.slice(0, 3).map((card) => card.querySelector<HTMLElement>("small")?.textContent?.trim() ?? "");
+    if (labels[0] === "Installation" && labels[1] === "Protected components" && labels[2] === "Guardian") return cards;
+  }
+  return null;
+};
+
 const applyRuntimeHealth = () => {
-  const cards = Array.from(document.querySelectorAll<HTMLElement>(".health-strip .health-card"));
-  if (cards.length < 3) return;
+  const cards = foundationHealthCards();
+  if (!cards) return;
 
   setHealthCard(
     cards[0],
@@ -102,7 +112,9 @@ const applyRuntimeHealth = () => {
 };
 
 // Current Desktop Foundation rerenders only in response to user clicks. Reapply
-// the cached read-only identity once after those event handlers finish.
+// the cached read-only identity once after those event handlers finish. The
+// foundation strip is detected by its own labels so connector/diagnostics cards
+// remain owned by their respective views.
 document.addEventListener("click", () => queueMicrotask(applyRuntimeHealth));
 
 void getVersion()
