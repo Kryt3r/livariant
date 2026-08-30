@@ -21,8 +21,15 @@ export type ObservedTokenUsage = {
   cacheWriteTokens?: number;
 };
 
+export type ObservedEvidenceSource = {
+  kind: "provider" | "runtime";
+  id: string;
+  version: string;
+};
+
 export type ObservedDiagnosticEvent = DiagnosticEventBase & {
   kind: "observed";
+  source: ObservedEvidenceSource;
   usage: ObservedTokenUsage;
 };
 
@@ -106,6 +113,15 @@ export function validateDiagnosticEvent(event: DiagnosticEvent): void {
   parseTimestamp(event.timestamp, "Diagnostic event timestamp");
 
   if (event.kind === "observed") {
+    if (!event.source || typeof event.source !== "object") {
+      throw new Error("Observed evidence source must be present.");
+    }
+    if (event.source.kind !== "provider" && event.source.kind !== "runtime") {
+      throw new Error("Observed evidence source kind must be provider or runtime.");
+    }
+    if (!event.source.id.trim() || !event.source.version.trim()) {
+      throw new Error("Observed evidence requires source id and version.");
+    }
     for (const field of TOKEN_FIELDS) {
       const value = event.usage[field];
       if (value !== undefined) {

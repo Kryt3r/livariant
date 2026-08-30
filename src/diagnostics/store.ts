@@ -1,6 +1,11 @@
 import { lstat, mkdir, readFile, appendFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import type { DiagnosticAttribution, DiagnosticEvent, ObservedTokenUsage } from "./efficiency.js";
+import type {
+  DiagnosticAttribution,
+  DiagnosticEvent,
+  ObservedEvidenceSource,
+  ObservedTokenUsage,
+} from "./efficiency.js";
 import { validateDiagnosticEvent } from "./efficiency.js";
 
 const DIAGNOSTIC_STORAGE_SCHEMA_VERSION = 1;
@@ -60,6 +65,21 @@ function readAttribution(value: unknown): DiagnosticAttribution | undefined {
   return attribution;
 }
 
+function readObservedSource(value: unknown): ObservedEvidenceSource {
+  if (!isRecord(value)) {
+    throw new Error("Observed diagnostic source must be an object.");
+  }
+  const kind = requiredString(value, "kind");
+  if (kind !== "provider" && kind !== "runtime") {
+    throw new Error("Observed evidence source kind must be provider or runtime.");
+  }
+  return {
+    kind,
+    id: requiredString(value, "id"),
+    version: requiredString(value, "version"),
+  };
+}
+
 function readObservedUsage(value: unknown): ObservedTokenUsage {
   if (!isRecord(value)) {
     throw new Error("Observed diagnostic usage must be an object.");
@@ -94,6 +114,7 @@ function canonicalizeDiagnosticEvent(value: unknown): DiagnosticEvent {
       id,
       timestamp,
       kind,
+      source: readObservedSource(value.source),
       usage: readObservedUsage(value.usage),
       ...(attribution === undefined ? {} : { attribution }),
     };

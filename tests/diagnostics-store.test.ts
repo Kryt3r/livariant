@@ -26,6 +26,7 @@ const observed: DiagnosticEvent = {
     sessionId: "session-1",
     taskId: "task-1",
   },
+  source: { kind: "provider", id: "example-provider.response.usage", version: "1" },
   usage: { inputTokens: 120, outputTokens: 30, cacheReadTokens: 50 },
 };
 
@@ -68,21 +69,38 @@ test("diagnostic store durably appends and reads each evidence class without fil
   });
 });
 
-test("diagnostic store persists only canonical measurement fields rather than arbitrary raw project content", async () => {
+test("diagnostic store persists observed provenance and only canonical measurement fields", async () => {
   await withTemporaryDirectory(async (directory) => {
     const store = new DiagnosticEventStore(directory);
     const eventWithExtraContent = {
       ...observed,
       prompt: "raw prompt must not be persisted",
       projectContent: "raw project content must not be persisted",
+      source: { ...observed.source, agentClaim: "must not be persisted" },
       usage: { ...observed.usage, hiddenProviderPayload: "must not be persisted" },
     } as unknown as DiagnosticEvent;
 
     await store.append(eventWithExtraContent);
 
     const persisted = await readFile(store.path, "utf8");
-    assert.doesNotMatch(persisted, /raw prompt|raw project content|hiddenProviderPayload/);
+    assert.doesNotMatch(persisted, /raw prompt|raw project content|agentClaim|hiddenProviderPayload/);
+    assert.match(persisted, /example-provider\.response\.usage/);
     assert.deepEqual(await store.readAll(), [observed]);
+  });
+});
+
+test("diagnostic store rejects observed evidence without provider/runtime provenance", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const store = new DiagnosticEventStore(join(directory, "diagnostics"));
+    const missingSource = {
+      id: "observed-without-source",
+      kind: "observed",
+      timestamp: "2026-08-30T10:00:00.000Z",
+      usage: { inputTokens: 120 },
+    } as unknown as DiagnosticEvent;
+
+    await assert.rejects(store.append(missingSource), /source/i);
+    assert.deepEqual(await store.readAll(), []);
   });
 });
 
