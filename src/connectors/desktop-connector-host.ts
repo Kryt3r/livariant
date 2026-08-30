@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
-import { resolveCodexCommand } from "./codex-command.js";
+import { resolveCodexCommand, type CodexCommandResolution } from "./codex-command.js";
 import {
   connectCodexAppServer,
   inspectCodexInstallation,
@@ -28,8 +28,14 @@ let unsubscribeWorkflow: (() => void) | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
 let pendingApprovals = 0;
 const completedTurns = new Set<string>();
+let selectedResolution: CodexCommandResolution | undefined;
+let selectedMode: "auto" | "manual" = "auto";
 
-type Request = { id: number; method: "inspect" | "connect" | "disconnect" | "diagnostics" | "measure" };
+type Request = {
+  id: number;
+  method: "inspect" | "connect" | "disconnect" | "diagnostics" | "measure";
+  manualPath?: string;
+};
 type ResolvedCodexInspection = {
   resolution: ReturnType<typeof resolveCodexCommand>;
   inspection: CodexInstallationInspection;
@@ -42,27 +48,40 @@ function assertRequest(value: unknown): Request {
   const record = value as Record<string, unknown>;
   if (!Number.isSafeInteger(record.id) || (record.id as number) < 0) throw new Error("Desktop connector host request id is invalid.");
   if (!["inspect", "connect", "disconnect", "diagnostics", "measure"].includes(String(record.method))) throw new Error("Desktop connector host method is unsupported.");
-  return { id: record.id as number, method: record.method as Request["method"] };
+  if (record.manualPath !== undefined && typeof record.manualPath !== "string") throw new Error("Desktop connector host manualPath must be a string when supplied.");
+  const manualPath = typeof record.manualPath === "string" ? record.manualPath.trim() : undefined;
+  return { id: record.id as number, method: record.method as Request["method"], ...(manualPath ? { manualPath } : {}) };
 }
 
-function inspectResolvedCodex(): ResolvedCodexInspection {
-  const resolution = resolveCodexCommand();
+function inspectResolvedCodex(manualPath?: string): ResolvedCodexInspection {
+  const resolution = manualPath
+    ? resolveCodexCommand({ pathCandidates: [manualPath] })
+    : resolveCodexCommand();
   if (!resolution) {
     return {
       resolution: undefined,
       inspection: {
         state: "unusable",
-        command: "codex",
+        command: manualPath ?? "codex",
         evidence: "codex --version",
-        detail: "Codex was found only through a Windows command shim whose native executable could not be resolved without invoking a shell.",
+        detail: manualPath
+          ? "The selected path is not a native Codex executable that Livariant can validate without a shell."
+          : "Codex was found only through a Windows command shim whose native executable could not be resolved without invoking a shell.",
       },
     };
   }
   return { resolution, inspection: inspectCodexInstallation(resolution.command) };
 }
 
+function activeInspection(): ResolvedCodexInspection {
+  if (selectedResolution) {
+    return { resolution: selectedResolution, inspection: inspectCodexInstallation(selectedResolution.command) };
+  }
+  return inspectResolvedCodex();
+}
+
 function connectionStatus() {
-  const { resolution, inspection } = inspectResolvedCodex();
+  const { resolution, inspection } = activeInspection();
   return {
     installationState: inspection.state,
     version: inspection.version ?? null,
@@ -70,6 +89,8 @@ function connectionStatus() {
     connectionState: session?.connector.state ?? "disconnected",
     pendingApprovals,
     launchSource: resolution?.source ?? null,
+    connectionMode: selectedResolution ? selectedMode : "auto",
+    configuredCommand: selectedResolution?.command ?? null,
     detail: inspection.detail ?? (inspection.state === "available" ? "Codex is installed and can be connected through App Server." : "Codex is not currently connectable."),
   };
 }
@@ -86,13 +107,16 @@ async function disconnect(): Promise<void> {
   completedTurns.clear();
 }
 
-async function connect() {
-  if (session?.isOpen() && workflow) return connectionStatus();
+async function connect(manualPath?: string) {
+  if (session?.isOpen() && workflow && !manualPath) return connectionStatus();
   await disconnect();
-  const { resolution, inspection } = inspectResolvedCodex();
-  if (!resolution || inspection.state !== "available") throw new Error(`Codex is not connectable: ${inspection.state}.`);
+  const resolved = inspectResolvedCodex(manualPath);
+  const { resolution, inspection } = resolved;
+  if (!resolution || inspection.state !== "available") throw new Error(`Codex is not connectable: ${inspection.detail ?? inspection.state}.`);
   if (!inspection.version) throw new Error("Codex responded but its version could not be identified; measured provenance would be incomplete.");
 
+  selectedResolution = resolution;
+  selectedMode = manualPath ? "manual" : "auto";
   session = await connectCodexAppServer({ clientVersion, command: resolution.command });
   workflow = new CodexWorkflowClient(session, { appServerVersion: inspection.version });
   unsubscribeWorkflow = workflow.onEvent((event) => {
@@ -144,8 +168,12 @@ async function measure() {
 }
 
 async function handle(request: Request): Promise<unknown> {
-  if (request.method === "inspect") return connectionStatus();
-  if (request.method === "connect") return await connect();
+  if (request.method === "inspect") {
+    selectedResolution = undefined;
+    selectedMode = "auto";
+    return connectionStatus();
+  }
+  if (request.method === "connect") return await connect(request.manualPath);
   if (request.method === "disconnect") { await disconnect(); return connectionStatus(); }
   if (request.method === "diagnostics") return await diagnostics();
   return await measure();
