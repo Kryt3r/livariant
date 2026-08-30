@@ -11,6 +11,9 @@ on:
       - "package-lock.json"
       - "tsconfig.json"
       - ".github/workflows/desktop-windows-installer.yml"
+      - ".github/workflows/ci-verification-mode.yml"
+      - "scripts/classify-ci-risk.mjs"
+      - "scripts/classify-ci-risk.test.mjs"
   workflow_dispatch:
 
 permissions:
@@ -21,8 +24,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mode:
+    uses: ./.github/workflows/ci-verification-mode.yml
+
   installer:
     name: Build and smoke branded NSIS installer on Windows
+    needs: mode
+    if: needs.mode.outputs.run_full == 'true'
     runs-on: windows-latest
     defaults:
       run:
