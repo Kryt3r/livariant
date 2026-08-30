@@ -22,6 +22,16 @@ test("Windows prefers a real Codex executable without a shell", () => {
   });
 });
 
+test("Windows rejects an arbitrary executable as a native Codex candidate", () => {
+  const executable = "C:\\Windows\\System32\\notepad.exe";
+  assert.equal(resolveCodexCommand({
+    platform: "win32",
+    arch: "x64",
+    pathCandidates: [executable],
+    fileExists: (path) => path === executable,
+  }), undefined);
+});
+
 test("Windows resolves the official npm Codex cmd shim to its native optional-dependency binary", () => {
   const shim = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\codex.cmd";
   const native = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe";
