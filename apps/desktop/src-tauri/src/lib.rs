@@ -1,3 +1,4 @@
+mod connector_host;
 mod updater;
 
 use serde::{Deserialize, Serialize};
@@ -25,11 +26,7 @@ struct RuntimeHealth {
     detail: String,
 }
 
-fn runtime_health_result(
-    state: &'static str,
-    manifest: Option<&BundledRuntimeManifest>,
-    detail: impl Into<String>,
-) -> RuntimeHealth {
+fn runtime_health_result(state: &'static str, manifest: Option<&BundledRuntimeManifest>, detail: impl Into<String>) -> RuntimeHealth {
     RuntimeHealth {
         state,
         core_version: manifest.map(|value| value.core_version.clone()),
@@ -54,88 +51,39 @@ fn hidden_command(program: &Path) -> Command {
 fn inspect_runtime_root(install_root: &Path) -> RuntimeHealth {
     let node = install_root.join("livariant-node.exe");
     let manifest_path = install_root.join("runtime").join("manifest.json");
-    let core_cli = install_root
-        .join("runtime")
-        .join("core")
-        .join("dist")
-        .join("src")
-        .join("cli")
-        .join("index.js");
+    let core_cli = install_root.join("runtime").join("core").join("dist").join("src").join("cli").join("index.js");
 
     if !node.is_file() || !manifest_path.is_file() || !core_cli.is_file() {
-        return runtime_health_result(
-            "not-packaged",
-            None,
-            "Bundled runtime material is not present in this Desktop build.",
-        );
+        return runtime_health_result("not-packaged", None, "Bundled runtime material is not present in this Desktop build.");
     }
 
     let manifest_bytes = match fs::read(&manifest_path) {
         Ok(value) => value,
-        Err(error) => {
-            return runtime_health_result(
-                "invalid",
-                None,
-                format!("Bundled runtime manifest could not be read: {error}"),
-            )
-        }
+        Err(error) => return runtime_health_result("invalid", None, format!("Bundled runtime manifest could not be read: {error}")),
     };
     let manifest: BundledRuntimeManifest = match serde_json::from_slice(&manifest_bytes) {
         Ok(value) => value,
-        Err(error) => {
-            return runtime_health_result(
-                "invalid",
-                None,
-                format!("Bundled runtime manifest is invalid: {error}"),
-            )
-        }
+        Err(error) => return runtime_health_result("invalid", None, format!("Bundled runtime manifest is invalid: {error}")),
     };
 
     if manifest.schema_version != 1 {
-        return runtime_health_result(
-            "invalid",
-            Some(&manifest),
-            format!(
-                "Unsupported bundled runtime manifest schema {}.",
-                manifest.schema_version
-            ),
-        );
+        return runtime_health_result("invalid", Some(&manifest), format!("Unsupported bundled runtime manifest schema {}.", manifest.schema_version));
     }
     if manifest.authority_issued {
-        return runtime_health_result(
-            "invalid",
-            Some(&manifest),
-            "Ordinary bundled runtime material must never claim Authority.",
-        );
+        return runtime_health_result("invalid", Some(&manifest), "Ordinary bundled runtime material must never claim Authority.");
     }
 
     let node_output = match hidden_command(&node).arg("--version").output() {
         Ok(value) => value,
-        Err(error) => {
-            return runtime_health_result(
-                "invalid",
-                Some(&manifest),
-                format!("Bundled Node runtime could not be executed: {error}"),
-            )
-        }
+        Err(error) => return runtime_health_result("invalid", Some(&manifest), format!("Bundled Node runtime could not be executed: {error}")),
     };
     if !node_output.status.success() {
-        return runtime_health_result(
-            "invalid",
-            Some(&manifest),
-            "Bundled Node runtime version probe failed.",
-        );
+        return runtime_health_result("invalid", Some(&manifest), "Bundled Node runtime version probe failed.");
     }
     let observed_node = String::from_utf8_lossy(&node_output.stdout).trim().to_owned();
     let expected_node = format!("v{}", manifest.node_version);
     if observed_node != expected_node {
-        return runtime_health_result(
-            "invalid",
-            Some(&manifest),
-            format!(
-                "Bundled Node runtime identity mismatch: expected {expected_node}, observed {observed_node}."
-            ),
-        );
+        return runtime_health_result("invalid", Some(&manifest), format!("Bundled Node runtime identity mismatch: expected {expected_node}, observed {observed_node}."));
     }
 
     let core_output = match hidden_command(&node)
@@ -147,83 +95,41 @@ fn inspect_runtime_root(install_root: &Path) -> RuntimeHealth {
         .output()
     {
         Ok(value) => value,
-        Err(error) => {
-            return runtime_health_result(
-                "invalid",
-                Some(&manifest),
-                format!("Bundled Livariant Core could not be executed: {error}"),
-            )
-        }
+        Err(error) => return runtime_health_result("invalid", Some(&manifest), format!("Bundled Livariant Core could not be executed: {error}")),
     };
     if !core_output.status.success() {
-        return runtime_health_result(
-            "invalid",
-            Some(&manifest),
-            "Bundled Livariant Core identity probe failed.",
-        );
+        return runtime_health_result("invalid", Some(&manifest), "Bundled Livariant Core identity probe failed.");
     }
 
     let version_info: Value = match serde_json::from_slice(&core_output.stdout) {
         Ok(value) => value,
-        Err(error) => {
-            return runtime_health_result(
-                "invalid",
-                Some(&manifest),
-                format!("Bundled Livariant Core returned invalid identity JSON: {error}"),
-            )
-        }
+        Err(error) => return runtime_health_result("invalid", Some(&manifest), format!("Bundled Livariant Core returned invalid identity JSON: {error}")),
     };
-    let observed_core = version_info
-        .get("frameworkVersion")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
+    let observed_core = version_info.get("frameworkVersion").and_then(Value::as_str).unwrap_or_default();
     if observed_core != manifest.core_version {
-        return runtime_health_result(
-            "invalid",
-            Some(&manifest),
-            format!(
-                "Bundled Livariant Core identity mismatch: expected {}, observed {}.",
-                manifest.core_version, observed_core
-            ),
-        );
+        return runtime_health_result("invalid", Some(&manifest), format!("Bundled Livariant Core identity mismatch: expected {}, observed {}.", manifest.core_version, observed_core));
     }
 
-    runtime_health_result(
-        "ready",
-        Some(&manifest),
-        "Bundled Livariant Core and Node runtime identities are coherent. This is application capability, not Guardian Authority.",
-    )
+    runtime_health_result("ready", Some(&manifest), "Bundled Livariant Core and Node runtime identities are coherent. This is application capability, not Guardian Authority.")
 }
 
 #[tauri::command]
 fn runtime_health() -> RuntimeHealth {
     let executable = match env::current_exe() {
         Ok(value) => value,
-        Err(error) => {
-            return runtime_health_result(
-                "invalid",
-                None,
-                format!("Desktop executable location could not be resolved: {error}"),
-            )
-        }
+        Err(error) => return runtime_health_result("invalid", None, format!("Desktop executable location could not be resolved: {error}")),
     };
     let Some(install_root) = executable.parent() else {
-        return runtime_health_result(
-            "invalid",
-            None,
-            "Desktop executable has no resolvable installation directory.",
-        );
+        return runtime_health_result("invalid", None, "Desktop executable has no resolvable installation directory.");
     };
     inspect_runtime_root(install_root)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // The updater plugin owns only its internal state/configuration. All check and
-    // apply operations remain behind bounded Rust commands; the renderer does not
-    // receive direct updater, arbitrary-download or arbitrary-execute permissions.
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(connector_host::ConnectorHostState::default())
         .setup(|_app| {
             #[cfg(feature = "ci-updater-acceptance")]
             updater::start_ci_acceptance_if_requested(_app.handle().clone());
@@ -232,7 +138,12 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             runtime_health,
             updater::check_for_update,
-            updater::apply_update
+            updater::apply_update,
+            connector_host::codex_connector_status,
+            connector_host::codex_connector_connect,
+            connector_host::codex_connector_disconnect,
+            connector_host::codex_diagnostics_summary,
+            connector_host::codex_diagnostics_measure
         ])
         .run(tauri::generate_context!())
         .expect("error while running Livariant Desktop");
