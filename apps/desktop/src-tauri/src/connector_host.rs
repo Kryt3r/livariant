@@ -32,10 +32,14 @@ impl Drop for ConnectorHostProcess {
 }
 
 impl ConnectorHostProcess {
-    fn request(&mut self, method: &'static str) -> Result<Value, String> {
+    fn request(&mut self, method: &'static str, manual_path: Option<&str>) -> Result<Value, String> {
         let id = self.next_id;
         self.next_id = self.next_id.checked_add(1).ok_or_else(|| "Connector host request id space exhausted.".to_owned())?;
-        writeln!(self.stdin, "{}", json!({ "id": id, "method": method }))
+        let request = match manual_path {
+            Some(path) => json!({ "id": id, "method": method, "manualPath": path }),
+            None => json!({ "id": id, "method": method }),
+        };
+        writeln!(self.stdin, "{request}")
             .map_err(|error| format!("Connector host request could not be written: {error}"))?;
         self.stdin.flush().map_err(|error| format!("Connector host request could not be flushed: {error}"))?;
 
@@ -112,12 +116,12 @@ fn spawn_host(app: &AppHandle) -> Result<ConnectorHostProcess, String> {
     Ok(ConnectorHostProcess { child, stdin, stdout: BufReader::new(stdout), next_id: 1 })
 }
 
-fn request(app: &AppHandle, state: &ConnectorHostState, method: &'static str) -> Result<Value, String> {
+fn request(app: &AppHandle, state: &ConnectorHostState, method: &'static str, manual_path: Option<&str>) -> Result<Value, String> {
     let mut guard = state.process.lock().map_err(|_| "Connector host state lock is poisoned.".to_owned())?;
     if guard.is_none() {
         *guard = Some(spawn_host(app)?);
     }
-    let result = guard.as_mut().expect("connector host initialized").request(method);
+    let result = guard.as_mut().expect("connector host initialized").request(method, manual_path);
     if result.is_err() {
         *guard = None;
     }
@@ -126,25 +130,25 @@ fn request(app: &AppHandle, state: &ConnectorHostState, method: &'static str) ->
 
 #[tauri::command]
 pub fn codex_connector_status(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "inspect")
+    request(&app, &state, "inspect", None)
 }
 
 #[tauri::command]
-pub fn codex_connector_connect(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "connect")
+pub fn codex_connector_connect(app: AppHandle, state: State<'_, ConnectorHostState>, manual_path: Option<String>) -> Result<Value, String> {
+    request(&app, &state, "connect", manual_path.as_deref())
 }
 
 #[tauri::command]
 pub fn codex_connector_disconnect(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "disconnect")
+    request(&app, &state, "disconnect", None)
 }
 
 #[tauri::command]
 pub fn codex_diagnostics_summary(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "diagnostics")
+    request(&app, &state, "diagnostics", None)
 }
 
 #[tauri::command]
 pub fn codex_diagnostics_measure(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "measure")
+    request(&app, &state, "measure", None)
 }
