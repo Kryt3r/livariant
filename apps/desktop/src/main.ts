@@ -127,7 +127,7 @@ const renderSettingsContent = () => {
 };
 
 const renderSettingsModal = () => settingsOpen ? `
-  <div class="modal-backdrop" data-close-settings>
+  <div class="modal-backdrop" data-settings-backdrop>
     <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" data-settings-modal>
       <aside class="settings-nav">
         <div class="settings-heading"><span class="eyebrow">Preferences</span><h2 id="settings-title">Settings</h2></div>
@@ -135,12 +135,27 @@ const renderSettingsModal = () => settingsOpen ? `
         <button class="settings-nav-item ${settingsSection === "connections" ? "active" : ""}" data-settings-section="connections" type="button">${icon("diagnostics")}<span>Connections</span></button>
         <button class="settings-nav-item ${settingsSection === "system" ? "active" : ""}" data-settings-section="system" type="button">${icon("updates")}<span>System</span></button>
       </aside>
-      <div class="settings-content"><button class="modal-close" data-close-settings type="button" aria-label="Close settings">×</button>${renderSettingsContent()}</div>
+      <div class="settings-content"><button class="modal-close" data-close-settings type="button" aria-label="Close settings">×</button><div class="settings-content-body">${renderSettingsContent()}</div></div>
     </section>
   </div>` : "";
 
 const renderNotice = () => notice ? `
   <div class="notice notice-${notice.kind}" role="status" aria-live="polite"><span class="notice-dot"></span><div><strong>${escapeHtml(notice.title)}</strong>${notice.detail ? `<p>${escapeHtml(notice.detail)}</p>` : ""}</div><button class="notice-close" type="button" aria-label="Dismiss status">×</button></div>` : "";
+
+const renderSettingsSectionOnly = () => {
+  const body = document.querySelector<HTMLElement>(".settings-content-body");
+  if (!body) { render(); return; }
+  body.innerHTML = renderSettingsContent();
+  document.querySelectorAll<HTMLButtonElement>("[data-settings-section]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.settingsSection === settingsSection);
+  });
+  bindConnectionDiagnosticsEvents(renderSettingsSectionOnly);
+};
+
+const closeSettings = () => {
+  settingsOpen = false;
+  render();
+};
 
 const render = () => {
   const completed = steps.filter((step) => step.state === "answered").length;
@@ -184,21 +199,26 @@ const bindEvents = () => {
   });
 
   document.querySelector<HTMLButtonElement>("[data-open-settings]")?.addEventListener("click", () => { settingsOpen = true; render(); });
-  document.querySelectorAll<HTMLElement>("[data-close-settings]").forEach((element) => {
-    element.addEventListener("click", (event) => {
-      if ((event.target as HTMLElement).closest("[data-settings-modal]") && !(event.target as HTMLElement).closest(".modal-close")) return;
-      settingsOpen = false; render();
-    });
+  document.querySelector<HTMLButtonElement>("[data-close-settings]")?.addEventListener("click", (event) => { event.stopPropagation(); closeSettings(); });
+  document.querySelector<HTMLElement>("[data-settings-backdrop]")?.addEventListener("click", (event) => {
+    if (event.target !== event.currentTarget) return;
+    closeSettings();
   });
+
   document.querySelectorAll<HTMLButtonElement>("[data-settings-section]").forEach((button) => {
-    button.addEventListener("click", async () => {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
       const section = button.dataset.settingsSection;
       if (section !== "general" && section !== "connections" && section !== "system") return;
       settingsSection = section;
-      render();
-      if (section === "connections") { await refreshConnector(); render(); }
+      renderSettingsSectionOnly();
+      if (section === "connections") {
+        await refreshConnector();
+        renderSettingsSectionOnly();
+      }
     });
   });
+
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });
 
   document.querySelector<HTMLButtonElement>(".check-updates")?.addEventListener("click", async () => {
@@ -244,7 +264,7 @@ const bindEvents = () => {
     });
   });
 
-  bindConnectionDiagnosticsEvents(render);
+  bindConnectionDiagnosticsEvents(settingsOpen && settingsSection === "connections" ? renderSettingsSectionOnly : render);
 
   document.querySelectorAll<HTMLButtonElement>("[data-window-action]").forEach((button) => {
     button.addEventListener("click", async () => {
