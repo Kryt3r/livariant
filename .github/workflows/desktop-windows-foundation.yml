@@ -50,20 +50,6 @@ jobs:
           Write-Host "Risk class: ${{ needs.mode.outputs.risk_class }}"
           Write-Host "Full qualification now: ${{ needs.mode.outputs.run_full }}"
 
-      - name: Restore exact Windows Cargo dependency cache
-        id: cargo-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: windows-cargo-deps-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.toml') }}
-
-      - name: Report Cargo cache result
-        shell: pwsh
-        run: Write-Host "Cargo dependency cache hit: ${{ steps.cargo-cache.outputs.cache-hit }}"
-
       - name: Install desktop dependencies
         run: npm install --no-audit --no-fund
 
