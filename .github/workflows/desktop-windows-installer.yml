@@ -60,12 +60,44 @@ jobs:
           package-manager-cache: false
 
       - name: Report Windows toolchain
+        id: toolchain
         shell: pwsh
         run: |
           node --version
           npm --version
           rustc --version
           cargo --version
+          $rustCommit = ((rustc -Vv | Select-String '^commit-hash:' | ForEach-Object { ($_ -split ':', 2)[1].Trim() }))
+          if (-not $rustCommit) {
+            throw "Could not resolve rustc commit hash for cache identity."
+          }
+          "rust_commit=$rustCommit" >> $env:GITHUB_OUTPUT
+
+      - name: Restore exact Windows Cargo cache
+        id: cargo-cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            apps/desktop/src-tauri/target
+          key: windows-cargo-${{ steps.toolchain.outputs.rust_commit }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.toml') }}
+
+      - name: Report Cargo cache result
+        shell: pwsh
+        run: Write-Host "Cargo cache hit: ${{ steps.cargo-cache.outputs.cache-hit }}"
+
+      - name: Restore pinned Node runtime archive
+        id: node-runtime-cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ${{ runner.temp }}\node-v24.16.0-win-x64.zip
+          key: windows-node-runtime-v24.16.0-edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56
+
+      - name: Report pinned Node runtime cache result
+        shell: pwsh
+        run: Write-Host "Pinned Node runtime archive cache hit: ${{ steps.node-runtime-cache.outputs.cache-hit }}"
 
       - name: Install and build Livariant Core
         working-directory: .
@@ -100,7 +132,13 @@ jobs:
           Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $binaryDir, $coreDistDir, $thirdPartyDir -Force | Out-Null
 
-          Invoke-WebRequest -Uri $nodeUrl -OutFile $download
+          if (-not (Test-Path -LiteralPath $download -PathType Leaf)) {
+            Write-Host "Pinned Node runtime archive cache miss; downloading exact archive."
+            Invoke-WebRequest -Uri $nodeUrl -OutFile $download
+          } else {
+            Write-Host "Using cached pinned Node runtime archive; digest verification remains mandatory."
+          }
+
           $archiveDigest = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($archiveDigest -ne $nodeArchiveSha256) {
             throw "Pinned Node archive digest mismatch. Expected $nodeArchiveSha256, got $archiveDigest."
