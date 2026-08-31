@@ -18,10 +18,19 @@ const appWindow = getCurrentWindow();
 type View = "steps" | "updates" | "connections" | "diagnostics";
 type SettingsSection = "general" | "connections" | "system";
 type NoticeKind = "info" | "success" | "warning" | "error";
-type StepState = "open" | "deferred" | "review";
+type StepState = "open" | "deferred" | "review" | "confirmed";
 type TruthFilter = "all" | "review" | "open" | "conflicts";
+type TruthImpact = "new" | "extends" | "refines" | "replaces" | "unchanged";
 type UpdateState = "idle" | "checking" | "not-configured" | "invalid-config" | "available" | "current" | "error";
-type FirstStep = { id: string; title: string; prompt: string; state: StepState; value: string; kind: string };
+type FirstStep = {
+  id: string;
+  title: string;
+  prompt: string;
+  state: StepState;
+  pendingValue: string;
+  confirmedValue: string;
+  kind: string;
+};
 type Notice = { kind: NoticeKind; title: string; detail?: string };
 type UpdateCheckResult = {
   state: Exclude<UpdateState, "idle" | "checking">;
@@ -29,11 +38,17 @@ type UpdateCheckResult = {
   availableVersion: string | null;
   detail: string;
 };
+type TruthProposal = {
+  impact: TruthImpact;
+  label: string;
+  explanation: string;
+  conflict: boolean;
+};
 
 const steps: FirstStep[] = [
-  { id: "purpose", kind: "Purpose", title: "Project purpose", prompt: "What is this project for? Describe the outcome or problem it exists to address.", state: "open", value: "" },
-  { id: "direction", kind: "Direction", title: "Current direction", prompt: "What is the current product direction or the next useful outcome?", state: "open", value: "" },
-  { id: "rules", kind: "Rule", title: "Project rules", prompt: "Which project rules or constraints must Livariant never violate?", state: "open", value: "" },
+  { id: "purpose", kind: "Purpose", title: "Project purpose", prompt: "What is this project for? Describe the outcome or problem it exists to address.", state: "open", pendingValue: "", confirmedValue: "" },
+  { id: "direction", kind: "Direction", title: "Current direction", prompt: "What is the current product direction or the next useful outcome?", state: "open", pendingValue: "", confirmedValue: "" },
+  { id: "rules", kind: "Rule", title: "Project rules", prompt: "Which project rules or constraints must Livariant never violate?", state: "open", pendingValue: "", confirmedValue: "" },
 ];
 
 let currentView: View = "steps";
@@ -41,6 +56,7 @@ let settingsOpen = false;
 let settingsSection: SettingsSection = "general";
 let truthFilter: TruthFilter = "all";
 let truthSearch = "";
+let selectedReviewStepId: string | null = null;
 let notice: Notice | null = null;
 let updateState: UpdateState = "idle";
 let updateResult: UpdateCheckResult | null = null;
@@ -50,6 +66,8 @@ if (!app) throw new Error("Livariant desktop root not found");
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
 })[character] ?? character);
+
+const normalizeTruth = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 
 const icon = (name: "home" | "steps" | "updates" | "settings" | "diagnostics") => {
   const paths = {
@@ -62,8 +80,22 @@ const icon = (name: "home" | "steps" | "updates" | "settings" | "diagnostics") =
   return `<svg aria-hidden="true" viewBox="0 0 24 24">${paths[name]}</svg>`;
 };
 
+const classifyTruthProposal = (step: FirstStep, proposedValue = step.pendingValue): TruthProposal => {
+  const existing = normalizeTruth(step.confirmedValue);
+  const proposed = normalizeTruth(proposedValue);
+  if (!existing) return { impact: "new", label: "New", explanation: "Adds a new confirmed statement to this Project Truth area.", conflict: false };
+  if (existing === proposed) return { impact: "unchanged", label: "No material change", explanation: "The proposed statement matches the currently confirmed truth.", conflict: false };
+  if (proposed.includes(existing) && proposed.length > existing.length) return { impact: "extends", label: "Extends", explanation: "Keeps the existing statement and adds additional context.", conflict: false };
+  if (existing.includes(proposed) && existing.length > proposed.length) return { impact: "refines", label: "Refines", explanation: "Narrows the existing statement to a more focused version.", conflict: false };
+  return { impact: "replaces", label: "Replaces", explanation: "Would replace the currently confirmed statement in this Project Truth area.", conflict: true };
+};
+
 const truthState = (step: FirstStep) => {
-  if (step.state === "review") return { label: "Needs review", css: "review" };
+  if (step.state === "confirmed") return { label: "Confirmed truth", css: "confirmed" };
+  if (step.state === "review") {
+    const proposal = classifyTruthProposal(step);
+    return { label: proposal.conflict ? "Conflict to review" : "Needs review", css: proposal.conflict ? "conflict" : "review" };
+  }
   if (step.state === "deferred") return { label: "Deferred", css: "open" };
   return { label: "Open question", css: "open" };
 };
@@ -72,31 +104,90 @@ const truthTypeCode = (kind: string) => kind === "Purpose" ? "P" : kind === "Dir
 
 const renderTruthItem = (step: FirstStep) => {
   const state = truthState(step);
-  const searchText = `${step.kind} ${step.title} ${step.prompt} ${step.value}`.toLowerCase();
+  const proposal = step.state === "review" ? classifyTruthProposal(step) : null;
+  const searchText = `${step.kind} ${step.title} ${step.prompt} ${step.pendingValue} ${step.confirmedValue}`.toLowerCase();
+  const editorValue = step.pendingValue || step.confirmedValue;
   return `
-    <article class="truth-item" data-truth-item data-state="${step.state}" data-search="${escapeHtml(searchText)}" data-step="${step.id}">
+    <article class="truth-item" data-truth-item data-state="${step.state}" data-conflict="${proposal?.conflict === true ? "true" : "false"}" data-search="${escapeHtml(searchText)}" data-step="${step.id}">
       <div class="truth-item-type" title="${escapeHtml(step.kind)}">${truthTypeCode(step.kind)}</div>
       <div class="truth-item-copy">
         <div class="truth-item-title-row"><h3>${escapeHtml(step.title)}</h3><span class="truth-state truth-state-${state.css}">${state.label}</span></div>
         <p>${escapeHtml(step.prompt)}</p>
-        ${step.value ? `<p class="truth-item-value">${escapeHtml(step.value)}</p>` : ""}
+        ${step.confirmedValue ? `<div class="truth-value-block truth-value-confirmed"><small>Confirmed</small><p>${escapeHtml(step.confirmedValue)}</p></div>` : ""}
+        ${step.state === "review" && step.pendingValue ? `<div class="truth-value-block truth-value-proposed"><small>Proposed · ${escapeHtml(proposal?.label ?? "Review")}</small><p>${escapeHtml(step.pendingValue)}</p></div>` : ""}
       </div>
       <div class="truth-item-actions">
-        ${step.state !== "review" ? '<button class="text-button defer-truth" type="button">Defer</button>' : ""}
-        <button class="button ${step.state === "review" ? "secondary" : "primary"} edit-truth" type="button">${step.state === "review" ? "Edit context" : "Add context"}</button>
+        ${step.state === "open" || step.state === "deferred" ? '<button class="text-button defer-truth" type="button">Defer</button>' : ""}
+        ${step.state === "review"
+          ? '<button class="button primary review-truth" type="button">Review proposal</button>'
+          : `<button class="button ${step.state === "confirmed" ? "secondary" : "primary"} edit-truth" type="button">${step.state === "confirmed" ? "Propose update" : "Add context"}</button>`}
       </div>
       <div class="truth-editor">
-        <textarea aria-label="${escapeHtml(step.title)}" placeholder="Capture context as evidence for review…">${escapeHtml(step.value)}</textarea>
-        <div class="truth-editor-actions"><button class="button secondary cancel-truth" type="button">Cancel</button><button class="button primary save-truth" type="button">Save for review</button></div>
+        <textarea aria-label="${escapeHtml(step.title)}" placeholder="Capture context as evidence for review…">${escapeHtml(editorValue)}</textarea>
+        <div class="truth-editor-actions"><button class="button secondary cancel-truth" type="button">Cancel</button><button class="button primary save-truth" type="button">Analyze & review</button></div>
       </div>
     </article>`;
 };
 
+const renderTruthReviewModal = () => {
+  const step = steps.find((candidate) => candidate.id === selectedReviewStepId);
+  if (!step || step.state !== "review") return "";
+  const proposal = classifyTruthProposal(step);
+  const existing = step.confirmedValue;
+  const proposed = step.pendingValue;
+  const diff = existing
+    ? `<div class="truth-review-diff-line removed"><span>−</span><p>${escapeHtml(existing)}</p></div><div class="truth-review-diff-line added"><span>+</span><p>${escapeHtml(proposed)}</p></div>`
+    : `<div class="truth-review-diff-line added"><span>+</span><p>${escapeHtml(proposed)}</p></div>`;
+  return `
+    <div class="truth-review-backdrop" data-close-truth-review>
+      <section class="truth-review-modal" role="dialog" aria-modal="true" aria-labelledby="truth-review-title" data-truth-review-modal>
+        <button class="truth-review-close" type="button" data-close-truth-review aria-label="Close Project Truth review">×</button>
+        <header class="truth-review-header">
+          <div><span class="eyebrow">Manual review required</span><h2 id="truth-review-title">Review Project Truth change</h2><p>Livariant analyzed how this evidence would affect the current truth slot. Nothing changes until you approve it.</p></div>
+          <span class="truth-impact truth-impact-${proposal.impact}">${escapeHtml(proposal.label)}</span>
+        </header>
+
+        <section class="truth-review-summary">
+          <div><small>Area</small><strong>${escapeHtml(step.kind)} · ${escapeHtml(step.title)}</strong></div>
+          <div><small>Conflicts found</small><strong>${proposal.conflict ? "1 potential conflict" : "None"}</strong></div>
+          <div><small>Proposed effect</small><strong>${escapeHtml(proposal.label)}</strong></div>
+        </section>
+
+        <section class="truth-review-analysis">
+          <span class="eyebrow">What Livariant found</span>
+          <h3>${escapeHtml(proposal.explanation)}</h3>
+          <p>${proposal.conflict ? "The proposal differs from the existing confirmed statement in the same truth area, so Livariant will not replace it without your decision." : "No replacement conflict was detected in this truth area."}</p>
+        </section>
+
+        <section class="truth-review-section">
+          <div class="truth-review-section-head"><div><span class="eyebrow">Proposed Project Truth update</span><h3>Review the exact text</h3></div><button class="text-button edit-review-proposal" type="button">Edit proposal</button></div>
+          ${existing ? `<div class="truth-review-existing"><small>Existing confirmed truth</small><p>${escapeHtml(existing)}</p></div>` : ""}
+          <textarea class="truth-review-proposal" data-review-proposal aria-label="Proposed Project Truth text">${escapeHtml(proposed)}</textarea>
+        </section>
+
+        <section class="truth-review-section">
+          <span class="eyebrow">Change preview</span>
+          <div class="truth-review-diff">${diff}</div>
+        </section>
+
+        <section class="truth-review-sources">
+          <span>i</span><p><strong>Evidence considered in this preview:</strong> the latest user-entered context and any confirmed statement in this same truth slot. Cross-entry semantic conflict detection and persistent curation are not implemented yet.</p>
+        </section>
+
+        <footer class="truth-review-actions">
+          <button class="text-button reject-truth-review" type="button">Reject evidence</button>
+          ${existing ? '<button class="button secondary keep-truth-review" type="button">Keep existing</button><button class="button secondary merge-truth-review" type="button">Merge both</button>' : ""}
+          <button class="button primary accept-truth-review" type="button">Accept into Project Truth</button>
+        </footer>
+      </section>
+    </div>`;
+};
+
 const renderProjectTruthView = () => {
   const needsReview = steps.filter((step) => step.state === "review").length;
-  const openQuestions = steps.filter((step) => step.state !== "review").length;
-  const confirmed = 0;
-  const conflicts = 0;
+  const openQuestions = steps.filter((step) => step.state === "open" || step.state === "deferred").length;
+  const confirmed = steps.filter((step) => step.state === "confirmed").length;
+  const conflicts = steps.filter((step) => step.state === "review" && classifyTruthProposal(step).conflict).length;
   return `
     <div class="truth-workspace">
       <header class="topbar"><div><span class="eyebrow">Project knowledge</span><h1>Project Truth</h1><p>Understand what is known, what still needs review and where the project has unresolved questions.</p></div><button class="project-chip" type="button"><span class="project-icon">L</span><span><small>Current project</small><strong>No project selected</strong></span><span class="chevron">⌄</span></button></header>
@@ -122,7 +213,8 @@ const renderProjectTruthView = () => {
         <div class="truth-items">${steps.map(renderTruthItem).join("")}<div class="truth-empty" data-truth-empty hidden><strong>Nothing matches this view</strong><p>${truthFilter === "conflicts" ? "No conflicts are known in this preview. Livariant will only show conflicts here when there is actual evidence for one." : "Try another search or filter."}</p></div></div>
       </section>
 
-      <div class="truth-boundary-card"><span>i</span><p><strong>Evidence is not automatically truth.</strong> Context entered here is captured for review first. This preview does not silently promote answers into Project Truth, invent conflicts or grant runtime, mutation, lifecycle or release Authority.</p></div>
+      <div class="truth-boundary-card"><span>i</span><p><strong>Evidence is not automatically truth.</strong> New context is analyzed, shown as a proposed change and requires manual review before it becomes confirmed Project Truth.</p></div>
+      ${renderTruthReviewModal()}
     </div>`;
 };
 
@@ -193,9 +285,13 @@ const applyTruthFilters = () => {
   let visibleCount = 0;
   document.querySelectorAll<HTMLElement>("[data-truth-item]").forEach((item) => {
     const state = item.dataset.state;
-    const matchesFilter = truthFilter === "all" || (truthFilter === "review" && state === "review") || (truthFilter === "open" && state !== "review") || truthFilter === "conflicts";
+    const conflict = item.dataset.conflict === "true";
+    const matchesFilter = truthFilter === "all"
+      || (truthFilter === "review" && state === "review")
+      || (truthFilter === "open" && (state === "open" || state === "deferred"))
+      || (truthFilter === "conflicts" && conflict);
     const matchesSearch = !query || (item.dataset.search ?? "").includes(query);
-    const visible = truthFilter !== "conflicts" && matchesFilter && matchesSearch;
+    const visible = matchesFilter && matchesSearch;
     item.hidden = !visible;
     if (visible) visibleCount += 1;
   });
@@ -218,8 +314,13 @@ const closeSettings = () => {
   render();
 };
 
+const closeTruthReview = () => {
+  selectedReviewStepId = null;
+  render();
+};
+
 const render = () => {
-  const attentionCount = steps.filter((step) => step.state !== "review").length + steps.filter((step) => step.state === "review").length;
+  const attentionCount = steps.filter((step) => step.state === "review" || step.state === "open" || step.state === "deferred").length;
   app.innerHTML = `
     <div class="desktop-frame">
       <header class="window-titlebar" data-tauri-drag-region><div class="window-brand" data-tauri-drag-region><img src="${livariantLogo}" alt="" aria-hidden="true"/><span data-tauri-drag-region>Livariant</span></div><div class="window-controls" aria-label="Window controls"><button class="window-control" data-window-action="minimize" type="button" aria-label="Minimize">−</button><button class="window-control" data-window-action="maximize" type="button" aria-label="Maximize">□</button><button class="window-control close" data-window-action="close" type="button" aria-label="Close">×</button></div></header>
@@ -246,6 +347,7 @@ const render = () => {
 const activateView = async (view: View) => {
   currentView = view;
   settingsOpen = false;
+  selectedReviewStepId = null;
   render();
   if (view === "connections") await refreshConnector();
   if (view === "diagnostics") await refreshDiagnostics();
@@ -260,7 +362,7 @@ const bindEvents = () => {
     });
   });
 
-  document.querySelector<HTMLButtonElement>("[data-open-settings]")?.addEventListener("click", () => { settingsOpen = true; render(); });
+  document.querySelector<HTMLButtonElement>("[data-open-settings]")?.addEventListener("click", () => { settingsOpen = true; selectedReviewStepId = null; render(); });
   document.querySelector<HTMLButtonElement>("[data-close-settings]")?.addEventListener("click", (event) => { event.stopPropagation(); closeSettings(); });
   document.querySelector<HTMLElement>("[data-settings-backdrop]")?.addEventListener("click", (event) => {
     if (event.target !== event.currentTarget) return;
@@ -300,18 +402,79 @@ const bindEvents = () => {
     const step = steps.find((candidate) => candidate.id === card.dataset.step);
     if (!step) return;
     const editor = card.querySelector<HTMLElement>(".truth-editor");
-    const textarea = card.querySelector<HTMLTextAreaElement>("textarea");
+    const textarea = card.querySelector<HTMLTextAreaElement>(".truth-editor textarea");
     card.querySelector(".edit-truth")?.addEventListener("click", () => { editor?.classList.add("visible"); textarea?.focus(); });
-    card.querySelector(".cancel-truth")?.addEventListener("click", () => { editor?.classList.remove("visible"); if (textarea) textarea.value = step.value; });
+    card.querySelector(".cancel-truth")?.addEventListener("click", () => { editor?.classList.remove("visible"); if (textarea) textarea.value = step.pendingValue || step.confirmedValue; });
     card.querySelector(".defer-truth")?.addEventListener("click", () => { step.state = "deferred"; notice = { kind: "info", title: "Question deferred", detail: `${step.title} stays open and can be revisited later.` }; render(); });
     card.querySelector(".save-truth")?.addEventListener("click", () => {
       const value = textarea?.value.trim() ?? "";
       if (!value) return;
-      step.value = value;
+      step.pendingValue = value;
       step.state = "review";
-      notice = { kind: "success", title: "Evidence captured for review", detail: `${step.title} was captured as reviewable project knowledge, not silently promoted to truth.` };
+      selectedReviewStepId = step.id;
+      notice = null;
       render();
     });
+    card.querySelector(".review-truth")?.addEventListener("click", () => { selectedReviewStepId = step.id; render(); });
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-close-truth-review]").forEach((element) => {
+    element.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-truth-review-modal]") && !target.closest(".truth-review-close")) return;
+      closeTruthReview();
+    });
+  });
+
+  document.querySelector<HTMLButtonElement>(".edit-review-proposal")?.addEventListener("click", () => {
+    document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.focus();
+  });
+
+  document.querySelector<HTMLButtonElement>(".accept-truth-review")?.addEventListener("click", () => {
+    const step = steps.find((candidate) => candidate.id === selectedReviewStepId);
+    const proposal = document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.value.trim() ?? "";
+    if (!step || !proposal) return;
+    step.pendingValue = proposal;
+    step.confirmedValue = proposal;
+    step.pendingValue = "";
+    step.state = "confirmed";
+    selectedReviewStepId = null;
+    notice = { kind: "success", title: "Project Truth updated", detail: `${step.title} was confirmed after manual review.` };
+    render();
+  });
+
+  document.querySelector<HTMLButtonElement>(".keep-truth-review")?.addEventListener("click", () => {
+    const step = steps.find((candidate) => candidate.id === selectedReviewStepId);
+    if (!step) return;
+    step.pendingValue = "";
+    step.state = step.confirmedValue ? "confirmed" : "open";
+    selectedReviewStepId = null;
+    notice = { kind: "info", title: "Existing Project Truth kept", detail: `${step.title} was not changed.` };
+    render();
+  });
+
+  document.querySelector<HTMLButtonElement>(".merge-truth-review")?.addEventListener("click", () => {
+    const step = steps.find((candidate) => candidate.id === selectedReviewStepId);
+    const proposal = document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.value.trim() ?? "";
+    if (!step || !step.confirmedValue || !proposal) return;
+    const existing = step.confirmedValue.trim();
+    const merged = normalizeTruth(existing) === normalizeTruth(proposal) ? existing : `${existing}\n\n${proposal}`;
+    step.confirmedValue = merged;
+    step.pendingValue = "";
+    step.state = "confirmed";
+    selectedReviewStepId = null;
+    notice = { kind: "success", title: "Project Truth merged", detail: `${step.title} now preserves both approved statements.` };
+    render();
+  });
+
+  document.querySelector<HTMLButtonElement>(".reject-truth-review")?.addEventListener("click", () => {
+    const step = steps.find((candidate) => candidate.id === selectedReviewStepId);
+    if (!step) return;
+    step.pendingValue = "";
+    step.state = step.confirmedValue ? "confirmed" : "open";
+    selectedReviewStepId = null;
+    notice = { kind: "info", title: "Evidence rejected", detail: `${step.title} was not changed.` };
+    render();
   });
 
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });
