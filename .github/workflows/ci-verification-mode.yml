@@ -12,6 +12,9 @@ on:
       run_full:
         description: Whether full qualification must run now.
         value: ${{ jobs.classify.outputs.run_full }}
+      desktop_renderer_only:
+        description: Whether executable Desktop changes are confined to renderer/UI surfaces, with only A/B companion changes.
+        value: ${{ jobs.classify.outputs.desktop_renderer_only }}
 
 permissions:
   contents: read
@@ -24,6 +27,7 @@ jobs:
       risk_class: ${{ steps.mode.outputs.risk_class }}
       run_executable: ${{ steps.mode.outputs.run_executable }}
       run_full: ${{ steps.mode.outputs.run_full }}
+      desktop_renderer_only: ${{ steps.classify.outputs.desktop_renderer_only }}
     steps:
       - name: Checkout full history for change classification
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -94,4 +98,5 @@ jobs:
           echo "Draft PR: $IS_DRAFT"
           echo "Explicit ci:full: $FORCE_FULL"
           echo "Executable verification relevant: $RUN_EXECUTABLE"
+          echo "Desktop renderer only: ${{ steps.classify.outputs.desktop_renderer_only }}"
           echo "Full qualification now: $run_full"
