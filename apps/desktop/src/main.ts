@@ -6,6 +6,7 @@ import {
   bindConnectionDiagnosticsEvents,
   refreshConnector,
   refreshDiagnostics,
+  renderConnectionsSettingsView,
   renderConnectionsView,
   renderDiagnosticsView,
 } from "./connections-diagnostics.js";
@@ -110,12 +111,7 @@ const renderContent = () => {
 };
 
 const renderSettingsContent = () => {
-  if (settingsSection === "connections") return `
-    <section class="settings-panel">
-      <span class="eyebrow">LLMs & agents</span><h2>Connections</h2>
-      <p>Connection management belongs here rather than in permanent primary navigation. The provider overview and one-click connection redesign will replace the current technical page in the next slice.</p>
-      <div class="settings-card"><div><strong>Current connection manager</strong><span>Open the existing manager while the provider-card redesign is being built.</span></div><button class="button secondary open-connections" type="button">Open connections</button></div>
-    </section>`;
+  if (settingsSection === "connections") return renderConnectionsSettingsView();
   if (settingsSection === "system") return `
     <section class="settings-panel">
       <span class="eyebrow">Desktop</span><h2>System</h2>
@@ -195,12 +191,14 @@ const bindEvents = () => {
     });
   });
   document.querySelectorAll<HTMLButtonElement>("[data-settings-section]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const section = button.dataset.settingsSection;
-      if (section === "general" || section === "connections" || section === "system") { settingsSection = section; render(); }
+      if (section !== "general" && section !== "connections" && section !== "system") return;
+      settingsSection = section;
+      render();
+      if (section === "connections") { await refreshConnector(); render(); }
     });
   });
-  document.querySelector<HTMLButtonElement>(".open-connections")?.addEventListener("click", () => void activateView("connections"));
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });
 
   document.querySelector<HTMLButtonElement>(".check-updates")?.addEventListener("click", async () => {
