@@ -2,6 +2,11 @@ name: C-02 Protected Integrity Acceptance
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
     branches:
       - main
 
