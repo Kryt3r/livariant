@@ -11,6 +11,12 @@
   padding-right: 54px;
 }
 
+.provider-modal-header > .provider-status {
+  width: 112px;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
 .provider-modal-close {
   z-index: 2;
 }
@@ -38,6 +44,22 @@
   white-space: nowrap;
 }
 
+.provider-primary-actions {
+  min-width: 202px;
+  justify-content: flex-end;
+}
+
+.provider-primary-actions .connector-refresh {
+  width: 86px;
+  justify-content: center;
+}
+
+.provider-primary-actions .connector-connect,
+.provider-primary-actions .connector-disconnect {
+  width: 108px;
+  justify-content: center;
+}
+
 .provider-primary-actions .button:disabled {
   cursor: default;
 }
@@ -57,5 +79,9 @@
   .provider-alert-copy {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+
+  .provider-primary-actions {
+    min-width: 0;
   }
 }
