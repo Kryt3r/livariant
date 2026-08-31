@@ -218,6 +218,15 @@ const rerenderConnectionsSurface = (fallback: () => void) => {
   bindConnectionDiagnosticsEvents(fallback);
 };
 
+const sameConnectorStatus = (before: ConnectorStatus | null, after: ConnectorStatus | null) => JSON.stringify(before) === JSON.stringify(after);
+
+const setRefreshVisualState = (checking: boolean) => {
+  const button = document.querySelector<HTMLButtonElement>(".connector-refresh");
+  if (!button) return;
+  button.disabled = checking || connectorMutating();
+  button.textContent = checking ? "Checking…" : "Refresh";
+};
+
 export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   document.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -242,14 +251,20 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   });
 
   document.querySelector<HTMLButtonElement>(".connector-refresh")?.addEventListener("click", async () => {
+    const previousConnector = connector ? { ...connector } : null;
+    const previousError = error;
     checkingConnector = true;
-    error = null;
-    rerenderConnectionsSurface(rerender);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_status"); }
-    catch (cause) { error = String(cause); }
-    finally {
+    setRefreshVisualState(true);
+    try {
+      connector = await invoke<ConnectorStatus>("codex_connector_status");
+      error = null;
+    } catch (cause) {
+      error = String(cause);
+    } finally {
       checkingConnector = false;
-      rerenderConnectionsSurface(rerender);
+      const changed = !sameConnectorStatus(previousConnector, connector) || previousError !== error;
+      if (changed) rerenderConnectionsSurface(rerender);
+      else setRefreshVisualState(false);
     }
   });
 
