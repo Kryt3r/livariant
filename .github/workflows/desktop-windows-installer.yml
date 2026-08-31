@@ -67,31 +67,6 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: Restore exact Windows Cargo dependency cache
-        id: cargo-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: windows-cargo-deps-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.toml') }}
-
-      - name: Report Cargo cache result
-        shell: pwsh
-        run: Write-Host "Cargo dependency cache hit: ${{ steps.cargo-cache.outputs.cache-hit }}"
-
-      - name: Restore pinned Node runtime archive
-        id: node-runtime-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ${{ runner.temp }}\node-v24.16.0-win-x64.zip
-          key: windows-node-runtime-v24.16.0-edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56
-
-      - name: Report pinned Node runtime cache result
-        shell: pwsh
-        run: Write-Host "Pinned Node runtime archive cache hit: ${{ steps.node-runtime-cache.outputs.cache-hit }}"
-
       - name: Install and build Livariant Core
         working-directory: .
         run: |
@@ -126,10 +101,10 @@ jobs:
           New-Item -ItemType Directory -Path $binaryDir, $coreDistDir, $thirdPartyDir -Force | Out-Null
 
           if (-not (Test-Path -LiteralPath $download -PathType Leaf)) {
-            Write-Host "Pinned Node runtime archive cache miss; downloading exact archive."
+            Write-Host "Pinned Node runtime archive not present; downloading exact archive."
             Invoke-WebRequest -Uri $nodeUrl -OutFile $download
           } else {
-            Write-Host "Using cached pinned Node runtime archive; digest verification remains mandatory."
+            Write-Host "Using existing pinned Node runtime archive; digest verification remains mandatory."
           }
 
           $archiveDigest = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
