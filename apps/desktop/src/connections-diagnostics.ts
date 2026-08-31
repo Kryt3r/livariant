@@ -1,4 +1,5 @@
 import "./connections-redesign.css";
+import "./connections-polish.css";
 import { invoke } from "@tauri-apps/api/core";
 
 export type ConnectorDesktopView = "connections" | "diagnostics";
@@ -34,16 +35,20 @@ type DiagnosticsSummary = {
 
 type MeasureResult = { connection: ConnectorStatus; diagnostics: DiagnosticsSummary };
 type ProviderId = "codex" | "claude" | "gemini" | "custom";
+type ConnectorAction = "connect" | "disconnect" | null;
 
 let connector: ConnectorStatus | null = null;
 let diagnostics: DiagnosticsSummary | null = null;
-let busy: "inspect" | "connect" | "disconnect" | "measure" | "diagnostics" | null = null;
+let checkingConnector = false;
+let connectorAction: ConnectorAction = null;
+let diagnosticsBusy: "measure" | "diagnostics" | null = null;
 let error: string | null = null;
 let selectedProvider: ProviderId | null = null;
 
-const esc = (value: string) => value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] ?? character);
+const esc = (value: string) => value.replace(/[&<>'\"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;" })[character] ?? character);
 const formatNumber = (value: number) => new Intl.NumberFormat().format(value);
 const measured = (value: number) => diagnostics?.hasObservedData ? formatNumber(value) : "—";
+const connectorMutating = () => connectorAction !== null;
 
 const providerGlyph = (provider: ProviderId) => {
   if (provider === "codex") return '<span class="provider-glyph provider-glyph-codex">C</span>';
@@ -53,7 +58,7 @@ const providerGlyph = (provider: ProviderId) => {
 };
 
 const codexState = () => {
-  if (busy === "inspect") return { label: "Checking", tone: "checking", detail: "Inspecting the local Codex installation…" };
+  if (checkingConnector) return { label: "Checking", tone: "checking", detail: "Inspecting the local Codex installation…" };
   if (connector?.connected) return { label: "Connected", tone: "connected", detail: `Codex ${connector.version ?? ""} · App Server connected` };
   if (connector?.installationState === "available") return { label: "Ready", tone: "ready", detail: `Codex ${connector.version ?? ""} detected locally` };
   if (connector?.installationState === "unusable") return { label: "Needs attention", tone: "warning", detail: "Codex was found but cannot be used yet" };
@@ -62,19 +67,19 @@ const codexState = () => {
 };
 
 export async function refreshConnector(): Promise<void> {
-  busy = "inspect";
+  checkingConnector = true;
   error = null;
   try { connector = await invoke<ConnectorStatus>("codex_connector_status"); }
   catch (cause) { error = String(cause); }
-  finally { busy = null; }
+  finally { checkingConnector = false; }
 }
 
 export async function refreshDiagnostics(): Promise<void> {
-  busy = "diagnostics";
+  diagnosticsBusy = "diagnostics";
   error = null;
   try { diagnostics = await invoke<DiagnosticsSummary>("codex_diagnostics_summary"); }
   catch (cause) { error = String(cause); }
-  finally { busy = null; }
+  finally { diagnosticsBusy = null; }
 }
 
 const renderProviderCard = (provider: ProviderId, name: string, description: string, status: string, tone: string, enabled = true) => `
@@ -101,15 +106,15 @@ const renderCodexModal = () => {
           <span class="provider-status provider-status-${state.tone}"><i></i>${state.label}</span>
         </header>
 
-        ${error ? `<div class="provider-alert provider-alert-error"><strong>Connection needs attention</strong><p>${esc(error)}</p></div>` : ""}
+        ${error ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>Connection needs attention</strong><p>${esc(error)}</p></div></div>` : ""}
 
         <section class="provider-primary-card">
           <div><span class="provider-card-kicker">Connection</span><h3>${connected ? "Codex is connected" : detected ? "Ready for one-click connection" : "Codex setup required"}</h3><p>${esc(error ?? connector?.detail ?? state.detail)}</p></div>
           <div class="provider-primary-actions">
-            <button class="button secondary connector-refresh" type="button" ${busy ? "disabled" : ""}>${busy === "inspect" ? "Checking…" : "Refresh"}</button>
+            <button class="button secondary connector-refresh" type="button" ${checkingConnector || connectorMutating() ? "disabled" : ""}>${checkingConnector ? "Checking…" : "Refresh"}</button>
             ${connected
-              ? `<button class="button secondary connector-disconnect" type="button" ${busy ? "disabled" : ""}>${busy === "disconnect" ? "Disconnecting…" : "Disconnect"}</button>`
-              : `<button class="button primary connector-connect" type="button" ${busy || !detected ? "disabled" : ""}>${busy === "connect" ? "Connecting…" : "Connect Codex"}</button>`}
+              ? `<button class="button secondary connector-disconnect" type="button" ${connectorMutating() ? "disabled" : ""}>${connectorAction === "disconnect" ? "Disconnecting…" : "Disconnect"}</button>`
+              : `<button class="button primary connector-connect" type="button" ${connectorMutating() || !detected ? "disabled" : ""}>${connectorAction === "connect" ? "Connecting…" : "Connect Codex"}</button>`}
           </div>
         </section>
 
@@ -190,7 +195,7 @@ export function renderDiagnosticsView(): string {
   const observed = diagnostics?.observed;
   const connected = connector?.connected === true;
   return `
-    <header class="topbar"><div><span class="eyebrow">Measured evidence</span><h1>Diagnostics</h1><p>These counters contain only provider/runtime-owned observations. Unknown is never replaced by synthetic zero.</p></div><button class="button secondary diagnostics-refresh" type="button" ${busy ? "disabled" : ""}>Refresh</button></header>
+    <header class="topbar"><div><span class="eyebrow">Measured evidence</span><h1>Diagnostics</h1><p>These counters contain only provider/runtime-owned observations. Unknown is never replaced by synthetic zero.</p></div><button class="button secondary diagnostics-refresh" type="button" ${diagnosticsBusy ? "disabled" : ""}>${diagnosticsBusy === "diagnostics" ? "Refreshing…" : "Refresh"}</button></header>
     <section class="health-strip">
       <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Total tokens</small><strong>${measured(observed?.totalTokens ?? 0)}</strong></div></div>
       <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Input</small><strong>${measured(observed?.inputTokens ?? 0)}</strong></div></div>
@@ -199,7 +204,7 @@ export function renderDiagnosticsView(): string {
       <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Reasoning</small><strong>${measured(observed?.reasoningTokens ?? 0)}</strong></div></div>
     </section>
     <section class="progress-panel"><div><span class="eyebrow">Observed</span><h2>${observed?.eventCount ?? 0} measured events</h2><p>${esc(error ?? (diagnostics?.hasObservedData ? "Stored locally from Codex App Server runtime evidence." : "No measured usage exists yet. Connect Codex and run the measurement test to create the first observation."))}</p></div><span class="state-pill">${diagnostics?.hasObservedData ? "Measured" : "Unknown"}</span></section>
-    <section class="diagnostics-action-card"><div><span class="eyebrow">Connection diagnostics</span><h3>Measure a real Codex turn</h3><p>Run one fixed harmless turn and record provider/runtime-owned token evidence. The test prompt is fixed in Core and cannot be supplied by the renderer.</p></div><button class="button primary diagnostics-measure" type="button" ${busy || !connected ? "disabled" : ""}>${busy === "measure" ? "Measuring…" : "Run measurement test"}</button></section>
+    <section class="diagnostics-action-card"><div><span class="eyebrow">Connection diagnostics</span><h3>Measure a real Codex turn</h3><p>Run one fixed harmless turn and record provider/runtime-owned token evidence. The test prompt is fixed in Core and cannot be supplied by the renderer.</p></div><button class="button primary diagnostics-measure" type="button" ${diagnosticsBusy || !connected ? "disabled" : ""}>${diagnosticsBusy === "measure" ? "Measuring…" : "Run measurement test"}</button></section>
     <footer class="truth-note"><span class="truth-icon">i</span><p><strong>Measurement boundary:</strong> Observed ≠ Avoided ≠ Estimated. This page currently shows Observed Codex usage only; it does not claim counterfactual savings.</p></footer>`;
 }
 
@@ -223,27 +228,32 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     });
   });
 
-  document.querySelector<HTMLButtonElement>(".connector-refresh")?.addEventListener("click", async () => { await refreshConnector(); rerender(); });
+  document.querySelector<HTMLButtonElement>(".connector-refresh")?.addEventListener("click", async () => {
+    checkingConnector = true; error = null; rerender();
+    try { connector = await invoke<ConnectorStatus>("codex_connector_status"); }
+    catch (cause) { error = String(cause); }
+    finally { checkingConnector = false; rerender(); }
+  });
   document.querySelector<HTMLButtonElement>(".connector-connect")?.addEventListener("click", async () => {
-    busy = "connect"; error = null; rerender();
+    connectorAction = "connect"; error = null; rerender();
     try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); }
     catch (cause) { error = String(cause); }
-    finally { busy = null; rerender(); }
+    finally { connectorAction = null; rerender(); }
   });
   document.querySelector<HTMLButtonElement>(".connector-disconnect")?.addEventListener("click", async () => {
-    busy = "disconnect"; error = null; rerender();
+    connectorAction = "disconnect"; error = null; rerender();
     try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); }
     catch (cause) { error = String(cause); }
-    finally { busy = null; rerender(); }
+    finally { connectorAction = null; rerender(); }
   });
   document.querySelector<HTMLButtonElement>(".diagnostics-refresh")?.addEventListener("click", async () => { await refreshDiagnostics(); rerender(); });
   document.querySelector<HTMLButtonElement>(".diagnostics-measure")?.addEventListener("click", async () => {
-    busy = "measure"; error = null; rerender();
+    diagnosticsBusy = "measure"; error = null; rerender();
     try {
       const result = await invoke<MeasureResult>("codex_diagnostics_measure");
       connector = result.connection;
       diagnostics = result.diagnostics;
     } catch (cause) { error = String(cause); }
-    finally { busy = null; rerender(); }
+    finally { diagnosticsBusy = null; rerender(); }
   });
 }
