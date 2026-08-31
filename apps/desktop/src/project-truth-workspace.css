@@ -411,6 +411,126 @@
   letter-spacing: .05em;
 }
 
+/* Routine feedback should clear itself visually. Warning/error notices remain persistent. */
+.notice-info,
+.notice-success {
+  animation: livariant-notice-autohide 4.8s ease forwards;
+}
+
+.notice-info:hover,
+.notice-success:hover {
+  animation-play-state: paused;
+}
+
+@keyframes livariant-notice-autohide {
+  0%, 76% {
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(8px);
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+/* Review is an approval surface, not a diagnostics report: keep only decision-relevant hierarchy visible. */
+.truth-review-modal {
+  width: min(760px, calc(100vw - 70px));
+  padding: 22px;
+}
+
+.truth-review-header h2 {
+  font-size: 22px;
+}
+
+.truth-review-header p {
+  max-width: 520px;
+}
+
+.truth-review-summary,
+.truth-review-sources {
+  display: none;
+}
+
+.truth-review-alert {
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.truth-review-alert h3 {
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.truth-review-alert p {
+  margin-top: 4px;
+  max-width: 620px;
+  font-size: 10px;
+}
+
+.truth-review-analysis {
+  margin-top: 12px;
+  padding: 12px 14px;
+}
+
+.truth-review-analysis .truth-source-heading h3 {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.truth-review-analysis > p {
+  display: none;
+}
+
+.truth-review-compare {
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.truth-review-source-card {
+  padding: 12px 13px;
+}
+
+.truth-review-source-card h3 {
+  font-size: 12px;
+}
+
+.truth-review-source-text,
+.truth-review-source-empty {
+  min-height: 68px;
+  padding: 10px 11px;
+}
+
+.truth-review-proposal {
+  min-height: 68px;
+}
+
+.truth-change-preview {
+  margin-top: 12px;
+  padding: 13px 14px;
+}
+
+.truth-change-preview .truth-review-section-head h3 {
+  font-size: 13px;
+}
+
+.truth-review-diff {
+  margin-top: 8px;
+}
+
+.truth-review-diff-line {
+  padding: 8px 9px;
+}
+
+.truth-review-actions {
+  margin-top: 13px;
+  padding: 12px 0 0;
+}
+
 @media (max-width: 760px) {
   .truth-area-head,
   .truth-area-current-head,
@@ -432,5 +552,10 @@
   .truth-source-modal {
     width: min(100%, calc(100vw - 28px));
     padding: 20px;
+  }
+
+  .truth-review-modal {
+    width: min(100%, calc(100vw - 28px));
+    padding: 18px;
   }
 }
