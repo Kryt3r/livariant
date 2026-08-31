@@ -30,7 +30,7 @@ jobs:
   installer:
     name: Build and smoke branded NSIS installer on Windows
     needs: mode
-    if: needs.mode.outputs.run_full == 'true'
+    if: needs.mode.outputs.run_full == 'true' && needs.mode.outputs.desktop_renderer_only != 'true'
     runs-on: windows-latest
     defaults:
       run:
