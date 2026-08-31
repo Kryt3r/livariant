@@ -69,7 +69,7 @@ jobs:
 
       - name: Restore exact Windows Cargo dependency cache
         id: cargo-cache
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/registry/index
@@ -83,7 +83,7 @@ jobs:
 
       - name: Restore pinned Node runtime archive
         id: node-runtime-cache
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}\node-v24.16.0-win-x64.zip
           key: windows-node-runtime-v24.16.0-edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56
