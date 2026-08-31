@@ -208,6 +208,16 @@ export function renderDiagnosticsView(): string {
     <footer class="truth-note"><span class="truth-icon">i</span><p><strong>Measurement boundary:</strong> Observed ≠ Avoided ≠ Estimated. This page currently shows Observed Codex usage only; it does not claim counterfactual savings.</p></footer>`;
 }
 
+const rerenderConnectionsSurface = (fallback: () => void) => {
+  const surface = document.querySelector<HTMLElement>(".connections-settings");
+  if (!surface) {
+    fallback();
+    return;
+  }
+  surface.outerHTML = renderConnectionsSettingsView();
+  bindConnectionDiagnosticsEvents(fallback);
+};
+
 export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   document.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -215,7 +225,10 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
       if (provider !== "codex" && provider !== "claude" && provider !== "gemini" && provider !== "custom") return;
       selectedProvider = provider;
       rerender();
-      if (provider === "codex" && !connector) { await refreshConnector(); rerender(); }
+      if (provider === "codex" && !connector) {
+        await refreshConnector();
+        rerenderConnectionsSurface(rerender);
+      }
     });
   });
 
@@ -229,31 +242,54 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   });
 
   document.querySelector<HTMLButtonElement>(".connector-refresh")?.addEventListener("click", async () => {
-    checkingConnector = true; error = null; rerender();
+    checkingConnector = true;
+    error = null;
+    rerenderConnectionsSurface(rerender);
     try { connector = await invoke<ConnectorStatus>("codex_connector_status"); }
     catch (cause) { error = String(cause); }
-    finally { checkingConnector = false; rerender(); }
+    finally {
+      checkingConnector = false;
+      rerenderConnectionsSurface(rerender);
+    }
   });
+
   document.querySelector<HTMLButtonElement>(".connector-connect")?.addEventListener("click", async () => {
-    connectorAction = "connect"; error = null; rerender();
+    connectorAction = "connect";
+    error = null;
+    rerenderConnectionsSurface(rerender);
     try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); }
     catch (cause) { error = String(cause); }
-    finally { connectorAction = null; rerender(); }
+    finally {
+      connectorAction = null;
+      rerenderConnectionsSurface(rerender);
+    }
   });
+
   document.querySelector<HTMLButtonElement>(".connector-disconnect")?.addEventListener("click", async () => {
-    connectorAction = "disconnect"; error = null; rerender();
+    connectorAction = "disconnect";
+    error = null;
+    rerenderConnectionsSurface(rerender);
     try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); }
     catch (cause) { error = String(cause); }
-    finally { connectorAction = null; rerender(); }
+    finally {
+      connectorAction = null;
+      rerenderConnectionsSurface(rerender);
+    }
   });
+
   document.querySelector<HTMLButtonElement>(".diagnostics-refresh")?.addEventListener("click", async () => { await refreshDiagnostics(); rerender(); });
   document.querySelector<HTMLButtonElement>(".diagnostics-measure")?.addEventListener("click", async () => {
-    diagnosticsBusy = "measure"; error = null; rerender();
+    diagnosticsBusy = "measure";
+    error = null;
+    rerender();
     try {
       const result = await invoke<MeasureResult>("codex_diagnostics_measure");
       connector = result.connection;
       diagnostics = result.diagnostics;
     } catch (cause) { error = String(cause); }
-    finally { diagnosticsBusy = null; rerender(); }
+    finally {
+      diagnosticsBusy = null;
+      rerender();
+    }
   });
 }
