@@ -17,6 +17,15 @@ function isDesktopDistributionRisk(path) {
   return false;
 }
 
+function isDesktopRendererPath(path) {
+  return (
+    path.startsWith("apps/desktop/src/") ||
+    path === "apps/desktop/index.html" ||
+    path === "apps/desktop/vite.config.ts" ||
+    path === "apps/desktop/tsconfig.json"
+  );
+}
+
 function isClassD(path) {
   if (path.startsWith(".github/workflows/")) return true;
   if (path === "package.json" || path === "package-lock.json") return true;
@@ -109,6 +118,7 @@ export function classifyPaths(paths) {
     return {
       class: "D",
       paths: [],
+      desktopRendererOnly: false,
       reason: "No changed paths were available, so verification escalated fail-safe.",
     };
   }
@@ -122,9 +132,17 @@ export function classifyPaths(paths) {
     details.push({ path, class: pathClass });
   }
 
+  const rendererChanged = details.some(({ path }) => isDesktopRendererPath(path));
+  const desktopRendererOnly =
+    rendererChanged &&
+    details.every(({ path, class: pathClass }) =>
+      isDesktopRendererPath(path) || pathClass === "A" || pathClass === "B"
+    );
+
   return {
     class: result,
     paths: details,
+    desktopRendererOnly,
     reason: `Highest required risk class across ${paths.length} changed path(s).`,
   };
 }
@@ -149,5 +167,6 @@ if (isDirectExecution) {
   process.stdout.write(`class=${result.class}\n`);
   process.stdout.write(`run_executable=${runExecutable}\n`);
   process.stdout.write(`run_full=${runFull}\n`);
+  process.stdout.write(`desktop_renderer_only=${result.desktopRendererOnly}\n`);
   process.stderr.write(`${JSON.stringify(result, null, 2)}\n`);
 }

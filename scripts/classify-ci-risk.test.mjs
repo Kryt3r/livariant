@@ -21,6 +21,26 @@ test("classifies normal source, tests, and ordinary Desktop implementation as C"
   assert.equal(classifyPaths(["apps/desktop/src-tauri/src/lib.rs"]).class, "C");
 });
 
+test("detects renderer-only Desktop changes without weakening their C risk class", () => {
+  const rendererOnly = classifyPaths([
+    "apps/desktop/src/main.ts",
+    "apps/desktop/src/styles.css",
+    "docs/desktop-notes.md",
+  ]);
+  assert.equal(rendererOnly.class, "C");
+  assert.equal(rendererOnly.desktopRendererOnly, true);
+
+  assert.equal(
+    classifyPaths(["apps/desktop/src/main.ts", "apps/desktop/src-tauri/src/lib.rs"]).desktopRendererOnly,
+    false,
+  );
+  assert.equal(
+    classifyPaths(["apps/desktop/src/main.ts", "apps/desktop/package.json"]).desktopRendererOnly,
+    false,
+  );
+  assert.equal(classifyPaths(["README.md"]).desktopRendererOnly, false);
+});
+
 test("keeps Desktop packaging, installer, capability, and distribution surfaces in D", () => {
   assert.equal(classifyPaths(["apps/desktop/package.json"]).class, "D");
   assert.equal(classifyPaths(["apps/desktop/package-lock.json"]).class, "D");
@@ -75,4 +95,5 @@ test("uses the highest class across mixed changes", () => {
 test("unknown and empty change sets fail safe to D", () => {
   assert.equal(classifyPaths(["new-surface/example.data"]).class, "D");
   assert.equal(classifyPaths([]).class, "D");
+  assert.equal(classifyPaths([]).desktopRendererOnly, false);
 });

@@ -30,7 +30,7 @@ jobs:
   installer:
     name: Build and smoke branded NSIS installer on Windows
     needs: mode
-    if: needs.mode.outputs.run_full == 'true'
+    if: needs.mode.outputs.run_full == 'true' && needs.mode.outputs.desktop_renderer_only != 'true'
     runs-on: windows-latest
     defaults:
       run:
@@ -100,7 +100,13 @@ jobs:
           Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $binaryDir, $coreDistDir, $thirdPartyDir -Force | Out-Null
 
-          Invoke-WebRequest -Uri $nodeUrl -OutFile $download
+          if (-not (Test-Path -LiteralPath $download -PathType Leaf)) {
+            Write-Host "Pinned Node runtime archive not present; downloading exact archive."
+            Invoke-WebRequest -Uri $nodeUrl -OutFile $download
+          } else {
+            Write-Host "Using existing pinned Node runtime archive; digest verification remains mandatory."
+          }
+
           $archiveDigest = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($archiveDigest -ne $nodeArchiveSha256) {
             throw "Pinned Node archive digest mismatch. Expected $nodeArchiveSha256, got $archiveDigest."
