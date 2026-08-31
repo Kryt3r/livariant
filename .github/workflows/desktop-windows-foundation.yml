@@ -48,6 +48,7 @@ jobs:
           rustc --version
           cargo --version
           Write-Host "Risk class: ${{ needs.mode.outputs.risk_class }}"
+          Write-Host "Desktop renderer only: ${{ needs.mode.outputs.desktop_renderer_only }}"
           Write-Host "Full qualification now: ${{ needs.mode.outputs.run_full }}"
 
       - name: Install desktop dependencies
@@ -56,11 +57,17 @@ jobs:
       - name: Build renderer
         run: npm run build
 
-      - name: Check Rust host
+      - name: Check Rust host for native Fast Draft work
+        if: needs.mode.outputs.run_full != 'true' && needs.mode.outputs.desktop_renderer_only != 'true'
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
-      - name: Fast Draft checkpoint
-        if: needs.mode.outputs.run_full != 'true'
+      - name: Fast renderer-only checkpoint
+        if: needs.mode.outputs.run_full != 'true' && needs.mode.outputs.desktop_renderer_only == 'true'
+        shell: pwsh
+        run: Write-Host "Fast Desktop renderer CI passed TypeScript/Vite build; Rust/Tauri work is unchanged and deferred until qualification."
+
+      - name: Fast native checkpoint
+        if: needs.mode.outputs.run_full != 'true' && needs.mode.outputs.desktop_renderer_only != 'true'
         shell: pwsh
         run: Write-Host "Fast Desktop CI passed renderer build + Rust host check; native executable build and launch smoke are deferred until qualification."
 
