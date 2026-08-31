@@ -1,5 +1,6 @@
 import "./glass.css";
 import "./styles.css";
+import "./project-truth.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -17,9 +18,10 @@ const appWindow = getCurrentWindow();
 type View = "steps" | "updates" | "connections" | "diagnostics";
 type SettingsSection = "general" | "connections" | "system";
 type NoticeKind = "info" | "success" | "warning" | "error";
-type StepState = "open" | "skipped" | "answered";
+type StepState = "open" | "deferred" | "review";
+type TruthFilter = "all" | "review" | "open" | "conflicts";
 type UpdateState = "idle" | "checking" | "not-configured" | "invalid-config" | "available" | "current" | "error";
-type FirstStep = { id: string; title: string; prompt: string; state: StepState; value: string };
+type FirstStep = { id: string; title: string; prompt: string; state: StepState; value: string; kind: string };
 type Notice = { kind: NoticeKind; title: string; detail?: string };
 type UpdateCheckResult = {
   state: Exclude<UpdateState, "idle" | "checking">;
@@ -29,14 +31,16 @@ type UpdateCheckResult = {
 };
 
 const steps: FirstStep[] = [
-  { id: "purpose", title: "Project purpose", prompt: "What is this project for? Describe it in one to three sentences.", state: "open", value: "" },
-  { id: "direction", title: "Current direction", prompt: "What is the current product direction or the next useful outcome?", state: "open", value: "" },
-  { id: "rules", title: "Project rules", prompt: "Which project rules or constraints must Livariant never violate?", state: "open", value: "" },
+  { id: "purpose", kind: "Purpose", title: "Project purpose", prompt: "What is this project for? Describe the outcome or problem it exists to address.", state: "open", value: "" },
+  { id: "direction", kind: "Direction", title: "Current direction", prompt: "What is the current product direction or the next useful outcome?", state: "open", value: "" },
+  { id: "rules", kind: "Rule", title: "Project rules", prompt: "Which project rules or constraints must Livariant never violate?", state: "open", value: "" },
 ];
 
 let currentView: View = "steps";
 let settingsOpen = false;
 let settingsSection: SettingsSection = "general";
+let truthFilter: TruthFilter = "all";
+let truthSearch = "";
 let notice: Notice | null = null;
 let updateState: UpdateState = "idle";
 let updateResult: UpdateCheckResult | null = null;
@@ -58,27 +62,68 @@ const icon = (name: "home" | "steps" | "updates" | "settings" | "diagnostics") =
   return `<svg aria-hidden="true" viewBox="0 0 24 24">${paths[name]}</svg>`;
 };
 
-const renderStep = (step: FirstStep) => {
-  const stateLabel = step.state === "answered" ? "Answered" : step.state === "skipped" ? "Deferred" : "Open";
+const truthState = (step: FirstStep) => {
+  if (step.state === "review") return { label: "Needs review", css: "review" };
+  if (step.state === "deferred") return { label: "Deferred", css: "open" };
+  return { label: "Open question", css: "open" };
+};
+
+const truthTypeCode = (kind: string) => kind === "Purpose" ? "P" : kind === "Direction" ? "D" : "R";
+
+const renderTruthItem = (step: FirstStep) => {
+  const state = truthState(step);
+  const searchText = `${step.kind} ${step.title} ${step.prompt} ${step.value}`.toLowerCase();
   return `
-    <article class="step-card state-${step.state}" data-step="${step.id}">
-      <div class="step-head"><div class="step-number">${String(steps.indexOf(step) + 1).padStart(2, "0")}</div><div class="step-copy">
-        <div class="step-title-row"><h3>${step.title}</h3><span class="state-pill">${stateLabel}</span></div><p>${step.prompt}</p>
-      </div></div>
-      <div class="step-editor"><textarea aria-label="${step.title}" placeholder="Write your answer here…">${escapeHtml(step.value)}</textarea><div class="step-actions editor-actions"><button class="button secondary cancel-answer" type="button">Cancel</button><button class="button primary save-answer" type="button">Save answer</button></div></div>
-      <div class="step-summary ${step.state === "answered" ? "visible" : ""}"><p>${step.value ? escapeHtml(step.value) : "No answer entered yet."}</p></div>
-      <div class="step-actions default-actions ${step.state === "answered" ? "answered-actions" : ""}">${step.state === "answered" ? '<button class="text-button edit-answer" type="button">Edit answer</button>' : `<button class="text-button skip-step" type="button">${step.state === "skipped" ? "Keep deferred" : "Skip for now"}</button><button class="button primary answer-step" type="button">Answer</button>`}</div>
+    <article class="truth-item" data-truth-item data-state="${step.state}" data-search="${escapeHtml(searchText)}" data-step="${step.id}">
+      <div class="truth-item-type" title="${escapeHtml(step.kind)}">${truthTypeCode(step.kind)}</div>
+      <div class="truth-item-copy">
+        <div class="truth-item-title-row"><h3>${escapeHtml(step.title)}</h3><span class="truth-state truth-state-${state.css}">${state.label}</span></div>
+        <p>${escapeHtml(step.prompt)}</p>
+        ${step.value ? `<p class="truth-item-value">${escapeHtml(step.value)}</p>` : ""}
+      </div>
+      <div class="truth-item-actions">
+        ${step.state !== "review" ? '<button class="text-button defer-truth" type="button">Defer</button>' : ""}
+        <button class="button ${step.state === "review" ? "secondary" : "primary"} edit-truth" type="button">${step.state === "review" ? "Edit context" : "Add context"}</button>
+      </div>
+      <div class="truth-editor">
+        <textarea aria-label="${escapeHtml(step.title)}" placeholder="Capture context as evidence for review…">${escapeHtml(step.value)}</textarea>
+        <div class="truth-editor-actions"><button class="button secondary cancel-truth" type="button">Cancel</button><button class="button primary save-truth" type="button">Save for review</button></div>
+      </div>
     </article>`;
 };
 
 const renderProjectTruthView = () => {
-  const completed = steps.filter((step) => step.state === "answered").length;
-  const deferred = steps.filter((step) => step.state === "skipped").length;
+  const needsReview = steps.filter((step) => step.state === "review").length;
+  const openQuestions = steps.filter((step) => step.state !== "review").length;
+  const confirmed = 0;
+  const conflicts = 0;
   return `
-    <header class="topbar"><div><span class="eyebrow">Project knowledge</span><h1>Project Truth</h1><p>Build Livariant's understanding of this project without turning unreviewed input into Authority.</p></div><button class="project-chip" type="button"><span class="project-icon">L</span><span><small>Current project</small><strong>No project selected</strong></span><span class="chevron">⌄</span></button></header>
-    <section class="progress-panel"><div><span class="eyebrow">Knowledge intake</span><h2>${completed} of ${steps.length} foundations captured</h2><p>${deferred > 0 ? `${deferred} deferred. ` : ""}This is an interim shell. Search, conflicts, review queues and structured truth curation follow in the dedicated Project Truth redesign.</p></div><div class="progress-ring" style="--progress:${Math.round((completed / steps.length) * 100)}%"><span>${Math.round((completed / steps.length) * 100)}%</span></div></section>
-    <section class="steps" aria-label="Project Truth intake questions">${steps.map(renderStep).join("")}</section>
-    <footer class="truth-note"><span class="truth-icon">i</span><p><strong>Truth boundary:</strong> answers in this preview are UI state only. Future persistence must preserve Livariant's Evidence → Review → Project Truth rules and must never grant mutation, runtime, lifecycle or release Authority.</p></footer>`;
+    <div class="truth-workspace">
+      <header class="topbar"><div><span class="eyebrow">Project knowledge</span><h1>Project Truth</h1><p>Understand what is known, what still needs review and where the project has unresolved questions.</p></div><button class="project-chip" type="button"><span class="project-icon">L</span><span><small>Current project</small><strong>No project selected</strong></span><span class="chevron">⌄</span></button></header>
+
+      <div class="truth-toolbar">
+        <label class="truth-search" aria-label="Search Project Truth"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><input type="search" value="${escapeHtml(truthSearch)}" placeholder="Search knowledge, questions, rules…" data-truth-search /></label>
+      </div>
+
+      <section class="truth-summary-grid" aria-label="Project Truth status">
+        <div class="truth-summary-card"><div class="truth-summary-icon">✓</div><div><small>Confirmed truth</small><strong>${confirmed}</strong></div></div>
+        <div class="truth-summary-card"><div class="truth-summary-icon">R</div><div><small>Needs review</small><strong>${needsReview}</strong></div></div>
+        <div class="truth-summary-card"><div class="truth-summary-icon">?</div><div><small>Open questions</small><strong>${openQuestions}</strong></div></div>
+        <div class="truth-summary-card"><div class="truth-summary-icon">!</div><div><small>Conflicts</small><strong>${conflicts}</strong></div></div>
+      </section>
+
+      <section class="truth-main-card">
+        <div class="truth-main-head"><div><span class="eyebrow">Knowledge workspace</span><h2>What Livariant knows and still needs</h2></div><div class="truth-filters" role="group" aria-label="Filter Project Truth">
+          <button class="truth-filter ${truthFilter === "all" ? "active" : ""}" type="button" data-truth-filter="all">All</button>
+          <button class="truth-filter ${truthFilter === "review" ? "active" : ""}" type="button" data-truth-filter="review">Needs review</button>
+          <button class="truth-filter ${truthFilter === "open" ? "active" : ""}" type="button" data-truth-filter="open">Open questions</button>
+          <button class="truth-filter ${truthFilter === "conflicts" ? "active" : ""}" type="button" data-truth-filter="conflicts">Conflicts</button>
+        </div></div>
+        <div class="truth-items">${steps.map(renderTruthItem).join("")}<div class="truth-empty" data-truth-empty hidden><strong>Nothing matches this view</strong><p>${truthFilter === "conflicts" ? "No conflicts are known in this preview. Livariant will only show conflicts here when there is actual evidence for one." : "Try another search or filter."}</p></div></div>
+      </section>
+
+      <div class="truth-boundary-card"><span>i</span><p><strong>Evidence is not automatically truth.</strong> Context entered here is captured for review first. This preview does not silently promote answers into Project Truth, invent conflicts or grant runtime, mutation, lifecycle or release Authority.</p></div>
+    </div>`;
 };
 
 const updateCopy = () => {
@@ -142,6 +187,22 @@ const renderSettingsModal = () => settingsOpen ? `
 const renderNotice = () => notice ? `
   <div class="notice notice-${notice.kind}" role="status" aria-live="polite"><span class="notice-dot"></span><div><strong>${escapeHtml(notice.title)}</strong>${notice.detail ? `<p>${escapeHtml(notice.detail)}</p>` : ""}</div><button class="notice-close" type="button" aria-label="Dismiss status">×</button></div>` : "";
 
+const applyTruthFilters = () => {
+  if (currentView !== "steps") return;
+  const query = truthSearch.trim().toLowerCase();
+  let visibleCount = 0;
+  document.querySelectorAll<HTMLElement>("[data-truth-item]").forEach((item) => {
+    const state = item.dataset.state;
+    const matchesFilter = truthFilter === "all" || (truthFilter === "review" && state === "review") || (truthFilter === "open" && state !== "review") || truthFilter === "conflicts";
+    const matchesSearch = !query || (item.dataset.search ?? "").includes(query);
+    const visible = truthFilter !== "conflicts" && matchesFilter && matchesSearch;
+    item.hidden = !visible;
+    if (visible) visibleCount += 1;
+  });
+  const empty = document.querySelector<HTMLElement>("[data-truth-empty]");
+  if (empty) empty.hidden = visibleCount > 0;
+};
+
 const renderSettingsSectionOnly = () => {
   const body = document.querySelector<HTMLElement>(".settings-content-body");
   if (!body) { render(); return; }
@@ -158,7 +219,7 @@ const closeSettings = () => {
 };
 
 const render = () => {
-  const completed = steps.filter((step) => step.state === "answered").length;
+  const attentionCount = steps.filter((step) => step.state !== "review").length + steps.filter((step) => step.state === "review").length;
   app.innerHTML = `
     <div class="desktop-frame">
       <header class="window-titlebar" data-tauri-drag-region><div class="window-brand" data-tauri-drag-region><img src="${livariantLogo}" alt="" aria-hidden="true"/><span data-tauri-drag-region>Livariant</span></div><div class="window-controls" aria-label="Window controls"><button class="window-control" data-window-action="minimize" type="button" aria-label="Minimize">−</button><button class="window-control" data-window-action="maximize" type="button" aria-label="Maximize">□</button><button class="window-control close" data-window-action="close" type="button" aria-label="Close">×</button></div></header>
@@ -166,7 +227,7 @@ const render = () => {
         <div class="brand"><div class="brand-mark" style="overflow:hidden;border:0;background:transparent;box-shadow:none;"><img src="${livariantLogo}" alt="Livariant logo" style="width:100%;height:100%;object-fit:contain;display:block;"/></div><div><strong>Livariant</strong><small>Desktop Foundation</small></div></div>
         <nav class="nav" aria-label="Primary navigation">
           <button class="nav-item">${icon("home")}<span>Overview</span></button>
-          <button class="nav-item ${currentView === "steps" ? "active" : ""}" data-view="steps">${icon("steps")}<span>Project Truth</span><b>${completed}/${steps.length}</b></button>
+          <button class="nav-item ${currentView === "steps" ? "active" : ""}" data-view="steps">${icon("steps")}<span>Project Truth</span><b>${attentionCount}</b></button>
           <button class="nav-item ${currentView === "diagnostics" ? "active" : ""}" data-view="diagnostics">${icon("diagnostics")}<span>Diagnostics</span></button>
           <button class="nav-item ${currentView === "updates" ? "active" : ""}" data-view="updates">${icon("updates")}<span>Updates</span></button>
         </nav>
@@ -179,6 +240,7 @@ const render = () => {
       ${renderSettingsModal()}
     </div>`;
   bindEvents();
+  applyTruthFilters();
 };
 
 const activateView = async (view: View) => {
@@ -219,6 +281,39 @@ const bindEvents = () => {
     });
   });
 
+  document.querySelector<HTMLInputElement>("[data-truth-search]")?.addEventListener("input", (event) => {
+    truthSearch = (event.currentTarget as HTMLInputElement).value;
+    applyTruthFilters();
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-truth-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const filter = button.dataset.truthFilter;
+      if (filter !== "all" && filter !== "review" && filter !== "open" && filter !== "conflicts") return;
+      truthFilter = filter;
+      document.querySelectorAll<HTMLButtonElement>("[data-truth-filter]").forEach((candidate) => candidate.classList.toggle("active", candidate === button));
+      applyTruthFilters();
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-step]").forEach((card) => {
+    const step = steps.find((candidate) => candidate.id === card.dataset.step);
+    if (!step) return;
+    const editor = card.querySelector<HTMLElement>(".truth-editor");
+    const textarea = card.querySelector<HTMLTextAreaElement>("textarea");
+    card.querySelector(".edit-truth")?.addEventListener("click", () => { editor?.classList.add("visible"); textarea?.focus(); });
+    card.querySelector(".cancel-truth")?.addEventListener("click", () => { editor?.classList.remove("visible"); if (textarea) textarea.value = step.value; });
+    card.querySelector(".defer-truth")?.addEventListener("click", () => { step.state = "deferred"; notice = { kind: "info", title: "Question deferred", detail: `${step.title} stays open and can be revisited later.` }; render(); });
+    card.querySelector(".save-truth")?.addEventListener("click", () => {
+      const value = textarea?.value.trim() ?? "";
+      if (!value) return;
+      step.value = value;
+      step.state = "review";
+      notice = { kind: "success", title: "Evidence captured for review", detail: `${step.title} was captured as reviewable project knowledge, not silently promoted to truth.` };
+      render();
+    });
+  });
+
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });
 
   document.querySelector<HTMLButtonElement>(".check-updates")?.addEventListener("click", async () => {
@@ -238,30 +333,6 @@ const bindEvents = () => {
       notice = { kind: "error", title: "Update check failed", detail: updateResult.detail };
     }
     render();
-  });
-
-  document.querySelectorAll<HTMLElement>("[data-step]").forEach((card) => {
-    const step = steps.find((candidate) => candidate.id === card.dataset.step);
-    if (!step) return;
-    const editor = card.querySelector<HTMLElement>(".step-editor");
-    const summary = card.querySelector<HTMLElement>(".step-summary");
-    const textarea = card.querySelector<HTMLTextAreaElement>("textarea");
-    const defaultActions = card.querySelector<HTMLElement>(".default-actions");
-    const openEditor = () => {
-      summary?.classList.remove("visible");
-      editor?.classList.add("visible");
-      if (defaultActions) { defaultActions.style.display = "none"; defaultActions.setAttribute("aria-hidden", "true"); }
-      textarea?.focus();
-    };
-    card.querySelector(".answer-step")?.addEventListener("click", openEditor);
-    card.querySelector(".edit-answer")?.addEventListener("click", openEditor);
-    card.querySelector(".cancel-answer")?.addEventListener("click", () => render());
-    card.querySelector(".skip-step")?.addEventListener("click", () => { step.state = "skipped"; render(); });
-    card.querySelector(".save-answer")?.addEventListener("click", () => {
-      const value = textarea?.value.trim() ?? "";
-      if (!value) return;
-      step.value = value; step.state = "answered"; notice = { kind: "success", title: "Project knowledge saved", detail: `${step.title} was captured for this preview session.` }; render();
-    });
   });
 
   bindConnectionDiagnosticsEvents(settingsOpen && settingsSection === "connections" ? renderSettingsSectionOnly : render);
