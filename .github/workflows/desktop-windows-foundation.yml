@@ -1,4 +1,5 @@
 name: Desktop Windows Foundation
+# WP-050: exact-head cache qualification retrigger; no semantic change.
 
 on:
   pull_request:
