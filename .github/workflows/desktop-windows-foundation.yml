@@ -1,5 +1,4 @@
 name: Desktop Windows Foundation
-# WP-050: exact-head cache qualification retrigger; no semantic change.
 
 on:
   pull_request:
@@ -42,22 +41,16 @@ jobs:
           package-manager-cache: false
 
       - name: Report Windows toolchain
-        id: toolchain
         shell: pwsh
         run: |
           node --version
           npm --version
           rustc --version
           cargo --version
-          $rustCommit = ((rustc -Vv | Select-String '^commit-hash:' | ForEach-Object { ($_ -split ':', 2)[1].Trim() }))
-          if (-not $rustCommit) {
-            throw "Could not resolve rustc commit hash for cache identity."
-          }
-          "rust_commit=$rustCommit" >> $env:GITHUB_OUTPUT
           Write-Host "Risk class: ${{ needs.mode.outputs.risk_class }}"
           Write-Host "Full qualification now: ${{ needs.mode.outputs.run_full }}"
 
-      - name: Restore exact Windows Cargo cache
+      - name: Restore exact Windows Cargo dependency cache
         id: cargo-cache
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
@@ -65,12 +58,11 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            apps/desktop/src-tauri/target
-          key: windows-cargo-${{ steps.toolchain.outputs.rust_commit }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.toml') }}
+          key: windows-cargo-deps-${{ runner.arch }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.toml') }}
 
       - name: Report Cargo cache result
         shell: pwsh
-        run: Write-Host "Cargo cache hit: ${{ steps.cargo-cache.outputs.cache-hit }}"
+        run: Write-Host "Cargo dependency cache hit: ${{ steps.cargo-cache.outputs.cache-hit }}"
 
       - name: Install desktop dependencies
         run: npm install --no-audit --no-fund
