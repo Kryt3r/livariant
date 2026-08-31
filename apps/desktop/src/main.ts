@@ -22,6 +22,7 @@ type StepState = "open" | "deferred" | "review" | "confirmed";
 type TruthFilter = "all" | "review" | "open" | "conflicts";
 type TruthImpact = "new" | "extends" | "refines" | "replaces" | "unchanged";
 type UpdateState = "idle" | "checking" | "not-configured" | "invalid-config" | "available" | "current" | "error";
+type TruthRevision = { value: string; reason: "accepted" | "merged" };
 type FirstStep = {
   id: string;
   title: string;
@@ -29,6 +30,7 @@ type FirstStep = {
   state: StepState;
   pendingValue: string;
   confirmedValue: string;
+  history: TruthRevision[];
   kind: string;
 };
 type Notice = { kind: NoticeKind; title: string; detail?: string };
@@ -46,9 +48,9 @@ type TruthProposal = {
 };
 
 const steps: FirstStep[] = [
-  { id: "purpose", kind: "Purpose", title: "Project purpose", prompt: "What is this project for? Describe the outcome or problem it exists to address.", state: "open", pendingValue: "", confirmedValue: "" },
-  { id: "direction", kind: "Direction", title: "Current direction", prompt: "What is the current product direction or the next useful outcome?", state: "open", pendingValue: "", confirmedValue: "" },
-  { id: "rules", kind: "Rule", title: "Project rules", prompt: "Which project rules or constraints must Livariant never violate?", state: "open", pendingValue: "", confirmedValue: "" },
+  { id: "purpose", kind: "Purpose", title: "Project purpose", prompt: "What is this project for? Describe the outcome or problem it exists to address.", state: "open", pendingValue: "", confirmedValue: "", history: [] },
+  { id: "direction", kind: "Direction", title: "Current direction", prompt: "What is the current product direction or the next useful outcome?", state: "open", pendingValue: "", confirmedValue: "", history: [] },
+  { id: "rules", kind: "Rule", title: "Project rules", prompt: "Which project rules or constraints must Livariant never violate?", state: "open", pendingValue: "", confirmedValue: "", history: [] },
 ];
 
 let currentView: View = "steps";
@@ -68,6 +70,7 @@ const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => (
 })[character] ?? character);
 
 const normalizeTruth = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
+const renderTruthText = (value: string) => value.split(/\n+/).map((line) => line.trim()).filter(Boolean).map((line) => `<p>${escapeHtml(line)}</p>`).join("");
 
 const icon = (name: "home" | "steps" | "updates" | "settings" | "diagnostics") => {
   const paths = {
@@ -102,10 +105,16 @@ const truthState = (step: FirstStep) => {
 
 const truthTypeCode = (kind: string) => kind === "Purpose" ? "P" : kind === "Direction" ? "D" : "R";
 
+const renderTruthHistory = (step: FirstStep) => {
+  if (step.history.length === 0) return "";
+  return `<details class="truth-history"><summary><span>Revision history</span><b>${step.history.length}</b></summary><div class="truth-history-list">${[...step.history].reverse().map((revision, index) => `<div class="truth-history-entry"><small>Previous confirmed version ${step.history.length - index}</small>${renderTruthText(revision.value)}</div>`).join("")}</div></details>`;
+};
+
 const renderTruthItem = (step: FirstStep) => {
   const state = truthState(step);
   const proposal = step.state === "review" ? classifyTruthProposal(step) : null;
-  const searchText = `${step.kind} ${step.title} ${step.prompt} ${step.pendingValue} ${step.confirmedValue}`.toLowerCase();
+  const historyText = step.history.map((revision) => revision.value).join(" ");
+  const searchText = `${step.kind} ${step.title} ${step.prompt} ${step.pendingValue} ${step.confirmedValue} ${historyText}`.toLowerCase();
   const editorValue = step.pendingValue || step.confirmedValue;
   return `
     <article class="truth-item" data-truth-item data-state="${step.state}" data-conflict="${proposal?.conflict === true ? "true" : "false"}" data-search="${escapeHtml(searchText)}" data-step="${step.id}">
@@ -113,8 +122,8 @@ const renderTruthItem = (step: FirstStep) => {
       <div class="truth-item-copy">
         <div class="truth-item-title-row"><h3>${escapeHtml(step.title)}</h3><span class="truth-state truth-state-${state.css}">${state.label}</span></div>
         <p>${escapeHtml(step.prompt)}</p>
-        ${step.confirmedValue ? `<div class="truth-value-block truth-value-confirmed"><small>Confirmed</small><p>${escapeHtml(step.confirmedValue)}</p></div>` : ""}
-        ${step.state === "review" && step.pendingValue ? `<div class="truth-value-block truth-value-proposed"><small>Proposed · ${escapeHtml(proposal?.label ?? "Review")}</small><p>${escapeHtml(step.pendingValue)}</p></div>` : ""}
+        ${step.confirmedValue ? `<div class="truth-value-block truth-value-confirmed"><small>Current confirmed truth</small><div class="truth-formatted-value">${renderTruthText(step.confirmedValue)}</div></div>${renderTruthHistory(step)}` : ""}
+        ${step.state === "review" && step.pendingValue ? `<div class="truth-value-block truth-value-proposed"><small>User proposal · ${escapeHtml(proposal?.label ?? "Review")}</small><div class="truth-formatted-value">${renderTruthText(step.pendingValue)}</div></div>` : ""}
       </div>
       <div class="truth-item-actions">
         ${step.state === "open" || step.state === "deferred" ? '<button class="text-button defer-truth" type="button">Defer</button>' : ""}
@@ -136,16 +145,18 @@ const renderTruthReviewModal = () => {
   const existing = step.confirmedValue;
   const proposed = step.pendingValue;
   const diff = existing
-    ? `<div class="truth-review-diff-line removed"><span>−</span><p>${escapeHtml(existing)}</p></div><div class="truth-review-diff-line added"><span>+</span><p>${escapeHtml(proposed)}</p></div>`
-    : `<div class="truth-review-diff-line added"><span>+</span><p>${escapeHtml(proposed)}</p></div>`;
+    ? `<div class="truth-review-diff-line removed"><span>−</span><div><small>Removed from current truth</small><p>${escapeHtml(existing)}</p></div></div><div class="truth-review-diff-line added"><span>+</span><div><small>Proposed replacement</small><p>${escapeHtml(proposed)}</p></div></div>`
+    : `<div class="truth-review-diff-line added"><span>+</span><div><small>Proposed addition</small><p>${escapeHtml(proposed)}</p></div></div>`;
   return `
     <div class="truth-review-backdrop" data-close-truth-review>
-      <section class="truth-review-modal" role="dialog" aria-modal="true" aria-labelledby="truth-review-title" data-truth-review-modal>
+      <section class="truth-review-modal ${proposal.conflict ? "truth-review-modal-conflict" : ""}" role="dialog" aria-modal="true" aria-labelledby="truth-review-title" data-truth-review-modal>
         <button class="truth-review-close" type="button" data-close-truth-review aria-label="Close Project Truth review">×</button>
         <header class="truth-review-header">
-          <div><span class="eyebrow">Manual review required</span><h2 id="truth-review-title">Review Project Truth change</h2><p>Livariant analyzed how this evidence would affect the current truth slot. Nothing changes until you approve it.</p></div>
+          <div><span class="eyebrow">Manual review required</span><h2 id="truth-review-title">Review Project Truth change</h2><p>Nothing changes until you decide what should become canonical Project Truth.</p></div>
           <span class="truth-impact truth-impact-${proposal.impact}">${escapeHtml(proposal.label)}</span>
         </header>
+
+        ${proposal.conflict ? `<section class="truth-review-alert"><span class="truth-review-alert-icon">!</span><div><small>Conflict detected</small><h3>This proposal would replace confirmed Project Truth.</h3><p>Livariant found a materially different statement in the same truth area. The current truth stays untouched until you choose a resolution.</p></div></section>` : ""}
 
         <section class="truth-review-summary">
           <div><small>Area</small><strong>${escapeHtml(step.kind)} · ${escapeHtml(step.title)}</strong></div>
@@ -153,20 +164,25 @@ const renderTruthReviewModal = () => {
           <div><small>Proposed effect</small><strong>${escapeHtml(proposal.label)}</strong></div>
         </section>
 
-        <section class="truth-review-analysis">
-          <span class="eyebrow">What Livariant found</span>
-          <h3>${escapeHtml(proposal.explanation)}</h3>
-          <p>${proposal.conflict ? "The proposal differs from the existing confirmed statement in the same truth area, so Livariant will not replace it without your decision." : "No replacement conflict was detected in this truth area."}</p>
+        <section class="truth-review-analysis truth-source-livariant">
+          <div class="truth-source-heading"><span class="truth-source-badge livariant">L</span><div><small>Livariant analysis</small><h3>${escapeHtml(proposal.explanation)}</h3></div></div>
+          <p>${proposal.conflict ? "The new evidence conflicts with the currently confirmed statement in this same truth area. Livariant is surfacing the difference, not deciding which statement is correct." : "Livariant found no replacement conflict in this truth area. The proposal still requires your confirmation before it can become Project Truth."}</p>
         </section>
 
-        <section class="truth-review-section">
-          <div class="truth-review-section-head"><div><span class="eyebrow">Proposed Project Truth update</span><h3>Review the exact text</h3></div><button class="text-button edit-review-proposal" type="button">Edit proposal</button></div>
-          ${existing ? `<div class="truth-review-existing"><small>Existing confirmed truth</small><p>${escapeHtml(existing)}</p></div>` : ""}
-          <textarea class="truth-review-proposal" data-review-proposal aria-label="Proposed Project Truth text">${escapeHtml(proposed)}</textarea>
+        <section class="truth-review-compare">
+          <div class="truth-review-source-card source-confirmed">
+            <div class="truth-source-heading"><span class="truth-source-badge confirmed">✓</span><div><small>Confirmed Project Truth</small><h3>Current canonical statement</h3></div></div>
+            ${existing ? `<div class="truth-review-source-text">${renderTruthText(existing)}</div>` : '<div class="truth-review-source-empty">No confirmed statement exists in this area yet.</div>'}
+          </div>
+          <div class="truth-review-source-card source-user">
+            <div class="truth-source-heading"><span class="truth-source-badge user">U</span><div><small>User input</small><h3>Proposed new statement</h3></div></div>
+            <textarea class="truth-review-proposal" data-review-proposal aria-label="Proposed Project Truth text">${escapeHtml(proposed)}</textarea>
+            <button class="text-button edit-review-proposal" type="button">Edit proposal</button>
+          </div>
         </section>
 
-        <section class="truth-review-section">
-          <span class="eyebrow">Change preview</span>
+        <section class="truth-review-section truth-change-preview">
+          <div class="truth-review-section-head"><div><span class="eyebrow">Change preview</span><h3>What would change if you accept</h3></div></div>
           <div class="truth-review-diff">${diff}</div>
         </section>
 
@@ -175,9 +191,8 @@ const renderTruthReviewModal = () => {
         </section>
 
         <footer class="truth-review-actions">
-          <button class="text-button reject-truth-review" type="button">Reject evidence</button>
-          ${existing ? '<button class="button secondary keep-truth-review" type="button">Keep existing</button><button class="button secondary merge-truth-review" type="button">Merge both</button>' : ""}
-          <button class="button primary accept-truth-review" type="button">Accept into Project Truth</button>
+          <div class="truth-decision-copy"><span class="eyebrow">Decision</span><strong>Choose what Project Truth should contain.</strong></div>
+          <div class="truth-decision-buttons"><button class="text-button reject-truth-review" type="button">Reject evidence</button>${existing ? '<button class="button secondary keep-truth-review" type="button">Keep existing</button><button class="button secondary merge-truth-review" type="button">Merge both</button>' : ""}<button class="button primary accept-truth-review" type="button">Accept into Project Truth</button></div>
         </footer>
       </section>
     </div>`;
@@ -319,6 +334,14 @@ const closeTruthReview = () => {
   render();
 };
 
+const archiveCurrentTruth = (step: FirstStep, reason: TruthRevision["reason"]) => {
+  const current = step.confirmedValue.trim();
+  if (!current) return;
+  const latest = step.history.at(-1)?.value ?? "";
+  if (normalizeTruth(latest) === normalizeTruth(current)) return;
+  step.history.push({ value: current, reason });
+};
+
 const render = () => {
   const attentionCount = steps.filter((step) => step.state === "review" || step.state === "open" || step.state === "deferred").length;
   app.innerHTML = `
@@ -434,12 +457,12 @@ const bindEvents = () => {
     const step = steps.find((candidate) => candidate.id === selectedReviewStepId);
     const proposal = document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.value.trim() ?? "";
     if (!step || !proposal) return;
-    step.pendingValue = proposal;
+    if (step.confirmedValue && normalizeTruth(step.confirmedValue) !== normalizeTruth(proposal)) archiveCurrentTruth(step, "accepted");
     step.confirmedValue = proposal;
     step.pendingValue = "";
     step.state = "confirmed";
     selectedReviewStepId = null;
-    notice = { kind: "success", title: "Project Truth updated", detail: `${step.title} was confirmed after manual review.` };
+    notice = { kind: "success", title: "Project Truth updated", detail: `${step.title} now shows the new canonical statement. The previous confirmed version remains in revision history.` };
     render();
   });
 
@@ -458,12 +481,13 @@ const bindEvents = () => {
     const proposal = document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.value.trim() ?? "";
     if (!step || !step.confirmedValue || !proposal) return;
     const existing = step.confirmedValue.trim();
-    const merged = normalizeTruth(existing) === normalizeTruth(proposal) ? existing : `${existing}\n\n${proposal}`;
+    if (normalizeTruth(existing) !== normalizeTruth(proposal)) archiveCurrentTruth(step, "merged");
+    const merged = normalizeTruth(existing) === normalizeTruth(proposal) ? existing : `Current confirmed statement:\n${existing}\n\nAdditional confirmed context:\n${proposal}`;
     step.confirmedValue = merged;
     step.pendingValue = "";
     step.state = "confirmed";
     selectedReviewStepId = null;
-    notice = { kind: "success", title: "Project Truth merged", detail: `${step.title} now preserves both approved statements.` };
+    notice = { kind: "success", title: "Project Truth merged", detail: `${step.title} was merged into one structured current statement; the previous version remains collapsed in revision history.` };
     render();
   });
 
