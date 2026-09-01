@@ -170,4 +170,4 @@ const observer = new MutationObserver(scheduleApply);
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
 scheduleApply();
-void import("./desktop-i18n.js");
+void import("./desktop-i18n-runtime.js");
