@@ -19,112 +19,64 @@ const enhanceDiagnostics = () => {
   const rangeBar = document.createElement("section");
   rangeBar.className = "diagnostics-range-bar";
   rangeBar.innerHTML = `
-    <div class="diagnostics-range-copy">
-      <small>Time range</small>
-      <strong>Current locally available evidence</strong>
-    </div>
+    <div class="diagnostics-range-copy"><small>Time range</small><strong>Current locally available evidence</strong></div>
     <div class="diagnostics-range-options" role="group" aria-label="Diagnostics time range">
       <button class="diagnostics-range-option active" type="button">Current</button>
-      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available in this renderer slice">24h</button>
-      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available in this renderer slice">7d</button>
-      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available in this renderer slice">30d</button>
-      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available in this renderer slice">All</button>
+      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available yet">24h</button>
+      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available yet">7d</button>
+      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available yet">30d</button>
+      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available yet">All</button>
     </div>`;
   topbar.insertAdjacentElement("afterend", rangeBar);
 
-  const classHead = document.createElement("div");
-  classHead.className = "diagnostics-section-head";
-  classHead.innerHTML = `
-    <div>
-      <span class="eyebrow">Evidence classes</span>
-      <h2>What kind of number are you looking at?</h2>
-      <p>Livariant keeps measured facts, justified counterfactuals and modeled estimates separate so confidence is visible before interpretation.</p>
-    </div>`;
-  rangeBar.insertAdjacentElement("afterend", classHead);
-
   const hasObservedData = [...healthStrip.querySelectorAll("strong")].some((value) => (value.textContent ?? "").trim() !== "—");
+
   const classGrid = document.createElement("section");
-  classGrid.className = "diagnostics-class-grid";
+  classGrid.className = "diagnostics-class-grid diagnostics-class-grid-compact";
   classGrid.innerHTML = `
     <article class="diagnostics-class-card observed">
       <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Observed</span><span class="diagnostics-class-state">${hasObservedData ? "Measured" : "Unknown"}</span></div>
-      <h3>Direct runtime evidence</h3>
-      <p>Values reported by the provider/runtime and recorded by Livariant. No counterfactual claim is required.</p>
-      <div class="diagnostics-class-foot">The token counters below belong to this class.</div>
+      <h3>Measured facts</h3><p>Direct provider/runtime evidence.</p>
     </article>
     <article class="diagnostics-class-card avoided">
       <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Avoided</span><span class="diagnostics-class-state">Not surfaced</span></div>
-      <h3>Prevented work with concrete evidence</h3>
-      <p>Only work or usage Livariant can justify as prevented by a specific intervention belongs here.</p>
-      <div class="diagnostics-class-foot">The current Desktop view does not yet expose the host's Avoided counters.</div>
+      <h3>Prevented work</h3><p>Only justified counterfactuals belong here.</p>
     </article>
     <article class="diagnostics-class-card estimated">
       <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Estimated</span><span class="diagnostics-class-state">Not surfaced</span></div>
-      <h3>Modeled or calibrated values</h3>
-      <p>Any number derived from a model rather than direct observation must remain explicitly marked as an estimate.</p>
-      <div class="diagnostics-class-foot">The current Desktop view does not yet expose the host's Estimated counters.</div>
+      <h3>Modeled values</h3><p>Always explicitly marked as estimates.</p>
     </article>`;
-  classHead.insertAdjacentElement("afterend", classGrid);
+  rangeBar.insertAdjacentElement("afterend", classGrid);
 
   const observedHead = document.createElement("div");
-  observedHead.className = "diagnostics-section-head";
-  observedHead.innerHTML = `
-    <div>
-      <span class="eyebrow">Observed evidence</span>
-      <h2>Measured usage</h2>
-      <p>Raw values only. Unknown fields remain unknown rather than being converted into synthetic zeroes.</p>
-    </div>`;
+  observedHead.className = "diagnostics-section-head diagnostics-section-head-compact";
+  observedHead.innerHTML = `<div><span class="eyebrow">Observed evidence</span><h2>Measured usage</h2><p>Only raw values reported through the current runtime contract.</p></div>`;
   healthStrip.insertAdjacentElement("beforebegin", observedHead);
 
-  const contextHead = document.createElement("div");
-  contextHead.className = "diagnostics-section-head";
-  contextHead.innerHTML = `
-    <div>
-      <span class="eyebrow">Evidence context</span>
-      <h2>Where these measurements come from</h2>
-      <p>Provider and model attribution should only appear when the diagnostics contract actually supplies that evidence.</p>
+  observedPanel.classList.add("diagnostics-observed-status");
+  actionCard.classList.add("diagnostics-measure-compact");
+
+  const details = document.createElement("details");
+  details.className = "diagnostics-details";
+  details.innerHTML = `
+    <summary><span><strong>Measurement details</strong><small>Provider, model availability and counter definitions</small></span><span class="diagnostics-details-chevron">⌄</span></summary>
+    <div class="diagnostics-details-body">
+      <div class="diagnostics-context-grid">
+        <article class="diagnostics-context-card"><small>Provider</small><strong>Codex</strong><span>This surface currently reads the qualified Codex App Server measurement contract.</span></article>
+        <article class="diagnostics-context-card"><small>Model</small><strong>Not exposed</strong><span>The current summary carries no model identifier, so Livariant does not guess one.</span></article>
+      </div>
+      <div class="diagnostics-definitions">
+        <div class="diagnostics-definition"><strong>Total tokens</strong><span>Total token value reported by the runtime.</span></div>
+        <div class="diagnostics-definition"><strong>Input</strong><span>Provider input tokens where that field is reported.</span></div>
+        <div class="diagnostics-definition"><strong>Output</strong><span>Provider output tokens where that field is reported.</span></div>
+        <div class="diagnostics-definition"><strong>Cached input</strong><span>Cache-read input tokens; not automatically equivalent to money or time saved.</span></div>
+        <div class="diagnostics-definition"><strong>Reasoning</strong><span>Reasoning-token evidence where available. Unknown remains unknown.</span></div>
+      </div>
     </div>`;
-  observedPanel.insertAdjacentElement("afterend", contextHead);
-
-  const contextGrid = document.createElement("section");
-  contextGrid.className = "diagnostics-context-grid";
-  contextGrid.innerHTML = `
-    <article class="diagnostics-context-card"><small>Provider</small><strong>Codex</strong><span>This Diagnostics surface currently reads the qualified Codex App Server measurement contract.</span></article>
-    <article class="diagnostics-context-card"><small>Model</small><strong>Not exposed</strong><span>The current diagnostics summary does not carry a model identifier, so Livariant does not guess one.</span></article>`;
-  contextHead.insertAdjacentElement("afterend", contextGrid);
-
-  const definitionHead = document.createElement("div");
-  definitionHead.className = "diagnostics-section-head";
-  definitionHead.innerHTML = `
-    <div>
-      <span class="eyebrow">Definitions</span>
-      <h2>How to read the token counters</h2>
-      <p>Short definitions keep raw telemetry useful without pretending every provider exposes identical fields.</p>
-    </div>`;
-  contextGrid.insertAdjacentElement("afterend", definitionHead);
-
-  const definitions = document.createElement("section");
-  definitions.className = "diagnostics-definitions";
-  definitions.innerHTML = `
-    <div class="diagnostics-definition"><strong>Total tokens</strong><span>The total token value reported through the current runtime evidence contract.</span></div>
-    <div class="diagnostics-definition"><strong>Input</strong><span>Tokens attributed to provider input where the runtime reports that field.</span></div>
-    <div class="diagnostics-definition"><strong>Output</strong><span>Tokens attributed to provider output where the runtime reports that field.</span></div>
-    <div class="diagnostics-definition"><strong>Cached input</strong><span>Input tokens reported as cache reads. This is not automatically equivalent to money or time saved.</span></div>
-    <div class="diagnostics-definition"><strong>Reasoning</strong><span>Reasoning-token evidence where the provider/runtime reports it. Unknown remains unknown.</span></div>`;
-  definitionHead.insertAdjacentElement("afterend", definitions);
-
-  const testHead = document.createElement("div");
-  testHead.className = "diagnostics-section-head";
-  testHead.innerHTML = `
-    <div>
-      <span class="eyebrow">Measurement test</span>
-      <h2>Create a fresh observation</h2>
-      <p>The existing fixed Core test remains unchanged; this redesign only makes its purpose and evidence boundary easier to understand.</p>
-    </div>`;
-  actionCard.insertAdjacentElement("beforebegin", testHead);
+  actionCard.insertAdjacentElement("afterend", details);
 
   if (boundaryNote) {
-    boundaryNote.querySelector("p")!.innerHTML = `<strong>Privacy & interpretation boundary:</strong> Diagnostics does not capture raw prompt/project content by default. Observed ≠ Avoided ≠ Estimated, and no single combined “saved” number is claimed.`;
+    boundaryNote.querySelector("p")!.innerHTML = `<strong>Privacy & interpretation:</strong> No raw prompt/project capture by default. Observed ≠ Avoided ≠ Estimated.`;
   }
 };
 
