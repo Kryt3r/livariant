@@ -1,6 +1,7 @@
 import "./brand-depth-v2.css";
 import "./diagnostics-polish.js";
 import "./readability-polish.css";
+import "./i18n-hmr-guard.js";
 
 const STORAGE_KEY = "livariant.project-truth.accordions.v1";
 
@@ -171,6 +172,3 @@ const observer = new MutationObserver(scheduleApply);
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
 scheduleApply();
-void import("./desktop-i18n-runtime.js");
-void import("./desktop-i18n-host-details.js");
-void import("./desktop-i18n-diagnostics.js");
