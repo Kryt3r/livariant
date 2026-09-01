@@ -1,13 +1,19 @@
+let syncScheduled = false;
+
 const scheduleSettingsTranslationSync = () => {
+  if (syncScheduled) return;
+  syncScheduled = true;
   requestAnimationFrame(() => {
+    syncScheduled = false;
     const settings = document.querySelector<HTMLElement>(".settings-modal");
     if (!settings) return;
 
-    // The central i18n runtime owns all translations. This no-op child-list
-    // mutation only asks its existing observer for one settled post-render pass
-    // after the language attribute changed while Settings stayed open.
+    // Translation remains owned by the central i18n runtime. Settings can render
+    // sections and provider state independently after a language change, so poke
+    // the existing central observer once after those Settings-owned DOM updates
+    // have settled instead of translating a second time here.
     const marker = document.createComment("i18n-settings-sync");
-    settings.append(marker);
+    document.body.append(marker);
     marker.remove();
   });
 };
@@ -16,3 +22,14 @@ new MutationObserver(scheduleSettingsTranslationSync).observe(document.documentE
   attributes: true,
   attributeFilter: ["lang"],
 });
+
+new MutationObserver((mutations) => {
+  const touchesSettings = mutations.some((mutation) => {
+    const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+    if (target?.closest(".settings-modal")) return true;
+    return [...mutation.addedNodes].some((node) =>
+      node instanceof Element && (node.matches(".settings-modal") || Boolean(node.querySelector(".settings-modal"))),
+    );
+  });
+  if (touchesSettings) scheduleSettingsTranslationSync();
+}).observe(document.documentElement, { childList: true, subtree: true });
