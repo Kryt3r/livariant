@@ -81,6 +81,71 @@ const applyAccordionState = () => {
   });
 };
 
+const enhanceUpdates = () => {
+  const headings = [...document.querySelectorAll<HTMLElement>(".topbar h1")];
+  const updatesHeading = headings.find((heading) => heading.textContent?.trim() === "Updates");
+  if (!updatesHeading) return;
+
+  const content = updatesHeading.closest<HTMLElement>(".content");
+  if (!content || content.dataset.updatesRedesigned === "true") return;
+
+  const statusPanel = content.querySelector<HTMLElement>(".progress-panel");
+  const oldSteps = content.querySelector<HTMLElement>(".steps");
+  if (!statusPanel || !oldSteps) return;
+
+  content.dataset.updatesRedesigned = "true";
+
+  const statusCopy = statusPanel.querySelector<HTMLElement>(":scope > div");
+  const action = statusPanel.querySelector<HTMLButtonElement>(".check-updates");
+  const eyebrowText = statusCopy?.querySelector<HTMLElement>(".eyebrow")?.textContent?.trim().toLowerCase() ?? "";
+  const isChecking = eyebrowText.includes("checking");
+  const checkCompleted = eyebrowText.includes("up to date") || eyebrowText.includes("update available");
+
+  const workspace = document.createElement("section");
+  workspace.className = "updates-workspace";
+
+  const statusCard = document.createElement("section");
+  statusCard.className = "updates-status-card";
+  if (statusCopy) statusCard.append(statusCopy);
+  if (action) statusCard.append(action);
+  workspace.append(statusCard);
+
+  const flow = document.createElement("section");
+  flow.className = "updates-flow";
+  flow.setAttribute("aria-label", "Update lifecycle");
+  flow.innerHTML = `
+    <article class="update-phase active">
+      <div class="update-phase-head"><span class="update-phase-index">01</span><span class="update-phase-state">${isChecking ? "Checking" : checkCompleted ? "Checked" : "Ready"}</span></div>
+      <h3>Check availability</h3>
+      <p>Ask the fixed host-side updater boundary whether a newer trusted update exists.</p>
+    </article>
+    <article class="update-phase">
+      <div class="update-phase-head"><span class="update-phase-index">02</span><span class="update-phase-state">Not exposed yet</span></div>
+      <h3>Download & verify</h3>
+      <p>Future progress belongs here only when the Desktop contract exposes real artifact download and verification state.</p>
+    </article>
+    <article class="update-phase">
+      <div class="update-phase-head"><span class="update-phase-index">03</span><span class="update-phase-state">User authorized</span></div>
+      <h3>Install & restart</h3>
+      <p>Installation remains a separate explicit action. Availability alone never authorizes replacing installed code.</p>
+    </article>`;
+  workspace.append(flow);
+
+  const details = document.createElement("details");
+  details.className = "updates-details";
+  details.innerHTML = `
+    <summary><span><strong>Update details</strong><small>Trust boundary, authority and release metadata</small></span><span class="updates-details-chevron">⌄</span></summary>
+    <div class="updates-details-body">
+      <article class="updates-boundary-card"><small>Update identity</small><strong>Fixed trusted boundary</strong><span>The renderer cannot supply arbitrary update URLs or executable paths.</span></article>
+      <article class="updates-boundary-card"><small>Install authority</small><strong>Separate user action</strong><span>A successful check does not authorize installation, restart or replacement of installed code.</span></article>
+      <article class="updates-boundary-card"><small>Release information</small><strong>Not exposed yet</strong><span>The current Desktop result does not carry structured release notes, so Livariant does not invent them.</span></article>
+    </div>`;
+  workspace.append(details);
+
+  statusPanel.replaceWith(workspace);
+  oldSteps.remove();
+};
+
 let scheduled = false;
 const scheduleApply = () => {
   if (scheduled) return;
@@ -88,6 +153,7 @@ const scheduleApply = () => {
   requestAnimationFrame(() => {
     scheduled = false;
     applyAccordionState();
+    enhanceUpdates();
   });
 };
 
