@@ -110,6 +110,15 @@ const enhanceUpdates = () => {
   if (action) statusCard.append(action);
   workspace.append(statusCard);
 
+  const versionStrip = document.createElement("section");
+  versionStrip.className = "updates-version-strip";
+  versionStrip.setAttribute("aria-label", "Installed component versions");
+  versionStrip.innerHTML = `
+    <div class="updates-version-badge" data-update-version="desktop"><small>Desktop</small><strong>Loading…</strong></div>
+    <div class="updates-version-badge" data-update-version="core"><small>Core</small><strong>Loading…</strong></div>
+    <div class="updates-version-badge" data-update-version="runtime"><small>Runtime</small><strong>Loading…</strong></div>`;
+  workspace.append(versionStrip);
+
   const flow = document.createElement("section");
   flow.className = "updates-flow";
   flow.setAttribute("aria-label", "Update lifecycle");
