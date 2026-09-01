@@ -76,46 +76,87 @@ const foundationHealthCards = (): HTMLElement[] | null => {
   return null;
 };
 
-const applyRuntimeHealth = () => {
-  const cards = foundationHealthCards();
-  if (!cards) return;
+const setUpdateVersionBadge = (id: "desktop" | "core" | "runtime", value: string, ready: boolean, detail: string) => {
+  const badge = document.querySelector<HTMLElement>(`[data-update-version="${id}"]`);
+  if (!badge) return;
+  const valueNode = badge.querySelector<HTMLElement>("strong");
+  if (valueNode) valueNode.textContent = value;
+  badge.classList.toggle("muted", !ready);
+  badge.title = detail;
+};
 
-  setHealthCard(
-    cards[0],
-    "Desktop",
-    cachedDesktopVersion ? formatDesktopVersion(cachedDesktopVersion) : "Version unavailable",
+const applyUpdateVersions = () => {
+  setUpdateVersionBadge(
+    "desktop",
+    cachedDesktopVersion ? formatDesktopVersion(cachedDesktopVersion) : "Unavailable",
     cachedDesktopVersion !== null,
     desktopDetail,
   );
 
   if (!cachedHealth) {
-    setHealthCard(cards[1], "Core", "Checking…", false, "Bundled Core health is loading.");
-    setHealthCard(cards[2], "Runtime", "Checking…", false, "Bundled runtime health is loading.");
+    setUpdateVersionBadge("core", "Checking…", false, "Bundled Core health is loading.");
+    setUpdateVersionBadge("runtime", "Checking…", false, "Bundled runtime health is loading.");
     return;
   }
 
   const runtimeReady = cachedHealth.state === "ready";
-  setHealthCard(
-    cards[1],
-    "Core",
-    cachedHealth.coreVersion ?? (runtimeReady ? "Unknown" : "Needs attention"),
+  setUpdateVersionBadge(
+    "core",
+    cachedHealth.coreVersion ?? (runtimeReady ? "Unknown" : "Unavailable"),
     runtimeReady && cachedHealth.coreVersion !== null,
     cachedHealth.detail,
   );
-  setHealthCard(
-    cards[2],
-    "Runtime",
-    cachedHealth.nodeVersion ? `Node ${cachedHealth.nodeVersion}` : runtimeReady ? "Node unknown" : "Needs attention",
+  setUpdateVersionBadge(
+    "runtime",
+    cachedHealth.nodeVersion ? `Node ${cachedHealth.nodeVersion}` : runtimeReady ? "Node unknown" : "Unavailable",
     runtimeReady && cachedHealth.nodeVersion !== null,
     cachedHealth.detail,
   );
 };
 
+const applyRuntimeHealth = () => {
+  const cards = foundationHealthCards();
+  if (cards) {
+    setHealthCard(
+      cards[0],
+      "Desktop",
+      cachedDesktopVersion ? formatDesktopVersion(cachedDesktopVersion) : "Version unavailable",
+      cachedDesktopVersion !== null,
+      desktopDetail,
+    );
+
+    if (!cachedHealth) {
+      setHealthCard(cards[1], "Core", "Checking…", false, "Bundled Core health is loading.");
+      setHealthCard(cards[2], "Runtime", "Checking…", false, "Bundled runtime health is loading.");
+    } else {
+      const runtimeReady = cachedHealth.state === "ready";
+      setHealthCard(
+        cards[1],
+        "Core",
+        cachedHealth.coreVersion ?? (runtimeReady ? "Unknown" : "Needs attention"),
+        runtimeReady && cachedHealth.coreVersion !== null,
+        cachedHealth.detail,
+      );
+      setHealthCard(
+        cards[2],
+        "Runtime",
+        cachedHealth.nodeVersion ? `Node ${cachedHealth.nodeVersion}` : runtimeReady ? "Node unknown" : "Needs attention",
+        runtimeReady && cachedHealth.nodeVersion !== null,
+        cachedHealth.detail,
+      );
+    }
+  }
+
+  applyUpdateVersions();
+};
+
 // Current Desktop Foundation rerenders only in response to user clicks. Reapply
-// the cached read-only identity once after those event handlers finish. The
-// foundation strip is detected by its own labels so connector/diagnostics cards
-// remain owned by their respective views.
+// the cached read-only identity once after those event handlers finish. This also
+// populates the compact version badges when the Updates view is created.
 document.addEventListener("click", () => queueMicrotask(applyRuntimeHealth));
+
+const runtimeObserver = new MutationObserver(() => queueMicrotask(applyRuntimeHealth));
+runtimeObserver.observe(document.documentElement, { childList: true, subtree: true });
 
 void getVersion()
   .then((version) => {
