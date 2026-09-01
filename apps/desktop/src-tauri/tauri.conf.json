@@ -43,8 +43,7 @@
         "uninstallerHeaderImage": "windows/branding/installer-header.bmp",
         "sidebarImage": "windows/branding/installer-sidebar.bmp",
         "languages": ["German", "English"],
-        "displayLanguageSelector": true,
-        "installerHooks": "./windows/language-hooks.nsh",
+        "displayLanguageSelector": false,
         "startMenuFolder": "Livariant"
       }
     }
