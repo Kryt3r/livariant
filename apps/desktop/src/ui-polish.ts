@@ -172,3 +172,4 @@ observer.observe(document.documentElement, { childList: true, subtree: true });
 scheduleApply();
 void import("./desktop-i18n-runtime.js");
 void import("./desktop-i18n-host-details.js");
+void import("./desktop-i18n-diagnostics.js");
