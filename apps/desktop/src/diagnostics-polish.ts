@@ -1,4 +1,41 @@
 import "./diagnostics-redesign.css";
+import { invoke } from "@tauri-apps/api/core";
+
+type DiagnosticsEvidenceSummary = {
+  avoided: { eventCount: number; contextTokens: number };
+  estimated: { eventCount: number; tokens: number };
+};
+
+const formatNumber = (value: number) => new Intl.NumberFormat().format(value);
+
+const hydrateCounterEvidence = async (classGrid: HTMLElement) => {
+  const avoidedCard = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.avoided");
+  const estimatedCard = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.estimated");
+  if (!avoidedCard || !estimatedCard) return;
+
+  try {
+    const summary = await invoke<DiagnosticsEvidenceSummary>("codex_diagnostics_summary");
+
+    const avoidedState = avoidedCard.querySelector<HTMLElement>(".diagnostics-class-state");
+    const avoidedCopy = avoidedCard.querySelector<HTMLElement>("p");
+    if (avoidedState) avoidedState.textContent = `${formatNumber(summary.avoided.eventCount)} events`;
+    if (avoidedCopy) {
+      avoidedCopy.textContent = `${formatNumber(summary.avoided.contextTokens)} context tokens recorded as avoided by qualified host evidence.`;
+    }
+
+    const estimatedState = estimatedCard.querySelector<HTMLElement>(".diagnostics-class-state");
+    const estimatedCopy = estimatedCard.querySelector<HTMLElement>("p");
+    if (estimatedState) estimatedState.textContent = `${formatNumber(summary.estimated.eventCount)} events`;
+    if (estimatedCopy) {
+      estimatedCopy.textContent = `${formatNumber(summary.estimated.tokens)} modeled tokens recorded as Estimated, never Observed.`;
+    }
+  } catch {
+    const avoidedState = avoidedCard.querySelector<HTMLElement>(".diagnostics-class-state");
+    const estimatedState = estimatedCard.querySelector<HTMLElement>(".diagnostics-class-state");
+    if (avoidedState) avoidedState.textContent = "Unknown";
+    if (estimatedState) estimatedState.textContent = "Unknown";
+  }
+};
 
 const enhanceDiagnostics = () => {
   const headings = [...document.querySelectorAll<HTMLElement>(".topbar h1")];
@@ -39,14 +76,15 @@ const enhanceDiagnostics = () => {
       <h3>Measured facts</h3><p>Direct provider/runtime evidence.</p>
     </article>
     <article class="diagnostics-class-card avoided">
-      <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Avoided</span><span class="diagnostics-class-state">Not surfaced</span></div>
-      <h3>Prevented work</h3><p>Only justified counterfactuals belong here.</p>
+      <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Avoided</span><span class="diagnostics-class-state">Loading…</span></div>
+      <h3>Prevented work</h3><p>Loading qualified Avoided evidence…</p>
     </article>
     <article class="diagnostics-class-card estimated">
-      <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Estimated</span><span class="diagnostics-class-state">Not surfaced</span></div>
-      <h3>Modeled values</h3><p>Always explicitly marked as estimates.</p>
+      <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Estimated</span><span class="diagnostics-class-state">Loading…</span></div>
+      <h3>Modeled values</h3><p>Loading explicitly modeled evidence…</p>
     </article>`;
   rangeBar.insertAdjacentElement("afterend", classGrid);
+  void hydrateCounterEvidence(classGrid);
 
   const observedHead = document.createElement("div");
   observedHead.className = "diagnostics-section-head diagnostics-section-head-compact";
@@ -71,6 +109,8 @@ const enhanceDiagnostics = () => {
         <div class="diagnostics-definition"><strong>Output</strong><span>Provider output tokens where that field is reported.</span></div>
         <div class="diagnostics-definition"><strong>Cached input</strong><span>Cache-read input tokens; not automatically equivalent to money or time saved.</span></div>
         <div class="diagnostics-definition"><strong>Reasoning</strong><span>Reasoning-token evidence where available. Unknown remains unknown.</span></div>
+        <div class="diagnostics-definition"><strong>Avoided context</strong><span>Context tokens recorded by qualified host evidence as avoided by a concrete Livariant intervention. This is not automatically money or time saved.</span></div>
+        <div class="diagnostics-definition"><strong>Estimated tokens</strong><span>Modeled token values. They remain Estimated and are never merged into Observed totals.</span></div>
       </div>
     </div>`;
   actionCard.insertAdjacentElement("afterend", details);
