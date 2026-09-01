@@ -45,18 +45,23 @@
 }
 
 .provider-primary-actions {
-  min-width: 202px;
+  min-width: 226px;
   justify-content: flex-end;
 }
 
+.provider-primary-actions .button {
+  width: auto;
+  white-space: nowrap;
+}
+
 .provider-primary-actions .connector-refresh {
-  width: 86px;
+  min-width: 104px;
   justify-content: center;
 }
 
 .provider-primary-actions .connector-connect,
 .provider-primary-actions .connector-disconnect {
-  width: 108px;
+  min-width: 114px;
   justify-content: center;
 }
 
@@ -83,5 +88,6 @@
 
   .provider-primary-actions {
     min-width: 0;
+    flex-wrap: wrap;
   }
 }
