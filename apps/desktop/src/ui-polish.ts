@@ -34,8 +34,9 @@ const applyAccordionState = () => {
   const cards = [...document.querySelectorAll<HTMLElement>(".truth-area-card[data-area]")];
   cards.forEach((card, index) => {
     const areaId = card.dataset.area;
+    const head = card.querySelector<HTMLElement>(".truth-area-head");
     const actions = card.querySelector<HTMLElement>(".truth-area-head-actions");
-    if (!areaId || !actions) return;
+    if (!areaId || !head || !actions) return;
 
     let toggle = actions.querySelector<HTMLButtonElement>(".truth-area-accordion-toggle");
     if (!toggle) {
@@ -51,17 +52,31 @@ const applyAccordionState = () => {
     toggle.setAttribute("aria-expanded", String(!collapsed));
     toggle.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} ${areaId} Project Truth area`);
 
-    if (toggle.dataset.bound === "true") return;
-    toggle.dataset.bound = "true";
-    toggle.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const nextCollapsed = !card.classList.contains("is-collapsed");
+    const setCollapsed = (nextCollapsed: boolean) => {
       card.classList.toggle("is-collapsed", nextCollapsed);
       toggle?.setAttribute("aria-expanded", String(!nextCollapsed));
       toggle?.setAttribute("aria-label", `${nextCollapsed ? "Expand" : "Collapse"} ${areaId} Project Truth area`);
       state[areaId] = nextCollapsed;
       writeState(state);
-    });
+    };
+
+    if (toggle.dataset.bound !== "true") {
+      toggle.dataset.bound = "true";
+      toggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        setCollapsed(!card.classList.contains("is-collapsed"));
+      });
+    }
+
+    if (head.dataset.accordionBound !== "true") {
+      head.dataset.accordionBound = "true";
+      head.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest("button, a, input, textarea, select, [role='button']")) return;
+        setCollapsed(!card.classList.contains("is-collapsed"));
+      });
+    }
   });
 };
 
