@@ -19,6 +19,26 @@
   line-height: 1.55;
 }
 
+/* Project Truth filter geometry must not change when the active state changes. */
+.truth-filters {
+  display: grid;
+  grid-template-columns: 48px 96px 108px 76px;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.truth-filter,
+.truth-filter:hover,
+.truth-filter.active {
+  width: 100%;
+  min-width: 0;
+  height: 31px;
+  padding: 0 8px;
+  border-width: 1px;
+  font-weight: 640;
+  white-space: nowrap;
+}
+
 /* Diagnostics */
 .diagnostics-range-copy small {
   font-size: 10px;
@@ -148,6 +168,12 @@
 .updates-boundary-card span {
   font-size: 11.5px;
   line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .truth-filters {
+    grid-template-columns: 96px 108px;
+  }
 }
 
 @media (max-width: 680px) {
