@@ -1,5 +1,6 @@
 import "./brand-depth-v2.css";
 import "./diagnostics-polish.js";
+import "./readability-polish.css";
 
 const STORAGE_KEY = "livariant.project-truth.accordions.v1";
 
