@@ -247,6 +247,15 @@ const de: Record<string, string> = {
   "Current": "Aktuell"
 };
 
+const enByDe = new Map<string, string>(Object.entries(de).map(([english, german]) => [german, english]));
+
+const canonicalSource = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  const english = enByDe.get(trimmed);
+  return english ? value.replace(trimmed, english) : value;
+};
+
 const translatePattern = (source: string): string | null => {
   let match = source.match(/^(\d+) measured events$/);
   if (match) return `${match[1]} gemessene Ereignisse`;
@@ -295,8 +304,14 @@ const translateTextNode = (node: Text) => {
   if (shouldSkipText(node)) return;
   let source = textSources.get(node);
   if (source === undefined) {
-    source = node.data;
+    source = canonicalSource(node.data);
     textSources.set(node, source);
+  } else {
+    const canonical = canonicalSource(source);
+    if (canonical !== source) {
+      source = canonical;
+      textSources.set(node, source);
+    }
   }
   const trimmed = source.trim();
   if (!trimmed) return;
@@ -314,8 +329,14 @@ const translateAttribute = (element: Element, name: "placeholder" | "title" | "a
   }
   let source = sources.get(name);
   if (source === undefined) {
-    source = current;
+    source = canonicalSource(current);
     sources.set(name, source);
+  } else {
+    const canonical = canonicalSource(source);
+    if (canonical !== source) {
+      source = canonical;
+      sources.set(name, source);
+    }
   }
   const next = translated(source);
   if (current !== next) element.setAttribute(name, next);
