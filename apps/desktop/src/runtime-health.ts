@@ -48,6 +48,10 @@ shellGuardStyle.textContent = `
 `;
 document.head.appendChild(shellGuardStyle);
 
+const setTextIfChanged = (node: HTMLElement | null, value: string) => {
+  if (node && node.textContent !== value) node.textContent = value;
+};
+
 const setHealthCard = (
   card: HTMLElement | undefined,
   label: string,
@@ -59,11 +63,11 @@ const setHealthCard = (
   const labelNode = card.querySelector<HTMLElement>("small");
   const valueNode = card.querySelector<HTMLElement>("strong");
   const icon = card.querySelector<HTMLElement>(".health-icon");
-  if (labelNode) labelNode.textContent = label;
-  if (valueNode) valueNode.textContent = value;
-  if (icon) icon.textContent = ready ? "●" : "○";
+  setTextIfChanged(labelNode, label);
+  setTextIfChanged(valueNode, value);
+  setTextIfChanged(icon, ready ? "●" : "○");
   card.classList.toggle("muted", !ready);
-  card.title = detail;
+  if (card.title !== detail) card.title = detail;
 };
 
 const foundationHealthCards = (): HTMLElement[] | null => {
@@ -80,9 +84,9 @@ const setUpdateVersionBadge = (id: "desktop" | "core" | "runtime", value: string
   const badge = document.querySelector<HTMLElement>(`[data-update-version="${id}"]`);
   if (!badge) return;
   const valueNode = badge.querySelector<HTMLElement>("strong");
-  if (valueNode) valueNode.textContent = value;
+  setTextIfChanged(valueNode, value);
   badge.classList.toggle("muted", !ready);
-  badge.title = detail;
+  if (badge.title !== detail) badge.title = detail;
 };
 
 const applyUpdateVersions = () => {
@@ -155,6 +159,9 @@ const applyRuntimeHealth = () => {
 // populates the compact version badges when the Updates view is created.
 document.addEventListener("click", () => queueMicrotask(applyRuntimeHealth));
 
+// Observe view creation so freshly rendered version badges receive cached values.
+// All writes above are idempotent: unchanged text is never rewritten, preventing
+// this observer from feeding its own child-list mutations back into an endless loop.
 const runtimeObserver = new MutationObserver(() => queueMicrotask(applyRuntimeHealth));
 runtimeObserver.observe(document.documentElement, { childList: true, subtree: true });
 
