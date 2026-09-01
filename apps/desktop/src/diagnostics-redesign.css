@@ -199,6 +199,39 @@
 .updates-status-card p { margin: 7px 0 0; max-width: 760px; color: var(--muted); font-size: 11.5px; line-height: 1.58; }
 .updates-status-card .button { flex: 0 0 auto; }
 
+.updates-version-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.updates-version-badge {
+  min-width: 132px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 11px;
+  border: 1px solid rgba(167, 148, 230, .16);
+  border-radius: 10px;
+  background: linear-gradient(120deg, rgba(91, 75, 190, .08), rgba(229, 44, 255, .035)), rgba(7, 18, 35, .54);
+  box-shadow: inset 0 1px 0 rgba(235, 232, 255, .035);
+}
+.updates-version-badge small {
+  color: var(--muted-2);
+  font-size: 8.5px;
+  font-weight: 720;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.updates-version-badge strong {
+  color: #f2eeff;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.updates-version-badge.muted strong { color: var(--muted); }
+
 .updates-flow {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -314,4 +347,6 @@
   .diagnostics-definition { grid-template-columns: 1fr; gap: 4px; }
   .updates-status-card { align-items: stretch; flex-direction: column; }
   .updates-status-card .button { align-self: flex-start; }
+  .updates-version-strip { align-items: stretch; flex-direction: column; }
+  .updates-version-badge { width: 100%; }
 }
