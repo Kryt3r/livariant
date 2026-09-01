@@ -3,7 +3,7 @@ mod updater;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{env, fs, path::{Path, PathBuf}, process::Command};
+use std::{env, fs, path::Path, process::Command};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -125,26 +125,6 @@ fn runtime_health() -> RuntimeHealth {
     inspect_runtime_root(install_root)
 }
 
-#[tauri::command]
-fn installer_language() -> Option<String> {
-    #[cfg(target_os = "windows")]
-    {
-        let appdata = env::var_os("APPDATA")?;
-        let path = PathBuf::from(appdata).join("Livariant").join("installer-language.txt");
-        let raw = fs::read_to_string(path).ok()?;
-        return match raw.trim().to_ascii_lowercase().as_str() {
-            "de" | "german" => Some("de".to_owned()),
-            "en" | "english" => Some("en".to_owned()),
-            _ => None,
-        };
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        None
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -157,7 +137,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             runtime_health,
-            installer_language,
             updater::check_for_update,
             updater::apply_update,
             connector_host::codex_connector_status,
