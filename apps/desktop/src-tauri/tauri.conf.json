@@ -56,7 +56,7 @@
         "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-feed/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }
