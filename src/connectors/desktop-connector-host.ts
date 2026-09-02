@@ -8,7 +8,11 @@ import {
   type CodexInstallationInspection,
 } from "./codex-runtime.js";
 import { CodexWorkflowClient } from "./codex-workflow.js";
-import { aggregateDiagnosticEvents } from "../diagnostics/efficiency.js";
+import {
+  aggregateDiagnosticEvents,
+  diagnosticRangeForPreset,
+  type DiagnosticPreset,
+} from "../diagnostics/efficiency.js";
 import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
 import { DiagnosticEventStore } from "../diagnostics/store.js";
 
@@ -31,10 +35,13 @@ const completedTurns = new Set<string>();
 let selectedResolution: CodexCommandResolution | undefined;
 let selectedMode: "auto" | "manual" = "auto";
 
+const DIAGNOSTIC_PRESETS = ["1d", "7d", "30d", "90d", "all"] as const satisfies readonly DiagnosticPreset[];
+
 type Request = {
   id: number;
   method: "inspect" | "connect" | "disconnect" | "diagnostics" | "measure";
   manualPath?: string;
+  diagnosticsPreset?: DiagnosticPreset;
 };
 type ResolvedCodexInspection = {
   resolution: ReturnType<typeof resolveCodexCommand>;
@@ -49,8 +56,17 @@ function assertRequest(value: unknown): Request {
   if (!Number.isSafeInteger(record.id) || (record.id as number) < 0) throw new Error("Desktop connector host request id is invalid.");
   if (!["inspect", "connect", "disconnect", "diagnostics", "measure"].includes(String(record.method))) throw new Error("Desktop connector host method is unsupported.");
   if (record.manualPath !== undefined && typeof record.manualPath !== "string") throw new Error("Desktop connector host manualPath must be a string when supplied.");
+  if (record.diagnosticsPreset !== undefined && !DIAGNOSTIC_PRESETS.includes(record.diagnosticsPreset as DiagnosticPreset)) {
+    throw new Error("Desktop connector host diagnosticsPreset is invalid.");
+  }
   const manualPath = typeof record.manualPath === "string" ? record.manualPath.trim() : undefined;
-  return { id: record.id as number, method: record.method as Request["method"], ...(manualPath ? { manualPath } : {}) };
+  const diagnosticsPreset = record.diagnosticsPreset as DiagnosticPreset | undefined;
+  return {
+    id: record.id as number,
+    method: record.method as Request["method"],
+    ...(manualPath ? { manualPath } : {}),
+    ...(diagnosticsPreset ? { diagnosticsPreset } : {}),
+  };
 }
 
 function inspectResolvedCodex(manualPath?: string): ResolvedCodexInspection {
@@ -136,10 +152,13 @@ async function connect(manualPath?: string) {
   return connectionStatus();
 }
 
-async function diagnostics() {
+async function diagnostics(preset: DiagnosticPreset = "all") {
   await writeQueue;
-  const aggregate = aggregateDiagnosticEvents(await store.readAll());
+  const range = diagnosticRangeForPreset(preset);
+  const aggregate = aggregateDiagnosticEvents(await store.readAll(), range);
   return {
+    preset,
+    range: aggregate.range,
     observed: aggregate.observed,
     avoided: aggregate.avoided,
     estimated: aggregate.estimated,
@@ -148,7 +167,7 @@ async function diagnostics() {
   };
 }
 
-async function measure() {
+async function measure(preset: DiagnosticPreset = "all") {
   if (!session?.isOpen() || !workflow) await connect();
   if (!workflow || !session?.isOpen()) throw new Error("Codex connection did not become available.");
   const thread = await workflow.startThread({ ephemeral: true });
@@ -164,7 +183,7 @@ async function measure() {
   completedTurns.delete(key);
   await new Promise((resolve) => setTimeout(resolve, 250));
   await writeQueue;
-  return { connection: connectionStatus(), diagnostics: await diagnostics() };
+  return { connection: connectionStatus(), diagnostics: await diagnostics(preset) };
 }
 
 async function handle(request: Request): Promise<unknown> {
@@ -175,8 +194,8 @@ async function handle(request: Request): Promise<unknown> {
   }
   if (request.method === "connect") return await connect(request.manualPath);
   if (request.method === "disconnect") { await disconnect(); return connectionStatus(); }
-  if (request.method === "diagnostics") return await diagnostics();
-  return await measure();
+  if (request.method === "diagnostics") return await diagnostics(request.diagnosticsPreset);
+  return await measure(request.diagnosticsPreset);
 }
 
 const input = createInterface({ input: stdin, crlfDelay: Infinity });
