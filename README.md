@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
-  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.4"><img alt="Release" src="https://img.shields.io/badge/release-v0.1.0--rc.4-0ea5e9" /></a>
+  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.4"><img alt="CLI Public Preview" src="https://img.shields.io/badge/CLI%20preview-v0.1.0--rc.4-0ea5e9" /></a>
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-339933?logo=nodedotjs&logoColor=white" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-PolyForm%20Perimeter-7c3aed" /></a>
   <img alt="Local-first" src="https://img.shields.io/badge/local--first-default-06b6d4" />
@@ -127,7 +127,7 @@ The guided entry point is:
 livariant first-run
 ```
 
-The WP-044 remediation makes First Run state-aware across both project state and protected machine readiness. It can compose:
+The current First Run foundation is state-aware across both project state and protected machine readiness. It can compose:
 
 - EN/DE interaction localization;
 - read-only project discovery;
@@ -225,18 +225,26 @@ external knowledge
 
 Future retrieval, relationship, graph, and token-efficiency work is intended to build on these explicit provenance/freshness boundaries rather than creating hidden second sources of truth.
 
-## Published release and current development
+## Published previews and current development
 
-### Current published Public Preview
+Livariant currently has **independently versioned product surfaces**. The root/Core package identity and the Desktop Preview identity are intentionally not required to share the same RC number.
 
-`v0.1.0-rc.4` is the current published **Public Preview prerelease**. It includes the agent-native First Run/MCP workflow, Verification Trace, Active Project Intelligence foundations, external-knowledge foundations, Autonomy Profiles, and the Guardian/Self-Integrity enforcement present in the qualified RC4 source.
+### Current published Desktop Preview
+
+The canonical published Desktop Preview is `0.1.0-rc.17`, built from exact source `6214bfe2318dc5c0dc4ae0b949146451ad4d20f6` and accepted through the updater-first Windows path.
+
+The Desktop identity on current canonical `main` is `0.1.0-rc.18`. **rc.18 is not published yet.** It exists to perform the final installed-Windows dogfood acceptance for the active Diagnostics & Efficiency Measurement Foundation work before that work package can close.
+
+### Historical CLI Public Preview
+
+`v0.1.0-rc.4` remains an immutable published **CLI Public Preview**. It contains the agent-native First Run/MCP workflow, Verification Trace, Active Project Intelligence foundations, external-knowledge foundations, Autonomy Profiles, and the Guardian/Self-Integrity enforcement present in the qualified RC4 source.
 
 RC4 was qualified from exact source `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. Its installable CLI artifact SHA-256 is `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
 
 > [!WARNING]
 > Real Windows Fresh-Install dogfooding found that the published RC4 distribution does **not** include/provision the protected Stage-A bootstrap source required before Guardian-backed first-project lifecycle authorization. Installing the RC4 `.tgz` alone therefore does not provide a complete safe fresh-machine -> first-project path. Do not bypass this by manually copying requester-controlled package files into protected system locations. See [Installation & First Project](docs/installation.md).
 
-The WP-044 remediation is being developed for the next qualified release that contains it. Repository code or documentation does not retroactively change RC4.
+Later repository work does not retroactively change RC4.
 
 ### Historical RC3 Foundation Preview
 
@@ -244,15 +252,26 @@ The WP-044 remediation is being developed for the next qualified release that co
 
 ### Current repository `main`
 
-At the time of RC4 publication, canonical `main` was the qualified RC4 source. Repository development may move ahead after later work is merged, so repository presence alone must never be treated as release publication.
+Canonical product `main` is `e121edfe84061208ac5d1e3568a2c0c6c4ec3749` at this documentation reconciliation.
+
+On that source state:
+
+- Desktop identity is `0.1.0-rc.18`;
+- root/Core package identity remains independently versioned at `0.1.0-rc.12`;
+- rc.18 has not been tagged, published, or made discoverable through the updater;
+- repository presence alone must never be treated as release publication.
+
+### Current active development
+
+The active product Work Package is **WP-047 — Diagnostics & Efficiency Measurement Foundation**. Its bounded implementation is merged; final completion still requires installed-Windows dogfood evidence for real observed usage, period behavior, durable counters, truthful missing values, attribution, and the calculation/explanation path.
+
+The immediate release-sensitive path remains gated: CI trigger hardening must qualify and merge through its own explicit authorization boundary before an unpublished rc.18 candidate is built and verified. Publication remains a separate explicit authorization.
 
 ### Future qualified releases
 
-A future release still requires its own exact-candidate CI/security/Self-Integrity qualification, real Fresh-Install evidence where required, release decision, and explicit publication Authority.
+A future release still requires its own exact-candidate CI/security/Self-Integrity qualification, real installed/fresh-machine evidence where required, a release decision, and explicit publication Authority.
 
-The WP-044 release path additionally requires exact release assets, provenance attestations, protected Stage-A/Stage-B qualification, and a real Windows clean-state first-project path before GO.
-
-No README statement or CI result publishes a release automatically.
+No README statement, merge, or CI result publishes a release automatically.
 
 ## Local-first by default
 
