@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
-  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.4"><img alt="Release" src="https://img.shields.io/badge/release-v0.1.0--rc.4-0ea5e9" /></a>
+  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.4"><img alt="CLI Public Preview" src="https://img.shields.io/badge/CLI%20preview-v0.1.0--rc.4-0ea5e9" /></a>
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-339933?logo=nodedotjs&logoColor=white" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-PolyForm%20Perimeter-7c3aed" /></a>
   <img alt="Local-first" src="https://img.shields.io/badge/local--first-default-06b6d4" />
@@ -127,7 +127,7 @@ Der geführte Einstieg ist:
 livariant first-run
 ```
 
-Die WP-044-Remediation macht First Run zustandsbewusst über Projektzustand und geschützte Maschinen-Readiness. Er kann kombinieren:
+Die aktuelle First-Run-Grundlage ist zustandsbewusst über Projektzustand und geschützte Maschinen-Readiness. Sie kann kombinieren:
 
 - EN/DE-Interaktionslokalisierung;
 - read-only Project Discovery;
@@ -225,18 +225,26 @@ externes Wissen
 
 Künftige Retrieval-, Relationship-, Graph- und Token-Effizienz-Arbeit soll auf diesen expliziten Provenienz-/Freshness-Grenzen aufbauen, statt versteckte zweite Wahrheitsspeicher zu erzeugen.
 
-## Veröffentlichtes Release und aktuelle Entwicklung
+## Veröffentlichte Previews und aktuelle Entwicklung
 
-### Aktuelles veröffentlichtes Public Preview
+Livariant besitzt aktuell **unabhängig versionierte Produktoberflächen**. Root-/Core-Paketidentität und Desktop-Preview-Identität müssen bewusst nicht dieselbe RC-Nummer tragen.
 
-`v0.1.0-rc.4` ist das aktuell veröffentlichte **Public-Preview-Prerelease**. Es enthält den agent-nativen First-Run-/MCP-Workflow, Verification Trace, Active-Project-Intelligence-Grundlagen, External-Knowledge-Grundlagen, Autonomy Profiles sowie die Guardian-/Self-Integrity-Enforcement-Logik des qualifizierten RC4-Quellstands.
+### Aktuelles veröffentlichtes Desktop Preview
+
+Das kanonisch veröffentlichte Desktop Preview ist `0.1.0-rc.17`, gebaut aus dem exakten Quellstand `6214bfe2318dc5c0dc4ae0b949146451ad4d20f6` und über den updater-first Windows-Pfad akzeptiert.
+
+Die Desktop-Identität auf dem aktuellen kanonischen `main` ist `0.1.0-rc.18`. **rc.18 ist noch nicht veröffentlicht.** Es dient der finalen Installed-Windows-Dogfood-Abnahme der aktiven Diagnostics-&-Efficiency-Measurement-Foundation-Arbeit, bevor dieses Work Package geschlossen werden kann.
+
+### Historisches CLI Public Preview
+
+`v0.1.0-rc.4` bleibt ein unveränderliches veröffentlichtes **CLI Public Preview**. Es enthält den agent-nativen First-Run-/MCP-Workflow, Verification Trace, Active-Project-Intelligence-Grundlagen, External-Knowledge-Grundlagen, Autonomy Profiles sowie die Guardian-/Self-Integrity-Enforcement-Logik des qualifizierten RC4-Quellstands.
 
 RC4 wurde aus dem exakten Quellstand `4f547751d9d53e7325e6ea1f2401f1dea45779dc` qualifiziert. Der SHA-256 des installierbaren CLI-Artefakts lautet `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
 
 > [!WARNING]
 > Echtes Windows-Fresh-Install-Dogfooding hat gezeigt, dass die veröffentlichte RC4-Distribution die geschützte Stage-A-Bootstrap-Quelle, die vor Guardian-gestützter First-Project-Lifecycle-Autorisierung erforderlich ist, **nicht** enthält/provisioniert. Eine Installation nur der RC4-`.tgz` liefert deshalb keinen vollständigen sicheren Fresh-Machine -> First-Project-Pfad. Umgehe das nicht, indem du requester-controlled Paketdateien manuell in geschützte Systempfade kopierst. Siehe [Installation & erstes Projekt](docs/de/installation.md).
 
-Die WP-044-Remediation wird für das nächste qualifizierte Release entwickelt, das sie enthält. Repository-Code oder Doku ändern RC4 nicht rückwirkend.
+Spätere Repository-Arbeit verändert RC4 nicht rückwirkend.
 
 ### Historisches RC3 Foundation Preview
 
@@ -244,15 +252,26 @@ Die WP-044-Remediation wird für das nächste qualifizierte Release entwickelt, 
 
 ### Aktueller Repository-`main`
 
-Zum Zeitpunkt der RC4-Veröffentlichung war der kanonische `main` der qualifizierte RC4-Quellstand. Repository-Entwicklung kann nach späteren Merges vorauslaufen; Repository-Existenz allein darf daher nie als Release-Veröffentlichung behandelt werden.
+Der kanonische Produkt-`main` ist zum Zeitpunkt dieser Dokumentationsabstimmung `e121edfe84061208ac5d1e3568a2c0c6c4ec3749`.
+
+Auf diesem Quellstand gilt:
+
+- Desktop-Identität ist `0.1.0-rc.18`;
+- Root-/Core-Paketidentität bleibt bewusst unabhängig versioniert bei `0.1.0-rc.12`;
+- rc.18 wurde weder getaggt noch veröffentlicht oder über den Updater sichtbar gemacht;
+- bloße Repository-Existenz darf niemals als Release-Veröffentlichung behandelt werden.
+
+### Aktive Entwicklung
+
+Das aktive Produkt-Work-Package ist **WP-047 - Diagnostics & Efficiency Measurement Foundation**. Die begrenzte Implementierung ist gemergt; zum Abschluss fehlt weiterhin Installed-Windows-Dogfood-Evidence für reale beobachtete Nutzung, Periodenverhalten, dauerhafte Zähler, wahrheitsgemäße fehlende Werte, Attribution und den Berechnungs-/Erklärungspfad.
+
+Der unmittelbar release-sensitive Pfad bleibt gegated: Die CI-Trigger-Härtung muss über ihre eigene ausdrückliche Autorisierungsgrenze qualifiziert und gemergt werden, bevor ein unveröffentlichtes rc.18-Kandidaten-Build erstellt und verifiziert wird. Veröffentlichung bleibt eine separate ausdrückliche Autorisierung.
 
 ### Künftige qualifizierte Releases
 
-Ein künftiges Release benötigt weiterhin seine eigene Exact-Candidate-CI-/Security-/Self-Integrity-Qualifikation, bei Bedarf reale Fresh-Install-Evidenz, eine Release-Entscheidung und ausdrückliche Publication Authority.
+Ein künftiges Release benötigt weiterhin seine eigene Exact-Candidate-CI-/Security-/Self-Integrity-Qualifikation, bei Bedarf reale Installed-/Fresh-Machine-Evidenz, eine Release-Entscheidung und ausdrückliche Publication Authority.
 
-Der WP-044-Release-Pfad benötigt zusätzlich exakte Release-Assets, Provenance Attestations, Protected-Stage-A-/Stage-B-Qualifikation und einen realen Windows-Clean-State-First-Project-Pfad vor GO.
-
-Keine README-Aussage und kein CI-Ergebnis veröffentlicht automatisch einen Release.
+Keine README-Aussage, kein Merge und kein CI-Ergebnis veröffentlicht automatisch einen Release.
 
 ## Local-first als Standard
 
