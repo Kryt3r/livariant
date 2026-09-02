@@ -32,13 +32,21 @@ impl Drop for ConnectorHostProcess {
 }
 
 impl ConnectorHostProcess {
-    fn request(&mut self, method: &'static str, manual_path: Option<&str>) -> Result<Value, String> {
+    fn request(
+        &mut self,
+        method: &'static str,
+        manual_path: Option<&str>,
+        diagnostics_preset: Option<&str>,
+    ) -> Result<Value, String> {
         let id = self.next_id;
         self.next_id = self.next_id.checked_add(1).ok_or_else(|| "Connector host request id space exhausted.".to_owned())?;
-        let request = match manual_path {
-            Some(path) => json!({ "id": id, "method": method, "manualPath": path }),
-            None => json!({ "id": id, "method": method }),
-        };
+        let mut request = json!({ "id": id, "method": method });
+        if let Some(path) = manual_path {
+            request["manualPath"] = Value::String(path.to_owned());
+        }
+        if let Some(preset) = diagnostics_preset {
+            request["diagnosticsPreset"] = Value::String(preset.to_owned());
+        }
         writeln!(self.stdin, "{request}")
             .map_err(|error| format!("Connector host request could not be written: {error}"))?;
         self.stdin.flush().map_err(|error| format!("Connector host request could not be flushed: {error}"))?;
@@ -116,39 +124,66 @@ fn spawn_host(app: &AppHandle) -> Result<ConnectorHostProcess, String> {
     Ok(ConnectorHostProcess { child, stdin, stdout: BufReader::new(stdout), next_id: 1 })
 }
 
-fn request(app: &AppHandle, state: &ConnectorHostState, method: &'static str, manual_path: Option<&str>) -> Result<Value, String> {
+fn request(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    method: &'static str,
+    manual_path: Option<&str>,
+    diagnostics_preset: Option<&str>,
+) -> Result<Value, String> {
     let mut guard = state.process.lock().map_err(|_| "Connector host state lock is poisoned.".to_owned())?;
     if guard.is_none() {
         *guard = Some(spawn_host(app)?);
     }
-    let result = guard.as_mut().expect("connector host initialized").request(method, manual_path);
+    let result = guard
+        .as_mut()
+        .expect("connector host initialized")
+        .request(method, manual_path, diagnostics_preset);
     if result.is_err() {
         *guard = None;
     }
     result
 }
 
+fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, String> {
+    match preset {
+        None => Ok(None),
+        Some("1d" | "7d" | "30d" | "90d" | "all") => Ok(preset),
+        Some(_) => Err("Diagnostics preset must be one of: 1d, 7d, 30d, 90d, all.".to_owned()),
+    }
+}
+
 #[tauri::command]
 pub fn codex_connector_status(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "inspect", None)
+    request(&app, &state, "inspect", None, None)
 }
 
 #[tauri::command]
 pub fn codex_connector_connect(app: AppHandle, state: State<'_, ConnectorHostState>, manual_path: Option<String>) -> Result<Value, String> {
-    request(&app, &state, "connect", manual_path.as_deref())
+    request(&app, &state, "connect", manual_path.as_deref(), None)
 }
 
 #[tauri::command]
 pub fn codex_connector_disconnect(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "disconnect", None)
+    request(&app, &state, "disconnect", None, None)
 }
 
 #[tauri::command]
-pub fn codex_diagnostics_summary(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "diagnostics", None)
+pub fn codex_diagnostics_summary(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    preset: Option<String>,
+) -> Result<Value, String> {
+    let preset = validate_diagnostics_preset(preset.as_deref())?;
+    request(&app, &state, "diagnostics", None, preset)
 }
 
 #[tauri::command]
-pub fn codex_diagnostics_measure(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "measure", None)
+pub fn codex_diagnostics_measure(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    preset: Option<String>,
+) -> Result<Value, String> {
+    let preset = validate_diagnostics_preset(preset.as_deref())?;
+    request(&app, &state, "measure", None, preset)
 }
