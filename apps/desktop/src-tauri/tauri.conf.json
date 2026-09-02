@@ -43,7 +43,8 @@
         "uninstallerHeaderImage": "windows/branding/installer-header.bmp",
         "sidebarImage": "windows/branding/installer-sidebar.bmp",
         "languages": ["German", "English"],
-        "displayLanguageSelector": false,
+        "displayLanguageSelector": true,
+        "installerHooks": "./windows/language-hooks.nsh",
         "startMenuFolder": "Livariant"
       }
     }
@@ -55,7 +56,7 @@
         "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-feed/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }
