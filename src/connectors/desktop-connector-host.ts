@@ -8,6 +8,7 @@ import {
   type CodexInstallationInspection,
 } from "./codex-runtime.js";
 import { CodexWorkflowClient } from "./codex-workflow.js";
+import { aggregateObservedAttribution } from "../diagnostics/attribution.js";
 import {
   aggregateDiagnosticEvents,
   diagnosticRangeForPreset,
@@ -155,13 +156,15 @@ async function connect(manualPath?: string) {
 async function diagnostics(preset: DiagnosticPreset = "all") {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
-  const aggregate = aggregateDiagnosticEvents(await store.readAll(), range);
+  const events = await store.readAll();
+  const aggregate = aggregateDiagnosticEvents(events, range);
   return {
     preset,
     range: aggregate.range,
     observed: aggregate.observed,
     avoided: aggregate.avoided,
     estimated: aggregate.estimated,
+    attribution: aggregateObservedAttribution(events, range),
     hasObservedData: aggregate.observed.eventCount > 0,
     storage: "local-jsonl",
   };
