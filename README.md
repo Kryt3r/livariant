@@ -263,7 +263,7 @@ On that source state:
 
 ### Current active development
 
-The active product Work Package is **WP-047 — Diagnostics & Efficiency Measurement Foundation**. Its bounded implementation is merged; final completion still requires installed-Windows dogfood evidence for real observed usage, period behavior, durable counters, truthful missing values, attribution, and the calculation/explanation path.
+The active product Work Package is **WP-047 - Diagnostics & Efficiency Measurement Foundation**. Its bounded implementation is merged; final completion still requires installed-Windows dogfood evidence for real observed usage, period behavior, durable counters, truthful missing values, attribution, and the calculation/explanation path.
 
 The immediate release-sensitive path remains gated: CI trigger hardening must qualify and merge through its own explicit authorization boundary before an unpublished rc.18 candidate is built and verified. Publication remains a separate explicit authorization.
 
