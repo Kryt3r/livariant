@@ -187,3 +187,22 @@ pub fn codex_diagnostics_measure(
     let preset = validate_diagnostics_preset(preset.as_deref())?;
     request(&app, &state, "measure", None, preset)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::validate_diagnostics_preset;
+
+    #[test]
+    fn accepts_supported_diagnostics_presets() {
+        for preset in ["1d", "7d", "30d", "90d", "all"] {
+            assert_eq!(validate_diagnostics_preset(Some(preset)).unwrap(), Some(preset));
+        }
+        assert_eq!(validate_diagnostics_preset(None).unwrap(), None);
+    }
+
+    #[test]
+    fn rejects_arbitrary_diagnostics_presets() {
+        let error = validate_diagnostics_preset(Some("custom-script")).unwrap_err();
+        assert!(error.contains("1d, 7d, 30d, 90d, all"));
+    }
+}
