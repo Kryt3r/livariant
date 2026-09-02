@@ -48,6 +48,10 @@ shellGuardStyle.textContent = `
 `;
 document.head.appendChild(shellGuardStyle);
 
+const setTextIfChanged = (node: HTMLElement | null, value: string) => {
+  if (node && node.textContent !== value) node.textContent = value;
+};
+
 const setHealthCard = (
   card: HTMLElement | undefined,
   label: string,
@@ -59,11 +63,11 @@ const setHealthCard = (
   const labelNode = card.querySelector<HTMLElement>("small");
   const valueNode = card.querySelector<HTMLElement>("strong");
   const icon = card.querySelector<HTMLElement>(".health-icon");
-  if (labelNode) labelNode.textContent = label;
-  if (valueNode) valueNode.textContent = value;
-  if (icon) icon.textContent = ready ? "●" : "○";
+  setTextIfChanged(labelNode, label);
+  setTextIfChanged(valueNode, value);
+  setTextIfChanged(icon, ready ? "●" : "○");
   card.classList.toggle("muted", !ready);
-  card.title = detail;
+  if (card.title !== detail) card.title = detail;
 };
 
 const foundationHealthCards = (): HTMLElement[] | null => {
@@ -76,46 +80,90 @@ const foundationHealthCards = (): HTMLElement[] | null => {
   return null;
 };
 
-const applyRuntimeHealth = () => {
-  const cards = foundationHealthCards();
-  if (!cards) return;
+const setUpdateVersionBadge = (id: "desktop" | "core" | "runtime", value: string, ready: boolean, detail: string) => {
+  const badge = document.querySelector<HTMLElement>(`[data-update-version="${id}"]`);
+  if (!badge) return;
+  const valueNode = badge.querySelector<HTMLElement>("strong");
+  setTextIfChanged(valueNode, value);
+  badge.classList.toggle("muted", !ready);
+  if (badge.title !== detail) badge.title = detail;
+};
 
-  setHealthCard(
-    cards[0],
-    "Desktop",
-    cachedDesktopVersion ? formatDesktopVersion(cachedDesktopVersion) : "Version unavailable",
+const applyUpdateVersions = () => {
+  setUpdateVersionBadge(
+    "desktop",
+    cachedDesktopVersion ? formatDesktopVersion(cachedDesktopVersion) : "Unavailable",
     cachedDesktopVersion !== null,
     desktopDetail,
   );
 
   if (!cachedHealth) {
-    setHealthCard(cards[1], "Core", "Checking…", false, "Bundled Core health is loading.");
-    setHealthCard(cards[2], "Runtime", "Checking…", false, "Bundled runtime health is loading.");
+    setUpdateVersionBadge("core", "Checking…", false, "Bundled Core health is loading.");
+    setUpdateVersionBadge("runtime", "Checking…", false, "Bundled runtime health is loading.");
     return;
   }
 
   const runtimeReady = cachedHealth.state === "ready";
-  setHealthCard(
-    cards[1],
-    "Core",
-    cachedHealth.coreVersion ?? (runtimeReady ? "Unknown" : "Needs attention"),
+  setUpdateVersionBadge(
+    "core",
+    cachedHealth.coreVersion ?? (runtimeReady ? "Unknown" : "Unavailable"),
     runtimeReady && cachedHealth.coreVersion !== null,
     cachedHealth.detail,
   );
-  setHealthCard(
-    cards[2],
-    "Runtime",
-    cachedHealth.nodeVersion ? `Node ${cachedHealth.nodeVersion}` : runtimeReady ? "Node unknown" : "Needs attention",
+  setUpdateVersionBadge(
+    "runtime",
+    cachedHealth.nodeVersion ? `Node ${cachedHealth.nodeVersion}` : runtimeReady ? "Node unknown" : "Unavailable",
     runtimeReady && cachedHealth.nodeVersion !== null,
     cachedHealth.detail,
   );
 };
 
+const applyRuntimeHealth = () => {
+  const cards = foundationHealthCards();
+  if (cards) {
+    setHealthCard(
+      cards[0],
+      "Desktop",
+      cachedDesktopVersion ? formatDesktopVersion(cachedDesktopVersion) : "Version unavailable",
+      cachedDesktopVersion !== null,
+      desktopDetail,
+    );
+
+    if (!cachedHealth) {
+      setHealthCard(cards[1], "Core", "Checking…", false, "Bundled Core health is loading.");
+      setHealthCard(cards[2], "Runtime", "Checking…", false, "Bundled runtime health is loading.");
+    } else {
+      const runtimeReady = cachedHealth.state === "ready";
+      setHealthCard(
+        cards[1],
+        "Core",
+        cachedHealth.coreVersion ?? (runtimeReady ? "Unknown" : "Needs attention"),
+        runtimeReady && cachedHealth.coreVersion !== null,
+        cachedHealth.detail,
+      );
+      setHealthCard(
+        cards[2],
+        "Runtime",
+        cachedHealth.nodeVersion ? `Node ${cachedHealth.nodeVersion}` : runtimeReady ? "Node unknown" : "Needs attention",
+        runtimeReady && cachedHealth.nodeVersion !== null,
+        cachedHealth.detail,
+      );
+    }
+  }
+
+  applyUpdateVersions();
+};
+
 // Current Desktop Foundation rerenders only in response to user clicks. Reapply
-// the cached read-only identity once after those event handlers finish. The
-// foundation strip is detected by its own labels so connector/diagnostics cards
-// remain owned by their respective views.
+// the cached read-only identity once after those event handlers finish. This also
+// populates the compact version badges when the Updates view is created.
 document.addEventListener("click", () => queueMicrotask(applyRuntimeHealth));
+
+// Observe view creation so freshly rendered version badges receive cached values.
+// All writes above are idempotent: unchanged text is never rewritten, preventing
+// this observer from feeding its own child-list mutations back into an endless loop.
+const runtimeObserver = new MutationObserver(() => queueMicrotask(applyRuntimeHealth));
+runtimeObserver.observe(document.documentElement, { childList: true, subtree: true });
 
 void getVersion()
   .then((version) => {

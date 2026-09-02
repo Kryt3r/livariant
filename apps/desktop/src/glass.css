@@ -354,3 +354,137 @@ h1 {
     0 0 10px rgba(146, 92, 255, 0.075),
     0 0 18px rgba(210, 71, 255, 0.018);
 }
+
+/* WP-051 global depth + Livariant identity pass */
+:root {
+  --depth-bg: #040b16;
+  --depth-panel: rgba(10, 23, 43, .88);
+  --depth-card: rgba(13, 29, 53, .90);
+  --depth-inset: rgba(3, 12, 25, .86);
+  --depth-line: rgba(151, 178, 231, .24);
+  --depth-line-strong: rgba(170, 146, 255, .42);
+  --liv-violet: #8f62ff;
+  --liv-magenta: #d24cff;
+  --liv-pink: #f064d8;
+  --liv-glow: rgba(151, 91, 255, .18);
+}
+
+.desktop-frame {
+  background:
+    radial-gradient(circle at 82% 7%, rgba(143, 98, 255, .13), transparent 29%),
+    radial-gradient(circle at 96% 76%, rgba(210, 76, 255, .075), transparent 25%),
+    linear-gradient(135deg, #030a14 0%, #050d1b 54%, #090a20 100%);
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 76% 0%, rgba(143, 98, 255, .09), transparent 30%),
+    radial-gradient(circle at 98% 84%, rgba(210, 76, 255, .055), transparent 28%),
+    rgba(3, 10, 20, .58);
+}
+
+.sidebar {
+  border-right-color: rgba(158, 145, 230, .20);
+  background:
+    radial-gradient(circle at 104% 84%, rgba(210, 76, 255, .09), transparent 34%),
+    radial-gradient(circle at 96% 48%, rgba(143, 98, 255, .08), transparent 31%),
+    linear-gradient(180deg, rgba(7, 18, 35, .95), rgba(4, 13, 28, .94));
+  box-shadow:
+    inset -1px 0 0 rgba(228, 214, 255, .035),
+    12px 0 34px rgba(0, 0, 0, .16);
+}
+
+.nav-item.active {
+  border-color: rgba(164, 120, 255, .44);
+  background:
+    linear-gradient(90deg, rgba(111, 81, 255, .19), rgba(210, 76, 255, .105)),
+    rgba(12, 24, 47, .76);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 232, 255, .10),
+    inset 3px 0 0 rgba(165, 106, 255, .68),
+    0 8px 24px rgba(0, 0, 0, .20),
+    0 0 24px rgba(150, 89, 255, .14);
+}
+
+.nav-item.active svg,
+.eyebrow {
+  color: #bd9bff;
+}
+
+.button.primary {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.025)),
+    linear-gradient(118deg, #5c72ff 0%, var(--liv-violet) 56%, var(--liv-magenta) 100%);
+  border-color: rgba(221, 177, 255, .48);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 246, 255, .26),
+    0 9px 24px rgba(58, 45, 160, .26),
+    0 0 22px rgba(143, 98, 255, .20),
+    0 0 34px rgba(210, 76, 255, .075);
+}
+
+.button.primary:hover {
+  filter: brightness(1.06) saturate(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 249, 255, .30),
+    0 10px 28px rgba(58, 45, 160, .29),
+    0 0 28px rgba(143, 98, 255, .25),
+    0 0 40px rgba(210, 76, 255, .10);
+}
+
+.desktop-frame .progress-panel,
+.desktop-frame .step-card,
+.desktop-frame .project-chip,
+.desktop-frame .settings-card {
+  border-color: var(--depth-line);
+  background:
+    radial-gradient(circle at 92% 20%, rgba(143, 98, 255, .12), transparent 30%),
+    radial-gradient(circle at 99% 92%, rgba(210, 76, 255, .055), transparent 26%),
+    linear-gradient(180deg, rgba(31, 49, 81, .24), rgba(9, 22, 43, .14)),
+    var(--depth-panel);
+  box-shadow:
+    inset 0 1px 0 rgba(234, 239, 255, .11),
+    inset 0 -1px 0 rgba(95, 117, 164, .055),
+    0 12px 30px rgba(0, 0, 0, .28),
+    0 0 28px rgba(143, 98, 255, .055);
+}
+
+.desktop-frame .step-card {
+  background:
+    linear-gradient(100deg, rgba(83, 107, 166, .09), transparent 38%),
+    radial-gradient(circle at 96% 50%, rgba(143, 98, 255, .13), transparent 27%),
+    var(--depth-card);
+}
+
+.desktop-frame .progress-panel {
+  border-color: rgba(165, 137, 255, .34);
+  background:
+    linear-gradient(102deg, rgba(73, 98, 160, .13), transparent 46%),
+    radial-gradient(circle at 92% 48%, rgba(143, 98, 255, .22), transparent 31%),
+    radial-gradient(circle at 99% 70%, rgba(210, 76, 255, .10), transparent 28%),
+    rgba(13, 28, 54, .92);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 235, 255, .14),
+    0 14px 34px rgba(0, 0, 0, .30),
+    0 0 34px rgba(143, 98, 255, .10);
+}
+
+.desktop-frame .button.secondary {
+  border-color: rgba(145, 166, 213, .23);
+  background: rgba(6, 17, 34, .82);
+  box-shadow: inset 0 1px 0 rgba(229, 236, 255, .045), 0 7px 18px rgba(0,0,0,.15);
+}
+
+.desktop-frame .project-chip {
+  border-color: rgba(164, 137, 255, .31);
+  background:
+    radial-gradient(circle at 88% 50%, rgba(143, 98, 255, .17), transparent 38%),
+    rgba(14, 28, 54, .90);
+}
+
+.desktop-frame .project-icon,
+.desktop-frame .step-number {
+  border-color: rgba(172, 131, 255, .38);
+  background: linear-gradient(145deg, rgba(95, 94, 255, .18), rgba(210, 76, 255, .095));
+  box-shadow: inset 0 1px 0 rgba(240,230,255,.08), 0 0 18px rgba(143,98,255,.12);
+}

@@ -1,0 +1,184 @@
+/* Readability pass: keep the accepted compact visual system, but avoid microcopy below a comfortable desktop size. */
+
+.brand small {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.sidebar-footer strong {
+  font-size: 12px;
+}
+
+.sidebar-footer small {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.truth-note p {
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+/* Project Truth filter geometry must not change when the active state changes. */
+.truth-filters {
+  display: grid;
+  grid-template-columns: 48px 96px 108px 76px;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.truth-filter,
+.truth-filter:hover,
+.truth-filter.active {
+  width: 100%;
+  min-width: 0;
+  height: 31px;
+  padding: 0 8px;
+  border-width: 1px;
+  font-weight: 640;
+  white-space: nowrap;
+}
+
+/* Diagnostics */
+.diagnostics-range-copy small {
+  font-size: 10px;
+}
+
+.diagnostics-range-copy strong {
+  font-size: 13px;
+}
+
+.diagnostics-range-option {
+  font-size: 10px;
+}
+
+.diagnostics-class-label {
+  font-size: 10px;
+}
+
+.diagnostics-class-state {
+  font-size: 9px;
+}
+
+.diagnostics-class-card h3 {
+  font-size: 14px;
+}
+
+.diagnostics-class-card p {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.diagnostics-section-head p {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.content[data-diagnostics-redesigned="true"] .health-card small {
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.diagnostics-measure-compact p {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.diagnostics-details summary strong {
+  font-size: 13px;
+}
+
+.diagnostics-details summary small {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.diagnostics-context-card small {
+  font-size: 9px;
+}
+
+.diagnostics-context-card strong {
+  font-size: 13px;
+}
+
+.diagnostics-context-card span {
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.diagnostics-definition {
+  grid-template-columns: 128px 1fr;
+  gap: 16px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+.diagnostics-definition strong {
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.diagnostics-definition span {
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+/* Updates uses the same readable microcopy floor. */
+.updates-status-card p {
+  font-size: 12px;
+}
+
+.updates-version-badge small {
+  font-size: 9.5px;
+}
+
+.updates-version-badge strong {
+  font-size: 11.5px;
+}
+
+.update-phase-state {
+  font-size: 9px;
+}
+
+.update-phase h3 {
+  font-size: 14px;
+}
+
+.update-phase p {
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.updates-details summary strong {
+  font-size: 12.5px;
+}
+
+.updates-details summary small {
+  font-size: 10.5px;
+}
+
+.updates-boundary-card small {
+  font-size: 9.5px;
+}
+
+.updates-boundary-card strong {
+  font-size: 12px;
+}
+
+.updates-boundary-card span {
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .truth-filters {
+    grid-template-columns: 96px 108px;
+  }
+}
+
+@media (max-width: 680px) {
+  .diagnostics-definition {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}

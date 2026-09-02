@@ -1,3 +1,5 @@
+import "./ui-polish.ts";
+
 const findStepCard = (target: EventTarget | null) =>
   target instanceof Element ? target.closest<HTMLElement>(".step-card") : null;
 

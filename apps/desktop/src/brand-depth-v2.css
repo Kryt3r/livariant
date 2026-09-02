@@ -1,0 +1,306 @@
+:root {
+  --livariant-violet: #9b5cff;
+  --livariant-violet-bright: #b48cff;
+  --livariant-magenta: #ff00ff;
+  --livariant-pink: #ef3bdf;
+  --livariant-cyan: #32e7ef;
+  --depth-page: rgba(3, 10, 22, .72);
+  --depth-panel: rgba(9, 23, 43, .78);
+  --depth-card: rgba(12, 28, 51, .88);
+  --depth-inset: rgba(3, 12, 25, .82);
+  --depth-line: rgba(164, 187, 234, .22);
+  --depth-line-strong: rgba(183, 157, 255, .35);
+  --depth-shadow: 0 18px 42px rgba(0, 0, 0, .30), 0 0 24px rgba(119, 82, 255, .055);
+  --brand-glow: 0 0 18px rgba(155, 92, 255, .13), 0 0 30px rgba(255, 0, 255, .045);
+}
+
+/* Logo identity: high-saturation color on small surfaces rather than washing the whole UI. */
+.eyebrow,
+.truth-conversation-prompt small,
+.truth-review-section .eyebrow,
+.connections-settings > .eyebrow,
+.settings-panel > .eyebrow {
+  color: var(--livariant-violet-bright);
+}
+
+.button.primary {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.015)),
+    linear-gradient(128deg, #4d7fff 0%, #685dff 45%, #9b4cff 76%, #d92ee7 100%);
+  border-color: rgba(212, 161, 255, .38);
+  box-shadow:
+    0 8px 24px rgba(75, 87, 242, .24),
+    0 0 18px rgba(155, 92, 255, .18),
+    0 0 28px rgba(255, 0, 255, .07),
+    inset 0 1px 0 rgba(255,255,255,.18);
+}
+
+.button.primary:hover {
+  filter: brightness(1.08) saturate(1.08);
+  box-shadow:
+    0 10px 28px rgba(75, 87, 242, .27),
+    0 0 22px rgba(155, 92, 255, .23),
+    0 0 34px rgba(255, 0, 255, .09),
+    inset 0 1px 0 rgba(255,255,255,.20);
+}
+
+.nav-item.active,
+.settings-nav-item.active {
+  border-color: rgba(183, 145, 255, .38);
+  background:
+    radial-gradient(circle at 90% 60%, rgba(255, 0, 255, .095), transparent 39%),
+    linear-gradient(90deg, rgba(102, 80, 255, .19), rgba(222, 48, 226, .09));
+  box-shadow:
+    inset 0 1px 0 rgba(241, 232, 255, .09),
+    0 0 20px rgba(147, 82, 255, .11),
+    0 0 30px rgba(255, 0, 255, .035);
+}
+
+.nav-item.active svg,
+.settings-nav-item.active svg {
+  color: #c191ff;
+  filter: drop-shadow(0 0 7px rgba(255, 0, 255, .18));
+}
+
+/* Settings gets the same depth system as the main workspaces. */
+.settings-modal {
+  position: relative;
+  border-color: rgba(187, 153, 255, .30);
+  background:
+    radial-gradient(circle at 96% 92%, rgba(255, 0, 255, .07), transparent 27%),
+    radial-gradient(circle at 79% 5%, rgba(139, 82, 255, .13), transparent 34%),
+    linear-gradient(180deg, rgba(17, 31, 54, .96), rgba(6, 16, 31, .98));
+  box-shadow:
+    0 34px 100px rgba(0,0,0,.60),
+    0 0 34px rgba(145, 84, 255, .12),
+    0 0 50px rgba(255, 0, 255, .04),
+    inset 0 1px 0 rgba(242, 235, 255, .09);
+}
+
+.settings-modal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 1px 0 0 rgba(94, 211, 255, .045),
+    inset 0 -1px 0 rgba(255, 0, 255, .09);
+}
+
+.settings-nav {
+  border-right-color: rgba(161, 181, 226, .16);
+  background:
+    radial-gradient(circle at 6% 94%, rgba(255, 0, 255, .045), transparent 32%),
+    radial-gradient(circle at 92% 18%, rgba(122, 86, 255, .10), transparent 34%),
+    rgba(4, 14, 28, .82);
+  box-shadow: inset -1px 0 0 rgba(222, 211, 255, .025);
+}
+
+.settings-content {
+  background:
+    radial-gradient(circle at 96% 6%, rgba(153, 92, 255, .055), transparent 28%),
+    rgba(5, 16, 31, .40);
+}
+
+.settings-card,
+.connection-summary-row,
+.provider-card,
+.connections-overview {
+  border-color: var(--depth-line);
+  background:
+    radial-gradient(circle at 94% 88%, rgba(255, 0, 255, .055), transparent 30%),
+    radial-gradient(circle at 82% 8%, rgba(145, 84, 255, .10), transparent 35%),
+    linear-gradient(180deg, rgba(210, 223, 255, .05), rgba(111, 154, 232, .012)),
+    var(--depth-card);
+  box-shadow:
+    inset 0 1px 0 rgba(235, 240, 255, .075),
+    0 14px 32px rgba(0,0,0,.20),
+    0 0 20px rgba(136, 82, 255, .055);
+}
+
+.provider-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.provider-card::after {
+  content: "";
+  position: absolute;
+  left: 13%;
+  right: 13%;
+  bottom: -1px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(155, 92, 255, .40), rgba(255, 0, 255, .35), transparent);
+  opacity: .55;
+}
+
+.provider-card:hover {
+  border-color: rgba(194, 153, 255, .38);
+  background:
+    radial-gradient(circle at 93% 84%, rgba(255, 0, 255, .085), transparent 31%),
+    radial-gradient(circle at 82% 10%, rgba(146, 92, 255, .14), transparent 36%),
+    linear-gradient(180deg, rgba(217, 228, 255, .065), rgba(111, 154, 232, .015)),
+    rgba(14, 31, 56, .94);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 238, 255, .10),
+    0 16px 35px rgba(0,0,0,.24),
+    0 0 24px rgba(147, 82, 255, .12),
+    0 0 32px rgba(255, 0, 255, .035);
+}
+
+.provider-glyph,
+.connections-overview {
+  border-color: rgba(190, 148, 255, .34);
+  box-shadow:
+    inset 0 1px 0 rgba(245,236,255,.09),
+    0 0 16px rgba(145, 84, 255, .12),
+    0 0 24px rgba(255, 0, 255, .035);
+}
+
+/* Project Truth: stronger nesting so content no longer visually melts together. */
+.truth-main-card,
+.truth-summary-card,
+.truth-area-card,
+.truth-source-modal,
+.truth-review-modal {
+  border-color: var(--depth-line);
+  box-shadow:
+    inset 0 1px 0 rgba(235, 240, 255, .07),
+    var(--depth-shadow);
+}
+
+.truth-main-card {
+  background:
+    radial-gradient(circle at 96% 4%, rgba(155, 92, 255, .065), transparent 31%),
+    linear-gradient(180deg, rgba(17, 33, 56, .82), rgba(7, 20, 39, .88));
+}
+
+.truth-summary-card {
+  background:
+    radial-gradient(circle at 92% 88%, rgba(255, 0, 255, .04), transparent 30%),
+    radial-gradient(circle at 82% 10%, rgba(149, 87, 255, .09), transparent 34%),
+    var(--depth-card);
+}
+
+.truth-area-card {
+  position: relative;
+  border-color: rgba(166, 187, 230, .23);
+  background:
+    radial-gradient(circle at 96% 4%, rgba(150, 87, 255, .07), transparent 30%),
+    rgba(8, 21, 40, .93);
+  box-shadow:
+    inset 0 1px 0 rgba(235,239,255,.065),
+    0 14px 32px rgba(0,0,0,.22);
+}
+
+.truth-area-card::after {
+  content: "";
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  top: -1px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(135, 95, 255, .34), rgba(255, 0, 255, .22), transparent);
+  opacity: .55;
+}
+
+.truth-area-current,
+.truth-conversation,
+.truth-composer-input,
+.truth-review-source-text,
+.truth-review-proposal,
+.truth-source-raw,
+.truth-source-rendered {
+  border-color: rgba(145, 171, 221, .18);
+  background: var(--depth-inset);
+  box-shadow:
+    inset 0 2px 8px rgba(0,0,0,.18),
+    inset 0 1px 0 rgba(214,226,255,.025);
+}
+
+.truth-conversation-prompt {
+  background:
+    linear-gradient(90deg, rgba(126, 78, 255, .11), rgba(255, 0, 255, .025) 54%, transparent),
+    rgba(10, 24, 44, .82);
+}
+
+.truth-composer-input:focus,
+.truth-review-proposal:focus {
+  border-color: rgba(190, 127, 255, .58);
+  box-shadow:
+    0 0 0 3px rgba(151, 86, 255, .11),
+    0 0 20px rgba(255, 0, 255, .055),
+    inset 0 2px 8px rgba(0,0,0,.18);
+}
+
+.truth-review-modal {
+  background:
+    radial-gradient(circle at 98% 4%, rgba(155, 92, 255, .12), transparent 29%),
+    radial-gradient(circle at 7% 97%, rgba(255, 0, 255, .045), transparent 30%),
+    rgba(6, 17, 32, .985);
+}
+
+.truth-source-livariant {
+  border-left-color: rgba(169, 98, 255, .72);
+  box-shadow:
+    inset 3px 0 0 rgba(155, 92, 255, .13),
+    0 0 18px rgba(255, 0, 255, .025);
+}
+
+/* Accordion affordance. The behavioral module preserves this preference locally. */
+.truth-area-accordion-toggle {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(174, 149, 236, .20);
+  border-radius: 9px;
+  color: #bba9e9;
+  background: rgba(7, 18, 35, .62);
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.truth-area-accordion-toggle:hover {
+  color: #f2ddff;
+  border-color: rgba(205, 139, 255, .42);
+  background: linear-gradient(145deg, rgba(118, 82, 255, .14), rgba(255, 0, 255, .06));
+  box-shadow: var(--brand-glow);
+}
+
+.truth-area-accordion-toggle svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform .18s ease;
+}
+
+.truth-area-card.is-collapsed > :not(.truth-area-head) {
+  display: none !important;
+}
+
+.truth-area-card.is-collapsed .truth-area-identity p {
+  display: none;
+}
+
+.truth-area-card.is-collapsed .truth-area-head {
+  border-bottom-color: transparent;
+}
+
+.truth-area-card.is-collapsed .truth-area-accordion-toggle svg {
+  transform: rotate(-90deg);
+}
+
+.truth-area-card:not(.is-collapsed) .truth-area-accordion-toggle {
+  border-color: rgba(188, 142, 255, .32);
+  color: #d2b8ff;
+  background: linear-gradient(145deg, rgba(107, 83, 255, .11), rgba(255, 0, 255, .035));
+}
