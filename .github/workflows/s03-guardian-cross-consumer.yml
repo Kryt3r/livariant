@@ -98,7 +98,7 @@ jobs:
 
           $system = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
           $admins = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
-          $users = New-Object System.Security.SecurityIdentifier('S-1-5-32-545')
+          $users = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-545')
           $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
           $none = [System.Security.AccessControl.PropagationFlags]::None
           $allow = [System.Security.AccessControl.AccessControlType]::Allow
