@@ -15,7 +15,11 @@ type ConnectorStatus = {
   configuredCommand?: string | null;
 };
 
+type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
+
 type DiagnosticsSummary = {
+  preset: DiagnosticPreset;
+  range: { start?: string; end?: string };
   hasObservedData: boolean;
   storage: string;
   observed: {
@@ -44,11 +48,13 @@ let connectorAction: ConnectorAction = null;
 let diagnosticsBusy: "measure" | "diagnostics" | null = null;
 let error: string | null = null;
 let selectedProvider: ProviderId | null = null;
+let selectedDiagnosticsPreset: DiagnosticPreset = "30d";
 
 const esc = (value: string) => value.replace(/[&<>'\"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;" })[character] ?? character);
 const formatNumber = (value: number) => new Intl.NumberFormat().format(value);
 const measured = (value: number) => diagnostics?.hasObservedData ? formatNumber(value) : "—";
 const connectorMutating = () => connectorAction !== null;
+const presetLabel = (preset: DiagnosticPreset) => ({ "1d": "1 day", "7d": "7 days", "30d": "30 days", "90d": "90 days", all: "All time" })[preset];
 
 const providerGlyph = (provider: ProviderId) => {
   if (provider === "codex") return '<span class="provider-glyph provider-glyph-codex">C</span>';
@@ -77,7 +83,7 @@ export async function refreshConnector(): Promise<void> {
 export async function refreshDiagnostics(): Promise<void> {
   diagnosticsBusy = "diagnostics";
   error = null;
-  try { diagnostics = await invoke<DiagnosticsSummary>("codex_diagnostics_summary"); }
+  try { diagnostics = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: selectedDiagnosticsPreset }); }
   catch (cause) { error = String(cause); }
   finally { diagnosticsBusy = null; }
 }
@@ -195,7 +201,7 @@ export function renderDiagnosticsView(): string {
   const observed = diagnostics?.observed;
   const connected = connector?.connected === true;
   return `
-    <header class="topbar"><div><span class="eyebrow">Measured evidence</span><h1>Diagnostics</h1><p>These counters contain only provider/runtime-owned observations. Unknown is never replaced by synthetic zero.</p></div><button class="button secondary diagnostics-refresh" type="button" ${diagnosticsBusy ? "disabled" : ""}>${diagnosticsBusy === "diagnostics" ? "Refreshing…" : "Refresh"}</button></header>
+    <header class="topbar"><div><span class="eyebrow">Measured evidence</span><h1>Diagnostics</h1><p>These counters contain only provider/runtime-owned observations. Unknown is never replaced by synthetic zero.</p></div><div class="topbar-actions"><label><span class="sr-only">Diagnostics period</span><select class="diagnostics-period" ${diagnosticsBusy ? "disabled" : ""}><option value="1d" ${selectedDiagnosticsPreset === "1d" ? "selected" : ""}>1 day</option><option value="7d" ${selectedDiagnosticsPreset === "7d" ? "selected" : ""}>7 days</option><option value="30d" ${selectedDiagnosticsPreset === "30d" ? "selected" : ""}>30 days</option><option value="90d" ${selectedDiagnosticsPreset === "90d" ? "selected" : ""}>90 days</option><option value="all" ${selectedDiagnosticsPreset === "all" ? "selected" : ""}>All time</option></select></label><button class="button secondary diagnostics-refresh" type="button" ${diagnosticsBusy ? "disabled" : ""}>${diagnosticsBusy === "diagnostics" ? "Refreshing…" : "Refresh"}</button></div></header>
     <section class="health-strip">
       <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Total tokens</small><strong>${measured(observed?.totalTokens ?? 0)}</strong></div></div>
       <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Input</small><strong>${measured(observed?.inputTokens ?? 0)}</strong></div></div>
@@ -203,9 +209,9 @@ export function renderDiagnosticsView(): string {
       <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Cached input</small><strong>${measured(observed?.cacheReadTokens ?? 0)}</strong></div></div>
       <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Reasoning</small><strong>${measured(observed?.reasoningTokens ?? 0)}</strong></div></div>
     </section>
-    <section class="progress-panel"><div><span class="eyebrow">Observed</span><h2>${observed?.eventCount ?? 0} measured events</h2><p>${esc(error ?? (diagnostics?.hasObservedData ? "Stored locally from Codex App Server runtime evidence." : "No measured usage exists yet. Connect Codex and run the measurement test to create the first observation."))}</p></div><span class="state-pill">${diagnostics?.hasObservedData ? "Measured" : "Unknown"}</span></section>
+    <section class="progress-panel"><div><span class="eyebrow">Observed · ${presetLabel(selectedDiagnosticsPreset)}</span><h2>${observed?.eventCount ?? 0} measured events</h2><p>${esc(error ?? (diagnostics?.hasObservedData ? "Stored locally from Codex App Server runtime evidence." : `No measured usage exists for ${presetLabel(selectedDiagnosticsPreset).toLowerCase()}. Connect Codex and run the measurement test to create the first observation.`))}</p></div><span class="state-pill">${diagnostics?.hasObservedData ? "Measured" : "Unknown"}</span></section>
     <section class="diagnostics-action-card"><div><span class="eyebrow">Connection diagnostics</span><h3>Measure a real Codex turn</h3><p>Run one fixed harmless turn and record provider/runtime-owned token evidence. The test prompt is fixed in Core and cannot be supplied by the renderer.</p></div><button class="button primary diagnostics-measure" type="button" ${diagnosticsBusy || !connected ? "disabled" : ""}>${diagnosticsBusy === "measure" ? "Measuring…" : "Run measurement test"}</button></section>
-    <footer class="truth-note"><span class="truth-icon">i</span><p><strong>Measurement boundary:</strong> Observed ≠ Avoided ≠ Estimated. This page currently shows Observed Codex usage only; it does not claim counterfactual savings.</p></footer>`;
+    <footer class="truth-note"><span class="truth-icon">i</span><p><strong>Measurement boundary:</strong> Observed ≠ Avoided ≠ Estimated. This page currently shows Observed Codex usage only for the selected period; it does not claim counterfactual savings.</p></footer>`;
 }
 
 const rerenderConnectionsSurface = (fallback: () => void) => {
@@ -292,13 +298,21 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     }
   });
 
+  document.querySelector<HTMLSelectElement>(".diagnostics-period")?.addEventListener("change", async (event) => {
+    const next = (event.currentTarget as HTMLSelectElement).value;
+    if (next !== "1d" && next !== "7d" && next !== "30d" && next !== "90d" && next !== "all") return;
+    selectedDiagnosticsPreset = next;
+    await refreshDiagnostics();
+    rerender();
+  });
+
   document.querySelector<HTMLButtonElement>(".diagnostics-refresh")?.addEventListener("click", async () => { await refreshDiagnostics(); rerender(); });
   document.querySelector<HTMLButtonElement>(".diagnostics-measure")?.addEventListener("click", async () => {
     diagnosticsBusy = "measure";
     error = null;
     rerender();
     try {
-      const result = await invoke<MeasureResult>("codex_diagnostics_measure");
+      const result = await invoke<MeasureResult>("codex_diagnostics_measure", { preset: selectedDiagnosticsPreset });
       connector = result.connection;
       diagnostics = result.diagnostics;
     } catch (cause) { error = String(cause); }
