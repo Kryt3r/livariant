@@ -1,11 +1,11 @@
 {
-  "version": "0.1.0-rc.16",
-  "notes": "Livariant Desktop preview update from exact source a477c213517f7df41df2182201c97abb27090c23.",
-  "pub_date": "2026-08-30T20:31:23Z",
+  "version": "0.1.0-rc.17",
+  "notes": "Livariant Desktop preview update from exact source 6214bfe2318dc5c0dc4ae0b949146451ad4d20f6.",
+  "pub_date": "2026-09-02T18:34:15Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSNlo4emxXN3NsQVpnNHhrYXo4SUJUYlhNRFlmQjViVFVPWWpuTTlGTDl6Y2FoSlVFOFBaMzd4UDlNR2tRWndMMU1IZmkzeUVLYnUwWWhGK244d3gzS2R4U0JaZnZZYmdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MTIxODgyCWZpbGU6TGl2YXJpYW50XzAuMS4wLXJjLjE2X3g2NC1zZXR1cC5leGUKa2dmMGVBUCsrblhLRm91am55aFNXRmpuNHVDajQ1ZzNNNDZTMjNXaHBlNFdPcU0wV296ZC8rYXUvRkRlWXoyZGR6akg3emtMWnp6WFpVODk4VDZ3Qmc9PQo=",
-      "url": "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-0.1.0-rc.16-a477c213517f/Livariant_0.1.0-rc.16_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSNlo4emxXN3NsQVN6Nll5K0x5LzM4SkdWa2FZVFFrbW1BL0RrVjQ0aDMrZ0NsOHpxSGN5bG90bDdBWjlueldZbDRCdnhDRjdtNVIvSkpNVTlOK1VWVXlWNVZWZ3daQWdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4Mzc0MDU0CWZpbGU6TGl2YXJpYW50XzAuMS4wLXJjLjE3X3g2NC1zZXR1cC5leGUKdlVXeDFTK3RxdUJjNkM2NzVNZlpCUmFHYXhhdjM3WjlkZ2U1alB4ZkZTRERUNDYxOTBaeEp3Z29YOWFsRUNLZXBOUTFYMjk2K216VVA1ODdncnVaRFE9PQo=",
+      "url": "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-0.1.0-rc.17-6214bfe2318d/Livariant_0.1.0-rc.17_x64-setup.exe"
     }
   }
 }
