@@ -263,7 +263,7 @@ Auf diesem Quellstand gilt:
 
 ### Aktive Entwicklung
 
-Das aktive Produkt-Work-Package ist **WP-047 — Diagnostics & Efficiency Measurement Foundation**. Die begrenzte Implementierung ist gemergt; zum Abschluss fehlt weiterhin Installed-Windows-Dogfood-Evidence für reale beobachtete Nutzung, Periodenverhalten, dauerhafte Zähler, wahrheitsgemäße fehlende Werte, Attribution und den Berechnungs-/Erklärungspfad.
+Das aktive Produkt-Work-Package ist **WP-047 - Diagnostics & Efficiency Measurement Foundation**. Die begrenzte Implementierung ist gemergt; zum Abschluss fehlt weiterhin Installed-Windows-Dogfood-Evidence für reale beobachtete Nutzung, Periodenverhalten, dauerhafte Zähler, wahrheitsgemäße fehlende Werte, Attribution und den Berechnungs-/Erklärungspfad.
 
 Der unmittelbar release-sensitive Pfad bleibt gegated: Die CI-Trigger-Härtung muss über ihre eigene ausdrückliche Autorisierungsgrenze qualifiziert und gemergt werden, bevor ein unveröffentlichtes rc.18-Kandidaten-Build erstellt und verifiziert wird. Veröffentlichung bleibt eine separate ausdrückliche Autorisierung.
 
