@@ -1,11 +1,11 @@
 {
-  "version": "0.1.0-rc.20",
-  "notes": "Livariant Desktop preview update from exact source 2726b0c6cf0ce81dbbcfebcb782286e559c02089.",
-  "pub_date": "2026-09-03T18:36:05Z",
+  "version": "0.1.0-rc.21",
+  "notes": "{\"schemaVersion\":1,\"de\":{\"title\":\"Desktop Preview 21\",\"items\":[\"Der Update-Prozess zeigt jetzt einen kurzen, animierten Ablauf statt eines abrupten Wechsels zwischen Prüfen, Installieren und Neustart.\",\"Echter Download-Fortschritt wird angezeigt, wenn der Updater eine verlässliche Gesamtgröße liefert; unbekannter Fortschritt wird nicht erfunden.\",\"Patch Notes werden direkt im Update-Bereich angezeigt und wechseln zusammen mit der App-Sprache zwischen Deutsch und Englisch.\",\"Download, Verifikation, Installation und Neustart bleiben als getrennte, nachvollziehbare Zustände sichtbar, ohne zusätzliche Update-Autorität zu vergeben.\"]},\"en\":{\"title\":\"Desktop Preview 21\",\"items\":[\"The update process now uses a short animated flow instead of jumping abruptly between checking, installation and restart.\",\"Real download progress is shown when the updater exposes a trustworthy total size; unknown progress is never fabricated.\",\"Patch notes are shown directly in the Updates area and switch between German and English with the app language.\",\"Download, verification, installation and restart remain separate, traceable states without granting additional update authority.\"]}}",
+  "pub_date": "2026-09-03T20:28:42Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSNlo4emxXN3NsQVNCWWRzeHlqZE9hbGxkR0VhUFIrTUFCTDcyVlozVkRSVE9DQ1RsNDdLZEc4cEJFd1Bpc3I1SVAzTVA0V3R1UVZWcmlpLzhacHFRNnlTSzJVdUFzL1FjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDYwNTY0CWZpbGU6TGl2YXJpYW50XzAuMS4wLXJjLjIwX3g2NC1zZXR1cC5leGUKZ1RrSGUyaTN2MjRrRDNGY0p6Z1JwdzJwdTFxa3ZFR3lwMFdKZXhBS3dpV21IaGE0RFphSVB5M3ljdEFwQzVqektTekY1aWdoUnU2MzcyVW1Gd1d2Q1E9PQo=",
-      "url": "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-0.1.0-rc.20-2726b0c6cf0c/Livariant_0.1.0-rc.20_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSNlo4emxXN3NsQVEyMFBYaHlFMmQvc0VudVcwcTRWWjM2RGxBTjBaOGw3ZkZFdUxXMVE3VHhISXp5eWJYMCs2WmRCNk5BWmJLTTVKbWk0MEcyN3FnNzVaWHhqcWlrTGdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NDY3MzIxCWZpbGU6TGl2YXJpYW50XzAuMS4wLXJjLjIxX3g2NC1zZXR1cC5leGUKaFNIOWVaOXNuTVU0dkFBaWdoRDJDZGxSRW93TDlIWWpKSGdONHRkeERMTEpxU3RkUHZTT3p5VU0wZ1RGVlh1Q0kxQ1pOb2JwTUY5QW94cCtVMHh4Q0E9PQo=",
+      "url": "https://github.com/Kryt3r/livariant/releases/download/desktop-preview-0.1.0-rc.21-fc23dd726899/Livariant_0.1.0-rc.21_x64-setup.exe"
     }
   }
 }
