@@ -170,13 +170,37 @@ jobs:
             throw "Updater signature file is empty."
           }
 
+          $notesPath = Join-Path $PWD "release-notes\$version.json"
+          if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
+            throw "Localized release notes are required for Desktop preview $version. Expected $notesPath."
+          }
+          $notesObject = Get-Content -LiteralPath $notesPath -Raw | ConvertFrom-Json
+          if ($notesObject.schemaVersion -ne 1) {
+            throw "Desktop release notes schemaVersion must be 1."
+          }
+          foreach ($locale in @("de", "en")) {
+            $localized = $notesObject.$locale
+            if ($null -eq $localized -or [string]::IsNullOrWhiteSpace([string]$localized.title)) {
+              throw "Desktop release notes must provide a non-empty $locale title."
+            }
+            if ($null -eq $localized.items -or @($localized.items).Count -lt 1) {
+              throw "Desktop release notes must provide at least one $locale item."
+            }
+            foreach ($item in @($localized.items)) {
+              if ([string]::IsNullOrWhiteSpace([string]$item)) {
+                throw "Desktop release notes contain an empty $locale item."
+              }
+            }
+          }
+          $localizedNotes = $notesObject | ConvertTo-Json -Depth 8 -Compress
+
           $shortSha = "${{ steps.source.outputs.sha }}".Substring(0, 12)
           $previewTag = "desktop-preview-$version-$shortSha"
           $assetName = $installers[0].Name
           $assetUrl = "https://github.com/Kryt3r/livariant/releases/download/$previewTag/$assetName"
           $latest = [ordered]@{
             version = $version
-            notes = "Livariant Desktop preview update from exact source ${{ steps.source.outputs.sha }}."
+            notes = $localizedNotes
             pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             platforms = [ordered]@{
               "windows-x86_64" = [ordered]@{
@@ -195,14 +219,19 @@ jobs:
           if ($parsed.platforms.'windows-x86_64'.url -notlike "*/releases/download/$previewTag/*") {
             throw "Generated latest.json does not bind the immutable preview release tag."
           }
+          $parsedNotes = [string]$parsed.notes | ConvertFrom-Json
+          if ($parsedNotes.schemaVersion -ne 1 -or @($parsedNotes.de.items).Count -lt 1 -or @($parsedNotes.en.items).Count -lt 1) {
+            throw "Generated latest.json lost the validated localized release-notes contract."
+          }
 
           "installer=$($installers[0].FullName)" >> $env:GITHUB_OUTPUT
           "bundle=$($installers[0].FullName)" >> $env:GITHUB_OUTPUT
           "signature=$($signatures[0].FullName)" >> $env:GITHUB_OUTPUT
           "latest=$latestPath" >> $env:GITHUB_OUTPUT
+          "notes=$notesPath" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
           "preview_tag=$previewTag" >> $env:GITHUB_OUTPUT
-          Write-Host "Prepared signed immutable preview candidate $previewTag from exact source ${{ steps.source.outputs.sha }}."
+          Write-Host "Prepared signed immutable preview candidate $previewTag with validated de/en release notes from exact source ${{ steps.source.outputs.sha }}."
 
       - name: Smoke signed preview installer
         shell: pwsh
@@ -233,6 +262,7 @@ jobs:
             ${{ steps.update.outputs.installer }}
             ${{ steps.update.outputs.signature }}
             ${{ steps.update.outputs.latest }}
+            ${{ steps.update.outputs.notes }}
           if-no-files-found: error
           retention-days: 7
 
@@ -252,7 +282,7 @@ jobs:
           gh release create $tag --draft --target "${{ steps.source.outputs.sha }}" --title "Livariant Desktop Preview ${{ steps.update.outputs.version }} (${{ steps.source.outputs.sha }})" --notes "Immutable machine-consumable Livariant Desktop preview candidate from exact source ${{ steps.source.outputs.sha }}. This is not Stable release authority." --repo "${{ github.repository }}"
           if ($LASTEXITCODE -ne 0) { throw "Failed to create draft immutable preview release $tag." }
 
-          gh release upload $tag "${{ steps.update.outputs.bundle }}" "${{ steps.update.outputs.signature }}" "${{ steps.update.outputs.latest }}" --repo "${{ github.repository }}"
+          gh release upload $tag "${{ steps.update.outputs.bundle }}" "${{ steps.update.outputs.signature }}" "${{ steps.update.outputs.latest }}" "${{ steps.update.outputs.notes }}" --repo "${{ github.repository }}"
           if ($LASTEXITCODE -ne 0) { throw "Failed to attach preview candidate assets before publication." }
 
           gh release edit $tag --draft=false --prerelease --repo "${{ github.repository }}"
@@ -295,4 +325,8 @@ jobs:
           if ($published.platforms.'windows-x86_64'.url -notlike "*/releases/download/${{ steps.update.outputs.preview_tag }}/*") {
             throw "Preview index verification is not bound to the newly published immutable candidate."
           }
-          Write-Host "Preview index now points to immutable candidate ${{ steps.update.outputs.preview_tag }}."
+          $publishedNotes = [string]$published.notes | ConvertFrom-Json
+          if ($publishedNotes.schemaVersion -ne 1 -or @($publishedNotes.de.items).Count -lt 1 -or @($publishedNotes.en.items).Count -lt 1) {
+            throw "Published preview index lost localized release notes."
+          }
+          Write-Host "Preview index now points to immutable candidate ${{ steps.update.outputs.preview_tag }} with validated localized release notes."
