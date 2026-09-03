@@ -1,11 +1,42 @@
-use serde::Serialize;
-use tauri::AppHandle;
+use serde::{Deserialize, Serialize};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_updater::UpdaterExt;
 
 const UPDATER_PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEyNUJCNUJFNUNDNjc3QQpSV1I2Wjh6bFc3c2xBWnJSSFNndThoeEhoS1FubFlFU1VDSHlhNWVQS3kyZWZkZE9EYTd0eGIyaAo=";
 const UPDATER_ENDPOINTS: &[&str] = &[
     "https://raw.githubusercontent.com/Kryt3r/livariant/desktop-preview-index/latest.json",
 ];
+const UPDATER_PROGRESS_EVENT: &str = "livariant://updater-progress";
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseNotesLocale {
+    title: String,
+    items: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalizedReleaseNotes {
+    schema_version: u32,
+    de: ReleaseNotesLocale,
+    en: ReleaseNotesLocale,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProgress {
+    phase: &'static str,
+    target_version: String,
+    downloaded_bytes: u64,
+    total_bytes: Option<u64>,
+    percent: Option<u8>,
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,6 +45,7 @@ pub struct UpdateResult {
     current_version: String,
     available_version: Option<String>,
     detail: String,
+    release_notes: Option<LocalizedReleaseNotes>,
 }
 
 fn result(
@@ -27,7 +59,45 @@ fn result(
         current_version: current_version.into(),
         available_version,
         detail: detail.into(),
+        release_notes: None,
     }
+}
+
+fn result_with_notes(
+    state: &'static str,
+    current_version: impl Into<String>,
+    available_version: Option<String>,
+    detail: impl Into<String>,
+    release_notes: Option<LocalizedReleaseNotes>,
+) -> UpdateResult {
+    UpdateResult {
+        state,
+        current_version: current_version.into(),
+        available_version,
+        detail: detail.into(),
+        release_notes,
+    }
+}
+
+fn parse_release_notes(raw: Option<&str>) -> Option<LocalizedReleaseNotes> {
+    let notes: LocalizedReleaseNotes = serde_json::from_str(raw?.trim()).ok()?;
+    if notes.schema_version != 1
+        || notes.de.title.trim().is_empty()
+        || notes.en.title.trim().is_empty()
+        || notes.de.items.is_empty()
+        || notes.en.items.is_empty()
+        || notes.de.items.iter().any(|item| item.trim().is_empty())
+        || notes.en.items.iter().any(|item| item.trim().is_empty())
+    {
+        return None;
+    }
+    Some(notes)
+}
+
+fn emit_progress(app: &AppHandle, progress: UpdateProgress) {
+    // Renderer progress is presentation evidence only. Failure to render it must never grant
+    // authority or alter the updater's verification/install decision.
+    let _ = app.emit(UPDATER_PROGRESS_EVENT, progress);
 }
 
 fn updater_configuration() -> Result<(String, Vec<String>), String> {
@@ -114,11 +184,12 @@ pub async fn check_for_update(app: AppHandle) -> UpdateResult {
     };
 
     match updater.check().await {
-        Ok(Some(update)) => result(
+        Ok(Some(update)) => result_with_notes(
             "available",
             current_version,
             Some(update.version.clone()),
             format!("A signed Livariant update to {} is available.", update.version),
+            parse_release_notes(update.body.as_deref()),
         ),
         Ok(None) => result(
             "current",
@@ -174,7 +245,7 @@ pub async fn apply_update(app: AppHandle, expected_version: String) -> UpdateRes
     };
 
     if update.version != expected_version {
-        return result(
+        return result_with_notes(
             "changed",
             current_version,
             Some(update.version.clone()),
@@ -182,11 +253,74 @@ pub async fn apply_update(app: AppHandle, expected_version: String) -> UpdateRes
                 "The available update changed from {expected_version} to {}. Review the new version before installing it.",
                 update.version
             ),
+            parse_release_notes(update.body.as_deref()),
         );
     }
 
     let target_version = update.version.clone();
-    if let Err(error) = update.download_and_install(|_, _| {}, || {}).await {
+    emit_progress(
+        &app,
+        UpdateProgress {
+            phase: "preparing",
+            target_version: target_version.clone(),
+            downloaded_bytes: 0,
+            total_bytes: None,
+            percent: None,
+        },
+    );
+
+    let downloaded = Arc::new(AtomicU64::new(0));
+    let known_total = Arc::new(AtomicU64::new(0));
+    let download_app = app.clone();
+    let download_version = target_version.clone();
+    let download_counter = Arc::clone(&downloaded);
+    let total_counter = Arc::clone(&known_total);
+    let finished_app = app.clone();
+    let finished_version = target_version.clone();
+    let finished_downloaded = Arc::clone(&downloaded);
+    let finished_total = Arc::clone(&known_total);
+
+    if let Err(error) = update
+        .download_and_install(
+            move |chunk_length, content_length| {
+                let observed = download_counter.fetch_add(chunk_length as u64, Ordering::Relaxed)
+                    + chunk_length as u64;
+                if let Some(total) = content_length {
+                    total_counter.store(total, Ordering::Relaxed);
+                }
+                let total = total_counter.load(Ordering::Relaxed);
+                let percent = if total > 0 {
+                    Some(((observed.saturating_mul(100) / total).min(100)) as u8)
+                } else {
+                    None
+                };
+                emit_progress(
+                    &download_app,
+                    UpdateProgress {
+                        phase: "downloading",
+                        target_version: download_version.clone(),
+                        downloaded_bytes: observed,
+                        total_bytes: (total > 0).then_some(total),
+                        percent,
+                    },
+                );
+            },
+            move || {
+                let total = finished_total.load(Ordering::Relaxed);
+                emit_progress(
+                    &finished_app,
+                    UpdateProgress {
+                        phase: "downloaded",
+                        target_version: finished_version.clone(),
+                        downloaded_bytes: finished_downloaded.load(Ordering::Relaxed),
+                        total_bytes: (total > 0).then_some(total),
+                        percent: (total > 0).then_some(100),
+                    },
+                );
+            },
+        )
+        .await
+    {
         return result(
             "error",
             current_version,
@@ -195,6 +329,23 @@ pub async fn apply_update(app: AppHandle, expected_version: String) -> UpdateRes
         );
     }
 
+    emit_progress(
+        &app,
+        UpdateProgress {
+            phase: "restarting",
+            target_version: target_version.clone(),
+            downloaded_bytes: downloaded.load(Ordering::Relaxed),
+            total_bytes: {
+                let total = known_total.load(Ordering::Relaxed);
+                (total > 0).then_some(total)
+            },
+            percent: Some(100),
+        },
+    );
+
+    // Give the renderer a brief, bounded chance to present the truthful "installed/restarting"
+    // state before Windows replaces the running process. This is presentation only.
+    std::thread::sleep(Duration::from_millis(650));
     app.restart();
 }
 
@@ -241,6 +392,24 @@ pub fn start_ci_acceptance_if_requested(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn localized_release_notes_require_both_languages_and_schema_one() {
+        let valid = r#"{
+            "schemaVersion": 1,
+            "de": {"title": "Neu", "items": ["Deutsch"]},
+            "en": {"title": "New", "items": ["English"]}
+        }"#;
+        assert!(parse_release_notes(Some(valid)).is_some());
+
+        let missing_english = r#"{
+            "schemaVersion": 1,
+            "de": {"title": "Neu", "items": ["Deutsch"]},
+            "en": {"title": "", "items": []}
+        }"#;
+        assert!(parse_release_notes(Some(missing_english)).is_none());
+        assert!(parse_release_notes(Some("plain legacy notes")).is_none());
+    }
 
     #[cfg(not(feature = "ci-updater-acceptance"))]
     #[test]
