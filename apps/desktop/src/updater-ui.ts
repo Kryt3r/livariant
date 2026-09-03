@@ -13,8 +13,12 @@ let busy: "checking" | "installing" | null = null;
 
 const updatesVisible = () => document.querySelector(".nav-item.active[data-view='updates']") !== null;
 
+const updateStatusPanel = () => document.querySelector<HTMLElement>(
+  ".content .updates-status-card, .content .progress-panel",
+);
+
 const setCopy = (eyebrow: string, title: string, detail: string) => {
-  const panel = document.querySelector<HTMLElement>(".content .progress-panel");
+  const panel = updateStatusPanel();
   const eyebrowNode = panel?.querySelector<HTMLElement>(".eyebrow");
   const titleNode = panel?.querySelector<HTMLElement>("h2");
   const detailNode = panel?.querySelector<HTMLElement>("p");
@@ -29,6 +33,7 @@ const reconcile = () => {
   const checkButton = document.querySelector<HTMLButtonElement>(".check-updates");
   if (checkButton) {
     checkButton.disabled = busy !== null;
+    checkButton.hidden = cachedResult?.state === "available" && busy === null;
     checkButton.textContent = busy === "checking" ? "Checking…" : "Check for updates";
   }
 
@@ -52,7 +57,7 @@ const reconcile = () => {
   if (cachedResult.state === "available" && cachedResult.availableVersion) {
     const displayVersion = formatDesktopVersion(cachedResult.availableVersion);
     setCopy("Desktop update available", `${displayVersion} is available`, cachedResult.detail);
-    const panel = document.querySelector<HTMLElement>(".content .progress-panel");
+    const panel = updateStatusPanel();
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button primary install-update";
