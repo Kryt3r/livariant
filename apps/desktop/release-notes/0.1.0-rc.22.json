@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 22",
+    "items": [
+      "Die Diagnostics-Zeitraumsteuerung ist jetzt auf eine einzige klickbare Leiste vereinheitlicht: 24h, 7d, 30d, 90d und Alle verwenden denselben qualifizierten Zeitraum-State.",
+      "Avoided- und Estimated-Werte folgen jetzt demselben ausgewählten Diagnostics-Zeitraum statt unbeabsichtigt All-Time-Evidence zu lesen.",
+      "Eine ausdrücklich hergestellte Codex-Verbindung bleibt als lokale Verbindungsabsicht erhalten und wird nach einem Livariant-Neustart automatisch neu aufgebaut, bis der Nutzer aktiv trennt.",
+      "Beim Disconnect wird diese persistente Verbindungsabsicht entfernt; Livariant speichert dafür keine Codex-Tokens, Zugangsdaten, Prompts oder Projektinhalte."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 22",
+    "items": [
+      "Diagnostics time-range control is now unified into one clickable bar: 24h, 7d, 30d, 90d and All use the same qualified period state.",
+      "Avoided and Estimated values now follow the same selected Diagnostics period instead of unintentionally reading all-time evidence.",
+      "An explicitly established Codex connection is retained as a local connection preference and is rebuilt automatically after Livariant restarts until the user disconnects.",
+      "Disconnect clears that persistent connection preference; Livariant does not store Codex tokens, credentials, prompts or project content for this behavior."
+    ]
+  }
+}
