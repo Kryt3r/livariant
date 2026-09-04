@@ -106,13 +106,16 @@ fn spawn_host(app: &AppHandle) -> Result<ConnectorHostProcess, String> {
         return Err("Ordinary bundled runtime material must never claim Authority.".to_owned());
     }
 
-    let diagnostics_root = app.path().app_data_dir().map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?.join("diagnostics");
+    let app_data_root = app.path().app_data_dir().map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?;
+    let diagnostics_root = app_data_root.join("diagnostics");
+    let connection_intent_path = app_data_root.join("connections").join("codex.json");
     fs::create_dir_all(&diagnostics_root).map_err(|error| format!("Diagnostics directory could not be created: {error}"))?;
 
     let mut child = hidden_command(&node)
         .arg(&host)
         .current_dir(install_root)
         .env("LIVARIANT_DIAGNOSTICS_ROOT", &diagnostics_root)
+        .env("LIVARIANT_CONNECTION_INTENT_PATH", &connection_intent_path)
         .env("LIVARIANT_CORE_VERSION", &manifest.core_version)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -143,6 +146,10 @@ fn request(
         *guard = None;
     }
     result
+}
+
+pub fn restore_persistent_connection(app: &AppHandle, state: &ConnectorHostState) -> Result<(), String> {
+    request(app, state, "inspect", None, None).map(|_| ())
 }
 
 fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, String> {

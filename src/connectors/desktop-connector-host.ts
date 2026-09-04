@@ -8,6 +8,12 @@ import {
   type CodexInstallationInspection,
 } from "./codex-runtime.js";
 import { CodexWorkflowClient } from "./codex-workflow.js";
+import {
+  disconnectedConnectionIntent,
+  readConnectionIntent,
+  writeConnectionIntent,
+  type ConnectionIntent,
+} from "./connection-intent.js";
 import { aggregateObservedAttribution } from "../diagnostics/attribution.js";
 import {
   aggregateDiagnosticEvents,
@@ -17,7 +23,7 @@ import {
 import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
 import { DiagnosticEventStore } from "../diagnostics/store.js";
 
-function requiredEnv(name: "LIVARIANT_DIAGNOSTICS_ROOT" | "LIVARIANT_CORE_VERSION"): string {
+function requiredEnv(name: "LIVARIANT_DIAGNOSTICS_ROOT" | "LIVARIANT_CORE_VERSION" | "LIVARIANT_CONNECTION_INTENT_PATH"): string {
   const value = process.env[name];
   if (!value?.trim()) throw new Error(`${name} is required.`);
   return value;
@@ -25,6 +31,7 @@ function requiredEnv(name: "LIVARIANT_DIAGNOSTICS_ROOT" | "LIVARIANT_CORE_VERSIO
 
 const diagnosticsRoot = requiredEnv("LIVARIANT_DIAGNOSTICS_ROOT");
 const clientVersion = requiredEnv("LIVARIANT_CORE_VERSION");
+const connectionIntentPath = requiredEnv("LIVARIANT_CONNECTION_INTENT_PATH");
 const store = new DiagnosticEventStore(diagnosticsRoot);
 const sequencer = new CodexUsageSequencer();
 let session: CodexAppServerSession | undefined;
@@ -35,6 +42,7 @@ let pendingApprovals = 0;
 const completedTurns = new Set<string>();
 let selectedResolution: CodexCommandResolution | undefined;
 let selectedMode: "auto" | "manual" = "auto";
+let lastRestoreError: string | undefined;
 
 const DIAGNOSTIC_PRESETS = ["1d", "7d", "30d", "90d", "all"] as const satisfies readonly DiagnosticPreset[];
 
@@ -99,6 +107,7 @@ function activeInspection(): ResolvedCodexInspection {
 
 function connectionStatus() {
   const { resolution, inspection } = activeInspection();
+  const baseDetail = inspection.detail ?? (inspection.state === "available" ? "Codex is installed and can be connected through App Server." : "Codex is not currently connectable.");
   return {
     installationState: inspection.state,
     version: inspection.version ?? null,
@@ -108,11 +117,11 @@ function connectionStatus() {
     launchSource: resolution?.source ?? null,
     connectionMode: selectedResolution ? selectedMode : "auto",
     configuredCommand: selectedResolution?.command ?? null,
-    detail: inspection.detail ?? (inspection.state === "available" ? "Codex is installed and can be connected through App Server." : "Codex is not currently connectable."),
+    detail: lastRestoreError ? `Codex remains configured to reconnect, but automatic reconnection failed: ${lastRestoreError}` : baseDetail,
   };
 }
 
-async function disconnect(): Promise<void> {
+async function disconnectSession(): Promise<void> {
   unsubscribeWorkflow?.();
   unsubscribeWorkflow = undefined;
   workflow?.close();
@@ -124,9 +133,9 @@ async function disconnect(): Promise<void> {
   completedTurns.clear();
 }
 
-async function connect(manualPath?: string) {
+async function connectSession(manualPath?: string) {
   if (session?.isOpen() && workflow && !manualPath) return connectionStatus();
-  await disconnect();
+  await disconnectSession();
   const resolved = inspectResolvedCodex(manualPath);
   const { resolution, inspection } = resolved;
   if (!resolution || inspection.state !== "available") throw new Error(`Codex is not connectable: ${inspection.detail ?? inspection.state}.`);
@@ -153,6 +162,56 @@ async function connect(manualPath?: string) {
   return connectionStatus();
 }
 
+async function connect(manualPath?: string) {
+  const status = await connectSession(manualPath);
+  const intent: ConnectionIntent = {
+    schemaVersion: 1,
+    desiredConnected: true,
+    mode: manualPath ? "manual" : "auto",
+    ...(manualPath ? { manualPath } : {}),
+  };
+  try {
+    await writeConnectionIntent(connectionIntentPath, intent);
+    lastRestoreError = undefined;
+    return status;
+  } catch (error) {
+    await disconnectSession();
+    selectedResolution = undefined;
+    selectedMode = "auto";
+    throw new Error(`Codex connected, but the persistent connection preference could not be saved: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function disconnectByUser() {
+  await writeConnectionIntent(connectionIntentPath, disconnectedConnectionIntent());
+  await disconnectSession();
+  selectedResolution = undefined;
+  selectedMode = "auto";
+  lastRestoreError = undefined;
+  return connectionStatus();
+}
+
+async function restoreDesiredConnection(): Promise<void> {
+  if (session?.isOpen() && workflow) return;
+  let intent: ConnectionIntent;
+  try {
+    intent = await readConnectionIntent(connectionIntentPath);
+  } catch (error) {
+    lastRestoreError = `stored connection preference is invalid: ${error instanceof Error ? error.message : String(error)}`;
+    return;
+  }
+  if (!intent.desiredConnected) {
+    lastRestoreError = undefined;
+    return;
+  }
+  try {
+    await connectSession(intent.mode === "manual" ? intent.manualPath : undefined);
+    lastRestoreError = undefined;
+  } catch (error) {
+    lastRestoreError = error instanceof Error ? error.message : String(error);
+  }
+}
+
 async function diagnostics(preset: DiagnosticPreset = "all") {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
@@ -171,7 +230,7 @@ async function diagnostics(preset: DiagnosticPreset = "all") {
 }
 
 async function measure(preset: DiagnosticPreset = "all") {
-  if (!session?.isOpen() || !workflow) await connect();
+  if (!session?.isOpen() || !workflow) await connectSession();
   if (!workflow || !session?.isOpen()) throw new Error("Codex connection did not become available.");
   const thread = await workflow.startThread({ ephemeral: true });
   sequencer.markNewThread(thread.threadId);
@@ -191,12 +250,11 @@ async function measure(preset: DiagnosticPreset = "all") {
 
 async function handle(request: Request): Promise<unknown> {
   if (request.method === "inspect") {
-    selectedResolution = undefined;
-    selectedMode = "auto";
+    await restoreDesiredConnection();
     return connectionStatus();
   }
   if (request.method === "connect") return await connect(request.manualPath);
-  if (request.method === "disconnect") { await disconnect(); return connectionStatus(); }
+  if (request.method === "disconnect") return await disconnectByUser();
   if (request.method === "diagnostics") return await diagnostics(request.diagnosticsPreset);
   return await measure(request.diagnosticsPreset);
 }
@@ -215,4 +273,4 @@ input.on("line", (line) => {
     }
   })();
 });
-input.on("close", () => { void disconnect().finally(() => process.exit(0)); });
+input.on("close", () => { void disconnectSession().finally(() => process.exit(0)); });
