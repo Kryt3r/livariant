@@ -1,6 +1,8 @@
 import "./diagnostics-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 
+type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
+
 type DiagnosticsEvidenceSummary = {
   avoided: { eventCount: number; contextTokens: number };
   estimated: { eventCount: number; tokens: number };
@@ -8,13 +10,26 @@ type DiagnosticsEvidenceSummary = {
 
 const formatNumber = (value: number) => new Intl.NumberFormat().format(value);
 
-const hydrateCounterEvidence = async (classGrid: HTMLElement) => {
+const readDiagnosticsPreset = (): DiagnosticPreset => {
+  const value = document.querySelector<HTMLSelectElement>(".diagnostics-period")?.value;
+  return value === "1d" || value === "7d" || value === "30d" || value === "90d" || value === "all" ? value : "30d";
+};
+
+const periodLabel = (preset: DiagnosticPreset) => ({
+  "1d": "Last 24 hours",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+  all: "All locally available evidence",
+})[preset];
+
+const hydrateCounterEvidence = async (classGrid: HTMLElement, preset: DiagnosticPreset) => {
   const avoidedCard = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.avoided");
   const estimatedCard = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.estimated");
   if (!avoidedCard || !estimatedCard) return;
 
   try {
-    const summary = await invoke<DiagnosticsEvidenceSummary>("codex_diagnostics_summary");
+    const summary = await invoke<DiagnosticsEvidenceSummary>("codex_diagnostics_summary", { preset });
 
     const avoidedState = avoidedCard.querySelector<HTMLElement>(".diagnostics-class-state");
     const avoidedCopy = avoidedCard.querySelector<HTMLElement>("p");
@@ -51,20 +66,35 @@ const enhanceDiagnostics = () => {
   const observedPanel = content.querySelector<HTMLElement>(".progress-panel");
   const actionCard = content.querySelector<HTMLElement>(".diagnostics-action-card");
   const boundaryNote = content.querySelector<HTMLElement>(".truth-note");
-  if (!topbar || !healthStrip || !observedPanel || !actionCard) return;
+  const sourcePeriod = content.querySelector<HTMLSelectElement>(".diagnostics-period");
+  if (!topbar || !healthStrip || !observedPanel || !actionCard || !sourcePeriod) return;
+
+  const preset = readDiagnosticsPreset();
+  const sourcePeriodLabel = sourcePeriod.closest<HTMLLabelElement>("label");
+  if (sourcePeriodLabel) sourcePeriodLabel.hidden = true;
 
   const rangeBar = document.createElement("section");
   rangeBar.className = "diagnostics-range-bar";
   rangeBar.innerHTML = `
-    <div class="diagnostics-range-copy"><small>Time range</small><strong>Current locally available evidence</strong></div>
+    <div class="diagnostics-range-copy"><small>Time range</small><strong>${periodLabel(preset)}</strong></div>
     <div class="diagnostics-range-options" role="group" aria-label="Diagnostics time range">
-      <button class="diagnostics-range-option active" type="button">Current</button>
-      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available yet">24h</button>
-      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available yet">7d</button>
-      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available yet">30d</button>
-      <button class="diagnostics-range-option" type="button" disabled title="Historical persistence is not available yet">All</button>
+      <button class="diagnostics-range-option ${preset === "1d" ? "active" : ""}" type="button" data-diagnostics-preset="1d" ${sourcePeriod.disabled ? "disabled" : ""}>24h</button>
+      <button class="diagnostics-range-option ${preset === "7d" ? "active" : ""}" type="button" data-diagnostics-preset="7d" ${sourcePeriod.disabled ? "disabled" : ""}>7d</button>
+      <button class="diagnostics-range-option ${preset === "30d" ? "active" : ""}" type="button" data-diagnostics-preset="30d" ${sourcePeriod.disabled ? "disabled" : ""}>30d</button>
+      <button class="diagnostics-range-option ${preset === "90d" ? "active" : ""}" type="button" data-diagnostics-preset="90d" ${sourcePeriod.disabled ? "disabled" : ""}>90d</button>
+      <button class="diagnostics-range-option ${preset === "all" ? "active" : ""}" type="button" data-diagnostics-preset="all" ${sourcePeriod.disabled ? "disabled" : ""}>All</button>
     </div>`;
   topbar.insertAdjacentElement("afterend", rangeBar);
+
+  rangeBar.querySelectorAll<HTMLButtonElement>("[data-diagnostics-preset]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.diagnosticsPreset;
+      if (next !== "1d" && next !== "7d" && next !== "30d" && next !== "90d" && next !== "all") return;
+      if (sourcePeriod.value === next) return;
+      sourcePeriod.value = next;
+      sourcePeriod.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
 
   const hasObservedData = [...healthStrip.querySelectorAll("strong")].some((value) => (value.textContent ?? "").trim() !== "—");
 
@@ -84,7 +114,7 @@ const enhanceDiagnostics = () => {
       <h3>Modeled values</h3><p>Loading explicitly modeled evidence…</p>
     </article>`;
   rangeBar.insertAdjacentElement("afterend", classGrid);
-  void hydrateCounterEvidence(classGrid);
+  void hydrateCounterEvidence(classGrid, preset);
 
   const observedHead = document.createElement("div");
   observedHead.className = "diagnostics-section-head diagnostics-section-head-compact";
