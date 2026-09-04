@@ -148,6 +148,10 @@ fn request(
     result
 }
 
+pub fn restore_persistent_connection(app: &AppHandle, state: &ConnectorHostState) -> Result<(), String> {
+    request(app, state, "inspect", None, None).map(|_| ())
+}
+
 fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, String> {
     match preset {
         None => Ok(None),
