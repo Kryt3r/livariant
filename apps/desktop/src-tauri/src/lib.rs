@@ -4,6 +4,7 @@ mod updater;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{env, fs, path::{Path, PathBuf}, process::Command};
+use tauri::Manager;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -150,9 +151,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(connector_host::ConnectorHostState::default())
-        .setup(|_app| {
+        .setup(|app| {
             #[cfg(feature = "ci-updater-acceptance")]
-            updater::start_ci_acceptance_if_requested(_app.handle().clone());
+            updater::start_ci_acceptance_if_requested(app.handle().clone());
+
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let state = handle.state::<connector_host::ConnectorHostState>();
+                let _ = connector_host::restore_persistent_connection(&handle, state.inner());
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
