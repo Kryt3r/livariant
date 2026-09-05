@@ -1,0 +1,8 @@
+.update-phase-install-action {
+  margin-top: 12px;
+}
+
+.update-phase-install-action .install-update {
+  width: 100%;
+  justify-content: center;
+}
