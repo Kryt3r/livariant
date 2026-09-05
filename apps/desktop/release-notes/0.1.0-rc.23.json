@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 23",
+    "items": [
+      "Der explizite Installations-Button für verfügbare Desktop-Updates bleibt jetzt auch beim Übergang in die redesignete Update-Oberfläche erhalten.",
+      "Damit kann ein erkanntes, signiertes Update nach der Prüfung wieder sichtbar durch die Nutzerfreigabe installiert und anschließend kontrolliert neu gestartet werden.",
+      "Installationslogik, Signaturprüfung und Update-Authority bleiben unverändert; es gibt weiterhin keine automatische Installation ohne ausdrückliche Nutzeraktion."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 23",
+    "items": [
+      "The explicit install button for available Desktop updates is now preserved when the Updates view transitions into the redesigned workspace.",
+      "A detected, signed update can therefore again be installed through a visible user approval action and then restart Livariant in a controlled way.",
+      "Installation logic, signature verification and update Authority are unchanged; updates are still never installed automatically without an explicit user action."
+    ]
+  }
+}
