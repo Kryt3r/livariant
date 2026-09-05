@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 24",
+    "items": [
+      "Diagnostics aktualisiert seine Werte beim manuellen Refresh und beim Wechsel des Zeitraums jetzt direkt in der bestehenden Oberfläche, statt den gesamten Desktop neu zu rendern.",
+      "Tokenwerte, Attribution, Zeitraumstatus sowie Observed-, Avoided- und Estimated-Anzeigen werden gezielt aktualisiert, wodurch das sichtbare Flackern der Diagnostics-Ansicht entfällt.",
+      "Messsemantik, lokale Speicherung, Provider-Verbindung und Authority-Grenzen bleiben unverändert."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 24",
+    "items": [
+      "Diagnostics now refreshes values in place during manual refreshes and time-range changes instead of rerendering the entire Desktop surface.",
+      "Token values, attribution, range state, and the Observed, Avoided and Estimated displays are updated selectively, removing the visible Diagnostics flicker.",
+      "Measurement semantics, local storage, provider connectivity and Authority boundaries are unchanged."
+    ]
+  }
+}
