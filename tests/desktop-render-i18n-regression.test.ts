@@ -24,7 +24,7 @@ test("legacy observer translators are not part of the active Desktop import boun
 test("supported locale catalog entries are explicit and bilingual", async () => {
   const catalog = await read("apps/desktop/src/i18n/catalog.ts");
   const entries = [...catalog.matchAll(/"([a-zA-Z0-9.]+)": \{ segment: "([a-zA-Z]+)", en: "([^"]*)", de: "([^"]*)" \}/g)];
-  assert.ok(entries.length >= 75, `expected a substantial controlled catalog, found ${entries.length} entries`);
+  assert.ok(entries.length >= 85, `expected a substantial controlled catalog, found ${entries.length} entries`);
   const keys = new Set<string>();
   for (const [, key, segment, en, de] of entries) {
     assert.ok(!keys.has(key), `duplicate i18n key: ${key}`);
@@ -33,7 +33,23 @@ test("supported locale catalog entries are explicit and bilingual", async () => 
     assert.ok(en.trim().length > 0, `missing English copy for ${key}`);
     assert.ok(de.trim().length > 0, `missing German copy for ${key}`);
   }
-  for (const required of ["navigation.diagnostics", "updates.installRestart", "diagnostics.title", "settings.appLanguage", "projectBrain.workspace"]) {
+  for (const required of [
+    "navigation.diagnostics",
+    "updates.installRestart",
+    "diagnostics.title",
+    "settings.appLanguage",
+    "projectBrain.workspace",
+    "projectBrain.description",
+    "projectBrain.currentProject",
+    "projectBrain.noProjectSelected",
+    "projectBrain.confirmedAreas",
+    "projectBrain.knowledgeGaps",
+    "projectBrain.potentialConflicts",
+    "projectBrain.curatedTitle",
+    "projectBrain.projectPurpose",
+    "projectBrain.currentDirection",
+    "projectBrain.rulesConstraints",
+  ]) {
     assert.ok(keys.has(required), `missing required controlled key ${required}`);
   }
 });
@@ -52,6 +68,20 @@ test("Diagnostics refresh keeps its root node mounted", async () => {
   assert.doesNotMatch(diagnostics, /app\.innerHTML/);
 });
 
+test("Diagnostics range guard prevents a preset click from rebubbling into the surface preset handler", async () => {
+  const guard = await read("apps/desktop/src/diagnostics-range-guard.ts");
+  assert.match(guard, /\.diagnostics-range-option\[data-diagnostics-preset\]/);
+  assert.match(guard, /event\.stopPropagation\(\)/);
+  assert.match(guard, /capture: true/);
+});
+
+test("Diagnostics live layout is scoped to the structural diagnostics surface", async () => {
+  const css = await read("apps/desktop/src/live-ui-regressions.css");
+  assert.match(css, /\.diagnostics-surface \.health-strip/);
+  assert.match(css, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\[data-diagnostics-attribution\]/);
+});
+
 test("UI polish discovers Updates structurally, not through visible text", async () => {
   const polish = await read("apps/desktop/src/ui-polish.ts");
   assert.match(polish, /active\[data-view='updates'\]/);
@@ -60,10 +90,17 @@ test("UI polish discovers Updates structurally, not through visible text", async
   assert.doesNotMatch(polish, /eyebrowText/);
 });
 
-test("Updater approval guard remains structural and locale-independent", async () => {
-  const guard = await read("apps/desktop/src/updater-cta-stabilizer.ts");
-  assert.match(guard, /classList\.contains\("active"\)/);
-  assert.doesNotMatch(guard, /Awaiting approval/);
-  assert.doesNotMatch(guard, /Wartet auf Freigabe/);
-  assert.match(guard, /result\.state !== "available"/);
+test("Updater has one active install CTA owner and keeps the available action stable", async () => {
+  const index = await read("apps/desktop/index.html");
+  const updater = await read("apps/desktop/src/updater-ui.ts");
+  const css = await read("apps/desktop/src/live-ui-regressions.css");
+  assert.match(index, /\/src\/updater-ui\.ts/);
+  assert.doesNotMatch(index, /updater-cta-stabilizer/);
+  assert.match(updater, /const button = installButton \?\? document\.createElement\("button"\)/);
+  assert.match(updater, /button\.parentElement !== panel/);
+  assert.doesNotMatch(updater, /document\.querySelector\("\.install-update"\)\?\.remove\(\);/);
+  assert.match(css, /\.updates-status-card \.install-update/);
+  assert.match(css, /opacity: 1 !important/);
+  assert.match(css, /pointer-events: auto !important/);
+  assert.match(css, /animation: none !important/);
 });

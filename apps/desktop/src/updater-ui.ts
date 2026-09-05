@@ -375,9 +375,11 @@ const reconcile = () => {
   const signedIdentity = document.querySelector<HTMLElement>(".steps .step-card:first-child .state-pill");
   if (signedIdentity) signedIdentity.textContent = values.configured;
 
-  document.querySelector(".install-update")?.remove();
+  let installButton = document.querySelector<HTMLButtonElement>(".install-update");
 
   if (busy === "installing") {
+    installButton?.remove();
+    installButton = null;
     if (progress?.phase === "restarting") {
       const version = progress.targetVersion ? formatDesktopVersion(progress.targetVersion) : "Livariant";
       setCopy(values.restartingEyebrow, values.restartingTitle, values.restartingDetail(version));
@@ -396,6 +398,7 @@ const reconcile = () => {
   }
 
   if (!cachedResult) {
+    installButton?.remove();
     renderReleaseNotes();
     renderLiveProgress();
     renderFlow();
@@ -407,18 +410,24 @@ const reconcile = () => {
     const displayVersion = formatDesktopVersion(cachedResult.availableVersion);
     setCopy(values.availableEyebrow, values.availableTitle(displayVersion), values.availableDetail(displayVersion));
     const panel = updateStatusPanel();
-    const button = document.createElement("button");
+    const button = installButton ?? document.createElement("button");
     button.type = "button";
     button.className = "button primary install-update";
     button.dataset.version = cachedResult.availableVersion;
     button.textContent = values.install(displayVersion);
-    panel?.appendChild(button);
-  } else if (cachedResult.state === "current") {
-    setCopy(values.currentEyebrow, formatDesktopVersion(cachedResult.currentVersion), cachedResult.detail);
-  } else if (cachedResult.state === "changed") {
-    setCopy(values.changedEyebrow, values.changedTitle, cachedResult.detail);
+    button.hidden = false;
+    button.disabled = false;
+    if (panel && button.parentElement !== panel) panel.appendChild(button);
   } else {
-    setCopy(values.attentionEyebrow, values.attentionTitle, cachedResult.detail);
+    installButton?.remove();
+    installButton = null;
+    if (cachedResult.state === "current") {
+      setCopy(values.currentEyebrow, formatDesktopVersion(cachedResult.currentVersion), cachedResult.detail);
+    } else if (cachedResult.state === "changed") {
+      setCopy(values.changedEyebrow, values.changedTitle, cachedResult.detail);
+    } else {
+      setCopy(values.attentionEyebrow, values.attentionTitle, cachedResult.detail);
+    }
   }
 
   renderReleaseNotes();
