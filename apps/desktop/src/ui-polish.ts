@@ -98,7 +98,7 @@ const enhanceUpdates = () => {
   content.dataset.updatesRedesigned = "true";
 
   const statusCopy = statusPanel.querySelector<HTMLElement>(":scope > div");
-  const action = statusPanel.querySelector<HTMLButtonElement>(".check-updates");
+  const actions = [...statusPanel.querySelectorAll<HTMLButtonElement>(".check-updates, .install-update")];
   const eyebrowText = statusCopy?.querySelector<HTMLElement>(".eyebrow")?.textContent?.trim().toLowerCase() ?? "";
   const isChecking = eyebrowText.includes("checking");
   const checkCompleted = eyebrowText.includes("up to date") || eyebrowText.includes("update available");
@@ -109,7 +109,7 @@ const enhanceUpdates = () => {
   const statusCard = document.createElement("section");
   statusCard.className = "updates-status-card";
   if (statusCopy) statusCard.append(statusCopy);
-  if (action) statusCard.append(action);
+  actions.forEach((action) => statusCard.append(action));
   workspace.append(statusCard);
 
   const versionStrip = document.createElement("section");
