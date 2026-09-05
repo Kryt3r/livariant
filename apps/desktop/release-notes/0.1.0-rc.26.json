@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 26",
+    "items": [
+      "Die aktive Desktop-Übersetzung läuft jetzt über eine isolierte EN/DE-i18n-Laufzeit, damit ein Sprachwechsel nicht mehr sichtbar auf englische Texte zurückspringt.",
+      "Diagnostics wird strukturell über seine eigene Oberfläche erkannt und behält bei Zeitraumwechsel, Aktualisierung und Messung seinen Root im DOM, um das verbleibende Flackern zu vermeiden.",
+      "Updates und andere dynamische Oberflächen werden strukturell statt über sichtbare, übersetzte Texte erkannt. Installation, Signaturprüfung, Update-Authority und der bestehende explizite Freigabepfad bleiben unverändert."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 26",
+    "items": [
+      "Active Desktop localization now runs through an isolated EN/DE i18n runtime so switching language no longer visibly falls back to English text.",
+      "Diagnostics is now identified by its own structural surface and keeps its root mounted during range changes, refreshes and measurements to eliminate the remaining flicker.",
+      "Updates and other dynamic surfaces are identified structurally instead of through visible translated text. Installation, signature verification, update Authority and the existing explicit approval path remain unchanged."
+    ]
+  }
+}
