@@ -1,6 +1,8 @@
 import "./connections-redesign.css";
 import "./connections-polish.css";
+import "./diagnostics-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
+import { getLanguage, t } from "./i18n/runtime.js";
 
 export type ConnectorDesktopView = "connections" | "diagnostics";
 
@@ -73,17 +75,37 @@ let error: string | null = null;
 let selectedProvider: ProviderId | null = null;
 let selectedDiagnosticsPreset: DiagnosticPreset = "30d";
 
-const esc = (value: string) => value.replace(/[&<>'\"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;" })[character] ?? character);
-const formatNumber = (value: number) => new Intl.NumberFormat().format(value);
+const esc = (value: string) => value.replace(/[&<>'\"]/g, (character) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;",
+})[character] ?? character);
+
+const formatNumber = (value: number) => new Intl.NumberFormat(getLanguage() === "de" ? "de-DE" : "en-US").format(value);
 const measured = (value: number) => diagnostics?.hasObservedData ? formatNumber(value) : "—";
 const connectorMutating = () => connectorAction !== null;
-const presetLabel = (preset: DiagnosticPreset) => ({ "1d": "1 day", "7d": "7 days", "30d": "30 days", "90d": "90 days", all: "All time" })[preset];
+const lang = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
+
+const presetLabel = (preset: DiagnosticPreset) => ({
+  "1d": t("diagnostics.day"),
+  "7d": t("diagnostics.days7"),
+  "30d": t("diagnostics.days30"),
+  "90d": t("diagnostics.days90"),
+  all: t("diagnostics.allTime"),
+})[preset];
+
+const diagnosticsRangeLabel = (preset: DiagnosticPreset) => ({
+  "1d": t("diagnostics.last24"),
+  "7d": t("diagnostics.last7"),
+  "30d": t("diagnostics.last30"),
+  "90d": t("diagnostics.last90"),
+  all: t("diagnostics.allEvidence"),
+})[preset];
 
 const formatAttributionDimension = (dimension: ObservedAttributionDimension | undefined): string => {
-  if (!dimension || dimension.groups.length === 0) return "Unavailable";
-  const visible = dimension.groups.slice(0, 3).map((group) => `${esc(group.value)} · ${formatNumber(group.eventCount)} event${group.eventCount === 1 ? "" : "s"}`);
+  if (!dimension || dimension.groups.length === 0) return t("common.unavailable");
+  const eventWord = (count: number) => lang(count === 1 ? "event" : "events", count === 1 ? "Ereignis" : "Ereignisse");
+  const visible = dimension.groups.slice(0, 3).map((group) => `${group.value} · ${formatNumber(group.eventCount)} ${eventWord(group.eventCount)}`);
   const remainder = dimension.groups.length - visible.length;
-  return `${visible.join(" · ")}${remainder > 0 ? ` · +${formatNumber(remainder)} more` : ""}`;
+  return `${visible.join(" · ")}${remainder > 0 ? lang(` · +${formatNumber(remainder)} more`, ` · +${formatNumber(remainder)} weitere`) : ""}`;
 };
 
 const unknownTotalEvents = (dimension: ObservedAttributionDimension | undefined): number =>
@@ -97,12 +119,12 @@ const providerGlyph = (provider: ProviderId) => {
 };
 
 const codexState = () => {
-  if (checkingConnector) return { label: "Checking", tone: "checking", detail: "Inspecting the local Codex installation…" };
-  if (connector?.connected) return { label: "Connected", tone: "connected", detail: `Codex ${connector.version ?? ""} · App Server connected` };
-  if (connector?.installationState === "available") return { label: "Ready", tone: "ready", detail: `Codex ${connector.version ?? ""} detected locally` };
-  if (connector?.installationState === "unusable") return { label: "Needs attention", tone: "warning", detail: "Codex was found but cannot be used yet" };
-  if (connector?.installationState === "not-found") return { label: "Setup needed", tone: "warning", detail: "Codex CLI was not found on this machine" };
-  return { label: "Not checked", tone: "muted", detail: "Open Codex to check the local connection" };
+  if (checkingConnector) return { label: lang("Checking", "Prüft"), tone: "checking", detail: lang("Inspecting the local Codex installation…", "Lokale Codex-Installation wird geprüft…") };
+  if (connector?.connected) return { label: t("connections.connected"), tone: "connected", detail: lang(`Codex ${connector.version ?? ""} · App Server connected`, `Codex ${connector.version ?? ""} · App Server verbunden`) };
+  if (connector?.installationState === "available") return { label: t("common.ready"), tone: "ready", detail: lang(`Codex ${connector.version ?? ""} detected locally`, `Codex ${connector.version ?? ""} lokal erkannt`) };
+  if (connector?.installationState === "unusable") return { label: t("connections.needsAttention"), tone: "warning", detail: lang("Codex was found but cannot be used yet", "Codex wurde gefunden, kann aber noch nicht verwendet werden") };
+  if (connector?.installationState === "not-found") return { label: t("connections.setupNeeded"), tone: "warning", detail: lang("Codex CLI was not found on this machine", "Codex CLI wurde auf diesem Gerät nicht gefunden") };
+  return { label: t("connections.notChecked"), tone: "muted", detail: lang("Open Codex to check the local connection", "Öffne Codex, um die lokale Verbindung zu prüfen") };
 };
 
 export async function refreshConnector(): Promise<void> {
@@ -123,10 +145,7 @@ export async function refreshDiagnostics(): Promise<void> {
 
 const renderProviderCard = (provider: ProviderId, name: string, description: string, status: string, tone: string, enabled = true) => `
   <button class="provider-card ${enabled ? "" : "provider-card-planned"}" type="button" data-provider="${provider}">
-    <span class="provider-card-main">
-      ${providerGlyph(provider)}
-      <span class="provider-copy"><strong>${name}</strong><small>${description}</small></span>
-    </span>
+    <span class="provider-card-main">${providerGlyph(provider)}<span class="provider-copy"><strong>${name}</strong><small>${description}</small></span></span>
     <span class="provider-card-state"><span class="provider-status provider-status-${tone}"><i></i>${status}</span><span class="provider-chevron">›</span></span>
   </button>`;
 
@@ -138,134 +157,155 @@ const renderCodexModal = () => {
   return `
     <div class="provider-modal-backdrop" data-close-provider>
       <section class="provider-modal" role="dialog" aria-modal="true" aria-labelledby="provider-codex-title" data-provider-modal>
-        <button class="provider-modal-close" type="button" data-close-provider aria-label="Close Codex settings">×</button>
+        <button class="provider-modal-close" type="button" data-close-provider aria-label="${lang("Close Codex settings", "Codex-Einstellungen schließen")}">×</button>
         <header class="provider-modal-header">
           ${providerGlyph("codex")}
-          <div><span class="eyebrow">OpenAI</span><h2 id="provider-codex-title">Codex</h2><p>Connect Livariant through the official local Codex App Server boundary.</p></div>
+          <div><span class="eyebrow">OpenAI</span><h2 id="provider-codex-title">Codex</h2><p>${lang("Connect Livariant through the official local Codex App Server boundary.", "Verbinde Livariant über die offizielle lokale Codex-App-Server-Grenze.")}</p></div>
           <span class="provider-status provider-status-${state.tone}"><i></i>${state.label}</span>
         </header>
-
-        ${error ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>Connection needs attention</strong><p>${esc(error)}</p></div></div>` : ""}
-
+        ${error ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${t("connections.needsAttention")}</strong><p>${esc(error)}</p></div></div>` : ""}
         <section class="provider-primary-card">
-          <div><span class="provider-card-kicker">Connection</span><h3>${connected ? "Codex is connected" : detected ? "Ready for one-click connection" : "Codex setup required"}</h3><p>${esc(error ?? connector?.detail ?? state.detail)}</p></div>
+          <div><span class="provider-card-kicker">${lang("Connection", "Verbindung")}</span><h3>${connected ? lang("Codex is connected", "Codex ist verbunden") : detected ? lang("Ready for one-click connection", "Bereit für die Ein-Klick-Verbindung") : lang("Codex setup required", "Codex-Einrichtung erforderlich")}</h3><p>${esc(error ?? connector?.detail ?? state.detail)}</p></div>
           <div class="provider-primary-actions">
-            <button class="button secondary connector-refresh" type="button" ${checkingConnector || connectorMutating() ? "disabled" : ""}>${checkingConnector ? "Checking…" : "Refresh"}</button>
+            <button class="button secondary connector-refresh" type="button" ${checkingConnector || connectorMutating() ? "disabled" : ""}>${checkingConnector ? lang("Checking…", "Prüfe…") : t("common.refresh")}</button>
             ${connected
-              ? `<button class="button secondary connector-disconnect" type="button" ${connectorMutating() ? "disabled" : ""}>${connectorAction === "disconnect" ? "Disconnecting…" : "Disconnect"}</button>`
-              : `<button class="button primary connector-connect" type="button" ${connectorMutating() || !detected ? "disabled" : ""}>${connectorAction === "connect" ? "Connecting…" : "Connect Codex"}</button>`}
+              ? `<button class="button secondary connector-disconnect" type="button" ${connectorMutating() ? "disabled" : ""}>${connectorAction === "disconnect" ? lang("Disconnecting…", "Trenne…") : t("connections.disconnect")}</button>`
+              : `<button class="button primary connector-connect" type="button" ${connectorMutating() || !detected ? "disabled" : ""}>${connectorAction === "connect" ? lang("Connecting…", "Verbinde…") : t("connections.connectCodex")}</button>`}
           </div>
         </section>
-
-        ${!detected && !connected ? `
-          <section class="provider-setup-card">
-            <span class="provider-setup-icon">i</span>
-            <div><strong>Codex CLI is required</strong><p>Livariant could not find a usable local Codex installation. Install the official Codex CLI, then choose Refresh. A future guided setup may perform installation steps for you only after a clear permission request that shows exactly what will be changed.</p></div>
-          </section>` : ""}
-
-        <section class="provider-detail-grid" aria-label="Codex connection details">
-          <div class="provider-detail"><small>Installation</small><strong>${detected ? `Codex ${esc(connector?.version ?? "")}` : connector?.installationState === "unusable" ? "Unusable" : "Not detected"}</strong></div>
-          <div class="provider-detail"><small>App Server</small><strong>${connected ? "Connected" : "Disconnected"}</strong></div>
-          <div class="provider-detail"><small>Connection method</small><strong>${connected ? (mode === "manual" ? "Local fallback" : "Automatic") : "Not active"}</strong></div>
-          <div class="provider-detail"><small>Approvals</small><strong>${connector?.pendingApprovals ?? 0} pending</strong></div>
+        <section class="provider-detail-grid" aria-label="${lang("Codex connection details", "Codex-Verbindungsdetails")}">
+          <div class="provider-detail"><small>${lang("Installation", "Installation")}</small><strong>${detected ? `Codex ${esc(connector?.version ?? "")}` : connector?.installationState === "unusable" ? lang("Unusable", "Nicht nutzbar") : lang("Not detected", "Nicht erkannt")}</strong></div>
+          <div class="provider-detail"><small>App Server</small><strong>${connected ? t("connections.connected") : lang("Disconnected", "Getrennt")}</strong></div>
+          <div class="provider-detail"><small>${lang("Connection method", "Verbindungsmethode")}</small><strong>${connected ? (mode === "manual" ? lang("Local fallback", "Lokaler Fallback") : lang("Automatic", "Automatisch")) : lang("Not active", "Nicht aktiv")}</strong></div>
+          <div class="provider-detail"><small>${lang("Approvals", "Freigaben")}</small><strong>${connector?.pendingApprovals ?? 0} ${lang("pending", "ausstehend")}</strong></div>
         </section>
-
-        <footer class="provider-boundary"><span>i</span><p><strong>Authority stays separate.</strong> Connecting Codex does not authorize file changes, commands, merges or releases.</p></footer>
+        <footer class="provider-boundary"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("Connecting Codex does not authorize file changes, commands, merges or releases.", "Das Verbinden von Codex autorisiert keine Dateiänderungen, Befehle, Merges oder Releases.")}</p></footer>
       </section>
     </div>`;
 };
 
 const renderPlannedProviderModal = (provider: Exclude<ProviderId, "codex">) => {
   const copy = {
-    claude: { name: "Claude", vendor: "Anthropic", text: "Claude connection support is part of the provider expansion, but it is not enabled in this preview yet." },
-    gemini: { name: "Gemini", vendor: "Google", text: "Gemini connection support is planned, but Livariant does not currently claim a working Gemini connection boundary." },
-    custom: { name: "Custom connection", vendor: "Advanced", text: "Custom provider connections are planned for advanced setups. The capability and authority boundary must be defined before this option becomes active." },
+    claude: { name: "Claude", vendor: "Anthropic" },
+    gemini: { name: "Gemini", vendor: "Google" },
+    custom: { name: lang("Custom connection", "Eigene Verbindung"), vendor: lang("Advanced", "Erweitert") },
   }[provider];
   return `
     <div class="provider-modal-backdrop" data-close-provider>
-      <section class="provider-modal provider-modal-compact" role="dialog" aria-modal="true" aria-labelledby="provider-${provider}-title" data-provider-modal>
-        <button class="provider-modal-close" type="button" data-close-provider aria-label="Close provider details">×</button>
-        <header class="provider-modal-header">
-          ${providerGlyph(provider)}
-          <div><span class="eyebrow">${copy.vendor}</span><h2 id="provider-${provider}-title">${copy.name}</h2><p>${copy.text}</p></div>
-          <span class="provider-status provider-status-muted"><i></i>Planned</span>
-        </header>
-        <section class="provider-setup-card"><span class="provider-setup-icon">i</span><div><strong>Not available in this preview</strong><p>This entry is visible now so the Connections layout already scales to multiple providers without pretending unsupported functionality exists.</p></div></section>
+      <section class="provider-modal provider-modal-compact" role="dialog" aria-modal="true" data-provider-modal>
+        <button class="provider-modal-close" type="button" data-close-provider aria-label="${lang("Close provider details", "Anbieterdetails schließen")}">×</button>
+        <header class="provider-modal-header">${providerGlyph(provider)}<div><span class="eyebrow">${copy.vendor}</span><h2>${copy.name}</h2></div><span class="provider-status provider-status-muted"><i></i>${lang("Planned", "Geplant")}</span></header>
+        <section class="provider-setup-card"><span class="provider-setup-icon">i</span><div><strong>${lang("Not available in this preview", "In dieser Vorschau nicht verfügbar")}</strong><p>${lang("This provider is visible so the layout can scale without pretending unsupported functionality exists.", "Dieser Anbieter ist sichtbar, damit das Layout skalieren kann, ohne nicht unterstützte Funktionen vorzutäuschen.")}</p></div></section>
       </section>
     </div>`;
 };
 
-const renderProviderModal = () => {
-  if (!selectedProvider) return "";
-  if (selectedProvider === "codex") return renderCodexModal();
-  return renderPlannedProviderModal(selectedProvider);
-};
+const renderProviderModal = () => selectedProvider
+  ? selectedProvider === "codex" ? renderCodexModal() : renderPlannedProviderModal(selectedProvider)
+  : "";
 
 export function renderConnectionsSettingsView(): string {
   const state = codexState();
   const connectedCount = connector?.connected ? 1 : 0;
   return `
-    <section class="settings-panel connections-settings">
+    <section class="settings-panel connections-settings" data-surface="connections">
       <div class="connections-heading">
-        <div><span class="eyebrow">LLMs & agents</span><h2>Connections</h2><p>Connect the tools you work with. Livariant keeps connection state separate from project Authority.</p></div>
-        <div class="connections-overview"><strong>${connectedCount}</strong><span>connected</span></div>
+        <div><span class="eyebrow">${t("connections.llmsAgents")}</span><h2>${t("connections.title")}</h2><p>${t("connections.description")}</p></div>
+        <div class="connections-overview"><strong>${connectedCount}</strong><span>${lang("connected", "verbunden")}</span></div>
       </div>
-      <div class="connection-summary-row">
-        <span><i class="summary-dot ${connector?.connected ? "connected" : ""}"></i><strong>${connector?.connected ? "1 provider connected" : "No providers connected"}</strong></span>
-        <small>Provider setup stays here in Settings so the main workspace remains focused.</small>
-      </div>
-      <div class="provider-grid" aria-label="Available LLM and agent connections">
-        ${renderProviderCard("codex", "Codex", "OpenAI · local App Server", state.label, state.tone)}
-        ${renderProviderCard("claude", "Claude", "Anthropic · provider support", "Planned", "muted", false)}
-        ${renderProviderCard("gemini", "Gemini", "Google · provider support", "Planned", "muted", false)}
-        ${renderProviderCard("custom", "Custom connection", "Advanced provider setup", "Planned", "muted", false)}
+      <div class="connection-summary-row"><span><i class="summary-dot ${connector?.connected ? "connected" : ""}"></i><strong>${connector?.connected ? lang("1 provider connected", "1 Anbieter verbunden") : t("connections.noProviders")}</strong></span></div>
+      <div class="provider-grid" aria-label="${lang("Available LLM and agent connections", "Verfügbare LLM- und Agent-Verbindungen")}">
+        ${renderProviderCard("codex", "Codex", lang("OpenAI · local App Server", "OpenAI · lokaler App Server"), state.label, state.tone)}
+        ${renderProviderCard("claude", "Claude", lang("Anthropic · provider support", "Anthropic · Anbieter-Unterstützung"), lang("Planned", "Geplant"), "muted", false)}
+        ${renderProviderCard("gemini", "Gemini", lang("Google · provider support", "Google · Anbieter-Unterstützung"), lang("Planned", "Geplant"), "muted", false)}
+        ${renderProviderCard("custom", lang("Custom connection", "Eigene Verbindung"), lang("Advanced provider setup", "Erweiterte Anbieter-Einrichtung"), lang("Planned", "Geplant"), "muted", false)}
       </div>
       ${renderProviderModal()}
     </section>`;
 }
 
 export function renderConnectionsView(): string {
-  return `
-    <header class="topbar"><div><span class="eyebrow">Settings</span><h1>Connections</h1><p>Connections now live in Settings. This compatibility view uses the same provider overview.</p></div></header>
-    ${renderConnectionsSettingsView()}`;
+  return `<div data-surface="connections-view"><header class="topbar"><div><span class="eyebrow">${t("settings.title")}</span><h1>${t("connections.title")}</h1></div></header>${renderConnectionsSettingsView()}</div>`;
 }
+
+const diagnosticsClassGrid = () => {
+  const hasObservedData = diagnostics?.hasObservedData === true;
+  return `
+    <section class="diagnostics-class-grid diagnostics-class-grid-compact">
+      <article class="diagnostics-class-card observed">
+        <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Observed</span><span class="diagnostics-class-state">${hasObservedData ? t("diagnostics.measured") : t("common.unknown")}</span></div>
+        <h3>${t("diagnostics.measuredFacts")}</h3><p>${t("diagnostics.directEvidence")}</p>
+      </article>
+      <article class="diagnostics-class-card avoided">
+        <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Avoided</span><span class="diagnostics-class-state">${formatNumber(diagnostics?.avoided.eventCount ?? 0)} ${lang("events", "Ereignisse")}</span></div>
+        <h3>${t("diagnostics.preventedWork")}</h3><p>${formatNumber(diagnostics?.avoided.contextTokens ?? 0)} ${lang("context tokens recorded as avoided by qualified host evidence.", "Kontext-Tokens wurden durch qualifizierte Host-Evidence als vermieden erfasst.")}</p>
+      </article>
+      <article class="diagnostics-class-card estimated">
+        <div class="diagnostics-class-top"><span class="diagnostics-class-label"><i></i>Estimated</span><span class="diagnostics-class-state">${formatNumber(diagnostics?.estimated.eventCount ?? 0)} ${lang("events", "Ereignisse")}</span></div>
+        <h3>${t("diagnostics.modeledValues")}</h3><p>${formatNumber(diagnostics?.estimated.tokens ?? 0)} ${lang("modeled tokens recorded as Estimated, never Observed.", "modellierte Tokens wurden als Estimated erfasst, niemals als Observed.")}</p>
+      </article>
+    </section>`;
+};
+
+const diagnosticsDetails = () => `
+  <details class="diagnostics-details">
+    <summary><span><strong>${t("diagnostics.measurementDetails")}</strong><small>${t("diagnostics.providerModel")}</small></span><span class="diagnostics-details-chevron">⌄</span></summary>
+    <div class="diagnostics-details-body">
+      <div class="diagnostics-context-grid">
+        <article class="diagnostics-context-card"><small>Provider</small><strong>Codex</strong><span>${t("diagnostics.qualifiedContract")}</span></article>
+        <article class="diagnostics-context-card"><small>Model</small><strong>${t("diagnostics.notExposed")}</strong><span>${t("diagnostics.noModelGuess")}</span></article>
+      </div>
+      <div class="diagnostics-definitions">
+        <div class="diagnostics-definition"><strong>${t("diagnostics.totalTokens")}</strong><span>${t("diagnostics.runtimeTotal")}</span></div>
+        <div class="diagnostics-definition"><strong>Input</strong><span>${t("diagnostics.runtimeInput")}</span></div>
+        <div class="diagnostics-definition"><strong>Output</strong><span>${t("diagnostics.runtimeOutput")}</span></div>
+        <div class="diagnostics-definition"><strong>${t("diagnostics.cachedInput")}</strong><span>${t("diagnostics.cacheRead")}</span></div>
+        <div class="diagnostics-definition"><strong>Reasoning</strong><span>${t("diagnostics.reasoningEvidence")}</span></div>
+      </div>
+    </div>
+  </details>`;
 
 export function renderDiagnosticsView(): string {
   const observed = diagnostics?.observed;
   const attribution = diagnostics?.attribution;
   const connected = connector?.connected === true;
   const providerUnknownTotals = unknownTotalEvents(attribution?.provider);
+  const calculation = lang(
+    `Token counters come only from provider/runtime-owned Observed evidence inside ${presetLabel(selectedDiagnosticsPreset).toLowerCase()}. Attribution groups reuse those retained events; grouped total-token sums include only events that explicitly contain totalTokens.${providerUnknownTotals > 0 ? ` ${formatNumber(providerUnknownTotals)} provider-attributed events have no explicit total-token value and remain unknown.` : ""}`,
+    `Token-Zähler stammen ausschließlich aus provider-/runtime-eigener Observed-Evidence innerhalb von ${presetLabel(selectedDiagnosticsPreset)}. Attributionsgruppen verwenden dieselben gespeicherten Ereignisse; gruppierte Gesamt-Tokenwerte enthalten nur Ereignisse mit explizitem totalTokens-Wert.${providerUnknownTotals > 0 ? ` ${formatNumber(providerUnknownTotals)} dem Provider zugeordnete Ereignisse besitzen keinen expliziten Gesamt-Tokenwert und bleiben unbekannt.` : ""}`,
+  );
+  const attributionValues = [
+    formatAttributionDimension(attribution?.provider),
+    formatAttributionDimension(attribution?.model),
+    formatAttributionDimension(attribution?.projectId),
+    formatAttributionDimension(attribution?.sessionId),
+    formatAttributionDimension(attribution?.taskId),
+  ];
   return `
-    <header class="topbar"><div><span class="eyebrow">Measured evidence</span><h1>Diagnostics</h1><p>These counters contain only provider/runtime-owned observations. Unknown is never replaced by synthetic zero.</p></div><div class="topbar-actions"><label><span class="sr-only">Diagnostics period</span><select class="diagnostics-period" ${diagnosticsBusy ? "disabled" : ""}><option value="1d" ${selectedDiagnosticsPreset === "1d" ? "selected" : ""}>1 day</option><option value="7d" ${selectedDiagnosticsPreset === "7d" ? "selected" : ""}>7 days</option><option value="30d" ${selectedDiagnosticsPreset === "30d" ? "selected" : ""}>30 days</option><option value="90d" ${selectedDiagnosticsPreset === "90d" ? "selected" : ""}>90 days</option><option value="all" ${selectedDiagnosticsPreset === "all" ? "selected" : ""}>All time</option></select></label><button class="button secondary diagnostics-refresh" type="button" ${diagnosticsBusy ? "disabled" : ""}>${diagnosticsBusy === "diagnostics" ? "Refreshing…" : "Refresh"}</button></div></header>
-    <section class="health-strip">
-      <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Total tokens</small><strong>${measured(observed?.totalTokens ?? 0)}</strong></div></div>
-      <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Input</small><strong>${measured(observed?.inputTokens ?? 0)}</strong></div></div>
-      <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Output</small><strong>${measured(observed?.outputTokens ?? 0)}</strong></div></div>
-      <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Cached input</small><strong>${measured(observed?.cacheReadTokens ?? 0)}</strong></div></div>
-      <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Reasoning</small><strong>${measured(observed?.reasoningTokens ?? 0)}</strong></div></div>
-    </section>
-    <section class="progress-panel"><div><span class="eyebrow">Observed · ${presetLabel(selectedDiagnosticsPreset)}</span><h2>${observed?.eventCount ?? 0} measured events</h2><p>${esc(error ?? (diagnostics?.hasObservedData ? "Stored locally from Codex App Server runtime evidence." : `No measured usage exists for ${presetLabel(selectedDiagnosticsPreset).toLowerCase()}. Connect Codex and run the measurement test to create the first observation.`))}</p></div><span class="state-pill">${diagnostics?.hasObservedData ? "Measured" : "Unknown"}</span></section>
-    <section class="provider-primary-card" aria-label="Observed diagnostics attribution">
-      <div><span class="provider-card-kicker">Evidence attribution</span><h3>Where the measured events came from</h3><p>Livariant groups only attribution retained on Observed events in the selected period. Missing dimensions stay unavailable.</p></div>
-      <section class="provider-detail-grid">
-        <div class="provider-detail"><small>Provider</small><strong>${formatAttributionDimension(attribution?.provider)}</strong></div>
-        <div class="provider-detail"><small>Model</small><strong>${formatAttributionDimension(attribution?.model)}</strong></div>
-        <div class="provider-detail"><small>Project</small><strong>${formatAttributionDimension(attribution?.projectId)}</strong></div>
-        <div class="provider-detail"><small>Session</small><strong>${formatAttributionDimension(attribution?.sessionId)}</strong></div>
-        <div class="provider-detail"><small>Task</small><strong>${formatAttributionDimension(attribution?.taskId)}</strong></div>
+    <div class="diagnostics-surface" data-surface="diagnostics" data-diagnostics-preset="${selectedDiagnosticsPreset}">
+      <header class="topbar"><div><span class="eyebrow">${t("diagnostics.measuredEvidence")}</span><h1>${t("diagnostics.title")}</h1><p>${t("diagnostics.intro")}</p></div><div class="topbar-actions"><label hidden><span class="sr-only">${t("diagnostics.period")}</span><select class="diagnostics-period" ${diagnosticsBusy ? "disabled" : ""}><option value="1d" ${selectedDiagnosticsPreset === "1d" ? "selected" : ""}>${t("diagnostics.day")}</option><option value="7d" ${selectedDiagnosticsPreset === "7d" ? "selected" : ""}>${t("diagnostics.days7")}</option><option value="30d" ${selectedDiagnosticsPreset === "30d" ? "selected" : ""}>${t("diagnostics.days30")}</option><option value="90d" ${selectedDiagnosticsPreset === "90d" ? "selected" : ""}>${t("diagnostics.days90")}</option><option value="all" ${selectedDiagnosticsPreset === "all" ? "selected" : ""}>${t("diagnostics.allTime")}</option></select></label><button class="button secondary diagnostics-refresh" type="button" ${diagnosticsBusy ? "disabled" : ""}>${diagnosticsBusy === "diagnostics" ? t("common.refreshing") : t("common.refresh")}</button></div></header>
+      <section class="diagnostics-range-bar"><div class="diagnostics-range-copy"><small>${t("diagnostics.timeRange")}</small><strong>${diagnosticsRangeLabel(selectedDiagnosticsPreset)}</strong></div><div class="diagnostics-range-options" role="group" aria-label="${t("diagnostics.period")}">${(["1d","7d","30d","90d","all"] as DiagnosticPreset[]).map((preset) => `<button class="diagnostics-range-option ${selectedDiagnosticsPreset === preset ? "active" : ""}" type="button" data-diagnostics-preset="${preset}" ${diagnosticsBusy ? "disabled" : ""}>${preset === "1d" ? "24h" : preset === "all" ? t("projectBrain.all") : preset.replace("d", "d")}</button>`).join("")}</div></section>
+      ${diagnosticsClassGrid()}
+      <div class="diagnostics-section-head diagnostics-section-head-compact"><div><span class="eyebrow">${t("diagnostics.observedEvidence")}</span><h2>${t("diagnostics.measuredUsage")}</h2><p>${t("diagnostics.rawValues")}</p></div></div>
+      <section class="health-strip">
+        <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>${t("diagnostics.totalTokens")}</small><strong>${measured(observed?.totalTokens ?? 0)}</strong></div></div>
+        <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Input</small><strong>${measured(observed?.inputTokens ?? 0)}</strong></div></div>
+        <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Output</small><strong>${measured(observed?.outputTokens ?? 0)}</strong></div></div>
+        <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>${t("diagnostics.cachedInput")}</small><strong>${measured(observed?.cacheReadTokens ?? 0)}</strong></div></div>
+        <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Reasoning</small><strong>${measured(observed?.reasoningTokens ?? 0)}</strong></div></div>
       </section>
-    </section>
-    <section class="diagnostics-action-card"><div><span class="eyebrow">Calculation path</span><h3>How these totals are calculated</h3><p>Token counters come only from provider/runtime-owned Observed evidence inside ${presetLabel(selectedDiagnosticsPreset).toLowerCase()}. Attribution groups reuse those retained events; grouped total-token sums include only events that explicitly contain <code>totalTokens</code>.${providerUnknownTotals > 0 ? ` ${formatNumber(providerUnknownTotals)} provider-attributed event${providerUnknownTotals === 1 ? " has" : "s have"} no explicit total-token value and remain unknown.` : ""}</p></div></section>
-    <section class="diagnostics-action-card"><div><span class="eyebrow">Connection diagnostics</span><h3>Measure a real Codex turn</h3><p>Run one fixed harmless turn and record provider/runtime-owned token evidence. The test prompt is fixed in Core and cannot be supplied by the renderer.</p></div><button class="button primary diagnostics-measure" type="button" ${diagnosticsBusy || !connected ? "disabled" : ""}>${diagnosticsBusy === "measure" ? "Measuring…" : "Run measurement test"}</button></section>
-    <footer class="truth-note"><span class="truth-icon">i</span><p><strong>Measurement boundary:</strong> Observed ≠ Avoided ≠ Estimated. This page shows Observed usage and retained attribution only for the selected period; it does not claim counterfactual savings.</p></footer>`;
+      <section class="progress-panel diagnostics-observed-status"><div><span class="eyebrow">Observed · ${presetLabel(selectedDiagnosticsPreset)}</span><h2>${observed?.eventCount ?? 0} ${lang("measured events", "gemessene Ereignisse")}</h2><p>${esc(error ?? (diagnostics?.hasObservedData ? lang("Stored locally from Codex App Server runtime evidence.", "Lokal aus Runtime-Evidence des Codex App Servers gespeichert.") : lang("No measured usage exists for this period.", "Für diesen Zeitraum liegt keine gemessene Nutzung vor.")))}</p></div><span class="state-pill">${diagnostics?.hasObservedData ? t("diagnostics.measured") : t("common.unknown")}</span></section>
+      <section class="provider-primary-card" data-diagnostics-attribution><div><span class="provider-card-kicker">${lang("Evidence attribution", "Evidence-Zuordnung")}</span><h3>${lang("Where the measured events came from", "Woher die gemessenen Ereignisse stammen")}</h3></div><section class="provider-detail-grid">${["Provider","Model",lang("Project","Projekt"),lang("Session","Sitzung"),lang("Task","Aufgabe")].map((label, index) => `<div class="provider-detail"><small>${label}</small><strong>${esc(attributionValues[index] ?? t("common.unavailable"))}</strong></div>`).join("")}</section></section>
+      <section class="diagnostics-action-card" data-diagnostics-calculation><div><span class="eyebrow">${lang("Calculation path", "Berechnungsweg")}</span><h3>${lang("How these totals are calculated", "Wie diese Summen berechnet werden")}</h3><p>${esc(calculation)}</p></div></section>
+      <section class="diagnostics-action-card diagnostics-measure-compact"><div><span class="eyebrow">${t("diagnostics.connectionDiagnostics")}</span><h3>${t("diagnostics.measureTurn")}</h3><p>${lang("Run one fixed harmless turn and record provider/runtime-owned token evidence. The test prompt is fixed in Core and cannot be supplied by the renderer.", "Einen fest definierten harmlosen Turn ausführen und provider-/runtime-eigene Token-Evidence erfassen. Der Test-Prompt ist fest im Core hinterlegt und kann nicht vom Renderer geliefert werden.")}</p></div><button class="button primary diagnostics-measure" type="button" ${diagnosticsBusy || !connected ? "disabled" : ""}>${diagnosticsBusy === "measure" ? t("diagnostics.measuring") : t("diagnostics.measure")}</button></section>
+      ${diagnosticsDetails()}
+      <footer class="truth-note"><span class="truth-icon">i</span><p><strong>${t("diagnostics.privacy")}</strong> ${t("diagnostics.noRawCapture")}</p></footer>
+    </div>`;
 }
 
 const rerenderConnectionsSurface = (fallback: () => void) => {
-  const surface = document.querySelector<HTMLElement>(".connections-settings");
-  if (!surface) {
-    fallback();
-    return;
-  }
+  const surface = document.querySelector<HTMLElement>("[data-surface='connections']");
+  if (!surface) { fallback(); return; }
   surface.outerHTML = renderConnectionsSettingsView();
   bindConnectionDiagnosticsEvents(fallback);
 };
@@ -276,114 +316,38 @@ const setRefreshVisualState = (checking: boolean) => {
   const button = document.querySelector<HTMLButtonElement>(".connector-refresh");
   if (!button) return;
   button.disabled = checking || connectorMutating();
-  button.textContent = checking ? "Checking…" : "Refresh";
+  button.textContent = checking ? lang("Checking…", "Prüfe…") : t("common.refresh");
 };
 
-const diagnosticsRangeLabel = (preset: DiagnosticPreset) => ({
-  "1d": "Last 24 hours",
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "90d": "Last 90 days",
-  all: "All locally available evidence",
-})[preset];
+const diagnosticsSurface = () => document.querySelector<HTMLElement>("[data-surface='diagnostics']");
 
 const setDiagnosticsVisualBusyState = () => {
+  const surface = diagnosticsSurface();
+  if (!surface) return;
   const busy = diagnosticsBusy !== null;
-  const period = document.querySelector<HTMLSelectElement>(".diagnostics-period");
-  const refresh = document.querySelector<HTMLButtonElement>(".diagnostics-refresh");
-  const measure = document.querySelector<HTMLButtonElement>(".diagnostics-measure");
+  const period = surface.querySelector<HTMLSelectElement>(".diagnostics-period");
+  const refresh = surface.querySelector<HTMLButtonElement>(".diagnostics-refresh");
+  const measure = surface.querySelector<HTMLButtonElement>(".diagnostics-measure");
   if (period) period.disabled = busy;
-  if (refresh) {
-    refresh.disabled = busy;
-    refresh.textContent = diagnosticsBusy === "diagnostics" ? "Refreshing…" : "Refresh";
-  }
-  if (measure) {
-    measure.disabled = busy || connector?.connected !== true;
-    measure.textContent = diagnosticsBusy === "measure" ? "Measuring…" : "Run measurement test";
-  }
-  document.querySelectorAll<HTMLButtonElement>("[data-diagnostics-preset]").forEach((button) => { button.disabled = busy; });
+  if (refresh) { refresh.disabled = busy; refresh.textContent = diagnosticsBusy === "diagnostics" ? t("common.refreshing") : t("common.refresh"); }
+  if (measure) { measure.disabled = busy || connector?.connected !== true; measure.textContent = diagnosticsBusy === "measure" ? t("diagnostics.measuring") : t("diagnostics.measure"); }
+  surface.querySelectorAll<HTMLButtonElement>("[data-diagnostics-preset]").forEach((button) => { button.disabled = busy; });
 };
 
 const syncDiagnosticsSurface = (fallback: () => void) => {
-  const headings = [...document.querySelectorAll<HTMLElement>(".topbar h1")];
-  const diagnosticsHeading = headings.find((heading) => heading.textContent?.trim() === "Diagnostics");
-  const content = diagnosticsHeading?.closest<HTMLElement>(".content");
-  if (!content) {
-    fallback();
-    return;
-  }
+  const surface = diagnosticsSurface();
+  if (!surface) { fallback(); return; }
 
-  const observed = diagnostics?.observed;
-  const attribution = diagnostics?.attribution;
-  const hasObservedData = diagnostics?.hasObservedData === true;
-  const healthValues = [
-    observed?.totalTokens ?? 0,
-    observed?.inputTokens ?? 0,
-    observed?.outputTokens ?? 0,
-    observed?.cacheReadTokens ?? 0,
-    observed?.reasoningTokens ?? 0,
-  ];
-  content.querySelectorAll<HTMLElement>(".health-card").forEach((card, index) => {
-    card.classList.toggle("muted", !hasObservedData);
-    const value = card.querySelector<HTMLElement>("strong");
-    if (value) value.textContent = measured(healthValues[index] ?? 0);
-  });
+  const fresh = document.createElement("div");
+  fresh.innerHTML = renderDiagnosticsView();
+  const next = fresh.firstElementChild as HTMLElement | null;
+  if (!next) { fallback(); return; }
 
-  const observedPanel = content.querySelector<HTMLElement>(".progress-panel");
-  if (observedPanel) {
-    const eyebrow = observedPanel.querySelector<HTMLElement>(".eyebrow");
-    const heading = observedPanel.querySelector<HTMLElement>("h2");
-    const copy = observedPanel.querySelector<HTMLElement>("p");
-    const state = observedPanel.querySelector<HTMLElement>(".state-pill");
-    if (eyebrow) eyebrow.textContent = `Observed · ${presetLabel(selectedDiagnosticsPreset)}`;
-    if (heading) heading.textContent = `${observed?.eventCount ?? 0} measured events`;
-    if (copy) copy.textContent = error ?? (hasObservedData
-      ? "Stored locally from Codex App Server runtime evidence."
-      : `No measured usage exists for ${presetLabel(selectedDiagnosticsPreset).toLowerCase()}. Connect Codex and run the measurement test to create the first observation.`);
-    if (state) state.textContent = hasObservedData ? "Measured" : "Unknown";
-  }
-
-  const attributionValues = [
-    formatAttributionDimension(attribution?.provider),
-    formatAttributionDimension(attribution?.model),
-    formatAttributionDimension(attribution?.projectId),
-    formatAttributionDimension(attribution?.sessionId),
-    formatAttributionDimension(attribution?.taskId),
-  ];
-  content.querySelectorAll<HTMLElement>('.provider-primary-card[aria-label="Observed diagnostics attribution"] .provider-detail-grid strong').forEach((value, index) => {
-    value.textContent = attributionValues[index] ?? "Unavailable";
-  });
-
-  const providerUnknownTotals = unknownTotalEvents(attribution?.provider);
-  const calculationCopy = content.querySelector<HTMLElement>(".diagnostics-action-card p");
-  if (calculationCopy) {
-    calculationCopy.innerHTML = `Token counters come only from provider/runtime-owned Observed evidence inside ${presetLabel(selectedDiagnosticsPreset).toLowerCase()}. Attribution groups reuse those retained events; grouped total-token sums include only events that explicitly contain <code>totalTokens</code>.${providerUnknownTotals > 0 ? ` ${formatNumber(providerUnknownTotals)} provider-attributed event${providerUnknownTotals === 1 ? " has" : "s have"} no explicit total-token value and remain unknown.` : ""}`;
-  }
-
-  const period = content.querySelector<HTMLSelectElement>(".diagnostics-period");
-  if (period) period.value = selectedDiagnosticsPreset;
-
-  const rangeCopy = content.querySelector<HTMLElement>(".diagnostics-range-copy strong");
-  if (rangeCopy) rangeCopy.textContent = diagnosticsRangeLabel(selectedDiagnosticsPreset);
-  content.querySelectorAll<HTMLButtonElement>("[data-diagnostics-preset]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.diagnosticsPreset === selectedDiagnosticsPreset);
-  });
-
-  const classGrid = content.querySelector<HTMLElement>(".diagnostics-class-grid");
-  if (classGrid) {
-    const observedState = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.observed .diagnostics-class-state");
-    const avoidedState = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.avoided .diagnostics-class-state");
-    const avoidedCopy = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.avoided p");
-    const estimatedState = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.estimated .diagnostics-class-state");
-    const estimatedCopy = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.estimated p");
-    if (observedState) observedState.textContent = hasObservedData ? "Measured" : "Unknown";
-    if (avoidedState) avoidedState.textContent = `${formatNumber(diagnostics?.avoided.eventCount ?? 0)} events`;
-    if (avoidedCopy) avoidedCopy.textContent = `${formatNumber(diagnostics?.avoided.contextTokens ?? 0)} context tokens recorded as avoided by qualified host evidence.`;
-    if (estimatedState) estimatedState.textContent = `${formatNumber(diagnostics?.estimated.eventCount ?? 0)} events`;
-    if (estimatedCopy) estimatedCopy.textContent = `${formatNumber(diagnostics?.estimated.tokens ?? 0)} modeled tokens recorded as Estimated, never Observed.`;
-  }
-
-  setDiagnosticsVisualBusyState();
+  // Keep the diagnostics root node mounted. Only its children change, so titlebar/sidebar/content shell
+  // identity cannot flicker or be rebound by a full application render.
+  surface.dataset.diagnosticsPreset = selectedDiagnosticsPreset;
+  surface.replaceChildren(...Array.from(next.childNodes));
+  bindConnectionDiagnosticsEvents(fallback);
 };
 
 export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
@@ -393,10 +357,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
       if (provider !== "codex" && provider !== "claude" && provider !== "gemini" && provider !== "custom") return;
       selectedProvider = provider;
       rerender();
-      if (provider === "codex" && !connector) {
-        await refreshConnector();
-        rerenderConnectionsSurface(rerender);
-      }
+      if (provider === "codex" && !connector) { await refreshConnector(); rerenderConnectionsSurface(rerender); }
     });
   });
 
@@ -414,51 +375,45 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     const previousError = error;
     checkingConnector = true;
     setRefreshVisualState(true);
-    try {
-      connector = await invoke<ConnectorStatus>("codex_connector_status");
-      error = null;
-    } catch (cause) {
-      error = String(cause);
-    } finally {
+    try { connector = await invoke<ConnectorStatus>("codex_connector_status"); error = null; }
+    catch (cause) { error = String(cause); }
+    finally {
       checkingConnector = false;
       const changed = !sameConnectorStatus(previousConnector, connector) || previousError !== error;
-      if (changed) rerenderConnectionsSurface(rerender);
-      else setRefreshVisualState(false);
+      if (changed) rerenderConnectionsSurface(rerender); else setRefreshVisualState(false);
     }
   });
 
   document.querySelector<HTMLButtonElement>(".connector-connect")?.addEventListener("click", async () => {
-    connectorAction = "connect";
-    error = null;
-    rerenderConnectionsSurface(rerender);
+    connectorAction = "connect"; error = null; rerenderConnectionsSurface(rerender);
     try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); }
     catch (cause) { error = String(cause); }
-    finally {
-      connectorAction = null;
-      rerenderConnectionsSurface(rerender);
-    }
+    finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
 
   document.querySelector<HTMLButtonElement>(".connector-disconnect")?.addEventListener("click", async () => {
-    connectorAction = "disconnect";
-    error = null;
-    rerenderConnectionsSurface(rerender);
+    connectorAction = "disconnect"; error = null; rerenderConnectionsSurface(rerender);
     try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); }
     catch (cause) { error = String(cause); }
-    finally {
-      connectorAction = null;
-      rerenderConnectionsSurface(rerender);
-    }
+    finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
 
-  document.querySelector<HTMLSelectElement>(".diagnostics-period")?.addEventListener("change", async (event) => {
-    const next = (event.currentTarget as HTMLSelectElement).value;
+  const changePreset = async (next: string) => {
     if (next !== "1d" && next !== "7d" && next !== "30d" && next !== "90d" && next !== "all") return;
+    if (selectedDiagnosticsPreset === next && diagnostics?.preset === next) return;
     selectedDiagnosticsPreset = next;
     const refresh = refreshDiagnostics();
     setDiagnosticsVisualBusyState();
     await refresh;
     syncDiagnosticsSurface(rerender);
+  };
+
+  document.querySelector<HTMLSelectElement>(".diagnostics-period")?.addEventListener("change", (event) => {
+    void changePreset((event.currentTarget as HTMLSelectElement).value);
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-diagnostics-preset]").forEach((button) => {
+    button.addEventListener("click", () => void changePreset(button.dataset.diagnosticsPreset ?? ""));
   });
 
   document.querySelector<HTMLButtonElement>(".diagnostics-refresh")?.addEventListener("click", async () => {
@@ -469,17 +424,12 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   });
 
   document.querySelector<HTMLButtonElement>(".diagnostics-measure")?.addEventListener("click", async () => {
-    diagnosticsBusy = "measure";
-    error = null;
-    setDiagnosticsVisualBusyState();
+    diagnosticsBusy = "measure"; error = null; setDiagnosticsVisualBusyState();
     try {
       const result = await invoke<MeasureResult>("codex_diagnostics_measure", { preset: selectedDiagnosticsPreset });
       connector = result.connection;
       diagnostics = result.diagnostics;
     } catch (cause) { error = String(cause); }
-    finally {
-      diagnosticsBusy = null;
-      syncDiagnosticsSurface(rerender);
-    }
+    finally { diagnosticsBusy = null; syncDiagnosticsSurface(rerender); }
   });
 }
