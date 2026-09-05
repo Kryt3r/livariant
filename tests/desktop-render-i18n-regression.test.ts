@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import test from "node:test";
 
-const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const read = (path: string) => readFile(resolve(process.cwd(), path), "utf8");
 
 test("Desktop i18n runtime does not defer translation to a paint frame", async () => {
   const runtime = await read("apps/desktop/src/i18n/runtime.ts");
@@ -48,7 +49,7 @@ test("Diagnostics behavior is structural and cannot depend on localized heading 
 test("Diagnostics refresh keeps its root node mounted", async () => {
   const diagnostics = await read("apps/desktop/src/connections-diagnostics.ts");
   assert.match(diagnostics, /surface\.replaceChildren/);
-  assert.doesNotMatch(diagnostics, /fallback\(\);\s*return;\s*}\s*\n\s*const observed = diagnostics\?\.observed/);
+  assert.doesNotMatch(diagnostics, /app\.innerHTML/);
 });
 
 test("UI polish discovers Updates structurally, not through visible text", async () => {
