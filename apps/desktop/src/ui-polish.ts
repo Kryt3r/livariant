@@ -4,7 +4,6 @@ import "./readability-polish.css";
 import "./i18n-hmr-guard.js";
 
 const STORAGE_KEY = "livariant.project-truth.accordions.v1";
-
 type AccordionState = Record<string, boolean>;
 
 const readState = (): AccordionState => {
@@ -13,25 +12,16 @@ const readState = (): AccordionState => {
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed as AccordionState : {};
-  } catch {
-    return {};
-  }
+  } catch { return {}; }
 };
 
 const writeState = (state: AccordionState) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // UI preference persistence must never block the renderer.
-  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch { /* UI preference persistence must never block the renderer. */ }
 };
 
 const state = readState();
-
-const chevron = `
-  <svg aria-hidden="true" viewBox="0 0 24 24">
-    <path d="m7 10 5 5 5-5" />
-  </svg>`;
+const chevron = `<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg>`;
 
 const applyAccordionState = () => {
   const cards = [...document.querySelectorAll<HTMLElement>(".truth-area-card[data-area]")];
@@ -51,10 +41,6 @@ const applyAccordionState = () => {
     }
 
     const collapsed = areaId in state ? state[areaId] : index !== 0;
-    card.classList.toggle("is-collapsed", collapsed);
-    toggle.setAttribute("aria-expanded", String(!collapsed));
-    toggle.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} ${areaId} Project Truth area`);
-
     const setCollapsed = (nextCollapsed: boolean) => {
       card.classList.toggle("is-collapsed", nextCollapsed);
       toggle?.setAttribute("aria-expanded", String(!nextCollapsed));
@@ -62,6 +48,10 @@ const applyAccordionState = () => {
       state[areaId] = nextCollapsed;
       writeState(state);
     };
+
+    card.classList.toggle("is-collapsed", collapsed);
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} ${areaId} Project Truth area`);
 
     if (toggle.dataset.bound !== "true") {
       toggle.dataset.bound = "true";
@@ -83,28 +73,26 @@ const applyAccordionState = () => {
   });
 };
 
-const enhanceUpdates = () => {
-  const headings = [...document.querySelectorAll<HTMLElement>(".topbar h1")];
-  const updatesHeading = headings.find((heading) => heading.textContent?.trim() === "Updates");
-  if (!updatesHeading) return;
+const updatesContent = (): HTMLElement | null => {
+  if (!document.querySelector(".nav-item.active[data-view='updates']")) return null;
+  return document.querySelector<HTMLElement>(".content");
+};
 
-  const content = updatesHeading.closest<HTMLElement>(".content");
+const enhanceUpdates = () => {
+  const content = updatesContent();
   if (!content || content.dataset.updatesRedesigned === "true") return;
 
   const statusPanel = content.querySelector<HTMLElement>(".progress-panel");
   const oldSteps = content.querySelector<HTMLElement>(".steps");
   if (!statusPanel || !oldSteps) return;
-
   content.dataset.updatesRedesigned = "true";
 
   const statusCopy = statusPanel.querySelector<HTMLElement>(":scope > div");
   const actions = [...statusPanel.querySelectorAll<HTMLButtonElement>(".check-updates, .install-update")];
-  const eyebrowText = statusCopy?.querySelector<HTMLElement>(".eyebrow")?.textContent?.trim().toLowerCase() ?? "";
-  const isChecking = eyebrowText.includes("checking");
-  const checkCompleted = eyebrowText.includes("up to date") || eyebrowText.includes("update available");
 
   const workspace = document.createElement("section");
   workspace.className = "updates-workspace";
+  workspace.dataset.updateSurface = "true";
 
   const statusCard = document.createElement("section");
   statusCard.className = "updates-status-card";
@@ -125,21 +113,9 @@ const enhanceUpdates = () => {
   flow.className = "updates-flow";
   flow.setAttribute("aria-label", "Update lifecycle");
   flow.innerHTML = `
-    <article class="update-phase active">
-      <div class="update-phase-head"><span class="update-phase-index">01</span><span class="update-phase-state">${isChecking ? "Checking" : checkCompleted ? "Checked" : "Ready"}</span></div>
-      <h3>Check availability</h3>
-      <p>Ask the fixed host-side updater boundary whether a newer trusted update exists.</p>
-    </article>
-    <article class="update-phase">
-      <div class="update-phase-head"><span class="update-phase-index">02</span><span class="update-phase-state">Not exposed yet</span></div>
-      <h3>Download & verify</h3>
-      <p>Future progress belongs here only when the Desktop contract exposes real artifact download and verification state.</p>
-    </article>
-    <article class="update-phase">
-      <div class="update-phase-head"><span class="update-phase-index">03</span><span class="update-phase-state">User authorized</span></div>
-      <h3>Install & restart</h3>
-      <p>Installation remains a separate explicit action. Availability alone never authorizes replacing installed code.</p>
-    </article>`;
+    <article class="update-phase active" data-update-phase="check"><div class="update-phase-head"><span class="update-phase-index">01</span><span class="update-phase-state">Ready</span></div><h3>Check availability</h3><p>Ask the fixed host-side updater boundary whether a newer trusted update exists.</p></article>
+    <article class="update-phase" data-update-phase="download"><div class="update-phase-head"><span class="update-phase-index">02</span><span class="update-phase-state">Not exposed yet</span></div><h3>Download & verify</h3><p>Future progress belongs here only when the Desktop contract exposes real artifact download and verification state.</p></article>
+    <article class="update-phase" data-update-phase="install"><div class="update-phase-head"><span class="update-phase-index">03</span><span class="update-phase-state">User authorized</span></div><h3>Install & restart</h3><p>Installation remains a separate explicit action. Availability alone never authorizes replacing installed code.</p></article>`;
   workspace.append(flow);
 
   const details = document.createElement("details");
@@ -157,18 +133,12 @@ const enhanceUpdates = () => {
   oldSteps.remove();
 };
 
-let scheduled = false;
-const scheduleApply = () => {
-  if (scheduled) return;
-  scheduled = true;
-  requestAnimationFrame(() => {
-    scheduled = false;
-    applyAccordionState();
-    enhanceUpdates();
-  });
+const apply = () => {
+  applyAccordionState();
+  enhanceUpdates();
 };
 
-const observer = new MutationObserver(scheduleApply);
-observer.observe(document.documentElement, { childList: true, subtree: true });
-
-scheduleApply();
+// Structural polish is synchronous in the mutation microtask. It never waits for a paint frame
+// and never discovers a surface by translated text.
+new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: true });
+apply();
