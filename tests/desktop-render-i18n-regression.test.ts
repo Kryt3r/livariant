@@ -40,7 +40,7 @@ test("supported locale catalog entries are explicit and bilingual", async () => 
 
 test("Diagnostics behavior is structural and cannot depend on localized heading copy", async () => {
   const diagnostics = await read("apps/desktop/src/connections-diagnostics.ts");
-  assert.match(diagnostics, /data-surface=\\"diagnostics\\"/);
+  assert.match(diagnostics, /data-surface="diagnostics"/);
   assert.match(diagnostics, /\[data-surface='diagnostics'\]/);
   assert.doesNotMatch(diagnostics, /textContent\?\.trim\(\) === ["']Diagnostics["']/);
   assert.doesNotMatch(diagnostics, /textContent\?\.trim\(\) === ["']Diagnose["']/);
