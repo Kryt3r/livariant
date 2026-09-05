@@ -1,0 +1,117 @@
+.updates-status-card .install-update {
+  position: relative;
+  z-index: 2;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 170px;
+  min-height: 36px;
+  flex: 0 0 auto;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  animation: none !important;
+}
+
+.diagnostics-surface .health-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.diagnostics-surface .health-card {
+  min-width: 0;
+  min-height: 92px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 13px;
+}
+
+.diagnostics-surface .health-card .health-icon {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: transparent;
+  background: linear-gradient(135deg, #7c74ff, #ec3cff);
+  box-shadow: 0 0 12px rgba(196, 60, 255, .24);
+}
+
+.diagnostics-surface .health-card small,
+.diagnostics-surface .health-card strong {
+  display: block;
+}
+
+.diagnostics-surface .health-card small {
+  color: var(--muted-2);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.diagnostics-surface .health-card strong {
+  margin-top: 7px;
+  font-size: 19px;
+  line-height: 1;
+  letter-spacing: -.025em;
+}
+
+.diagnostics-surface .health-card.muted strong {
+  color: var(--muted);
+}
+
+.diagnostics-surface [data-diagnostics-attribution] {
+  display: grid;
+  grid-template-columns: minmax(180px, .34fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.diagnostics-surface [data-diagnostics-attribution] > div {
+  min-width: 0;
+}
+
+.diagnostics-surface [data-diagnostics-attribution] .provider-detail-grid {
+  width: 100%;
+  margin-top: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.diagnostics-surface [data-diagnostics-attribution] .provider-detail {
+  min-width: 0;
+}
+
+.diagnostics-surface [data-diagnostics-attribution] .provider-detail strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  .diagnostics-surface .health-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .diagnostics-surface [data-diagnostics-attribution] {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnostics-surface [data-diagnostics-attribution] .provider-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .diagnostics-surface .health-strip,
+  .diagnostics-surface [data-diagnostics-attribution] .provider-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .updates-status-card .install-update {
+    width: 100%;
+  }
+}
