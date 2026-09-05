@@ -279,6 +279,113 @@ const setRefreshVisualState = (checking: boolean) => {
   button.textContent = checking ? "Checking…" : "Refresh";
 };
 
+const diagnosticsRangeLabel = (preset: DiagnosticPreset) => ({
+  "1d": "Last 24 hours",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+  all: "All locally available evidence",
+})[preset];
+
+const setDiagnosticsVisualBusyState = () => {
+  const busy = diagnosticsBusy !== null;
+  const period = document.querySelector<HTMLSelectElement>(".diagnostics-period");
+  const refresh = document.querySelector<HTMLButtonElement>(".diagnostics-refresh");
+  const measure = document.querySelector<HTMLButtonElement>(".diagnostics-measure");
+  if (period) period.disabled = busy;
+  if (refresh) {
+    refresh.disabled = busy;
+    refresh.textContent = diagnosticsBusy === "diagnostics" ? "Refreshing…" : "Refresh";
+  }
+  if (measure) {
+    measure.disabled = busy || connector?.connected !== true;
+    measure.textContent = diagnosticsBusy === "measure" ? "Measuring…" : "Run measurement test";
+  }
+  document.querySelectorAll<HTMLButtonElement>("[data-diagnostics-preset]").forEach((button) => { button.disabled = busy; });
+};
+
+const syncDiagnosticsSurface = (fallback: () => void) => {
+  const headings = [...document.querySelectorAll<HTMLElement>(".topbar h1")];
+  const diagnosticsHeading = headings.find((heading) => heading.textContent?.trim() === "Diagnostics");
+  const content = diagnosticsHeading?.closest<HTMLElement>(".content");
+  if (!content) {
+    fallback();
+    return;
+  }
+
+  const observed = diagnostics?.observed;
+  const attribution = diagnostics?.attribution;
+  const hasObservedData = diagnostics?.hasObservedData === true;
+  const healthValues = [
+    observed?.totalTokens ?? 0,
+    observed?.inputTokens ?? 0,
+    observed?.outputTokens ?? 0,
+    observed?.cacheReadTokens ?? 0,
+    observed?.reasoningTokens ?? 0,
+  ];
+  content.querySelectorAll<HTMLElement>(".health-card").forEach((card, index) => {
+    card.classList.toggle("muted", !hasObservedData);
+    const value = card.querySelector<HTMLElement>("strong");
+    if (value) value.textContent = measured(healthValues[index] ?? 0);
+  });
+
+  const observedPanel = content.querySelector<HTMLElement>(".progress-panel");
+  if (observedPanel) {
+    const eyebrow = observedPanel.querySelector<HTMLElement>(".eyebrow");
+    const heading = observedPanel.querySelector<HTMLElement>("h2");
+    const copy = observedPanel.querySelector<HTMLElement>("p");
+    const state = observedPanel.querySelector<HTMLElement>(".state-pill");
+    if (eyebrow) eyebrow.textContent = `Observed · ${presetLabel(selectedDiagnosticsPreset)}`;
+    if (heading) heading.textContent = `${observed?.eventCount ?? 0} measured events`;
+    if (copy) copy.textContent = error ?? (hasObservedData
+      ? "Stored locally from Codex App Server runtime evidence."
+      : `No measured usage exists for ${presetLabel(selectedDiagnosticsPreset).toLowerCase()}. Connect Codex and run the measurement test to create the first observation.`);
+    if (state) state.textContent = hasObservedData ? "Measured" : "Unknown";
+  }
+
+  const attributionValues = [
+    formatAttributionDimension(attribution?.provider),
+    formatAttributionDimension(attribution?.model),
+    formatAttributionDimension(attribution?.projectId),
+    formatAttributionDimension(attribution?.sessionId),
+    formatAttributionDimension(attribution?.taskId),
+  ];
+  content.querySelectorAll<HTMLElement>('.provider-primary-card[aria-label="Observed diagnostics attribution"] .provider-detail-grid strong').forEach((value, index) => {
+    value.textContent = attributionValues[index] ?? "Unavailable";
+  });
+
+  const providerUnknownTotals = unknownTotalEvents(attribution?.provider);
+  const calculationCopy = content.querySelector<HTMLElement>(".diagnostics-action-card p");
+  if (calculationCopy) {
+    calculationCopy.innerHTML = `Token counters come only from provider/runtime-owned Observed evidence inside ${presetLabel(selectedDiagnosticsPreset).toLowerCase()}. Attribution groups reuse those retained events; grouped total-token sums include only events that explicitly contain <code>totalTokens</code>.${providerUnknownTotals > 0 ? ` ${formatNumber(providerUnknownTotals)} provider-attributed event${providerUnknownTotals === 1 ? " has" : "s have"} no explicit total-token value and remain unknown.` : ""}`;
+  }
+
+  const period = content.querySelector<HTMLSelectElement>(".diagnostics-period");
+  if (period) period.value = selectedDiagnosticsPreset;
+
+  const rangeCopy = content.querySelector<HTMLElement>(".diagnostics-range-copy strong");
+  if (rangeCopy) rangeCopy.textContent = diagnosticsRangeLabel(selectedDiagnosticsPreset);
+  content.querySelectorAll<HTMLButtonElement>("[data-diagnostics-preset]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.diagnosticsPreset === selectedDiagnosticsPreset);
+  });
+
+  const classGrid = content.querySelector<HTMLElement>(".diagnostics-class-grid");
+  if (classGrid) {
+    const observedState = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.observed .diagnostics-class-state");
+    const avoidedState = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.avoided .diagnostics-class-state");
+    const avoidedCopy = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.avoided p");
+    const estimatedState = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.estimated .diagnostics-class-state");
+    const estimatedCopy = classGrid.querySelector<HTMLElement>(".diagnostics-class-card.estimated p");
+    if (observedState) observedState.textContent = hasObservedData ? "Measured" : "Unknown";
+    if (avoidedState) avoidedState.textContent = `${formatNumber(diagnostics?.avoided.eventCount ?? 0)} events`;
+    if (avoidedCopy) avoidedCopy.textContent = `${formatNumber(diagnostics?.avoided.contextTokens ?? 0)} context tokens recorded as avoided by qualified host evidence.`;
+    if (estimatedState) estimatedState.textContent = `${formatNumber(diagnostics?.estimated.eventCount ?? 0)} events`;
+    if (estimatedCopy) estimatedCopy.textContent = `${formatNumber(diagnostics?.estimated.tokens ?? 0)} modeled tokens recorded as Estimated, never Observed.`;
+  }
+
+  setDiagnosticsVisualBusyState();
+};
+
 export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   document.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -348,15 +455,23 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     const next = (event.currentTarget as HTMLSelectElement).value;
     if (next !== "1d" && next !== "7d" && next !== "30d" && next !== "90d" && next !== "all") return;
     selectedDiagnosticsPreset = next;
-    await refreshDiagnostics();
-    rerender();
+    const refresh = refreshDiagnostics();
+    setDiagnosticsVisualBusyState();
+    await refresh;
+    syncDiagnosticsSurface(rerender);
   });
 
-  document.querySelector<HTMLButtonElement>(".diagnostics-refresh")?.addEventListener("click", async () => { await refreshDiagnostics(); rerender(); });
+  document.querySelector<HTMLButtonElement>(".diagnostics-refresh")?.addEventListener("click", async () => {
+    const refresh = refreshDiagnostics();
+    setDiagnosticsVisualBusyState();
+    await refresh;
+    syncDiagnosticsSurface(rerender);
+  });
+
   document.querySelector<HTMLButtonElement>(".diagnostics-measure")?.addEventListener("click", async () => {
     diagnosticsBusy = "measure";
     error = null;
-    rerender();
+    setDiagnosticsVisualBusyState();
     try {
       const result = await invoke<MeasureResult>("codex_diagnostics_measure", { preset: selectedDiagnosticsPreset });
       connector = result.connection;
@@ -364,7 +479,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     } catch (cause) { error = String(cause); }
     finally {
       diagnosticsBusy = null;
-      rerender();
+      syncDiagnosticsSurface(rerender);
     }
   });
 }
