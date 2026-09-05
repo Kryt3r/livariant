@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 25",
+    "items": [
+      "Der Update-Bereich stellt den fehlenden Freigabe- und Installieren-Button jetzt defensiv wieder her, wenn ein Update eindeutig verfügbar ist und die Oberfläche auf deine Freigabe wartet.",
+      "Die wiederhergestellte Aktion verwendet ausschließlich die vom bestehenden vertrauenswürdigen Update-Host zurückgegebene exakte Zielversion; Versionsnummern werden weder aus UI-Texten abgeleitet noch erfunden.",
+      "Installation, Signaturprüfung, Update-Authority und der bestehende explizite Freigabepfad bleiben unverändert."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 25",
+    "items": [
+      "The Updates view now defensively restores the missing approval and install action when an update is clearly available and the surface is awaiting your approval.",
+      "The recovered action uses only the exact target version returned by the existing trusted update host; versions are neither inferred from UI text nor fabricated.",
+      "Installation, signature verification, update Authority and the existing explicit approval path remain unchanged."
+    ]
+  }
+}
