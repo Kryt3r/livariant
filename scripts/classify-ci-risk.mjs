@@ -4,8 +4,22 @@ import { pathToFileURL } from "node:url";
 
 const priorities = { A: 1, B: 2, C: 3, D: 4 };
 
+const measurementOnlyPaths = new Set([
+  ".github/workflows/diagnostics-performance-baseline.yml",
+  ".github/workflows/runtime-health-performance-baseline.yml",
+  ".github/workflows/desktop-process-window-baseline.yml",
+  "scripts/diagnostics-history-growth-benchmark.mjs",
+  "scripts/diagnostics-history-growth-benchmark.test.mjs",
+  "scripts/runtime-health-probe-benchmark.ps1",
+  "scripts/desktop-process-window-baseline.ps1",
+]);
+
 function maxClass(left, right) {
   return priorities[right] > priorities[left] ? right : left;
+}
+
+function isMeasurementOnlyPath(path) {
+  return measurementOnlyPaths.has(path);
 }
 
 function isDesktopDistributionRisk(path) {
@@ -70,6 +84,11 @@ function isClassD(path) {
 }
 
 function classifyPath(path) {
+  // These exact paths are measurement/evidence harnesses only. They execute in
+  // read-only CI and do not ship in the product/runtime/distribution surface.
+  // Keep this as an explicit allowlist: arbitrary scripts/workflows continue to
+  // fail safe to D.
+  if (isMeasurementOnlyPath(path)) return "C";
   if (isClassD(path)) return "D";
 
   if (
