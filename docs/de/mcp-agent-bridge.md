@@ -1,26 +1,28 @@
 # Lokale MCP-Agent-Bridge
 
-Status: Repository-Entwicklung nach RC3
+<p align="center">
+  <a href="../mcp-agent-bridge.md">English</a> · <strong>Deutsch</strong>
+</p>
 
 Livariant stellt eine begrenzte lokale MCP-kompatible stdio-Bridge für kompatible Coding-Agents bereit.
 
-Die Bridge ist ausschließlich ein Adapter über bestehende Active-Project-Intelligence-Primitiven. Sie ist kein zweiter Project Brain, keine zweite Proposal-Engine, kein Authorization-Store, kein Recovery-Mechanismus und kein semantischer Writer.
+Die Bridge ist ein Adapter über bestehende Livariant-Core-Fähigkeiten. Sie ist kein zweiter Project Brain, keine Proposal Engine, kein Authorization Store, kein Recovery-Mechanismus und kein semantischer Writer.
 
 ## Bridge starten
 
-Im Livariant-Projektverzeichnis:
+Im Projektverzeichnis:
 
 ```text
 livariant mcp
 ```
 
-Der Prozess kommuniziert ausschließlich über MCP-JSON-RPC-Nachrichten auf Standard-Ein-/Ausgabe. Diagnosefehler werden auf Standardfehler ausgegeben.
+Der Prozess kommuniziert über MCP JSON-RPC auf Standard-Ein-/Ausgabe. Diagnosefehler werden auf Standardfehler ausgegeben.
 
-Die Bridge zielt auf die MCP-Protokollrevision `2025-11-25` über lokales stdio.
+Die aktuelle Bridge zielt auf die MCP-Protokollrevision `2025-11-25` über lokales stdio.
 
-## Nativer Setup-Helfer
+## Provider-Setup-Helfer
 
-WP-013 ergänzt eine ausschließlich lesende Setup-Ausgabe für die aktuell unterstützten lokalen MCP-Pfade:
+Aktuelle Setup-Hinweise existieren für Claude Code und Codex:
 
 ```text
 livariant mcp setup --provider claude-code
@@ -28,24 +30,17 @@ livariant mcp setup --provider codex
 livariant mcp setup --provider <claude-code|codex> --json
 ```
 
-Der Setup-Helfer **führt weder Claude Code noch Codex aus und schreibt keine Provider-Konfiguration**. Er gibt nur providerspezifische native Befehle bzw. Konfigurationsmaterial aus, das der Nutzer selbst prüfen und anwenden kann.
+Der Helfer führt den Provider **nicht** aus und schreibt keine Provider-Konfiguration. Er gibt provider-native Commands/Konfigurationsmaterial zur Prüfung und Anwendung durch den Nutzer aus.
 
 ### Claude Code
 
-Der ausgegebene native lokale stdio-Registrierungsbefehl lautet:
+Der ausgegebene lokale stdio-Registrierungsbefehl lautet:
 
 ```text
 claude mcp add --transport stdio --scope local livariant -- livariant mcp
 ```
 
-Er sollte im Livariant-Projektverzeichnis ausgeführt werden. Prüfen lässt sich die Registrierung mit:
-
-```text
-claude mcp get livariant
-claude mcp list
-```
-
-Claude Code bleibt Eigentümer seiner MCP-Konfiguration und seines Freigabeverhaltens.
+Claude Code bleibt Eigentümer seiner MCP-Konfiguration und seines Approval-Verhaltens.
 
 ### Codex
 
@@ -55,121 +50,99 @@ Der ausgegebene native CLI-Registrierungsbefehl lautet:
 codex mcp add livariant -- livariant mcp
 ```
 
-Prüfen lässt sich die Registrierung mit:
+Für projektgebundenes Codex-Setup kann der Helfer zusätzlich einen `.codex/config.toml`-Abschnitt mit dem aktuellen Projektverzeichnis als `cwd` ausgeben. Die aktuelle Allow-List enthält die drei unten dokumentierten Livariant-MCP-Tools. Livariant schreibt diese Datei nicht selbst.
 
-```text
-codex mcp list
-```
+Provider-Konfigurationssyntax ist externe Kompatibilität und kann sich unabhängig von Livariant ändern. Provider-native Command-Beispiele müssen deshalb bei Provider-Änderungen erneut verifiziert werden.
 
-Für ein ausdrücklich projektgebundenes Codex-Setup gibt der Helfer zusätzlich einen `.codex/config.toml`-Abschnitt aus. Dieser verwendet das aktuelle Projektverzeichnis als `cwd` und erlaubt exakt die beiden Livariant-MCP-Tools. Livariant schreibt diese Datei nicht selbst.
+## Aktuelle MCP-Tools
 
-Codex CLI, die Codex-IDE-Erweiterung und unterstützte Desktop-Clients teilen sich die Codex-MCP-Konfiguration entsprechend dem aktuellen Provider-Modell.
+Der aktuelle Server stellt **drei** begrenzte Tools bereit:
 
-Die Provider-Setup-Syntax wurde am 16.08.2026 gegen die aktuelle Herstellerdokumentation geprüft. Provider-Konfigurationssyntax ist externe Kompatibilität und kann sich unabhängig von Livariant ändern.
+- `livariant_provider_context`
+- `livariant_provider_return`
+- `livariant_verification_trace`
 
-## Agent-Workflow-Anweisungen
-
-Die MCP-Initialize-Antwort erklärt kompatiblen Agents nun den begrenzten Ablauf:
-
-```text
-Livariant Provider Context für genau eine explizite Aufgabe anfordern
--> mit der zurückgegebenen begrenzten Projektion arbeiten
--> den bereitgestellten Kontext plus genau einen unterstützten typisierten dauerhaften Änderungskandidaten oder keinen Kandidaten zurückgeben
--> bei Review / Authorization-required / Blocked / No-candidate stoppen
-```
-
-Die Anweisungen stellen ausdrücklich klar, dass MCP keine proposal-bound Authorization erzeugen, entdecken, auswählen oder konsumieren und keine kanonische semantische Mutation durchführen kann.
-
-## Verfügbare Tools
-
-Es werden weiterhin exakt zwei Tools bereitgestellt.
+Keines davon kann Mutation Authority erzeugen oder konsumieren.
 
 ### `livariant_provider_context`
 
-Eingabe:
+Dieses Tool baut begrenzten Provider-Kontext für genau eine explizite Aufgabe und ein unterstütztes Provider-Ziel.
 
-```json
-{
-  "provider": "codex",
-  "task": "Prüfe das aktuelle Projekt und melde bei Bedarf genau einen dauerhaften Änderungskandidaten"
-}
-```
-
-Unterstützte Provider bleiben die bereits durch Provider Context unterstützten Ziele:
+Unterstützte Provider-Identifier sind unter anderem:
 
 - `codex`
 - `claude-code`
 
-Das Tool delegiert direkt an `buildProviderContext()`.
-
-Es rekonstruiert den aktuellen lokalen Project-Brain-Kontext und gibt das bestehende begrenzte Provider-Context-Paket zurück. Es erzeugt keine Mutation Authority und verändert den Project Brain nicht.
+Der zurückgegebene Kontext ist eine Projektion aktuellen lokalen Projektzustands für die Aufgabe. Er ist keine Mutation Authority und mutiert Project Brain nicht.
 
 ### `livariant_provider_return`
 
-Eingabe:
+Dieses Tool akzeptiert die bereitgestellte Provider-Context-Kopie plus genau ein unterstütztes Provider-Return-Paket und delegiert an die bestehende Provider-Return-Verarbeitungsgrenze.
 
-```json
-{
-  "context": { "...": "das bereitgestellte ready Provider-Context-Paket" },
-  "providerReturn": { "...": "genau ein Provider-Return-Paket im bestehenden Schema" }
-}
-```
+Bereitgestellter Kontext und Return-Paket bleiben externe nicht vertrauenswürdige Evidenz. Provider Identity, Packet ID, stabile Projektidentität, Baseline und Task-Werte sind Korrelationsmaterial; sie beweisen allein weder Approval noch aktuelle Project Truth oder Mutation Authority.
 
-Das Tool delegiert direkt an `processProviderReturn()` ohne Authorization-Selector.
-
-Der bereitgestellte Kontext und das Return-Paket bleiben externe, nicht vertrauenswürdige Evidenz. Provider, Packet-ID, Stable Project Identity, Baseline und Task-Werte sind ausschließlich Korrelationsmaterial; sie beweisen weder frühere Ausgabe noch Zustimmung, vertrauenswürdige aktuelle Wahrheit oder Mutation Authority.
-
-Mögliche Ergebnisse bleiben die bestehenden Provider-Return-/Maintenance-Zustände, unter anderem:
+Mögliche Ergebnisse umfassen begrenzte Zustände wie:
 
 - `no-candidate`
 - `stale-context`
 - `mismatched-context`
-- `candidate-received` mit Review-/Authorization-required-Maintenance-Zustand
+- `candidate-received`
 - `blocked`
+
+Ein dauerhafter Änderungskandidat stoppt weiterhin an der unterstützten Review-/Authority-Grenze.
+
+### `livariant_verification_trace`
+
+Dieses read-only Tool bewertet explizite Anforderungen/Claims gegen bereitgestellte Implementierungs- und Verification Evidence.
+
+Seine Evidence-Support-Zustände sind:
+
+```text
+SUPPORTED
+CONTRADICTED
+UNPROVEN
+```
+
+Wichtige Grenze:
+
+```text
+SUPPORTED != DONE
+Verification Evidence != akzeptierte Completion
+Evidence != Project Truth
+```
+
+Das Tool erzeugt keine vertrauenswürdige Verification Evidence und vergibt weder Completion noch Mutation Authority.
+
+Siehe [Verification Trace](verification-trace.md).
 
 ## Authority-Grenze
 
-Die MCP-Oberfläche akzeptiert **nicht**:
+Die MCP-Bridge macht Provider-Ausgabe, Verification-Ausgabe oder Transport-State nicht zu kanonischer Mutation Authority.
 
-- `authorization`
-- `authorizationId`
-- Approval-Flags
-- Mutation Permission
-- providerspezifische Schreibrechte
+Unbekannte/zusätzliche Tool-Argumente werden durch die aktuellen Tool-Schemas validiert; nicht unterstützter folgenreicher Input schlägt geschlossen fehl.
 
-Unbekannte oder zusätzliche MCP-Toolargumente schlagen fail-closed fehl.
-
-Eine andernorts bereits vorhandene passende proposal-bound Authorization wird von dieser Bridge weder gesucht noch konsumiert. Ein über MCP zurückgegebener Candidate kann deshalb keine kanonische semantische Mutation ausführen.
-
-Für eine autorisierte semantische Mutation bleibt der separate bestehende lokale Authorization-/Semantic-Apply-Workflow außerhalb dieser MCP-Oberfläche zuständig.
+Ein passender Semantic-/Lifecycle-Authority-Record wird nicht allein deshalb gesucht und konsumiert, weil ein MCP-Call existiert. Folgenreiche Mutation bleibt im getrennten unterstützten Authority-kontrollierten Workflow.
 
 ## Transportgrenze
 
-Die Bridge ist ausschließlich lokales stdio.
+Die Core-MCP-Bridge ist ausschließlich lokales stdio. Sie fügt nicht hinzu:
 
-Nicht enthalten sind:
+- HTTP-/TCP-Listener;
+- von Livariant gehostetes Remote MCP;
+- Cloud-Synchronisierung;
+- automatischen Projekt-Upload;
+- Webhooks;
+- Provider-Account-/Session-Authentifizierung.
 
-- HTTP- oder TCP-Listener
-- Remote-MCP-Hosting
-- Cloud-Synchronisierung
-- automatische Provider-Prozesssteuerung
-- automatischer Projekt-Upload
-- Webhooks
-- Provider-Account-/Session-Authentifizierung
+Livariant Core/CLI bleibt ohne MCP nutzbar.
 
-Der normale Livariant Core und die CLI bleiben ohne MCP nutzbar.
+Die Desktop-Codex-Verbindung ist eine **getrennte lokale Connector-/App-Server-Integration**. Der echte Desktop-Verbindungspfad darf nicht mit dem auf dieser Seite beschriebenen Core-stdio-MCP-Transport verwechselt werden.
 
-## Eingabegrenzen
+## Input- und Lifecycle-Grenzen
 
-Jede stdio-JSON-RPC-Nachricht ist UTF-8 und newline-delimited und wird bereits vor dem JSON-Parsing durch eine begrenzte Nachrichtengröße geschützt.
+Jede stdio-JSON-RPC-Nachricht ist newline-delimited UTF-8 und unterliegt begrenztem Parsing/Validation.
 
-Provider-Context-Taskmaterial sowie Provider-Return-/Context-Copy-Daten werden nach dem Transport weiterhin durch ihre bestehenden Core-Grenzen validiert.
-
-Zu große, fehlerhafte, partielle sowie unbekannte Methoden-/Tool-Eingaben schlagen fail-closed fehl.
-
-## MCP-Lifecycle
-
-Die Bridge implementiert den für die aktuelle Tool-Oberfläche erforderlichen begrenzten Lifecycle:
+Die aktuelle Bridge unterstützt den für ihre Tool-Oberfläche nötigen begrenzten Lifecycle:
 
 ```text
 initialize
@@ -179,10 +152,10 @@ initialize
 
 `ping` wird ebenfalls unterstützt.
 
-Es werden keine MCP-Tasks, Prompts, Resources, Sampling, HTTP-Authorization, Server-zu-Client-Requests oder Remote-Transporte eingeführt.
+Nicht unterstützter, fehlerhafter oder zu großer Input muss geschlossen fehlschlagen statt die Capability der Bridge still zu erweitern.
 
 ## Release-Grenze
 
-Diese Fähigkeit ist Repository-Entwicklung nach der unveränderlichen Foundation Preview `v0.1.0-rc.3`.
+Die MCP-Bridge entstand nach der historischen Foundation Preview `v0.1.0-rc.3`. Das bleibt historische Release-Wahrheit und ist nicht die aktuelle Produktgrenze.
 
-RC3 enthält weder die MCP-Agent-Bridge noch die native WP-013-Setup-UX. Ein späterer Release benötigt eine separate ausdrückliche Release-Freigabe.
+Der aktuelle kanonische Repository-Stand und spätere Preview-Oberflächen enthalten mehr MCP-Capability als RC3. Historische RC3-Aussagen dürfen nicht umgeschrieben werden, um etwas anderes zu suggerieren.
