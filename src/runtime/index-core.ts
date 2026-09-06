@@ -138,6 +138,7 @@ export async function applyRecovery(
 export interface VersionInfo {
   frameworkVersion: string;
   runtime: "node";
+  nodeVersion: string;
   channel: string;
 }
 
@@ -155,7 +156,7 @@ export interface StatusInfo {
 }
 
 export function getVersionInfo(): VersionInfo {
-  return { frameworkVersion: FRAMEWORK_VERSION, runtime: "node", channel: UPDATE_CHANNEL };
+  return { frameworkVersion: FRAMEWORK_VERSION, runtime: "node", nodeVersion: process.version, channel: UPDATE_CHANNEL };
 }
 
 export async function getStatus(projectPath: string = process.cwd()): Promise<StatusInfo> {

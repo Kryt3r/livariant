@@ -74,19 +74,6 @@ fn inspect_runtime_root(install_root: &Path) -> RuntimeHealth {
         return runtime_health_result("invalid", Some(&manifest), "Ordinary bundled runtime material must never claim Authority.");
     }
 
-    let node_output = match hidden_command(&node).arg("--version").output() {
-        Ok(value) => value,
-        Err(error) => return runtime_health_result("invalid", Some(&manifest), format!("Bundled Node runtime could not be executed: {error}")),
-    };
-    if !node_output.status.success() {
-        return runtime_health_result("invalid", Some(&manifest), "Bundled Node runtime version probe failed.");
-    }
-    let observed_node = String::from_utf8_lossy(&node_output.stdout).trim().to_owned();
-    let expected_node = format!("v{}", manifest.node_version);
-    if observed_node != expected_node {
-        return runtime_health_result("invalid", Some(&manifest), format!("Bundled Node runtime identity mismatch: expected {expected_node}, observed {observed_node}."));
-    }
-
     let core_output = match hidden_command(&node)
         .arg(&core_cli)
         .arg("version")
@@ -106,6 +93,13 @@ fn inspect_runtime_root(install_root: &Path) -> RuntimeHealth {
         Ok(value) => value,
         Err(error) => return runtime_health_result("invalid", Some(&manifest), format!("Bundled Livariant Core returned invalid identity JSON: {error}")),
     };
+
+    let observed_node = version_info.get("nodeVersion").and_then(Value::as_str).unwrap_or_default();
+    let expected_node = format!("v{}", manifest.node_version);
+    if observed_node != expected_node {
+        return runtime_health_result("invalid", Some(&manifest), format!("Bundled Node runtime identity mismatch: expected {expected_node}, observed {observed_node}."));
+    }
+
     let observed_core = version_info.get("frameworkVersion").and_then(Value::as_str).unwrap_or_default();
     if observed_core != manifest.core_version {
         return runtime_health_result("invalid", Some(&manifest), format!("Bundled Livariant Core identity mismatch: expected {}, observed {}.", manifest.core_version, observed_core));

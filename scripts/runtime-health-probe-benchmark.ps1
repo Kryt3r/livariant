@@ -55,21 +55,22 @@ function Invoke-MeasuredProcess {
   }
 }
 
-$nodeSamples = @()
-$coreSamples = @()
+$identitySamples = @()
 for ($i = 0; $i -lt $Iterations; $i++) {
-  $node = Invoke-MeasuredProcess -FilePath $NodePath -ArgumentList @('--version')
-  if ($node.stdout -notmatch '^v\d+\.\d+\.\d+') {
-    throw "Unexpected Node version output: $($node.stdout)"
+  $identity = Invoke-MeasuredProcess -FilePath $NodePath -ArgumentList @($CoreCliPath, 'version', '--json') -Environment @{ PBF_RUNTIME_DELEGATION_BYPASS = '1' }
+  $identityJson = $identity.stdout | ConvertFrom-Json
+  if (-not $identityJson.frameworkVersion) {
+    throw "Runtime identity probe did not return frameworkVersion."
   }
-  $nodeSamples += [ordered]@{ iteration = $i + 1; durationMs = $node.durationMs; observedVersion = $node.stdout }
-
-  $core = Invoke-MeasuredProcess -FilePath $NodePath -ArgumentList @($CoreCliPath, 'version', '--json') -Environment @{ PBF_RUNTIME_DELEGATION_BYPASS = '1' }
-  $coreJson = $core.stdout | ConvertFrom-Json
-  if (-not $coreJson.frameworkVersion) {
-    throw "Core version probe did not return frameworkVersion."
+  if ($identityJson.nodeVersion -notmatch '^v\d+\.\d+\.\d+') {
+    throw "Runtime identity probe did not return a valid executing nodeVersion: $($identityJson.nodeVersion)"
   }
-  $coreSamples += [ordered]@{ iteration = $i + 1; durationMs = $core.durationMs; observedFrameworkVersion = $coreJson.frameworkVersion }
+  $identitySamples += [ordered]@{
+    iteration = $i + 1
+    durationMs = $identity.durationMs
+    observedFrameworkVersion = $identityJson.frameworkVersion
+    observedNodeVersion = $identityJson.nodeVersion
+  }
 }
 
 function Summarize-Durations {
@@ -85,24 +86,19 @@ function Summarize-Durations {
 }
 
 $result = [ordered]@{
-  schemaVersion = 1
-  benchmark = 'runtime-health-probe-cost'
+  schemaVersion = 2
+  benchmark = 'runtime-health-single-identity-probe-cost'
   sourceSha = $SourceSha.ToLowerInvariant()
   platform = [System.Environment]::OSVersion.VersionString
   architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
   iterations = $Iterations
-  nodeProbe = [ordered]@{
-    command = 'livariant-node.exe --version'
-    summary = Summarize-Durations -Samples $nodeSamples
-    samples = $nodeSamples
-  }
-  coreProbe = [ordered]@{
+  identityProbe = [ordered]@{
     command = 'livariant-node.exe <core-cli> version --json'
     environment = 'PBF_RUNTIME_DELEGATION_BYPASS=1'
-    summary = Summarize-Durations -Samples $coreSamples
-    samples = $coreSamples
+    summary = Summarize-Durations -Samples $identitySamples
+    samples = $identitySamples
   }
-  interpretation = 'Measures fresh child-process execution cost of the same Node/Core identity probes used by runtime_health. It does not measure complete Desktop startup or TTI.'
+  interpretation = 'Measures fresh child-process execution cost of the single combined Node/Core identity probe used by optimized runtime_health. The executing Node version and Core framework version are reported by the same process. It does not measure complete Desktop startup or TTI.'
 }
 
 $result | ConvertTo-Json -Depth 8
