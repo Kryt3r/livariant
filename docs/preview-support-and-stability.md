@@ -1,65 +1,103 @@
 # Public Preview Support & Stability
 
-Livariant `0.1.0-rc.3` is the current Foundation Preview candidate. Preview means supported behavior is backed by evidence, but the product is not yet under a final 1.0 compatibility freeze.
+<p align="center">
+  <strong>English</strong> · <a href="de/preview-support-and-stability.md">Deutsch</a>
+</p>
 
-The existing immutable `v0.1.0-rc.2` GitHub Release is historical pre-public release evidence and is not the current candidate.
+The current published graphical Preview is **Livariant Desktop `0.1.0-rc.28` for Windows x64**. Preview means current supported behavior has engineering/release evidence, but Livariant is still in early development and is not under a final Stable/1.0 compatibility contract.
 
-## What you should be able to rely on
+The historical CLI Public Preview `v0.1.0-rc.4` remains a separate immutable older release surface.
 
-On supported Preview paths, Livariant is expected to preserve these properties:
+## What supported Preview paths should preserve
 
-- project-owned state is not silently overwritten;
-- project-changing actions require explicit authority;
-- release artifacts and installed Runtime state are checked for integrity;
-- schema migrations use declared compatibility and checkpoint rules;
-- interrupted or ambiguous lifecycle state leads to diagnosis and recovery instead of guessed repair;
-- supported provider Resume handoff reconstructs Project Brain context without depending on hidden provider memory.
+Even before Stable, Livariant is expected to preserve its safety/trust properties:
 
-Preview does not mean that serious safety problems are acceptable. A known data-loss path, authority bypass, migration-integrity failure, or release-trust bypass on a supported workflow is a release blocker, not a normal Preview limitation.
+- project-owned state is not silently redefined by provider output or UI state;
+- consequential mutation requires the supported Authority path;
+- connection/capability does not become Authority;
+- ambiguous, stale, substituted, or malformed consequential trust state fails closed;
+- update availability is not installation authorization;
+- release/update artifacts use explicit identity/integrity checks;
+- migration/recovery uses explicit compatibility, checkpoint, journal, and operation-domain boundaries where applicable;
+- verification evidence is not silently upgraded into accepted completion;
+- historical release evidence is not rewritten to match later product behavior.
 
-## What can still change before 1.0
+Preview does **not** mean serious safety problems are acceptable. A confirmed data-loss path, Authority bypass, release/update-trust bypass, project-truth corruption path, or equivalent supported-workflow security failure is a blocker/remediation issue, not a routine Preview limitation.
 
-Before Livariant reaches a stable 1.0 contract, releases may still change:
+## What can still change before Stable / 1.0
 
+Preview releases may still change:
+
+- Desktop UI organization and interaction details;
+- supported Desktop platforms;
+- provider/connection methods;
 - CLI details and flags;
-- release-manifest fields;
-- adapter capabilities;
+- release/update metadata contracts;
 - Project Brain schema through explicit supported migrations;
-- internal framework layout;
-- Preview compatibility ranges;
-- installation and distribution mechanics.
+- adapter/connector capabilities;
+- installation and distribution mechanics;
+- performance characteristics and budgets;
+- Preview compatibility ranges.
 
-Breaking changes must still respect project preservation. A new release cannot use "Preview" as permission to reinterpret old Project Brain state silently or skip a required migration.
+Changes must still respect preservation and Authority boundaries. "Preview" is not permission to silently reinterpret old Project Brain state, bypass a required migration, or weaken safety merely for compatibility.
 
-Changes that affect users should be called out in release notes together with any migration or required-action information.
+User-visible behavior changes should be described in release notes together with required actions or known limitations.
+
+## Current Desktop support scope
+
+Published Desktop Preview support is currently:
+
+- Windows x64;
+- current-user NSIS installation;
+- bundled qualified runtime;
+- Project Truth / First Steps foundation workspace;
+- live Codex connection surface;
+- local Diagnostics evidence presentation;
+- signed Desktop update discovery/install flow;
+- Deutsch/English application UI.
+
+The Project Truth renderer is not yet a finished persistent Project Brain editor, and the normal existing-project adoption flow is still being completed.
+
+A future Linux/macOS Desktop release requires separate packaging/install evidence; broader Core/CLI platform support does not imply a Desktop release.
 
 ## Current provider scope
 
-The current support claim for Claude Code and Codex is limited to Project Brain Resume handoff.
+Livariant Core exposes provider-native MCP setup guidance for Claude Code and Codex. The current Desktop has the deeper live local connection path for Codex.
 
-Livariant does not promise to manage every provider feature, authentication method, tool invocation, model option, or native instruction mechanism.
+Livariant does not promise to manage every provider feature, authentication method, model-selection option, native memory/instruction mechanism, or future MCP behavior.
 
-## Current migration scope
+Additional providers/connection methods are future capability until implemented and qualified.
 
-Only declared migration paths are supported.
+## Current migration/recovery scope
 
-The current executable baseline proves Project Brain schema `1 -> 2`. The existence of a migration engine does not mean Livariant can safely migrate between arbitrary schema versions.
+Only explicitly implemented and declared migration/recovery paths are supported.
+
+The presence of generic lifecycle machinery does not mean arbitrary schema/runtime transitions are safe. Consequential lifecycle operations remain plan-first and Authority-bound where required.
+
+If the current installation/project state is ambiguous, the safe behavior is diagnosis/recovery rather than guessed mutation.
+
+## Windows signing/reputation limitation
+
+The current Desktop Preview installer has exact release identity and updater-signing/integrity evidence, but it does **not** yet have the final production Authenticode publisher-signing/reputation setup.
+
+Windows can therefore show publisher/SmartScreen warnings depending on policy/reputation. This limitation must remain visible until production signing/reputation is solved; it must not be hidden behind a generic "Preview" label.
 
 ## Getting support
 
-Public Preview support is provided by the maintainer and community. There is no paid SLA unless a separate agreement says otherwise.
+Public Preview support is maintainer/community supported. There is no paid response-time SLA unless separately agreed.
 
-Use [SUPPORT.md](../SUPPORT.md) to choose the right place for a usage question, bug, documentation problem, feature idea, or security report.
+Use [SUPPORT.md](../SUPPORT.md) for usage questions, bugs, documentation issues, feature ideas, or the security-reporting route.
 
-A useful bug report normally includes:
+A useful Desktop bug report normally includes:
 
-- Livariant version and channel;
-- operating system;
-- Node.js version;
-- affected command or workflow;
-- observed lifecycle state;
+- Livariant Desktop version and release/tag identity;
+- Windows version/architecture;
+- affected area (Project Truth, Connections, Diagnostics, Updates, Settings, installer, startup);
+- observed behavior and expected behavior;
 - minimal reproduction steps;
-- whether project-owned data was affected.
+- whether project-owned data or connection/update state was affected.
+
+For Core/CLI issues, also include the relevant Core/CLI version, Node.js/runtime information, command/workflow, and lifecycle state where applicable.
 
 Do not disclose suspected vulnerability details in a public Issue. Follow [SECURITY.md](../SECURITY.md).
 
@@ -67,22 +105,24 @@ Do not disclose suspected vulnerability details in a public Issue. Follow [SECUR
 
 A public Preview release should state at least:
 
-- Livariant version and channel;
-- Project Brain schema compatibility;
-- whether migration is required;
-- supported source-version range;
+- exact product surface/version and platform;
+- exact source/release identity;
+- installation artifact and relevant verification data;
 - known issues and limitations;
-- required user actions;
-- recovery considerations for schema-changing releases.
+- meaningful user-visible changes;
+- required actions where applicable;
+- compatibility/migration/recovery considerations when relevant.
+
+Desktop and Core/CLI are independently versioned surfaces; release notes must not imply that matching or non-matching RC numbers change their trust roles.
 
 ## Deprecation
 
-Preview features may be changed or withdrawn if they cannot meet Livariant's safety or maintenance bar.
+Preview features may be changed or withdrawn if they cannot meet Livariant's safety, maintainability, or product-quality bar.
 
-If a supported path is withdrawn, that should be stated clearly rather than leaving a broken path nominally supported.
+If a supported path is withdrawn, that should be stated explicitly rather than leaving a broken path nominally supported.
 
-## 1.0 is a separate stability decision
+## Stable / 1.0 is a separate decision
 
-A successful Public Preview does not automatically define Livariant's eventual 1.0 compatibility promise.
+A successful Preview does not automatically define the eventual Stable/1.0 compatibility promise.
 
-Before 1.0, a separate stable-release readiness review must define the longer-term compatibility and support policy.
+Before Stable/1.0, a separate readiness decision must define the longer-term platform, compatibility, support, migration, distribution-signing, and release-maintenance commitments.
