@@ -56,6 +56,10 @@ type ResolvedCodexInspection = {
   resolution: ReturnType<typeof resolveCodexCommand>;
   inspection: CodexInstallationInspection;
 };
+type ConnectSessionOptions = {
+  manualPath?: string;
+  resolvedAutoCommand?: string;
+};
 
 function emit(value: unknown): void { stdout.write(`${JSON.stringify(value)}\n`); }
 function completionKey(threadId: string, turnId: string): string { return `${threadId}\u0000${turnId}`; }
@@ -78,19 +82,19 @@ function assertRequest(value: unknown): Request {
   };
 }
 
-function inspectResolvedCodex(manualPath?: string): ResolvedCodexInspection {
-  const resolution = manualPath
-    ? resolveCodexCommand({ pathCandidates: [manualPath] })
+function inspectResolvedCodex(candidatePath?: string): ResolvedCodexInspection {
+  const resolution = candidatePath
+    ? resolveCodexCommand({ pathCandidates: [candidatePath] })
     : resolveCodexCommand();
   if (!resolution) {
     return {
       resolution: undefined,
       inspection: {
         state: "unusable",
-        command: manualPath ?? "codex",
+        command: candidatePath ?? "codex",
         evidence: "codex --version",
-        detail: manualPath
-          ? "The selected path is not a native Codex executable that Livariant can validate without a shell."
+        detail: candidatePath
+          ? "The configured Codex executable is no longer a native executable that Livariant can validate without a shell."
           : "Codex was found only through a Windows command shim whose native executable could not be resolved without invoking a shell.",
       },
     };
@@ -133,10 +137,12 @@ async function disconnectSession(): Promise<void> {
   completedTurns.clear();
 }
 
-async function connectSession(manualPath?: string) {
+async function connectSession(options: ConnectSessionOptions = {}) {
+  const manualPath = options.manualPath;
+  const resolvedAutoCommand = options.resolvedAutoCommand;
   if (session?.isOpen() && workflow && !manualPath) return connectionStatus();
   await disconnectSession();
-  const resolved = inspectResolvedCodex(manualPath);
+  const resolved = inspectResolvedCodex(manualPath ?? resolvedAutoCommand);
   const { resolution, inspection } = resolved;
   if (!resolution || inspection.state !== "available") throw new Error(`Codex is not connectable: ${inspection.detail ?? inspection.state}.`);
   if (!inspection.version) throw new Error("Codex responded but its version could not be identified; measured provenance would be incomplete.");
@@ -163,12 +169,13 @@ async function connectSession(manualPath?: string) {
 }
 
 async function connect(manualPath?: string) {
-  const status = await connectSession(manualPath);
+  const status = await connectSession(manualPath ? { manualPath } : {});
   const intent: ConnectionIntent = {
     schemaVersion: 1,
     desiredConnected: true,
     mode: manualPath ? "manual" : "auto",
     ...(manualPath ? { manualPath } : {}),
+    ...(!manualPath && selectedResolution?.command ? { resolvedCommand: selectedResolution.command } : {}),
   };
   try {
     await writeConnectionIntent(connectionIntentPath, intent);
@@ -205,7 +212,25 @@ async function restoreDesiredConnection(): Promise<void> {
     return;
   }
   try {
-    await connectSession(intent.mode === "manual" ? intent.manualPath : undefined);
+    await connectSession(intent.mode === "manual"
+      ? { manualPath: intent.manualPath }
+      : intent.resolvedCommand
+        ? { resolvedAutoCommand: intent.resolvedCommand }
+        : {});
+
+    if (intent.mode === "auto" && !intent.resolvedCommand && selectedResolution?.command) {
+      try {
+        await writeConnectionIntent(connectionIntentPath, {
+          ...intent,
+          resolvedCommand: selectedResolution.command,
+        });
+      } catch (error) {
+        await disconnectSession();
+        selectedResolution = undefined;
+        selectedMode = "auto";
+        throw new Error(`legacy auto connection restored but its resolved executable could not be pinned: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     lastRestoreError = undefined;
   } catch (error) {
     lastRestoreError = error instanceof Error ? error.message : String(error);
