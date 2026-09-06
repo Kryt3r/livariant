@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 28",
+    "items": [
+      "Die Diagnose-Zeiträume sind wieder anklickbar: Der Schutz gegen das fehlerhafte Zurückbubblen zum übergeordneten 30-Tage-Preset greift jetzt erst nach dem eigentlichen Zeitraum-Handler, sodass 24h, 7 Tage, 30 Tage, 90 Tage und der gesamte Zeitraum normal ausgewählt werden können."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 28",
+    "items": [
+      "Diagnostics range controls are clickable again: the guard against erroneous bubbling back into the parent 30-day preset now runs only after the actual range handler, so 24h, 7 days, 30 days, 90 days and all time can be selected normally."
+    ]
+  }
+}
