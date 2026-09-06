@@ -1,12 +1,17 @@
 # Leitfaden für bestehende Projekte
 
-Du brauchst kein neues Repository, um Livariant zu nutzen. Bestehende Projekte sind ein normaler Anwendungsfall.
+<p align="center">
+  <a href="../existing-projects.md">English</a> · <strong>Deutsch</strong>
+</p>
 
-Livariant prüft zuerst, was bereits vorhanden ist, und soll diesen Zustand möglichst erhalten. Dein Repository wird nicht einfach umgebaut, nur damit es stärker nach einem Livariant-Projekt aussieht.
+Bestehende Projekte sind ein zentraler Livariant-Anwendungsfall. Livariant arbeitet preservation-first: Es prüft zuerst vorhandenen Zustand und soll ein Repository nicht nur deshalb umbauen, damit es stärker wie ein Livariant-Projekt aussieht.
 
-## Sicherer Übernahmeablauf
+> [!IMPORTANT]
+> Der normale durchgängige **Desktop-Existing-Project-Adoption-Pfad wird noch fertiggestellt**. Project Truth / First Steps ist aktuell eine nützliche Foundation, aber noch kein fertiger persistenter Project-Brain-Adoption-Editor.
 
-Im Hauptordner des Projekts:
+## Vor der Übernahme prüfen
+
+Im Projektroot:
 
 ```bash
 livariant status
@@ -14,92 +19,96 @@ livariant doctor
 livariant init
 ```
 
-Diese Befehle helfen dir, das Projekt zu verstehen, bevor Livariant verwalteten Zustand anlegt.
+`livariant init` ist ohne den nachfolgenden autorisierten Apply-Pfad plan-first und read-only. Prüfe, was erkannt wurde und welchen Project-Brain-State Livariant vorschlägt.
 
-`livariant init` ohne `--apply` ist nur Planung und verändert nichts. Lies, welche Informationen Livariant erkannt hat und welche Project-Brain-Dateien angelegt würden.
+Initialisierung darf nicht still:
 
-Wenn der Plan korrekt ist:
+- Source Code reorganisieren;
+- fremde Konfiguration umschreiben;
+- widersprüchliche Dokumentation erraten;
+- Secrets in Project Brain kopieren;
+- `CLAUDE.md`, `AGENTS.md` oder andere Provider-Instruktionsdateien ersetzen;
+- Discovery-Evidenz als bereits akzeptierte Project Truth behandeln.
+
+## Aktueller Initialisierungsablauf
+
+Ein nacktes `--apply` reicht für den aktuellen geschützten Lifecycle nicht aus.
+
+Wenn die erforderlichen geschützten Machine-/Guardian-Voraussetzungen bereit sind:
 
 ```bash
+livariant init
+livariant init --authorize
 livariant init --apply
 ```
 
-Die unterstützte Initialisierung ergänzt das Project Brain. Sie führt nicht automatisch folgende Dinge aus:
+Plan, Authorization und Apply bleiben getrennt. Die Autorisierung ist an Projekt, Operation und Material gebunden; veralteter oder nicht passender Zustand darf nicht still wiederverwendet werden.
 
-- Sourcecode umorganisieren;
-- Konfigurationsdateien umschreiben;
-- widersprüchliche Dokumentation selbstständig auflösen;
-- Secrets in das Project Brain kopieren;
-- vorhandene Agent-Instruktionsdateien ersetzen, nur um das Repository aufzuräumen.
+Sind die geschützten Voraussetzungen nicht bereit, zuerst diagnostizieren und nicht durch manuelles State-Editing oder Kopieren von Paketdateien in geschützte Pfade umgehen.
 
-> [!IMPORTANT]
-> Bestehende projekt-eigene Dateien bleiben unter Kontrolle des Projekts. Nur weil Livariant eine Datei lesen kann, bekommt es dadurch keine Erlaubnis, sie umzuschreiben.
+Siehe [Installation](installation.md), [First Run](first-run.md) und [Updates, Migrationen & Recovery](lifecycle-guide.md).
 
-## Nach der Übernahme: nur bestätigte Projektwahrheit festhalten
+## Discovery ist Evidenz, nicht Project Truth
 
-Die Initialisierung bedeutet nicht, dass Livariant das Projekt ab jetzt überwacht oder selbst entscheidet, was in das Project Brain gehört. Du legst fest, was dauerhafte Projektwahrheit wird.
+Livariant kann begrenzte direkte Evidenz verwenden, zum Beispiel:
 
-Den aktuellen semantischen Zustand kannst du so ansehen:
+- gültige Package-Metadaten;
+- relevante Repository-/Verzeichnisstruktur;
+- Git-Repository-Präsenz/-State;
+- Präsenz ausgewählter Provider-Instruktionsdateien;
+- unterstützte Projekt-/Lifecycle-Signale.
 
-```bash
-livariant goals
-livariant knowledge
-livariant decisions
+Bei fehlerhafter oder widersprüchlicher Evidenz sollen Claims enger werden, statt Lücken zu erraten. Die Präsenz einer `.env` kann beispielsweise für sichere Discovery relevant sein, ohne Secret-Inhalte zu übernehmen.
+
+## Bestehende Provider-Dateien bleiben projekt-eigen
+
+`CLAUDE.md`, `AGENTS.md` und vergleichbare Dateien bleiben projekt-eigene Evidence-/Instruction-Oberflächen. Ihr Text wird nicht allein deshalb kanonische Project Truth, weil ein Provider ihn nutzt. Provider Memory und Agentenausgabe überstimmen akzeptierten Project-Brain-State ebenfalls nicht.
+
+Die beabsichtigte Adoption-Richtung ist:
+
+```text
+prüfen
+-> Evidenz entdecken
+-> verstehen / reviewen
+-> Kandidatenwissen vorschlagen
+-> ausdrücklich übernehmen, wo unterstützt
 ```
 
-Wenn etwas bestätigt ist und spätere KI-Sitzungen überdauern soll, planst du die Änderung zuerst:
+nicht:
 
-```bash
-livariant goals add "Während der Migration rückwärtskompatibel bleiben"
-livariant knowledge add "Die bestehende API wird vom Mobile-Client verwendet"
-livariant decisions add "Für die Preview die aktuelle API-Struktur beibehalten"
+```text
+Repository scannen
+-> Wahrheit erraten
+-> Projekt umschreiben
 ```
 
-Diese Befehle schreiben nichts, bis du den ausgewählten Befehl mit `--apply` wiederholst.
+## Nachdem ein Project Brain existiert
 
-Gerade bei bestehenden Projekten ist diese Trennung wichtig. Livariant soll Vermutungen aus der Repository-Prüfung nicht automatisch in Projektwahrheit verwandeln. Discovery hilft bei der sicheren Übernahme; semantische Änderungen am Project Brain bleiben explizit und autorisiert.
+Ein Project Brain verwaltet die dafür vorgesehenen dauerhaften Kontextbereiche:
 
-Ändert sich eine akzeptierte Entscheidung später, löst du sie gezielt ab, statt ihre Historie zu löschen:
-
-```bash
-livariant decisions
-livariant decisions supersede <decision-id> "Neue API-Struktur übernehmen" --reason "Migration abgeschlossen"
+```text
+.project-brain/
+  project.md
+  goals.md
+  decisions.md
+  knowledge.md
+  metadata.json
 ```
 
-Prüfe die geplante Ablösung zuerst und füge `--apply` erst hinzu, wenn sie korrekt ist.
+Semantische Änderungen folgen dem aktuellen Proposal-/Review-/Authority-Modell. Veraltete `--apply`-Beispiele dürfen nicht als Erlaubnis verstanden werden, geschützte Semantic-Mutation-Grenzen zu umgehen.
 
-## Was Livariant bei der Prüfung erkennen kann
+Relevante Guides:
 
-Die aktuelle Baseline kann direkte Projektevidenz verwenden, zum Beispiel:
+- [Semantic Proposal Core](semantic-proposal-core.md)
+- [Conflict & Drift Assessment](conflict-drift-assessment.md)
+- [Controlled Understanding Adoption](controlled-understanding-adoption.md)
+- [Semantic Maintenance](semantic-maintenance.md)
 
-- einen Paketnamen aus gültigen Paketmetadaten;
-- vorhandene Source-Verzeichnisse;
-- ob das Verzeichnis ein Git-Repository ist;
-- ausgewählte strukturelle Hinweise, die für die unterstützte Initialisierung relevant sind.
+## Nicht erneut initialisieren, um zu reparieren
 
-Livariant erfindet bewusst keine Projektziele oder Architektur aus schwachen Hinweisen.
+Sobald ein gültiges Project Brain existiert, ist frische Initialisierung nicht der normale Repair-Pfad.
 
-Sind Informationen fehlerhaft oder widersprüchlich, schränkt Livariant seine Schlussfolgerungen ein. Eine beschädigte `package.json` kann zum Beispiel als nicht lesbar gemeldet werden, statt ihren Inhalt zu erraten.
-
-Livariant darf erkennen, dass eine sensible Datei wie `.env` existiert, weil das für sichere Discovery relevant ist. Der unterstützte Initialisierungspfad kopiert deren geheime Inhalte nicht in das Project Brain.
-
-## Vorhandene Claude-Code- und Codex-Dateien
-
-Dateien wie `CLAUDE.md` und `AGENTS.md` bleiben projekt-eigen.
-
-Livariant kann erkennen, dass sie existieren, überschreibt sie bei der unterstützten Übernahme aber nicht. Ihr Inhalt wird auch nicht automatisch zur kanonischen Project-Brain-Wahrheit, nur weil ein Provider ihn verwendet.
-
-Provider-Memory und Resume-Projektionen sind nützlicher Arbeitskontext, aber keine konkurrierenden Projektarchive.
-
-Nachdem du bestätigte Ziele, Wissen oder Entscheidungen ausdrücklich über Livariant festgehalten hast, wird ein neues `livariant resume` aus dem aktuellen Project Brain erzeugt und nicht aus veraltetem Provider-Memory.
-
-## Nicht neu initialisieren, um etwas zu reparieren
-
-Sobald ein gültiges Project Brain existiert, ist eine frische Initialisierung nicht mehr der normale Weg.
-
-Ein erneutes `init --apply` darf ein vorhandenes gültiges Project Brain nicht überschreiben oder normalisieren.
-
-Ist das Project Brain beschädigt, unvollständig, gedriftet oder wartet auf Lifecycle-Recovery, beginne mit der Diagnose:
+Bei beschädigtem, teilweisem, gedriftetem oder recovery-required Zustand zuerst:
 
 ```bash
 livariant doctor
@@ -107,18 +116,23 @@ livariant recover
 ```
 
 > [!CAUTION]
-> Lösche oder ersetze `.project-brain/` nicht und führe danach eine neue Initialisierung als Reparatur-Shortcut aus. Dadurch können Projekthistorie verloren gehen und der unterstützte Recovery-Ablauf umgangen werden.
+> `.project-brain/` nicht manuell löschen/ersetzen und danach erneut initialisieren. Dadurch können Historie sowie unterstützte Recovery-/Integrity-Grenzen umgangen werden.
 
-Recovery wird nur angewendet, wenn Livariant eine gültige unterstützte Strategie meldet:
+## Filesystem- und Trust-Grenzen
 
-```bash
-livariant recover --apply
+Livariant-managed Project-Brain-/Lifecycle-State muss innerhalb der autorisierten Projektgrenze bleiben. Symlink-/Topology-/Path-Substitutionen, die verwaltete Writes nach außen umleiten, werden von den gehärteten Pfaden abgelehnt.
+
+Dauerhafte Regeln:
+
+```text
+Capability != Authority
+Evidence != Project Truth
+Proposal != Authorization
+bestehende Projektdatei != Livariant-managed kanonischer State
 ```
 
-## Dateisystemgrenzen
+## Desktop-Richtung
 
-Livariant-verwaltete Project-Brain-Dateien und Lifecycle-Verzeichnisse müssen innerhalb der autorisierten Projektgrenze bleiben.
+Der Desktop bietet bereits Project Truth / First Steps, Connections, Diagnostics, Updates und Settings. Die nächste Adoption-Arbeit verbindet den normalen Existing-Project-Pfad vollständiger, ohne eine zweite Source of Truth zu erzeugen.
 
-Wird eine kanonische Project-Brain-Datei oder ein verwaltetes Lifecycle-Verzeichnis durch einen Symlink ersetzt, der Schreibzugriffe an einen anderen Ort umleiten würde, lehnt Livariant diesen Schreibpfad ab.
-
-Damit kann Dateisystemzugriff die Autorität von Livariant nicht stillschweigend über die Project-Brain-Speichergrenze hinaus erweitern.
+Diese Integration ist geplant und keine Behauptung, dass der aktuelle Renderer bereits alle Adoption-Entscheidungen persistiert.
