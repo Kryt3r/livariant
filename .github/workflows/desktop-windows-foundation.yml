@@ -55,15 +55,15 @@ jobs:
           Write-Host "Desktop renderer only: ${{ needs.mode.outputs.desktop_renderer_only }}"
           Write-Host "Full qualification now: ${{ needs.mode.outputs.run_full }}"
 
-      - name: Install desktop dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install desktop dependencies from lockfile
+        run: npm ci --no-audit --no-fund
 
       - name: Build renderer
         run: npm run build
 
       - name: Check Rust host for native Fast Draft work
         if: needs.mode.outputs.run_full != 'true' && needs.mode.outputs.desktop_renderer_only != 'true'
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Fast renderer-only checkpoint
         if: needs.mode.outputs.run_full != 'true' && needs.mode.outputs.desktop_renderer_only == 'true'
@@ -82,7 +82,7 @@ jobs:
 
       - name: Build Windows desktop executable without installer bundling
         if: needs.mode.outputs.run_full == 'true'
-        run: npm run tauri:build -- --no-bundle --ci
+        run: npm run tauri:build -- --no-bundle --ci -- --locked
 
       - name: Smoke native Windows app launch
         if: needs.mode.outputs.run_full == 'true'

@@ -71,10 +71,10 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      - name: Install and build Livariant Core
+      - name: Install and build Livariant Core from lockfile
         working-directory: .
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run build
 
       - name: Stage pinned Node runtime and exact Core resources
@@ -146,11 +146,11 @@ jobs:
         shell: pwsh
         run: ./src-tauri/windows/generate-installer-branding.ps1
 
-      - name: Install desktop dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install desktop dependencies from lockfile
+        run: npm ci --no-audit --no-fund
 
-      - name: Build signed updater artifacts
-        run: npm run tauri:build -- --config src-tauri/tauri.preview-update.conf.json --bundles nsis --ci
+      - name: Build signed updater artifacts with locked Rust dependencies
+        run: npm run tauri:build -- --config src-tauri/tauri.preview-update.conf.json --bundles nsis --ci -- --locked
 
       - name: Resolve signed updater bundle and immutable candidate identity
         id: update

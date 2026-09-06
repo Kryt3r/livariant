@@ -71,10 +71,10 @@ jobs:
           rustc --version
           cargo --version
 
-      - name: Install and build Livariant Core
+      - name: Install and build Livariant Core from lockfile
         working-directory: .
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run build
 
       - name: Stage pinned Node runtime and exact Core resources
@@ -163,11 +163,11 @@ jobs:
         shell: pwsh
         run: ./src-tauri/windows/generate-installer-branding.ps1
 
-      - name: Install desktop dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install desktop dependencies from lockfile
+        run: npm ci --no-audit --no-fund
 
-      - name: Build branded NSIS installer with bundled runtime
-        run: npm run tauri:build -- --config src-tauri/tauri.runtime.conf.json --bundles nsis --ci
+      - name: Build branded NSIS installer with locked Rust dependencies
+        run: npm run tauri:build -- --config src-tauri/tauri.runtime.conf.json --bundles nsis --ci -- --locked
 
       - name: Verify installer artifact and record digest
         id: installer
