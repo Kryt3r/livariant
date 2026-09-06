@@ -435,7 +435,10 @@ const activateView = async (view: View) => {
   selectedSourceAreaId = null;
   render();
   if (view === "connections") await refreshConnector();
-  if (view === "diagnostics") await refreshDiagnostics();
+  if (view === "diagnostics") {
+    await refreshConnector();
+    await refreshDiagnostics();
+  }
   if (view === "connections" || view === "diagnostics") render();
 };
 
