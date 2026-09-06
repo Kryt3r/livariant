@@ -1,0 +1,93 @@
+name: Runtime Health Performance Baseline
+
+on:
+  pull_request:
+    paths:
+      - "scripts/runtime-health-probe-benchmark.ps1"
+      - ".github/workflows/runtime-health-performance-baseline.yml"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-health-probe-cost:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install and build Livariant Core from lockfile
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Stage exact pinned Node runtime for measurement
+        id: runtime
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ARCH -ne "X64") {
+            throw "WP-052 runtime-health baseline currently measures the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
+          }
+
+          $nodeVersion = "24.16.0"
+          $nodeArchiveName = "node-v$nodeVersion-win-x64.zip"
+          $nodeArchiveSha256 = "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56"
+          $nodeExeSha256 = "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3"
+          $nodeUrl = "https://nodejs.org/download/release/v$nodeVersion/$nodeArchiveName"
+          $download = Join-Path $env:RUNNER_TEMP $nodeArchiveName
+          $extract = Join-Path $env:RUNNER_TEMP "livariant-runtime-health-benchmark-node"
+
+          Invoke-WebRequest -Uri $nodeUrl -OutFile $download
+          $archiveDigest = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($archiveDigest -ne $nodeArchiveSha256) {
+            throw "Pinned Node archive digest mismatch. Expected $nodeArchiveSha256, got $archiveDigest."
+          }
+
+          Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $download -DestinationPath $extract -Force
+          $nodeExe = Join-Path $extract "node-v$nodeVersion-win-x64\node.exe"
+          if (-not (Test-Path -LiteralPath $nodeExe -PathType Leaf)) {
+            throw "Pinned Node executable missing after extraction."
+          }
+          $exeDigest = (Get-FileHash -LiteralPath $nodeExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($exeDigest -ne $nodeExeSha256) {
+            throw "Pinned Node executable digest mismatch. Expected $nodeExeSha256, got $exeDigest."
+          }
+
+          "node_path=$nodeExe" >> $env:GITHUB_OUTPUT
+          "core_cli=$PWD\dist\src\cli\index.js" >> $env:GITHUB_OUTPUT
+
+      - name: Capture source-bound runtime health probe evidence
+        shell: pwsh
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          ./scripts/runtime-health-probe-benchmark.ps1 `
+            -NodePath "${{ steps.runtime.outputs.node_path }}" `
+            -CoreCliPath "${{ steps.runtime.outputs.core_cli }}" `
+            -SourceSha $env:SOURCE_SHA `
+            -Iterations 6 | Set-Content -Encoding utf8 runtime-health-baseline.json
+          $digest = (Get-FileHash runtime-health-baseline.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          "sha256=$digest" | Set-Content -Encoding utf8 runtime-health-baseline.sha256.txt
+          Write-Host "Runtime health baseline SHA-256: $digest"
+
+      - name: Upload runtime health performance evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: runtime-health-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            runtime-health-baseline.json
+            runtime-health-baseline.sha256.txt
+          if-no-files-found: error
