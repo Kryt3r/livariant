@@ -81,7 +81,7 @@ Aktuelle Desktop-Bereiche: **Project Truth / First Steps**, **Connections**, **D
 Die Galerie zeigt die aktuellen Bereiche **Projektwissen**, **Verbindungen**, **Diagnose**, **Updates** und **Einstellungen**.
 
 <p align="center">
-  <img src="docs/assets/screenshots/desktop/de/gallery.svg" alt="Aktuelle Livariant Desktop-Screenshots auf Deutsch" width="900" />
+  <img src="docs/assets/screenshots/desktop/de/gallery.jpg" alt="Aktuelle Livariant Desktop-Screenshots auf Deutsch" width="900" />
 </p>
 
 </details>
