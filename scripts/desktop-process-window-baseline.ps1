@@ -3,7 +3,9 @@ param(
   [Parameter(Mandatory = $true)][string]$SourceSha,
   [Parameter(Mandatory = $true)][string]$OutputPath,
   [int]$Runs = 6,
-  [int]$TimeoutSeconds = 15
+  [int]$TimeoutSeconds = 15,
+  [int]$IdleSettleSeconds = 5,
+  [int]$IdleSampleSeconds = 5
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,6 +19,32 @@ if (-not (Test-Path -LiteralPath $AppPath -PathType Leaf)) {
 if ($Runs -lt 2) {
   throw 'At least two runs are required.'
 }
+if ($IdleSettleSeconds -lt 1 -or $IdleSampleSeconds -lt 1) {
+  throw 'Idle settle and sample windows must both be at least one second.'
+}
+
+function Wait-ForTopLevelWindow {
+  param(
+    [System.Diagnostics.Process]$Process,
+    [int]$RunNumber
+  )
+
+  $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+  $windowHandle = [IntPtr]::Zero
+  while ([DateTime]::UtcNow -lt $deadline) {
+    if ($Process.HasExited) {
+      throw "Livariant Desktop exited before exposing a top-level window on run $RunNumber with code $($Process.ExitCode)."
+    }
+    $Process.Refresh()
+    $windowHandle = $Process.MainWindowHandle
+    if ($windowHandle -ne [IntPtr]::Zero) { break }
+    Start-Sleep -Milliseconds 10
+  }
+  if ($windowHandle -eq [IntPtr]::Zero) {
+    throw "Livariant Desktop did not expose a top-level window within $TimeoutSeconds seconds on run $RunNumber."
+  }
+  return $windowHandle
+}
 
 function Measure-WindowStart {
   param([int]$RunNumber)
@@ -24,27 +52,104 @@ function Measure-WindowStart {
   $watch = [System.Diagnostics.Stopwatch]::StartNew()
   $process = Start-Process -FilePath $AppPath -PassThru
   try {
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    $windowHandle = [IntPtr]::Zero
-    while ([DateTime]::UtcNow -lt $deadline) {
-      if ($process.HasExited) {
-        throw "Livariant Desktop exited before exposing a top-level window on run $RunNumber with code $($process.ExitCode)."
-      }
-      $process.Refresh()
-      $windowHandle = $process.MainWindowHandle
-      if ($windowHandle -ne [IntPtr]::Zero) { break }
-      Start-Sleep -Milliseconds 10
-    }
+    $null = Wait-ForTopLevelWindow -Process $process -RunNumber $RunNumber
     $watch.Stop()
-    if ($windowHandle -eq [IntPtr]::Zero) {
-      throw "Livariant Desktop did not expose a top-level window within $TimeoutSeconds seconds on run $RunNumber."
-    }
     $process.Refresh()
     return [ordered]@{
       run = $RunNumber
       processToWindowMs = [Math]::Round($watch.Elapsed.TotalMilliseconds, 3)
       workingSetBytesAtWindow = [int64]$process.WorkingSet64
       peakWorkingSetBytesAtWindow = [int64]$process.PeakWorkingSet64
+    }
+  }
+  finally {
+    if (-not $process.HasExited) {
+      Stop-Process -Id $process.Id -Force
+      $process.WaitForExit()
+    }
+  }
+}
+
+function Get-ProcessTreeSnapshot {
+  param([int]$RootProcessId)
+
+  $processRows = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name)
+  $ids = [System.Collections.Generic.HashSet[int]]::new()
+  $null = $ids.Add($RootProcessId)
+
+  $changed = $true
+  while ($changed) {
+    $changed = $false
+    foreach ($row in $processRows) {
+      $processId = [int]$row.ProcessId
+      $parent = [int]$row.ParentProcessId
+      if (-not $ids.Contains($processId) -and $ids.Contains($parent)) {
+        $null = $ids.Add($processId)
+        $changed = $true
+      }
+    }
+  }
+
+  $snapshots = @()
+  foreach ($processId in @($ids)) {
+    $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+    if ($null -eq $process) { continue }
+    $row = $processRows | Where-Object { [int]$_.ProcessId -eq $processId } | Select-Object -First 1
+    $snapshots += [pscustomobject][ordered]@{
+      processId = $processId
+      name = if ($row) { [string]$row.Name } else { [string]$process.ProcessName }
+      workingSetBytes = [int64]$process.WorkingSet64
+      privateMemoryBytes = [int64]$process.PrivateMemorySize64
+      totalProcessorMs = [Math]::Round($process.TotalProcessorTime.TotalMilliseconds, 3)
+    }
+  }
+  return @($snapshots)
+}
+
+function Measure-DisconnectedIdle {
+  $process = Start-Process -FilePath $AppPath -PassThru
+  try {
+    $null = Wait-ForTopLevelWindow -Process $process -RunNumber 0
+    Start-Sleep -Seconds $IdleSettleSeconds
+    if ($process.HasExited) {
+      throw "Livariant Desktop exited during disconnected-idle settling with code $($process.ExitCode)."
+    }
+
+    $start = @(Get-ProcessTreeSnapshot -RootProcessId $process.Id)
+    Start-Sleep -Seconds $IdleSampleSeconds
+    if ($process.HasExited) {
+      throw "Livariant Desktop exited during disconnected-idle sampling with code $($process.ExitCode)."
+    }
+    $end = @(Get-ProcessTreeSnapshot -RootProcessId $process.Id)
+
+    $startCpuByProcessId = @{}
+    foreach ($entry in $start) { $startCpuByProcessId[[int]$entry.processId] = [double]$entry.totalProcessorMs }
+    $cpuDeltaMs = 0.0
+    foreach ($entry in $end) {
+      $processId = [int]$entry.processId
+      $endCpu = [double]$entry.totalProcessorMs
+      if ($startCpuByProcessId.ContainsKey($processId)) {
+        $cpuDeltaMs += [Math]::Max(0.0, $endCpu - [double]$startCpuByProcessId[$processId])
+      }
+    }
+
+    $process.Refresh()
+    return [ordered]@{
+      settleSeconds = $IdleSettleSeconds
+      sampleSeconds = $IdleSampleSeconds
+      mainProcess = [ordered]@{
+        workingSetBytesAfterSample = [int64]$process.WorkingSet64
+        privateMemoryBytesAfterSample = [int64]$process.PrivateMemorySize64
+      }
+      processTree = [ordered]@{
+        processCountAtSampleStart = $start.Count
+        processCountAtSampleEnd = $end.Count
+        workingSetBytesAfterSample = [int64](($end | Measure-Object -Property workingSetBytes -Sum).Sum)
+        privateMemoryBytesAfterSample = [int64](($end | Measure-Object -Property privateMemoryBytes -Sum).Sum)
+        cpuTimeDeltaMsAcrossSurvivingProcesses = [Math]::Round($cpuDeltaMs, 3)
+        approximateCpuPercentAcrossSample = [Math]::Round(($cpuDeltaMs / ($IdleSampleSeconds * 1000.0)) * 100.0, 3)
+        processesAfterSample = @($end | ForEach-Object { [ordered]@{ processId = $_.processId; name = $_.name; workingSetBytes = $_.workingSetBytes; privateMemoryBytes = $_.privateMemoryBytes } })
+      }
     }
   }
   finally {
@@ -81,19 +186,23 @@ for ($run = 1; $run -le $Runs; $run++) {
 }
 
 $repeated = @($measurements | Select-Object -Skip 1 | ForEach-Object { [double]$_.processToWindowMs })
+$idle = Measure-DisconnectedIdle
 $result = [ordered]@{
-  schemaVersion = 1
-  benchmark = 'desktop-process-to-window'
+  schemaVersion = 2
+  benchmark = 'desktop-startup-and-disconnected-idle'
   sourceSha = $SourceSha.ToLowerInvariant()
   platform = [ordered]@{
     os = [System.Environment]::OSVersion.VersionString
     architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
   }
-  runs = $measurements
-  firstRunMs = [double]$measurements[0].processToWindowMs
-  repeatedProcessStarts = Get-Summary -Values $repeated
-  interpretation = 'Measures process start to first top-level Windows window handle for the installed Livariant Desktop with packaged runtime present. It is not Time to Interactive, not a cold-boot guarantee, and not a universal end-user latency claim.'
+  startup = [ordered]@{
+    runs = $measurements
+    firstRunMs = [double]$measurements[0].processToWindowMs
+    repeatedProcessStarts = Get-Summary -Values $repeated
+  }
+  disconnectedIdle = $idle
+  interpretation = 'Startup measures process start to first top-level Windows window handle for the installed Livariant Desktop with packaged runtime present. Disconnected idle is a fresh CI-runner profile sampled after settling and reports process-tree snapshots plus CPU time across surviving processes. Neither measurement is Time to Interactive, a cold-boot guarantee, a connected-Codex profile, or a universal end-user performance claim.'
 }
 
-$result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $OutputPath -Encoding utf8
-Write-Host "Desktop process-to-window baseline written to $OutputPath"
+$result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $OutputPath -Encoding utf8
+Write-Host "Desktop startup/disconnected-idle baseline written to $OutputPath"
