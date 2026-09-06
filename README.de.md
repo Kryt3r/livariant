@@ -142,16 +142,29 @@ Siehe [Public Preview Scope & Limitations](docs/de/preview-scope.md) für die ex
 
 ---
 
+## Dokumentation
+
+Du willst schnell loslegen? Dann starte mit dem Schnellstart. Du willst Trust-Modell, Existing-Project-Adoption oder Recovery genauer verstehen? Von hier kommst du direkt tiefer rein.
+
+| Guide | Inhalt |
+| --- | --- |
+| [Fünf-Minuten-Schnellstart](docs/de/quickstart.md) | der kürzeste Weg zur ersten Nutzung |
+| [Installation & erstes Projekt](docs/de/installation.md) | Installation, Setup und erster Projektfluss |
+| [Public Preview Scope & Limitations](docs/de/preview-scope.md) | was das Preview verspricht und was ausdrücklich nicht |
+| [Architektur & Sicherheit](docs/de/architecture-and-safety.md) | Trust-Modell, Authority-Grenzen und Architektur |
+| [Existing Projects](docs/de/existing-projects.md) | ein echtes bestehendes Projekt sicher übernehmen |
+| [Lokale MCP-Agent-Bridge](docs/de/mcp-agent-bridge.md) | MCP-Integration und aktuelle agentenseitige Tools |
+| [Provider-Handoff](docs/de/provider-handoff.md) | Provider-Continuity und Context-Handoff |
+| [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md) | local-first Verhalten, Provider-Grenzen und Netzwerknutzung |
+| [Updates, Migrationen & Recovery](docs/de/lifecycle-guide.md) | Lifecycle-Änderungen und Recovery-Verhalten |
+
+---
+
 ## Ausprobieren
 
 Für normale Desktop-Nutzung das **aktuellste qualifizierte Desktop Preview** unter [GitHub Releases](https://github.com/Kryt3r/livariant/releases) laden.
 
-Danach helfen:
-
-- [Installation & erstes Projekt](docs/de/installation.md)
-- [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
-- [Existing Projects](docs/de/existing-projects.md)
-- [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md)
+Danach mit [Installation & erstes Projekt](docs/de/installation.md) oder dem [Fünf-Minuten-Schnellstart](docs/de/quickstart.md) weitermachen.
 
 ---
 
