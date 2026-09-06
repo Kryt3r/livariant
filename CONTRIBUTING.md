@@ -1,6 +1,6 @@
 # Contributing to Livariant
 
-Livariant is preparing its Public Preview. Questions, bug reports, documentation feedback, and design discussion are welcome. External code contributions are currently handled differently, as explained below.
+Livariant is in an active **Public Preview / early-development** phase. Questions, bug reports, documentation feedback, and design discussion are welcome. External code contributions are currently handled differently, as explained below.
 
 ## Current code-contribution gate
 
@@ -31,7 +31,8 @@ For most users, start with:
 
 - `README.md`;
 - `SUPPORT.md`;
-- `docs/preview-scope.md`.
+- `docs/preview-scope.md`;
+- `docs/quickstart.md`.
 
 For deeper technical discussion, these documents are also useful:
 
@@ -39,7 +40,9 @@ For deeper technical discussion, these documents are also useful:
 - `LICENSING.md`;
 - `core/charter.md`.
 
-New ideas should identify whether they address a current supported-path problem, a bounded Preview limitation, or future work. A feature request should not silently redefine current product behavior just by being proposed.
+New ideas should identify whether they address a current supported-path problem, a bounded Preview limitation, or future work. A feature request does not become current product behavior merely because it is proposed.
+
+When reporting a Desktop issue, distinguish the affected surface where possible: Project Truth / First Steps, Connections, Diagnostics, Updates, Settings, installation, startup, or runtime health.
 
 ## License
 
@@ -66,22 +69,17 @@ A useful pull request should explain:
 - what changes;
 - what intentionally stays unchanged;
 - tests or executable evidence added or updated;
-- compatibility, migration, authority, privacy, licensing, or security implications when relevant.
+- compatibility, migration, Authority, privacy, licensing, or security implications when relevant.
 
 Changes that affect existing projects or lifecycle behavior should explain preservation and recovery behavior rather than leaving those effects implicit.
 
 ## Verification bar for future code contributions
 
-The baseline verification commands are:
+The baseline verification commands remain repository-defined and may vary with change risk. At minimum, contributors should expect targeted checks appropriate to the changed surface; executable, security, lifecycle, packaging, or distribution changes require deeper verification than prose-only documentation edits.
 
-```bash
-npm ci
-npm run build
-npm test
-npm run test:package
-```
+Use the repository's current CI workflows and documented commands rather than copying a historical test list from an older Preview release.
 
-Changes to a supported public workflow should include evidence at the same boundary users rely on. Library-only tests are not sufficient when a change affects the installed CLI or packaged distribution path.
+Changes to a supported public workflow should include evidence at the same boundary users rely on. Library-only tests are not sufficient when a change affects the installed Desktop, CLI, updater, installer, Runtime, or protected lifecycle path.
 
 ## Compatibility and migrations
 
@@ -90,11 +88,11 @@ Do not propose silently reinterpreting an existing Project Brain schema, release
 A breaking Project Brain change needs either an explicit supported migration path or an explicit unsupported-state classification. Migration is not permission to rewrite unrelated project-owned state.
 
 > [!IMPORTANT]
-> Capability is not authority. Adding a technical capability must not silently expand what Livariant is allowed to inspect, mutate, migrate, repair, or publish.
+> Capability is not Authority. Adding a technical capability must not silently expand what Livariant is allowed to inspect, mutate, migrate, repair, or publish.
 
 ## AI-assisted participation
 
-Using an AI tool to help prepare a report, documentation suggestion, or future contribution is fine. The person submitting the material remains responsible for reviewing it, checking that they have the right to submit it, and verifying that factual claims are accurate.
+Using an AI tool to help prepare a report, documentation suggestion, or future contribution is fine. The person submitting the material remains responsible for reviewing it, checking that they have the right to submit it, and verifying factual claims.
 
 Generated text, hidden provider memory, and native agent instruction files do not outrank canonical repository contracts simply because an AI tool produced them.
 
