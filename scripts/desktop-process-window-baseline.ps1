@@ -5,7 +5,10 @@ param(
   [int]$Runs = 6,
   [int]$TimeoutSeconds = 15,
   [int]$IdleSettleSeconds = 5,
-  [int]$IdleSampleSeconds = 5
+  [int]$IdleSampleSeconds = 5,
+  [ValidateSet('disconnected', 'persisted-connected')][string]$IdleProfile = 'disconnected',
+  [string]$ConnectionIntentPath = '',
+  [int]$ReconnectTimeoutSeconds = 10
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,6 +24,46 @@ if ($Runs -lt 2) {
 }
 if ($IdleSettleSeconds -lt 1 -or $IdleSampleSeconds -lt 1) {
   throw 'Idle settle and sample windows must both be at least one second.'
+}
+if ($ReconnectTimeoutSeconds -lt 1) {
+  throw 'Reconnect timeout must be at least one second.'
+}
+
+$connectionIntentEvidence = $null
+if ($IdleProfile -eq 'persisted-connected') {
+  if ([string]::IsNullOrWhiteSpace($ConnectionIntentPath)) {
+    throw 'ConnectionIntentPath is required for the persisted-connected profile.'
+  }
+  if (-not (Test-Path -LiteralPath $ConnectionIntentPath -PathType Leaf)) {
+    throw "Persisted Codex connection intent not found: $ConnectionIntentPath"
+  }
+
+  $intent = Get-Content -LiteralPath $ConnectionIntentPath -Raw | ConvertFrom-Json
+  if ($intent.schemaVersion -ne 1) {
+    throw 'Persisted Codex connection intent schema version must be 1.'
+  }
+  if ($intent.desiredConnected -ne $true) {
+    throw 'Persisted-connected measurement requires an existing desiredConnected=true Codex intent. The benchmark will not create or modify connection intent.'
+  }
+  if ($intent.mode -notin @('auto', 'manual')) {
+    throw 'Persisted Codex connection intent mode must be auto or manual.'
+  }
+
+  $configuredCommand = if ($intent.mode -eq 'manual') { [string]$intent.manualPath } else { [string]$intent.resolvedCommand }
+  if ([string]::IsNullOrWhiteSpace($configuredCommand)) {
+    throw 'Persisted-connected measurement requires a pinned existing Codex executable path. Connect successfully once before running this profile.'
+  }
+  if (-not (Test-Path -LiteralPath $configuredCommand -PathType Leaf)) {
+    throw 'The persisted Codex executable path is no longer a file. Reconnect Livariant explicitly before profiling.'
+  }
+
+  $connectionIntentEvidence = [ordered]@{
+    schemaVersion = 1
+    desiredConnected = $true
+    mode = [string]$intent.mode
+    executablePinned = $true
+    executablePresentAtMeasurementStart = $true
+  }
 }
 
 function Wait-ForTopLevelWindow {
@@ -74,10 +117,12 @@ function Get-ProcessRole {
   param($Row)
 
   $name = [string]$Row.Name
+  $commandLine = [string]$Row.CommandLine
   if ($name -ieq 'livariant-desktop.exe') { return 'livariant-host' }
+  if ($name -ieq 'livariant-node.exe' -and $commandLine -match 'desktop-connector-host\.js') { return 'connector-host' }
+  if ($commandLine -match '(?:^|\s)app-server(?:\s|$)' -and $commandLine -match '(?:^|\s)--stdio(?:\s|$)') { return 'codex-app-server' }
   if ($name -ine 'msedgewebview2.exe') { return 'other' }
 
-  $commandLine = [string]$Row.CommandLine
   if ($commandLine -match '(?:^|\s)--type=([^\s"]+)') {
     $type = $Matches[1]
     if ($type -eq 'utility' -and $commandLine -match '(?:^|\s)--utility-sub-type=([^\s"]+)') {
@@ -125,21 +170,72 @@ function Get-ProcessTreeSnapshot {
   return @($snapshots)
 }
 
-function Measure-DisconnectedIdle {
+function Assert-ProfileProcessState {
+  param(
+    [object[]]$Snapshot,
+    [string]$Phase
+  )
+
+  $connectorHostCount = @($Snapshot | Where-Object { $_.role -eq 'connector-host' }).Count
+  $codexAppServerCount = @($Snapshot | Where-Object { $_.role -eq 'codex-app-server' }).Count
+
+  if ($IdleProfile -eq 'disconnected') {
+    if ($connectorHostCount -ne 0 -or $codexAppServerCount -ne 0) {
+      throw "Disconnected profile unexpectedly observed connector processes during $Phase. Ensure Livariant is disconnected before running this profile."
+    }
+    return
+  }
+
+  if ($connectorHostCount -lt 1 -or $codexAppServerCount -lt 1) {
+    throw "Persisted-connected profile did not observe both the Livariant connector host and Codex App Server during $Phase. Automatic restore was not proven."
+  }
+}
+
+function Wait-ForPersistedReconnect {
+  param([System.Diagnostics.Process]$Process)
+
+  if ($IdleProfile -ne 'persisted-connected') { return $null }
+  $watch = [System.Diagnostics.Stopwatch]::StartNew()
+  $deadline = [DateTime]::UtcNow.AddSeconds($ReconnectTimeoutSeconds)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    if ($Process.HasExited) {
+      throw "Livariant Desktop exited while waiting for persisted Codex auto-reconnect with code $($Process.ExitCode)."
+    }
+    $snapshot = @(Get-ProcessTreeSnapshot -RootProcessId $Process.Id)
+    $connectorHost = @($snapshot | Where-Object { $_.role -eq 'connector-host' }).Count
+    $codexServer = @($snapshot | Where-Object { $_.role -eq 'codex-app-server' }).Count
+    if ($connectorHost -ge 1 -and $codexServer -ge 1) {
+      $watch.Stop()
+      return [ordered]@{
+        processEvidenceObserved = $true
+        connectorHostObserved = $true
+        codexAppServerObserved = $true
+        processEvidenceObservedAfterMs = [Math]::Round($watch.Elapsed.TotalMilliseconds, 3)
+      }
+    }
+    Start-Sleep -Milliseconds 50
+  }
+  throw "Persisted Codex connection did not restore both connector processes within $ReconnectTimeoutSeconds seconds."
+}
+
+function Measure-IdleProfile {
   $process = Start-Process -FilePath $AppPath -PassThru
   try {
     $null = Wait-ForTopLevelWindow -Process $process -RunNumber 0
+    $reconnectEvidence = Wait-ForPersistedReconnect -Process $process
     Start-Sleep -Seconds $IdleSettleSeconds
     if ($process.HasExited) {
-      throw "Livariant Desktop exited during disconnected-idle settling with code $($process.ExitCode)."
+      throw "Livariant Desktop exited during $IdleProfile idle settling with code $($process.ExitCode)."
     }
 
     $start = @(Get-ProcessTreeSnapshot -RootProcessId $process.Id)
+    Assert-ProfileProcessState -Snapshot $start -Phase 'idle sample start'
     Start-Sleep -Seconds $IdleSampleSeconds
     if ($process.HasExited) {
-      throw "Livariant Desktop exited during disconnected-idle sampling with code $($process.ExitCode)."
+      throw "Livariant Desktop exited during $IdleProfile idle sampling with code $($process.ExitCode)."
     }
     $end = @(Get-ProcessTreeSnapshot -RootProcessId $process.Id)
+    Assert-ProfileProcessState -Snapshot $end -Phase 'idle sample end'
 
     $startCpuByProcessId = @{}
     foreach ($entry in $start) { $startCpuByProcessId[[int]$entry.processId] = [double]$entry.totalProcessorMs }
@@ -173,8 +269,10 @@ function Measure-DisconnectedIdle {
 
     $process.Refresh()
     return [ordered]@{
+      profile = $IdleProfile
       settleSeconds = $IdleSettleSeconds
       sampleSeconds = $IdleSampleSeconds
+      reconnectEvidence = $reconnectEvidence
       mainProcess = [ordered]@{
         workingSetBytesAfterSample = [int64]$process.WorkingSet64
         privateMemoryBytesAfterSample = [int64]$process.PrivateMemorySize64
@@ -234,10 +332,10 @@ for ($run = 1; $run -le $Runs; $run++) {
 }
 
 $repeated = @($measurements | Select-Object -Skip 1 | ForEach-Object { [double]$_.processToWindowMs })
-$idle = Measure-DisconnectedIdle
+$idle = Measure-IdleProfile
 $result = [ordered]@{
-  schemaVersion = 3
-  benchmark = 'desktop-startup-and-disconnected-idle'
+  schemaVersion = 4
+  benchmark = 'desktop-startup-and-idle-profile'
   sourceSha = $SourceSha.ToLowerInvariant()
   platform = [ordered]@{
     os = [System.Environment]::OSVersion.VersionString
@@ -248,9 +346,14 @@ $result = [ordered]@{
     firstRunMs = [double]$measurements[0].processToWindowMs
     repeatedProcessStarts = Get-Summary -Values $repeated
   }
-  disconnectedIdle = $idle
-  interpretation = 'Startup measures process start to first top-level Windows window handle for the installed Livariant Desktop with packaged runtime present. Disconnected idle is a fresh CI-runner profile sampled after settling and reports process-tree snapshots, derived WebView2 process roles, and CPU time across surviving processes. Raw process command lines are not persisted. Neither measurement is Time to Interactive, a cold-boot guarantee, a connected-Codex profile, or a universal end-user performance claim.'
+  idleProfile = $idle
+  connectionIntentEvidence = $connectionIntentEvidence
+  interpretation = if ($IdleProfile -eq 'persisted-connected') {
+    'Startup measures process start to first top-level Windows window handle. Persisted-connected idle requires a pre-existing desiredConnected=true pinned Codex intent, performs no connect action, and accepts auto-reconnect evidence only when both the Livariant connector host and Codex App Server remain in the Livariant process tree through the idle sample. Raw command lines and executable paths are not persisted. This is not Time to Interactive or a universal end-user performance claim.'
+  } else {
+    'Startup measures process start to first top-level Windows window handle. Disconnected idle requires connector host and Codex App Server absence at sample boundaries and reports process-tree snapshots, derived WebView2 process roles, and CPU time across surviving processes. Raw process command lines are not persisted. This is not Time to Interactive, a cold-boot guarantee, a connected-Codex profile, or a universal end-user performance claim.'
+  }
 }
 
 $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $OutputPath -Encoding utf8
-Write-Host "Desktop startup/disconnected-idle baseline written to $OutputPath"
+Write-Host "Desktop startup/$IdleProfile idle profile written to $OutputPath"
