@@ -1,335 +1,178 @@
 # Install Livariant and connect it to a project
 
-Livariant has two deliberately separate installation roles:
+<p align="center">
+  <strong>English</strong> · <a href="de/installation.md">Deutsch</a>
+</p>
 
-1. the ordinary global CLI used from your user account;
-2. the release-bound protected Guardian bootstrap source used only to establish the machine's protected Guardian foundation.
+The current normal-user installation path is the **Livariant Desktop Preview for Windows x64**. The historical CLI Public Preview and the lower-level protected Guardian/Core lifecycle model are separate surfaces and should not be mixed into the first-time Desktop install flow.
 
-The ordinary CLI is **not** a root of trust. Installing `livariant-<version>.tgz` globally must never make same-user/requester-controlled package bytes authoritative merely because they are installed.
+> [!WARNING]
+> **Early Development / Preview**
+>
+> Livariant Desktop is still a prerelease. Workflows and compatibility can change before Stable. The current Windows installer also does not yet have the final production Authenticode publisher-signing/reputation setup, so Windows may display publisher or SmartScreen warnings depending on policy and reputation.
 
-## Published release and current remediation state
-
-The currently published release is **`v0.1.0-rc.4` - Public Preview prerelease**.
-
-The exact qualified RC4 source is `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. RC4 contains the protected Guardian enforcement code, but real Fresh-Install dogfooding on Windows showed that its public installation/distribution path does **not** provision the protected Stage-A bootstrap source required by that Guardian design.
-
-Therefore RC4 must not be described as a complete fresh-machine -> protected Guardian -> first-project installation path. Do not work around this by copying arbitrary CLI/package files into `C:\Program Files\Livariant` or `/opt/livariant`.
-
-The WP-044 remediation described below is the installation contract for the **next qualified release that contains it**. Repository implementation is not publication; until such a release is explicitly qualified and published, RC4 remains the current public release with the limitation above.
-
-`v0.1.0-rc.3` remains immutable historical Foundation Preview evidence and is not retroactively rewritten.
-
-## Supported protected platforms
-
-| Platform | Ordinary CLI | Protected Guardian v1 |
-| --- | --- | --- |
-| Windows | supported | supported by the WP-044 Stage-A/Stage-B design |
-| Linux | supported | supported by the WP-044 Stage-A/Stage-B design |
-| macOS | supported for ordinary CLI surfaces | **not supported by Guardian v1** |
-
-Do not interpret a working macOS CLI as protected Guardian readiness.
-
-## Protected Stage-B Node prerequisite
-
-The ordinary CLI may run under any otherwise supported Node.js 20+ installation. The protected Guardian bootstrap is stricter because privileged Stage B must not resolve an interpreter through requester-controlled `PATH` state.
-
-For the WP-044 protected path, Stage A requires Node.js 20+ at the fixed OS-protected location:
+## Current published Desktop Preview
 
 ```text
-Windows: C:\Program Files\nodejs\node.exe
-Linux:   /usr/bin/node
+Version: 0.1.0-rc.28
+Platform: Windows x64
+Exact source: ec2916979c1911a56203878d7102570ab71cd13c
+Tag: desktop-preview-0.1.0-rc.28-ec2916979c19
+Installer: Livariant_0.1.0-rc.28_x64-setup.exe
+Installer SHA-256: 2897e2bf7940b8d222b382bd6c3548861cd8dd5bbfbcca097783f08f6a21579d
 ```
 
-Stage A verifies that fixed interpreter and its filesystem/ACL or ownership chain **before** privileged Node execution. `guardian status` inspects the same expected Stage-B interpreter independently of whichever Node executable happens to run the ordinary user CLI.
+Use the immutable [Desktop Preview rc.28 release](https://github.com/Kryt3r/livariant/releases/tag/desktop-preview-0.1.0-rc.28-ec2916979c19).
 
-A user-local Node installation, version-manager shim, or alternate `PATH` entry may be sufficient for the ordinary CLI but is **not** sufficient for protected Guardian Stage B. Install/provision a supported system-protected Node runtime first; do not redirect Livariant to a same-user interpreter as a workaround.
+The release also contains the updater signature and machine-readable update metadata. A similarly named installer obtained elsewhere is not the same trust identity.
 
-## Release assets for the remediated path
+## 1. Verify the release identity
 
-A qualified release containing WP-044 must expose explicit release assets including:
+Before installation, confirm at minimum:
+
+1. the GitHub release tag is exactly `desktop-preview-0.1.0-rc.28-ec2916979c19`;
+2. the release records exact source `ec2916979c1911a56203878d7102570ab71cd13c`;
+3. the installer filename is `Livariant_0.1.0-rc.28_x64-setup.exe`;
+4. the installer SHA-256 is:
 
 ```text
-livariant-<version>.tgz
-livariant-protected-bootstrap-<version>.tgz
-install-livariant-bootstrap-<version>.ps1
-install-livariant-bootstrap-<version>.sh
-release-manifest.json
-SHA256SUMS
-PROTECTED-SHA256SUMS
-protected-bootstrap-assets.json
+2897e2bf7940b8d222b382bd6c3548861cd8dd5bbfbcca097783f08f6a21579d
 ```
 
-Additional evidence files such as the SBOM, RC metadata, release decision dossier and attestation-related evidence may also be present.
-
-> [!IMPORTANT]
-> GitHub's automatically generated **Source code (zip)** and **Source code (tar.gz)** downloads are not the installable Livariant CLI package and are not the protected Stage-A package. Use only the explicitly named qualified release assets.
-
-## Trust model before privileged installation
-
-A checksum embedded inside a downloaded installer is not sufficient by itself: an attacker who could replace both an unprivileged installer and its neighboring archive could otherwise replace both values together.
-
-For the remediated release path, the RC workflow therefore creates GitHub Artifact Attestations for the installable artifacts and critical release metadata. Before running Stage A with Administrator/root privileges, verify the downloaded artifact provenance with GitHub CLI against the canonical repository and exact RC workflow.
-
-For each executable/installable input you intend to use:
-
-```bash
-gh attestation verify <artifact> \
-  --repo Kryt3r/livariant \
-  --signer-workflow Kryt3r/livariant/.github/workflows/rc-bundle.yml \
-  --source-ref refs/heads/main \
-  --source-digest <exact-qualified-source-sha> \
-  --deny-self-hosted-runners
-```
-
-At minimum verify:
-
-- `livariant-<version>.tgz`;
-- `livariant-protected-bootstrap-<version>.tgz`;
-- the platform-specific Stage-A installer;
-- `release-manifest.json`;
-- `SHA256SUMS` and `PROTECTED-SHA256SUMS`.
-
-A failed or missing attestation is a stop condition. Do not continue privileged installation.
-
-Artifact attestation establishes provenance/integrity for the produced bytes; it does not mean the code is automatically safe. Livariant's own release qualification, Guardian protection checks and Authority boundaries remain separate requirements.
-
-## 1. Verify release checksums
-
-After provenance verification, compare the ordinary CLI tarball with `SHA256SUMS` and the protected bootstrap archive/installers with `PROTECTED-SHA256SUMS`. `release-manifest.json` binds the runtime and protected-bootstrap release identity to the exact release source.
-
-Examples:
-
-### Linux
-
-```bash
-sha256sum -c SHA256SUMS
-sha256sum -c PROTECTED-SHA256SUMS
-```
-
-### Windows PowerShell
+PowerShell example:
 
 ```powershell
-Get-FileHash .\livariant-<version>.tgz -Algorithm SHA256
-Get-FileHash .\livariant-protected-bootstrap-<version>.tgz -Algorithm SHA256
-Get-FileHash .\install-livariant-bootstrap-<version>.ps1 -Algorithm SHA256
+Get-FileHash .\Livariant_0.1.0-rc.28_x64-setup.exe -Algorithm SHA256
 ```
 
-Compare the Windows values exactly with the corresponding checksum files. If any value differs, stop.
+If the value differs, stop and do not run the installer.
 
-## 2. Install the ordinary CLI
+The current Preview release has updater signing/integrity evidence but does not yet have the final production Windows publisher-signing/reputation setup. A SmartScreen/publisher warning therefore must not be interpreted as either proof of compromise or proof of safety; verify the release identity independently.
 
-From the directory containing the verified runtime tarball:
+## 2. Install the Desktop app
 
-### Linux / macOS
+Run the verified installer as your normal Windows user.
 
-```bash
-npm install --global --ignore-scripts ./livariant-<version>.tgz
-```
+The current NSIS Desktop package uses a current-user installation model and includes the qualified bundled runtime required by the Desktop application. Normal Desktop installation does not require manually copying Livariant package bytes into protected system directories.
 
-### Windows PowerShell
+Do not use old RC4 CLI workarounds or historical Stage-A instructions as a substitute for the current Desktop installer.
 
-```powershell
-npm install --global --ignore-scripts .\livariant-<version>.tgz
-```
+## 3. First launch
 
-Then verify:
+Open Livariant after installation.
 
-```bash
-livariant version
-```
+The Desktop presents current Desktop/Core/runtime identity and health information. These health surfaces are useful coherence/integrity signals, but the renderer itself is not a root of trust and Runtime health is not an independent cryptographic post-install anti-tamper proof.
 
-This installs only the ordinary CLI. It does not initialize a project, provision the protected Guardian source, create Guardian Authority, or add Livariant to a target project's `package.json`.
+The app currently exposes primary areas including:
 
-## 3. Inspect machine readiness before opening a project lifecycle
+- Project Truth / First Steps;
+- Connections;
+- Diagnostics;
+- Updates;
+- Settings.
 
-From an ordinary user terminal:
+The Project Truth / First Steps renderer still contains foundation/session-state behavior and must not be treated as a finished persistent Project Brain editor.
 
-```bash
-livariant guardian status
-```
+## 4. Connect Codex in Desktop
 
-On a fresh supported machine before Stage A, the expected state is that the protected bootstrap source is not ready. This is not permission to bypass the check; it means Stage A is required.
+The current live Desktop connection path is implemented for **Codex**.
 
-## 4. Stage A - provision exact release bytes under OS protection
+Use **Connections** to inspect the local Codex installation and connection state, then connect through the supported UI flow.
 
-Stage A is a separate privileged installation operation. The Stage-A installer does **not** initiate UAC, `sudo`, or `pkexec`; you deliberately open an already privileged terminal after completing provenance/checksum verification as an ordinary user.
+Current hardening keeps provider, connection method, capability, role, and Authority distinct. A successful connection does not grant mutation Authority.
 
-### Windows
+Connection intent can be persisted so Livariant can restore an accepted connection on a later application start. Restore remains subject to the accepted executable identity/trust checks; Livariant must not silently reconnect through a different PATH-resolved executable merely because it has the same command name.
 
-Open an **Administrator PowerShell** and run the verified release installer from the release-asset directory:
+Additional providers or connection methods are future extensions unless separately implemented and qualified.
 
-```powershell
-& .\install-livariant-bootstrap-<version>.ps1
-```
+## 5. Work with Project Truth / First Steps
 
-The protected source is installed to:
+The current workspace helps organize project purpose, direction, rules, gaps, proposed changes, and manual review.
+
+Important current boundary:
 
 ```text
-C:\Program Files\Livariant\Bootstrap\v1
+renderer/session state != persistent Project Brain mutation
+Evidence != Project Truth
+Proposal != Authorization
 ```
 
-and the protected Guardian parent is prepared beneath:
+The normal existing-project adoption path is still being completed. Do not assume that typing information into the current Desktop workspace silently rewrites canonical Project Brain state.
+
+## 6. Diagnostics
+
+Diagnostics reads retained local technical evidence and keeps the evidence classes separate:
 
 ```text
-C:\ProgramData\Livariant\Guardian
+Observed != Avoided != Estimated
 ```
 
-### Linux
+Use the explicit period controls to inspect available evidence. Missing values should remain missing rather than being invented.
 
-Open an already-root shell and run:
+Diagnostics does not need raw prompt/project-content capture by default.
 
-```bash
-./install-livariant-bootstrap-<version>.sh
-```
+## 7. Updates
 
-The protected source is installed to:
+The current Desktop has a real signed updater flow.
+
+When you explicitly check for updates, Livariant can contact its configured HTTPS updater endpoint and evaluate signed update metadata. If a compatible update is available, the UI can show localized release notes and real download/install state.
+
+Installation/restart remains an explicit user-authorized step. Update availability is not installation Authority, and the renderer cannot choose arbitrary update URLs or executable paths.
+
+See [Updates, Migrations & Recovery](lifecycle-guide.md) for the distinction between Desktop application updates and project/Core lifecycle operations.
+
+## 8. Language
+
+The Desktop supports Deutsch and English application UI. The language choice is local preference state; it does not alter machine identifiers, command names, Project Truth semantics, or security/Authority rules.
+
+## Uninstall
+
+Use the normal Windows installed-app/uninstall surface for the Desktop application.
+
+Do not manually delete protected Livariant security state or project `.project-brain` data merely to uninstall the Desktop UI. Application installation, protected machine state, and project-owned state are intentionally separate concerns.
+
+If you are troubleshooting a Preview installation, preserve relevant diagnostics before removing local app state unless you deliberately want to reset that state.
+
+## Historical CLI Public Preview
+
+`v0.1.0-rc.4` remains an immutable historical **CLI Public Preview**. It is not the current Desktop release.
+
+Real Windows fresh-install dogfooding found that RC4 did not publish/provision the protected Stage-A Guardian bootstrap source required for a complete fresh-machine -> protected Guardian -> first-project lifecycle path. That historical limitation remains true for the RC4 artifact and must not be bypassed by copying requester-controlled/global npm package files into protected locations.
+
+Later repository remediation does not retroactively change RC4, and this page does not claim that a newer standalone CLI package has been publicly released merely because newer Core code exists on `main`.
+
+## Advanced Core / CLI / Guardian workflows
+
+Livariant Core and CLI remain relevant for:
+
+- provider-independent status/doctor/inspection;
+- MCP setup and local stdio bridge use;
+- lifecycle planning/apply flows;
+- protected Guardian Authority domains;
+- migration/recovery operations;
+- lower-level development and qualification work.
+
+Those workflows use stricter trust/Authority contracts than the Desktop renderer. In particular:
 
 ```text
-/opt/livariant/bootstrap/v1
+Capability != Authority
+project files != protected machine Authority
+artifact integrity != Runtime trust != release authorization
 ```
 
-and the Guardian parent is prepared beneath:
+For architectural details, use [Architecture & Safety](architecture-and-safety.md) and [Updates, Migrations & Recovery](lifecycle-guide.md). Historical release-specific Stage-A/Stage-B procedures should be read as release-specific evidence, not copied into the current Desktop install path.
 
-```text
-/var/lib/livariant-guardian
-```
+## Platform boundary
 
-Stage A validates the release archive before installation, refuses unsafe path forms, verifies the fixed protected Stage-B Node runtime before executing it, protects the installed tree, and issues **no mutation, Runtime, Guardian-operation, integrity, or release Authority**.
+Current published Desktop Preview support is **Windows x64**.
 
-If a protected bootstrap source already exists, Stage A refuses implicit replacement. A release transition must be explicit (`-Replace` on Windows or `--replace` on Linux) and must use a separately verified new release.
-
-## 5. Verify Stage A from an ordinary terminal
-
-Close the privileged terminal. From the ordinary user account run:
-
-```bash
-livariant guardian status
-```
-
-The status command is read-only. It should now report that the protected source and expected Stage-B interpreter are ready and that Guardian bootstrap is the next required step. If the source/interpreter state is reported `unsafe`, stop; do not repair/bless it by presence.
-
-## 6. Stage B - bootstrap Guardian from protected bytes
-
-Run only the protected Stage-B launcher shown by `guardian status`.
-
-### Windows
-
-From an already elevated Administrator PowerShell:
-
-```powershell
-& 'C:\Program Files\Livariant\Bootstrap\v1\guardian-bootstrap.ps1'
-```
-
-### Linux
-
-From an already-root terminal:
-
-```bash
-/opt/livariant/bootstrap/v1/guardian-bootstrap
-```
-
-Stage B verifies that its bootstrap module/helper, release descriptor, protected filesystem chain and the **actually running** Node interpreter chain satisfy the Guardian trust requirements. It requires the existing interactive bootstrap confirmation and establishes only the protected Guardian foundation. It does **not** manufacture lifecycle Authority.
-
-After Stage B, close the privileged terminal again and verify from the ordinary account:
-
-```bash
-livariant guardian status
-```
-
-Do not continue to project lifecycle authorization unless the result reports Guardian readiness.
-
-## 7. Open the existing project and run First Run
-
-```bash
-cd /path/to/your-project
-livariant first-run --language English
-```
-
-Windows example:
-
-```powershell
-Set-Location C:\path\to\your-project
-livariant first-run --language English
-```
-
-German is a supported interaction locale in the remediated First Run:
-
-```bash
-livariant first-run --language Deutsch
-```
-
-All supported-language First-Run prompts and human-readable headings/explanations are localized from the first prompt onward. Machine identifiers, command names, Project Truth language and JSON enum values remain separate from interaction localization.
-
-First Run is read-only and reports `Changes made: 0`. It inspects machine readiness as well as project initialization state. If the Guardian path is not ready or is unsafe, First Run must not tell the user to proceed directly with lifecycle authorization/application.
-
-## 8. Initialize deliberately
-
-When Guardian readiness is confirmed and the project needs a Project Brain:
-
-```bash
-livariant init
-```
-
-Review the plan first. Then use the supported explicit authorization/application sequence only when appropriate:
-
-```bash
-livariant init --authorize
-livariant init --apply
-```
-
-Afterwards verify:
-
-```bash
-livariant status
-livariant doctor
-```
-
-For WP-044 acceptance, a real fresh-machine/first-project qualification must additionally prove the resulting Project Brain valid. Unit tests alone are not sufficient.
-
-## 9. Connect Claude Code or Codex through MCP
-
-Installing Livariant does **not** automatically configure a coding agent.
-
-### Claude Code
-
-```bash
-livariant mcp setup --provider claude-code
-```
-
-### Codex
-
-```bash
-livariant mcp setup --provider codex
-```
-
-The setup command renders provider-specific guidance and performs zero provider-configuration writes itself. MCP capability does not grant mutation, Runtime, Guardian, integrity, or release Authority.
-
-## What this installation flow does not do
-
-It does not:
-
-- trust a package merely because it exists in a familiar directory;
-- make the ordinary global npm CLI a protected root of trust;
-- allow project files, CLI flags or provider output to self-authorize Guardian/lifecycle actions;
-- automatically initialize projects;
-- silently rewrite `CLAUDE.md`, `AGENTS.md`, provider memory or provider configuration;
-- convert Artifact Attestation, release evidence or Guardian presence into mutation/Runtime/release Authority;
-- publish or authorize a future Livariant release.
-
-## Updates and uninstall boundaries
-
-Ordinary CLI installation, protected Stage-A source, Guardian state, Runtime trust and release authorization are different state classes.
-
-Updating the npm CLI does not silently update or authorize the protected bootstrap source. Replacing a protected source requires an explicit verified release transition. Removing the ordinary CLI must not silently delete Guardian/Authority history, and removing protected system state must not be treated as an ordinary package uninstall side effect.
-
-Use the supported lifecycle/update documentation rather than manually replacing `.project-brain/`, protected Guardian state, managed Runtime state, Runtime-trust evidence or release-authorization evidence.
+Core/CLI and protected Guardian implementations have broader platform-specific history, but no Linux/macOS Desktop release should be inferred from that. A future Desktop platform needs its own qualified packaging and installation evidence.
 
 ## Next reads
 
 - [Five-Minute Quickstart](quickstart.md)
-- [First-Run Composition](first-run.md)
-- [Verification Trace](verification-trace.md)
-- [Existing Projects](existing-projects.md)
-- [Provider Handoff](provider-handoff.md)
-- [Updates, Migrations & Recovery](lifecycle-guide.md)
+- [Public Preview Scope & Limitations](preview-scope.md)
 - [Architecture & Safety](architecture-and-safety.md)
+- [Existing Projects](existing-projects.md)
+- [Privacy & Network Behavior](privacy-and-network.md)
+- [Updates, Migrations & Recovery](lifecycle-guide.md)
