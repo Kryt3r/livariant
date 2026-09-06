@@ -142,16 +142,29 @@ See [Public Preview Scope & Limitations](docs/preview-scope.md) for the exact cu
 
 ---
 
+## Documentation
+
+Want the short path first? Start with the Quickstart. Want the trust model or lifecycle details? Go deeper from there.
+
+| Guide | What it covers |
+| --- | --- |
+| [Five-Minute Quickstart](docs/quickstart.md) | the shortest path to first use |
+| [Installation & First Project](docs/installation.md) | installation, setup, and first project flow |
+| [Public Preview Scope & Limitations](docs/preview-scope.md) | what the Preview does and does not promise |
+| [Architecture & Safety](docs/architecture-and-safety.md) | trust model, Authority boundaries, and architecture |
+| [Existing Projects](docs/existing-projects.md) | adopting a real existing project safely |
+| [Local MCP Agent Bridge](docs/mcp-agent-bridge.md) | MCP integration and current agent-facing tools |
+| [Provider Handoff](docs/provider-handoff.md) | provider continuity and context handoff |
+| [Privacy & Network Behavior](docs/privacy-and-network.md) | local-first behavior, provider boundaries, and network use |
+| [Updates, Migrations & Recovery](docs/lifecycle-guide.md) | lifecycle changes and recovery behavior |
+
+---
+
 ## Try it
 
 For normal Desktop use, download the **latest qualified Desktop Preview** from [GitHub Releases](https://github.com/Kryt3r/livariant/releases).
 
-Then continue with:
-
-- [Installation & First Project](docs/installation.md)
-- [Five-Minute Quickstart](docs/quickstart.md)
-- [Existing Projects](docs/existing-projects.md)
-- [Privacy & Network Behavior](docs/privacy-and-network.md)
+Then continue with [Installation & First Project](docs/installation.md) or the [Five-Minute Quickstart](docs/quickstart.md).
 
 ---
 
