@@ -13,12 +13,43 @@ test("classifies README and documentation truth surfaces as B", () => {
   assert.equal(classifyPaths(["docs/quickstart.md"]).class, "B");
 });
 
-test("classifies normal source, tests, and ordinary Desktop implementation as C", () => {
+test("classifies normal source, tests, ordinary Desktop implementation, and exact measurement-only harnesses as C", () => {
   assert.equal(classifyPaths(["src/cli/understand-command.ts"]).class, "C");
   assert.equal(classifyPaths(["tests/semantic-editing.test.ts"]).class, "C");
   assert.equal(classifyPaths(["apps/desktop/src/main.ts"]).class, "C");
   assert.equal(classifyPaths(["apps/desktop/src/styles.css"]).class, "C");
   assert.equal(classifyPaths(["apps/desktop/src-tauri/src/lib.rs"]).class, "C");
+
+  for (const path of [
+    ".github/workflows/diagnostics-performance-baseline.yml",
+    ".github/workflows/runtime-health-performance-baseline.yml",
+    ".github/workflows/desktop-process-window-baseline.yml",
+    "scripts/diagnostics-history-growth-benchmark.mjs",
+    "scripts/diagnostics-history-growth-benchmark.test.mjs",
+    "scripts/runtime-health-probe-benchmark.ps1",
+    "scripts/desktop-process-window-baseline.ps1",
+  ]) {
+    assert.equal(classifyPaths([path]).class, "C", `expected measurement-only path ${path} to remain C`);
+  }
+});
+
+test("measurement-only allowlist remains exact and mixed higher-risk changes still escalate", () => {
+  assert.equal(classifyPaths(["scripts/new-performance-benchmark.ps1"]).class, "D");
+  assert.equal(classifyPaths([".github/workflows/new-performance-baseline.yml"]).class, "D");
+  assert.equal(
+    classifyPaths([
+      "scripts/desktop-process-window-baseline.ps1",
+      ".github/workflows/desktop-process-window-baseline.yml",
+    ]).class,
+    "C",
+  );
+  assert.equal(
+    classifyPaths([
+      "scripts/diagnostics-history-growth-benchmark.mjs",
+      "package.json",
+    ]).class,
+    "D",
+  );
 });
 
 test("detects renderer-only Desktop changes without weakening their C risk class", () => {
