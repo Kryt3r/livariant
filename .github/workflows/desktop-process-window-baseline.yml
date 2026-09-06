@@ -104,24 +104,35 @@ jobs:
         shell: pwsh
         run: ./src-tauri/windows/generate-installer-branding.ps1
 
-      - name: Build installed-runtime NSIS candidate with locked Rust dependencies
+      - name: Build canonical Acrylic candidate
         working-directory: apps/desktop
         run: npm run tauri:build -- --config src-tauri/tauri.runtime.conf.json --bundles nsis --ci -- --locked
 
-      - name: Install candidate and capture startup plus disconnected-idle evidence
+      - name: Measure canonical Acrylic candidate
         shell: pwsh
         run: |
+          function Stop-MeasuredProcesses([string]$EvidencePath) {
+            $evidence = Get-Content -LiteralPath $EvidencePath -Raw | ConvertFrom-Json
+            foreach ($entry in @($evidence.disconnectedIdle.processTree.processesAfterSample)) {
+              $candidate = Get-Process -Id ([int]$entry.processId) -ErrorAction SilentlyContinue
+              if ($null -eq $candidate) { continue }
+              if ($candidate.ProcessName -in @("livariant-desktop", "msedgewebview2")) {
+                Stop-Process -Id $candidate.Id -Force -ErrorAction SilentlyContinue
+              }
+            }
+          }
+
           $bundle = Join-Path $PWD "apps\desktop\src-tauri\target\release\bundle\nsis"
           $installers = @(Get-ChildItem -LiteralPath $bundle -Filter "*.exe" -File)
           if ($installers.Count -ne 1) {
-            throw "Expected exactly one NSIS installer in $bundle; found $($installers.Count)."
+            throw "Expected exactly one canonical NSIS installer in $bundle; found $($installers.Count)."
           }
 
-          $installDir = Join-Path $env:RUNNER_TEMP "LivariantStartupIdleBaseline"
+          $installDir = Join-Path $env:RUNNER_TEMP "LivariantAcrylicBaseline"
           Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
           $install = Start-Process -FilePath $installers[0].FullName -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
           if ($install.ExitCode -ne 0) {
-            throw "Silent NSIS install failed with exit code $($install.ExitCode)."
+            throw "Canonical Acrylic NSIS install failed with exit code $($install.ExitCode)."
           }
 
           $app = Join-Path $installDir "livariant-desktop.exe"
@@ -130,26 +141,140 @@ jobs:
           $core = Join-Path $installDir "runtime\core\dist\src\cli\index.js"
           foreach ($required in @($app, $node, $manifest, $core)) {
             if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-              throw "Required installed runtime material not found: $required"
+              throw "Required installed Acrylic runtime material not found: $required"
             }
           }
 
           ./scripts/desktop-process-window-baseline.ps1 `
             -AppPath $app `
             -SourceSha "${{ github.event.pull_request.head.sha || github.sha }}" `
-            -OutputPath "desktop-startup-idle-baseline.json"
+            -OutputPath "desktop-startup-idle-acrylic.json"
 
-          $digest = (Get-FileHash -LiteralPath "desktop-startup-idle-baseline.json" -Algorithm SHA256).Hash.ToLowerInvariant()
-          "sha256=$digest" | Set-Content -LiteralPath "desktop-startup-idle-baseline.sha256.txt" -Encoding utf8
-          Write-Host "Desktop startup/disconnected-idle baseline SHA-256: $digest"
-
+          Stop-MeasuredProcesses -EvidencePath "desktop-startup-idle-acrylic.json"
+          Start-Sleep -Seconds 2
           Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
 
-      - name: Upload Desktop startup and idle performance evidence
+      - name: Generate opaque no-window-effects benchmark config
+        working-directory: apps/desktop
+        shell: pwsh
+        run: |
+          $configPath = "src-tauri\tauri.conf.json"
+          $overridePath = "src-tauri\tauri.performance-opaque.conf.json"
+          $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+          if (@($config.app.windows).Count -ne 1) {
+            throw "Expected exactly one Desktop window in canonical Tauri config."
+          }
+          $config.app.windows[0].transparent = $false
+          $config.app.windows[0].windowEffects = $null
+          $config | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $overridePath -Encoding utf8
+
+          $roundTrip = Get-Content -LiteralPath $overridePath -Raw | ConvertFrom-Json
+          if ($roundTrip.app.windows[0].transparent -ne $false) {
+            throw "Opaque benchmark config did not disable transparency."
+          }
+          if ($null -ne $roundTrip.app.windows[0].windowEffects) {
+            throw "Opaque benchmark config did not null windowEffects for JSON Merge Patch deletion."
+          }
+
+      - name: Build opaque no-window-effects candidate
+        working-directory: apps/desktop
+        run: npm run tauri:build -- --config src-tauri/tauri.runtime.conf.json --config src-tauri/tauri.performance-opaque.conf.json --bundles nsis --ci -- --locked
+
+      - name: Measure opaque candidate and compare idle evidence
+        shell: pwsh
+        run: |
+          function Stop-MeasuredProcesses([string]$EvidencePath) {
+            $evidence = Get-Content -LiteralPath $EvidencePath -Raw | ConvertFrom-Json
+            foreach ($entry in @($evidence.disconnectedIdle.processTree.processesAfterSample)) {
+              $candidate = Get-Process -Id ([int]$entry.processId) -ErrorAction SilentlyContinue
+              if ($null -eq $candidate) { continue }
+              if ($candidate.ProcessName -in @("livariant-desktop", "msedgewebview2")) {
+                Stop-Process -Id $candidate.Id -Force -ErrorAction SilentlyContinue
+              }
+            }
+          }
+
+          $bundle = Join-Path $PWD "apps\desktop\src-tauri\target\release\bundle\nsis"
+          $installers = @(Get-ChildItem -LiteralPath $bundle -Filter "*.exe" -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one opaque NSIS installer in $bundle; found $($installers.Count)."
+          }
+
+          $installDir = Join-Path $env:RUNNER_TEMP "LivariantOpaqueBaseline"
+          Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
+          $install = Start-Process -FilePath $installers[0].FullName -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Opaque NSIS install failed with exit code $($install.ExitCode)."
+          }
+
+          $app = Join-Path $installDir "livariant-desktop.exe"
+          ./scripts/desktop-process-window-baseline.ps1 `
+            -AppPath $app `
+            -SourceSha "${{ github.event.pull_request.head.sha || github.sha }}" `
+            -OutputPath "desktop-startup-idle-opaque.json"
+
+          $acrylic = Get-Content -LiteralPath "desktop-startup-idle-acrylic.json" -Raw | ConvertFrom-Json
+          $opaque = Get-Content -LiteralPath "desktop-startup-idle-opaque.json" -Raw | ConvertFrom-Json
+          $comparison = [ordered]@{
+            schemaVersion = 1
+            benchmark = "desktop-window-effects-idle-ab"
+            sourceSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+            order = @("canonical-acrylic-transparent", "opaque-no-window-effects")
+            canonical = [ordered]@{
+              transparent = $true
+              windowEffects = @("acrylic")
+              repeatedProcessStartMeanMs = [double]$acrylic.startup.repeatedProcessStarts.meanMs
+              mainWorkingSetBytes = [int64]$acrylic.disconnectedIdle.mainProcess.workingSetBytesAfterSample
+              mainPrivateMemoryBytes = [int64]$acrylic.disconnectedIdle.mainProcess.privateMemoryBytesAfterSample
+              treeWorkingSetBytes = [int64]$acrylic.disconnectedIdle.processTree.workingSetBytesAfterSample
+              treePrivateMemoryBytes = [int64]$acrylic.disconnectedIdle.processTree.privateMemoryBytesAfterSample
+              treeCpuPercent = [double]$acrylic.disconnectedIdle.processTree.approximateCpuPercentAcrossSample
+              processCount = [int]$acrylic.disconnectedIdle.processTree.processCountAtSampleEnd
+            }
+            opaque = [ordered]@{
+              transparent = $false
+              windowEffects = @()
+              repeatedProcessStartMeanMs = [double]$opaque.startup.repeatedProcessStarts.meanMs
+              mainWorkingSetBytes = [int64]$opaque.disconnectedIdle.mainProcess.workingSetBytesAfterSample
+              mainPrivateMemoryBytes = [int64]$opaque.disconnectedIdle.mainProcess.privateMemoryBytesAfterSample
+              treeWorkingSetBytes = [int64]$opaque.disconnectedIdle.processTree.workingSetBytesAfterSample
+              treePrivateMemoryBytes = [int64]$opaque.disconnectedIdle.processTree.privateMemoryBytesAfterSample
+              treeCpuPercent = [double]$opaque.disconnectedIdle.processTree.approximateCpuPercentAcrossSample
+              processCount = [int]$opaque.disconnectedIdle.processTree.processCountAtSampleEnd
+            }
+            opaqueMinusCanonical = [ordered]@{
+              repeatedProcessStartMeanMs = [Math]::Round(([double]$opaque.startup.repeatedProcessStarts.meanMs - [double]$acrylic.startup.repeatedProcessStarts.meanMs), 3)
+              mainWorkingSetBytes = [int64]$opaque.disconnectedIdle.mainProcess.workingSetBytesAfterSample - [int64]$acrylic.disconnectedIdle.mainProcess.workingSetBytesAfterSample
+              mainPrivateMemoryBytes = [int64]$opaque.disconnectedIdle.mainProcess.privateMemoryBytesAfterSample - [int64]$acrylic.disconnectedIdle.mainProcess.privateMemoryBytesAfterSample
+              treeWorkingSetBytes = [int64]$opaque.disconnectedIdle.processTree.workingSetBytesAfterSample - [int64]$acrylic.disconnectedIdle.processTree.workingSetBytesAfterSample
+              treePrivateMemoryBytes = [int64]$opaque.disconnectedIdle.processTree.privateMemoryBytesAfterSample - [int64]$acrylic.disconnectedIdle.processTree.privateMemoryBytesAfterSample
+              treeCpuPercent = [Math]::Round(([double]$opaque.disconnectedIdle.processTree.approximateCpuPercentAcrossSample - [double]$acrylic.disconnectedIdle.processTree.approximateCpuPercentAcrossSample), 3)
+              processCount = [int]$opaque.disconnectedIdle.processTree.processCountAtSampleEnd - [int]$acrylic.disconnectedIdle.processTree.processCountAtSampleEnd
+            }
+            interpretation = "Same-runner sequential exploratory A/B for disconnected idle. Primary comparison is point-in-time memory and fixed-window CPU evidence. Startup delta is secondary because the opaque candidate runs second and can benefit from warmer OS/build/runtime caches. This does not authorize removal of Acrylic/transparency by itself."
+          }
+          $comparison | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath "desktop-window-effects-idle-ab.json" -Encoding utf8
+
+          Stop-MeasuredProcesses -EvidencePath "desktop-startup-idle-opaque.json"
+          Start-Sleep -Seconds 2
+          Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
+
+          foreach ($path in @(
+            "desktop-startup-idle-acrylic.json",
+            "desktop-startup-idle-opaque.json",
+            "desktop-window-effects-idle-ab.json"
+          )) {
+            $digest = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$path sha256=$digest" | Add-Content -LiteralPath "desktop-window-effects-idle-ab.sha256.txt" -Encoding utf8
+          }
+
+      - name: Upload Desktop startup idle and window-effects A/B evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: desktop-startup-idle-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          name: desktop-window-effects-idle-ab-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
-            desktop-startup-idle-baseline.json
-            desktop-startup-idle-baseline.sha256.txt
+            desktop-startup-idle-acrylic.json
+            desktop-startup-idle-opaque.json
+            desktop-window-effects-idle-ab.json
+            desktop-window-effects-idle-ab.sha256.txt
           if-no-files-found: error
