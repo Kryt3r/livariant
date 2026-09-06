@@ -2,11 +2,10 @@ const bindRangeOption = (button: HTMLButtonElement) => {
   if (button.dataset.rangeGuardBound === "true") return;
   button.dataset.rangeGuardBound = "true";
   button.addEventListener("click", (event) => {
-    // connections-diagnostics currently binds preset handlers to every element carrying
-    // data-diagnostics-preset, including the diagnostics root. Keep the target button's
-    // handler intact, but stop the same click from bubbling into that stale root handler.
+    // Let the button's own diagnostics preset handler run first, then stop the same
+    // click from bubbling into the stale surface-level preset handler.
     event.stopPropagation();
-  }, { capture: true });
+  });
 };
 
 const bindRangeOptions = (root: ParentNode = document) => {
