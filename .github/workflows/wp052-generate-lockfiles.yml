@@ -6,15 +6,13 @@ on:
       - feat/wp052-deterministic-desktop-deps
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Generate npm lockfile
         working-directory: apps/desktop
@@ -24,16 +22,12 @@ jobs:
         working-directory: apps/desktop/src-tauri
         run: cargo generate-lockfile
 
-      - name: Commit generated lockfiles
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add apps/desktop/package-lock.json apps/desktop/src-tauri/Cargo.lock
-          if git diff --cached --quiet; then
-            echo "Lockfiles already current; nothing to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "WP-052: generate deterministic desktop lockfiles"
-          git push origin HEAD:feat/wp052-deterministic-desktop-deps
+      - name: Upload generated lockfiles
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp052-desktop-lockfiles
+          path: |
+            apps/desktop/package-lock.json
+            apps/desktop/src-tauri/Cargo.lock
+          if-no-files-found: error
+          retention-days: 1
