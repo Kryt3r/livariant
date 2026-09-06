@@ -15,62 +15,270 @@
 
 # Livariant
 
-**Coding agents are getting better at doing more work. The harder problem is keeping a real software project trustworthy while they do it.**
+## Your project should not forget just because your chat did.
 
-Over a long-running project, LLM-assisted development repeatedly runs into the same structural weaknesses:
+AI can build software astonishingly fast.
 
-- context disappears between sessions, tools, and providers;
-- old decisions return after they were already replaced;
-- plausible inference can be mistaken for accepted project knowledge;
-- an agent may be technically capable of changing something without being authorized to change it;
-- "done" can be reported more confidently than the available verification evidence supports;
-- documentation, architecture notes, and working assumptions drift away from the actual product;
-- updates, migrations, failures, and interrupted work become difficult to reconstruct safely;
-- switching models or agents often means rebuilding context from scratch.
+But anyone who has worked with coding agents for more than a few sessions eventually runs into a different problem:
 
-These are not theoretical edge cases. They become more important as coding agents move from suggesting a few lines to changing many files, running tools, preparing migrations, and working for longer periods with less supervision.
+> The model is getting better. The project around it is still surprisingly easy to lose control of.
 
-**Livariant is being built as a provider-neutral reliability and governance layer around AI-assisted software development.** It does not try to make one model infallible. It gives the project durable state and explicit boundaries for what is evidence, what is accepted truth, what may change, what was actually verified, and what must stop when the state is ambiguous.
+You start a new chat and have to explain the project again.
 
-## The market already solves parts of this
+You switch from one agent to another and important context stays behind.
 
-Livariant is not based on the claim that nobody noticed these problems.
+A decision you rejected three weeks ago quietly appears again.
 
-Current tools already address individual pieces:
+An agent says "done" because the tests it happened to run passed, while another requirement was never checked.
 
-- editor and agent products provide persistent project rules and instructions;
-- repository-memory systems retain facts, preferences, and development history across sessions;
-- review products inspect AI-generated changes;
-- quality and security platforms add gates around generated code;
-- orchestration and agent frameworks improve tool use and task execution.
+Documentation says one thing, the code says another, and the next agent treats whichever one it finds first as truth.
 
-Representative examples include [Cursor Rules](https://docs.cursor.com/context/rules), [GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory), [projectmem](https://projectmem.dev/), [Sonar AI Code Assurance](https://www.sonarsource.com/solutions/ai-code-assurance/), and AI review products such as [CodeRabbit](https://www.coderabbit.ai/).
+A migration or update goes wrong and suddenly the hardest question is not "can AI fix this?" but "what was the last state we could actually trust?"
 
-The opportunity Livariant is targeting is different:
+**Livariant is being built for that problem.**
 
-> **The individual reliability problems are increasingly recognized, but they are still commonly handled as separate features, separate tools, or provider-specific state.**
+It is not another coding agent. It is the layer that stays with the project while chats, models, agents, tools, and sessions change around it.
 
-Memory does not automatically solve Authority. Review does not automatically solve durable Project Truth. CI does not automatically solve context continuity. A provider-specific memory does not automatically survive a provider switch. A successful test run does not automatically prove that every requirement is satisfied. A recovery mechanism does not automatically know which project state was actually authorized.
+---
 
-Livariant's thesis is that these concerns become more useful when they are designed as one coherent system rather than added independently around the agent.
+## The missing layer around coding agents
 
-## What Livariant brings together
+Today, many products already solve pieces of the problem:
 
-Livariant is designed around a combined reliability model:
+| Already getting better | Still often disconnected |
+| --- | --- |
+| Persistent rules and memories | Which information is actually still valid? |
+| Longer agent sessions | Which decisions must survive the next session? |
+| Code review agents | What was only a suggestion, and what became accepted project knowledge? |
+| CI and quality gates | What was really verified, and what was merely assumed? |
+| More autonomous agents | What may the agent actually change without asking? |
+| Provider-specific memory | What happens when you switch provider? |
 
-```text
-Durable Project Truth
-+ Evidence and provenance
-+ explicit Authority
-+ provider-neutral continuity
-+ Verification Trace
-+ conflict and drift handling
-+ controlled autonomy
-+ lifecycle and recovery
-+ diagnostics and observability
-```
+That fragmentation matters more as agents become more capable.
 
-The important part is not the number of features. It is the separation between concepts that LLM workflows easily blur together:
+When an AI only autocompletes a line, forgotten context is annoying.
+
+When an agent can change dozens of files, run commands, prepare migrations, update dependencies, and work for long periods, forgotten context becomes a reliability problem.
+
+### Livariant's idea is simple
+
+> **Let the models do the reasoning. Let the project keep the memory, rules, evidence, decisions, and control.**
+
+Instead of asking every provider to become the permanent brain of your project, Livariant aims to make the project itself the durable source of continuity.
+
+So you can change the model without changing what the project knows.
+
+Change the agent without losing the decisions that matter.
+
+Move faster without turning every AI suggestion into unquestioned truth.
+
+---
+
+## What changes with Livariant
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Without Livariant
+
+- Every new session starts with reconstruction.
+- Important context lives inside individual chats or tools.
+- Old decisions can quietly return.
+- Agent output can look more authoritative than it really is.
+- "Tests passed" can turn into "everything is done".
+- Switching providers can mean rebuilding context again.
+- Recovery after a bad change depends heavily on human memory.
+
+</td>
+<td width="50%" valign="top">
+
+### With Livariant
+
+- Important project knowledge has a durable home.
+- Evidence and accepted project truth are kept separate.
+- Decisions can stay traceable across sessions.
+- An agent being able to do something is not the same as being allowed to do it.
+- Verification can show what is supported, contradicted, or still unproven.
+- The reliability layer belongs to the project, not one provider.
+- Updates, migrations, and recovery can follow explicit project state.
+
+</td>
+</tr>
+</table>
+
+Livariant does not try to make AI perfect.
+
+**It tries to make imperfect AI much safer to use on software that needs to survive longer than one chat.**
+
+---
+
+## What Livariant already offers
+
+Livariant is still in early development, but the product already has working foundations rather than being only a concept.
+
+### Project continuity
+
+A local, project-owned Project Brain gives important goals, decisions, knowledge, and context a place that is independent from a single chat or model.
+
+### Evidence before truth
+
+Agent output, discovered information, findings, and external knowledge do not automatically become accepted project truth just because an LLM produced or found them.
+
+### Safer change boundaries
+
+Livariant separates "the agent can do this" from "the agent is allowed to do this" and protects consequential operations behind explicit authority boundaries.
+
+### Verification that can still say "we do not know"
+
+Verification Trace can classify supplied relationships between requirements, implementation, and evidence as `SUPPORTED`, `CONTRADICTED`, or `UNPROVEN` instead of forcing a false green result.
+
+### Continuity across agents
+
+Livariant already provides local MCP foundations, provider context/return flows, setup paths for Claude Code and Codex, and a deeper local Desktop connection path for Codex.
+
+### Recovery and lifecycle foundations
+
+Initialization, updates, migrations, checkpoints, recovery, runtime trust, and release authority are treated as separate reliability concerns rather than one generic "update" action.
+
+### Truthful diagnostics
+
+Diagnostics deliberately separates what was actually observed from what was avoided or merely estimated. Livariant should not invent impressive-looking savings numbers just to make itself look useful.
+
+---
+
+## The Desktop app is where this becomes usable
+
+Livariant is not intended to remain a collection of CLI commands and engineering concepts.
+
+The Desktop app is being built as the normal way to work with Livariant: connect projects and agents, understand project state, review what matters, inspect diagnostics, manage settings, and handle updates through one graphical surface.
+
+> [!WARNING]
+> **Early Development / Preview**
+>
+> Livariant is still under active development. The Desktop app is usable as a Preview, but important workflows are still being completed and individual surfaces may change before the first public product release. The Windows installer also does not yet have final production publisher signing/reputation, so Windows may show SmartScreen or publisher warnings depending on system policy and reputation.
+
+Current Desktop areas include:
+
+| Area | What it is for |
+| --- | --- |
+| **Project Truth / First Steps** | Understand project purpose, direction, rules, gaps, and proposals. Persistent Project Brain editing is not fully complete yet. |
+| **Connections** | Manage supported local agent/provider connections and restore connection intent where supported. |
+| **Diagnostics** | Inspect local reliability and efficiency evidence without mixing observed facts with estimates. |
+| **Updates** | Discover signed updates, read localized release notes, follow real download progress, and explicitly authorize install/restart. |
+| **Settings** | Manage language, connection/system configuration, and runtime identity/health information. |
+
+### Screenshots
+
+Current Desktop screenshots will be added here once the verified visual set is available.
+
+---
+
+## What the first public release is meant to deliver
+
+This is the user-facing target, not an internal engineering task list and not a claim that every item is complete today.
+
+### 1. Bring an existing project with you
+
+Connect a real software project without rebuilding it around Livariant. Livariant should inspect what already exists, preserve the project's ownership of its own files, and help turn scattered context into deliberate project knowledge.
+
+### 2. Stop rebuilding context every few sessions
+
+Goals, important decisions, constraints, known facts, unresolved questions, and relevant history should survive chats and working sessions.
+
+### 3. Switch agents without resetting the project
+
+Use supported coding agents and providers without making one provider's private memory the only place where the project still makes sense.
+
+### 4. Know what the project knows and why
+
+Keep generated material, findings, external information, assumptions, and accepted project truth distinguishable instead of letting everything collapse into one pile of "context".
+
+### 5. Catch contradictions before they quietly become the new normal
+
+Surface stale or conflicting knowledge so it can be reviewed, replaced, or rejected deliberately rather than silently overwriting previous decisions.
+
+### 6. Give agents freedom where it is cheap and boundaries where mistakes are expensive
+
+Routine low-risk work should stay lightweight. Consequential changes should become more explicit as their impact grows.
+
+### 7. Make "done" mean more than confidence
+
+Connect requirements, implementation, and verification evidence so the system can still say "unproven" when proof is missing.
+
+### 8. Recover without guessing
+
+Updates, migrations, interruptions, and unsafe states should leave enough trusted project state to understand what happened and how to return to a known-good point.
+
+### 9. Keep the whole thing understandable from one Desktop app
+
+The normal user should not need to become an expert in Livariant's internals just to benefit from them.
+
+### 10. Stay local-first by default
+
+Normal local use should not require a Livariant cloud account or automatic upload of Project Brain state.
+
+---
+
+## Reliability without turning development into bureaucracy
+
+There is an obvious way for a reliability tool like Livariant to fail:
+
+> It could make every tiny change feel like filling out paperwork.
+
+That would destroy the speed and flow that make coding agents useful in the first place.
+
+Livariant therefore aims for a risk-based experience:
+
+- routine and read-only work should stay lightweight;
+- uncertainty should become visible when it actually matters;
+- higher-risk changes should receive stronger checks;
+- hard safety boundaries should not disappear just because they are inconvenient.
+
+**The goal is not more process. The goal is more confidence per interruption.**
+
+---
+
+## Why provider-neutral matters
+
+A model provider naturally wants to make its own agent better.
+
+Livariant has a different job.
+
+Its job is to keep your project's continuity useful even if tomorrow you use a different model, another coding agent, or several tools side by side.
+
+That independence is important because the valuable asset is not the current chat history.
+
+**The valuable asset is the accumulated understanding of the project.**
+
+Livariant is being designed so that this understanding belongs to the project.
+
+---
+
+## Where the market is today
+
+Livariant is not built on the claim that nobody else sees these problems. In fact, the opposite is encouraging: memory, repository context, review, AI-code quality gates, and agent reliability are all becoming active product areas.
+
+Examples include [Cursor Rules](https://docs.cursor.com/context/rules), [GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory), [projectmem](https://projectmem.dev/), [Sonar AI Code Assurance](https://www.sonarsource.com/solutions/ai-code-assurance/), and AI review products such as [CodeRabbit](https://www.coderabbit.ai/).
+
+Livariant's bet is that the next useful layer is not another isolated memory feature or another review bot, but a coherent reliability layer that connects continuity, evidence, authority, verification, recovery, and controlled autonomy around the project itself.
+
+---
+
+## Longer-term direction
+
+Beyond the first public product baseline, Livariant may extend the same model with richer failure memory, continuously refreshed engineering intelligence, independent review/critic layers, privacy-preserving aggregated reliability evidence, broader provider support, and eventually controlled Livariant-on-Livariant self-hosting.
+
+Those are future directions, not current capability claims.
+
+---
+
+<details>
+<summary><strong>Technical foundations</strong></summary>
+
+### Core trust model
+
+Livariant keeps several concepts deliberately separate:
 
 ```text
 Evidence != Truth
@@ -81,100 +289,30 @@ Persistence != Trust
 Presence != Currency
 ```
 
-A model can be useful, confident, connected, and technically capable while still being wrong. Livariant is designed so that none of those properties alone silently promote its output into durable project state.
-
-## What Livariant can already do
-
-Today, Livariant already contains working foundations for:
-
-| Problem | Current Livariant response |
-| --- | --- |
-| Context loss | Project-owned **Project Brain**, bounded Project Context, provider context/return flows, and stable project identity. |
-| Stale or contradictory knowledge | Semantic proposal, drift/conflict assessment, guided understanding, controlled adoption, and semantic-maintenance foundations. |
-| Unintended consequential changes | Explicit **Authority** boundaries, plan-first mutation, Guardian-protected consequential authority, and fail-closed handling of stale or ambiguous trust state. |
-| Unsupported "done" claims | **Verification Trace** classifies supplied requirement/implementation/evidence relationships as `SUPPORTED`, `CONTRADICTED`, or `UNPROVEN`. |
-| Agent or external material becoming truth too easily | Provider output, findings, external knowledge, and derived material remain **Evidence** until an accepted review/adoption path promotes something to Project Truth. |
-| Provider continuity | Local MCP integration, provider context/return surfaces, Claude Code/Codex setup paths, and a deeper current Desktop connection path for Codex. |
-| Lifecycle and recovery mistakes | Separate initialization, update, migration, checkpoint, recovery, Runtime-trust, and release-authorization boundaries. |
-| Observability | Local Diagnostics foundations that keep `Observed`, `Avoided`, and `Estimated` evidence explicitly separate. |
-
-These are deliberately bounded capabilities. Livariant does **not** currently claim universal code verification, automatic trustworthy evidence generation, unrestricted autonomous mutation, perfect conflict detection, or support for every provider and workflow.
-
-## Desktop app
-
-The Desktop app is intended to be the main user-facing surface of Livariant rather than requiring normal users to operate the system through a command-heavy workflow.
-
-> [!WARNING]
-> **Early development / Preview**
->
-> Livariant is still under active development. The Desktop app is usable as a Preview, but workflows, compatibility, and individual surfaces may still change before the first public product release. The Windows installer also does not yet have the final production Authenticode publisher-signing/reputation setup, so Windows may show publisher or SmartScreen warnings depending on policy and reputation.
-
-Current Desktop areas include:
-
-- **Project Truth / First Steps** - project purpose, direction, rules, gaps, proposals, and manual review. The current renderer still contains foundation/session-state behavior here and must not be mistaken for a fully persistent Project Brain editor.
-- **Connections** - local provider/agent connection management around the currently implemented connection boundary, including persisted connection intent and restore behavior.
-- **Diagnostics** - local reliability/efficiency evidence with explicit periods and the permanent distinction `Observed != Avoided != Estimated`.
-- **Updates** - signed update discovery, localized EN/DE release notes, real download state, and an explicitly authorized install/restart flow.
-- **Settings** - language, connection/system configuration, and runtime identity/health information.
-
-### Screenshots
-
-Current screenshots will be added here once a verified set representing the accepted Desktop visual baseline is available. Mockups or obsolete screenshots will not be presented as current product evidence.
-
-## Target for the first public product release
-
-This roadmap describes the **intended user-facing product baseline for the first public release**, not the order in which engineering tasks happen and not a claim that every item is complete today.
-
-The target is for a user to be able to:
-
-1. **Install and use Livariant primarily through the Desktop app** with a coherent onboarding, update, diagnostics, and settings experience.
-2. **Connect an existing real project without restructuring it for Livariant**, inspect what already exists, and adopt project knowledge deliberately.
-3. **Keep durable project context across long-running work**, so important goals, decisions, constraints, known facts, and unresolved questions do not depend on one chat window.
-4. **Move between supported coding agents/providers without losing the project's reliability layer**, including persistent connection intent where supported and provider-neutral project continuity.
-5. **Keep Evidence separate from Project Truth**, including agent output, findings, discovery results, and external knowledge.
-6. **Review conflicting or stale project knowledge instead of silently overwriting it**, with traceable replacement/supersession semantics where supported.
-7. **Use controlled autonomy rather than all-or-nothing automation**, so routine low-risk work can stay lightweight while consequential decisions still stop at explicit boundaries.
-8. **Verify claims more rigorously than an agent saying "done"**, using Verification Trace and risk-appropriate verification evidence.
-9. **Recover from interrupted or unsafe lifecycle state without guessing**, with explicit update, migration, checkpoint, recovery, and trust boundaries.
-10. **Inspect local Diagnostics without invented savings or fabricated certainty**, including clear provenance and separation of observed, avoided, and estimated values.
-11. **Remain local-first by default**, without requiring a Livariant cloud account or automatic upload of Project Brain state for normal local use.
-
-That is the product Livariant is aiming to make useful: not another coding agent, but a durable reliability layer that can stay with the project while agents, models, sessions, and tools change around it.
-
-## The critical product constraint: reliability without killing speed
-
-Livariant only succeeds if the extra reliability is worth the friction.
-
-A system that stops the user for every harmless edit, produces constant warnings, or turns a small change into a governance ceremony would defeat one of the main reasons people use coding agents in the first place.
-
-The intended behavior is therefore **risk-based**:
-
-- low-risk, read-only, and routine work should require as little friction as practical;
-- meaningful uncertainty should become visible rather than silently ignored;
-- consequential changes should become more explicit as their impact and trust requirements increase;
-- hard Authority boundaries must not be weakened merely to make the workflow feel faster.
-
-The goal is not maximum process. It is **the minimum process needed to keep the project trustworthy**.
-
-## How Livariant works
-
-At a high level:
+A simplified flow is:
 
 ```text
 Inspect / observe
-      ↓
+      |
+      v
 Evidence + bounded context
-      ↓
+      |
+      v
 Understand / assess / propose
-      ↓
+      |
+      v
 Review + explicit Authority where required
-      ↓
+      |
+      v
 Mutate
-      ↓
+      |
+      v
 Verify
 ```
 
-Livariant's local Project Brain provides project-owned durable context:
+### Project Brain
+
+Project-owned durable context currently uses a local structure such as:
 
 ```text
 .project-brain/
@@ -185,104 +323,58 @@ Livariant's local Project Brain provides project-owned durable context:
   metadata.json
 ```
 
-A copied sentence, provider result, stale context packet, external note, or finding is not automatically Project Truth merely because it exists.
+### MCP integration
 
-## Agent and MCP integration
+Current bounded MCP tools include:
 
-Livariant includes a local stdio MCP bridge for compatible coding agents. Current bounded tools include:
+- `livariant_provider_context`
+- `livariant_provider_return`
+- `livariant_verification_trace`
 
-- `livariant_provider_context`;
-- `livariant_provider_return`;
-- `livariant_verification_trace`.
-
-The CLI can also render explicit setup guidance for Claude Code and Codex:
+Setup guidance is available for Claude Code and Codex:
 
 ```bash
 livariant mcp setup --provider claude-code
 livariant mcp setup --provider codex
 ```
 
-These commands do not silently rewrite provider configuration. MCP transport also does not create mutation Authority or turn provider output into Project Truth.
+MCP transport does not itself grant mutation authority or promote provider output into Project Truth.
 
-## Safety and trust principles
+### Architecture
 
-Livariant is preservation-first:
+Livariant currently combines a TypeScript/Node.js Core and CLI, a Tauri 2 Desktop application with a Rust host, protected authority boundaries, a local stdio MCP bridge, project-local Project Brain state, provenance-aware evidence contracts, and signed Desktop updater metadata.
 
-- consequential mutation is explicit;
-- capability and Authority are separate;
-- stale, substituted, ambiguous, or malformed consequential trust state fails closed;
-- historical evidence is not silently rewritten;
-- external knowledge and provider output remain Evidence until reviewed/adopted;
-- update availability is not install authorization;
-- verification evidence is not automatically accepted completion;
-- the Desktop renderer is not a root of trust;
-- Project Brain state is local by default;
-- Livariant usage telemetry is not currently implemented.
+See [Architecture & Safety](docs/architecture-and-safety.md) for the deeper model.
 
-If project context is sent to an external AI provider, that provider's terms, retention settings, and security model apply.
+</details>
 
-## Installation and Quickstart
+---
 
-For normal Desktop use, download the **latest qualified Desktop Preview** from the [GitHub Releases](https://github.com/Kryt3r/livariant/releases) page and follow the current [Installation](docs/installation.md) and [Five-Minute Quickstart](docs/quickstart.md).
+## Install and explore
 
-Exact release identities, supported platforms, known Preview limitations, artifact information, and historical release boundaries live in [Public Preview Scope & Limitations](docs/preview-scope.md) rather than being duplicated throughout this README.
+For normal Desktop use, download the **latest qualified Desktop Preview** from [GitHub Releases](https://github.com/Kryt3r/livariant/releases).
 
-The Core/CLI remains available for provider-independent inspection, MCP setup, lifecycle operations, Guardian/protected-authority workflows, and lower-level diagnostics.
-
-## Current Preview boundaries
-
-Livariant does not currently claim:
-
-- Stable-release compatibility guarantees;
-- a complete persistent Project Truth editor in the Desktop renderer;
-- every provider or every provider connection method;
-- universal automatic requirement discovery;
-- automatic creation of independently trustworthy verification evidence;
-- universal correctness verification for arbitrary code;
-- automatic repair of every drift/conflict;
-- unrestricted autonomous repository mutation;
-- broad multi-agent orchestration or a third-party plugin marketplace;
-- exact provider-billed token/cost savings from proxy measurements.
-
-See [Public Preview Scope & Limitations](docs/preview-scope.md).
-
-## Longer-term direction
-
-Beyond the first public product baseline, Livariant may build further on the same trust model with areas such as richer failure memory, continuously refreshed engineering intelligence, independent review/critic layers, privacy-preserving aggregated real-world reliability evidence, broader provider support, and eventually controlled Livariant-on-Livariant self-hosting.
-
-Those are future directions, not current capability claims.
-
-## Documentation
-
-Start here:
+Then continue with:
 
 1. [Installation & First Project](docs/installation.md)
 2. [Five-Minute Quickstart](docs/quickstart.md)
 3. [Public Preview Scope & Limitations](docs/preview-scope.md)
 4. [Architecture & Safety](docs/architecture-and-safety.md)
-5. [First-Run Composition](docs/first-run.md)
-6. [Existing Projects](docs/existing-projects.md)
-7. [Local MCP Agent Bridge](docs/mcp-agent-bridge.md)
-8. [Provider Handoff](docs/provider-handoff.md)
-9. [Verification Trace](docs/verification-trace.md)
-10. [Privacy & Network Behavior](docs/privacy-and-network.md)
-11. [Updates, Migrations & Recovery](docs/lifecycle-guide.md)
+5. [Existing Projects](docs/existing-projects.md)
+6. [Privacy & Network Behavior](docs/privacy-and-network.md)
+7. [Updates, Migrations & Recovery](docs/lifecycle-guide.md)
 
 German documentation starts at [README.de.md](README.de.md).
 
-## Architecture and technical details
+---
 
-Livariant currently combines:
+## Current Preview boundaries
 
-- a TypeScript/Node.js Core and CLI;
-- a Tauri 2 Desktop application with a Rust host and host WebView frontend;
-- protected Guardian/Authority boundaries for consequential operations;
-- a local stdio MCP bridge;
-- project-local Project Brain state;
-- provenance-aware evidence and verification contracts;
-- signed Desktop updater metadata and release identity.
+Livariant does not currently claim universal code correctness verification, automatically trustworthy evidence generation, unrestricted autonomous repository mutation, perfect conflict detection, support for every provider or connection method, or Stable-release compatibility guarantees.
 
-See [Architecture & Safety](docs/architecture-and-safety.md) for the deeper model.
+See [Public Preview Scope & Limitations](docs/preview-scope.md) for the exact current boundaries.
+
+---
 
 ## Licensing, security, and contributions
 
@@ -299,4 +391,6 @@ External code contributions are currently gated while contributor-rights terms c
 
 ---
 
-**Livariant does not need one model to be perfect. It needs the project to remain understandable, reviewable, and recoverable when the model is not.**
+<p align="center">
+  <strong>Livariant is not trying to make one AI perfect.<br/>It is trying to make your project reliable even when the AI is not.</strong>
+</p>
