@@ -1,0 +1,155 @@
+name: Desktop Process-to-Window Baseline
+
+on:
+  pull_request:
+    paths:
+      - "scripts/desktop-process-window-baseline.ps1"
+      - ".github/workflows/desktop-process-window-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  process-to-window:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Build Livariant Core from lockfile
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Stage pinned Node runtime and exact Core resources
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ARCH -ne "X64") {
+            throw "WP-052 process-to-window baseline currently supports the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
+          }
+
+          $sourceSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+          $nodeVersion = "24.16.0"
+          $nodeArchiveName = "node-v$nodeVersion-win-x64.zip"
+          $nodeArchiveSha256 = "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56"
+          $nodeExeSha256 = "b3094d0b49f9ad602262a9921551737bb97637c05dd357a06ae98188d7290aa3"
+          $nodeUrl = "https://nodejs.org/download/release/v$nodeVersion/$nodeArchiveName"
+          $download = Join-Path $env:RUNNER_TEMP $nodeArchiveName
+          $extract = Join-Path $env:RUNNER_TEMP "livariant-node-runtime"
+          $tauriRoot = Join-Path $PWD "apps\desktop\src-tauri"
+          $binaryDir = Join-Path $tauriRoot "binaries"
+          $runtimeDir = Join-Path $tauriRoot "runtime"
+          $coreDir = Join-Path $runtimeDir "core"
+          $coreDistDir = Join-Path $coreDir "dist"
+          $thirdPartyDir = Join-Path $runtimeDir "third-party"
+
+          Remove-Item -LiteralPath $binaryDir -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $runtimeDir -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $binaryDir, $coreDistDir, $thirdPartyDir -Force | Out-Null
+
+          Invoke-WebRequest -Uri $nodeUrl -OutFile $download
+          $archiveDigest = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($archiveDigest -ne $nodeArchiveSha256) {
+            throw "Pinned Node archive digest mismatch. Expected $nodeArchiveSha256, got $archiveDigest."
+          }
+
+          Expand-Archive -LiteralPath $download -DestinationPath $extract -Force
+          $nodeRoot = Join-Path $extract "node-v$nodeVersion-win-x64"
+          $nodeExe = Join-Path $nodeRoot "node.exe"
+          $nodeLicense = Join-Path $nodeRoot "LICENSE"
+          $exeDigest = (Get-FileHash -LiteralPath $nodeExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($exeDigest -ne $nodeExeSha256) {
+            throw "Pinned Node executable digest mismatch. Expected $nodeExeSha256, got $exeDigest."
+          }
+
+          Copy-Item -LiteralPath $nodeExe -Destination (Join-Path $binaryDir "livariant-node-x86_64-pc-windows-msvc.exe")
+          Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $thirdPartyDir "NODE-LICENSE.txt")
+          Copy-Item -LiteralPath "dist\src" -Destination (Join-Path $coreDistDir "src") -Recurse
+
+          $rootPackage = Get-Content -LiteralPath "package.json" -Raw | ConvertFrom-Json
+          @{
+            name = "livariant-bundled-core"
+            version = $rootPackage.version
+            private = $true
+            type = "module"
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $coreDir "package.json") -Encoding utf8
+
+          [ordered]@{
+            schemaVersion = 1
+            coreVersion = $rootPackage.version
+            coreSourceSha = $sourceSha
+            nodeVersion = $nodeVersion
+            nodeArchive = $nodeArchiveName
+            nodeArchiveSha256 = $nodeArchiveSha256
+            nodeExecutableSha256 = $nodeExeSha256
+            authorityIssued = $false
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runtimeDir "manifest.json") -Encoding utf8
+
+      - name: Install Desktop dependencies from lockfile
+        working-directory: apps/desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate installer branding
+        working-directory: apps/desktop
+        shell: pwsh
+        run: ./src-tauri/windows/generate-installer-branding.ps1
+
+      - name: Build installed-runtime NSIS candidate with locked Rust dependencies
+        working-directory: apps/desktop
+        run: npm run tauri:build -- --config src-tauri/tauri.runtime.conf.json --bundles nsis --ci -- --locked
+
+      - name: Install candidate and capture process-to-window evidence
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $PWD "apps\desktop\src-tauri\target\release\bundle\nsis"
+          $installers = @(Get-ChildItem -LiteralPath $bundle -Filter "*.exe" -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one NSIS installer in $bundle; found $($installers.Count)."
+          }
+
+          $installDir = Join-Path $env:RUNNER_TEMP "LivariantProcessWindowBaseline"
+          Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
+          $install = Start-Process -FilePath $installers[0].FullName -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Silent NSIS install failed with exit code $($install.ExitCode)."
+          }
+
+          $app = Join-Path $installDir "livariant-desktop.exe"
+          $node = Join-Path $installDir "livariant-node.exe"
+          $manifest = Join-Path $installDir "runtime\manifest.json"
+          $core = Join-Path $installDir "runtime\core\dist\src\cli\index.js"
+          foreach ($required in @($app, $node, $manifest, $core)) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw "Required installed runtime material not found: $required"
+            }
+          }
+
+          ./scripts/desktop-process-window-baseline.ps1 `
+            -AppPath $app `
+            -SourceSha "${{ github.event.pull_request.head.sha || github.sha }}" `
+            -OutputPath "desktop-process-window-baseline.json"
+
+          $digest = (Get-FileHash -LiteralPath "desktop-process-window-baseline.json" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "sha256=$digest" | Set-Content -LiteralPath "desktop-process-window-baseline.sha256.txt" -Encoding utf8
+          Write-Host "Desktop process-to-window baseline SHA-256: $digest"
+
+          Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Upload Desktop startup performance evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: desktop-process-window-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            desktop-process-window-baseline.json
+            desktop-process-window-baseline.sha256.txt
+          if-no-files-found: error
