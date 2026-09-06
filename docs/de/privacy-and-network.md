@@ -1,76 +1,95 @@
 # Datenschutz & Netzwerkverhalten
 
-Der aktuelle Livariant-Preview-Kandidat ist für lokale Projektarbeit ausgelegt. Diese Seite erklärt, was Livariant selbst über das Netzwerk sendet, was lokal bleibt und wo externe KI-Provider ein eigenes Thema sind.
+<p align="center">
+  <a href="../privacy-and-network.md">English</a> · <strong>Deutsch</strong>
+</p>
 
-## Keine Livariant-Telemetrie in der aktuellen Runtime
+Livariant arbeitet standardmäßig local-first. Diese Seite trennt lokales Projektverhalten, Desktop-Update-Traffic, lokale Connector-Kommunikation und das Verhalten externer KI-Provider.
 
-Die aktuelle Runtime implementiert keine:
+## Keine Livariant-Nutzungstelemetrie im aktuellen Produkt
 
-- Analytics oder Nutzungstelemetrie;
-- Crash-Reports;
+Livariant implementiert derzeit keine eigene:
+
+- Analytics- oder Nutzungstelemetrie;
 - Werbe-Identifier;
-- Livariant-Account-Verfolgung;
-- automatischen Uploads von Project-Brain-Inhalten.
+- Livariant-Cloud-Account-Verfolgung;
+- automatischen Uploads von Project-Brain-Inhalten;
+- automatischen Uploads von Roh-Prompts oder beliebigen Projektdateien für Diagnostics.
 
-`status`, `doctor`, `init`, `resume` und `recover` arbeiten mit lokalem Projektzustand.
+Project Brain, lokale Diagnostics-Evidenz, Connection Intent und normale Projektinspektion bleiben lokal, solange nicht ein separat unterstütztes Feature ausdrücklich eine Netzwerkgrenze überschreitet.
 
-Auch provider-spezifischer Resume-Kontext wird von Livariant lokal erzeugt. Der Livariant-Adapter sendet diesen Kontext nicht selbst an Claude Code, Codex oder einen anderen Remote-Dienst.
+Diese Aussage betrifft Livariant selbst. Betriebssystem-Komponenten, GitHub, Paketmanager in erweiterten CLI-Workflows und externe KI-Provider besitzen eigenes Netzwerk-/Datenschutzverhalten.
 
-Wenn du den erzeugten Kontext anschließend bewusst an einen externen KI-Provider weitergibst, bestimmen dessen Anwendung, Account, Datenschutzeinstellungen und Bedingungen, was damit geschieht. Dieses Verhalten gehört nicht zur Livariant-Runtime.
+## Externe KI-Provider sind eine eigene Grenze
 
-## Update-Verhalten
+Livariant kann begrenzten Provider-Kontext lokal vorbereiten. Wenn dieser Kontext an Claude Code, Codex oder einen anderen externen Provider gesendet wird, gelten dessen Anwendung, Account-Einstellungen, Aufbewahrungsregeln und Bedingungen.
 
-Der aktuelle unterstützte Update-Pfad liest ein Release-Manifest und ein Artefakt aus lokalen Pfaden, die du der CLI übergibst.
+Provider-Ausgabe, die zu Livariant zurückkehrt, bleibt Evidence/Kandidatenmaterial, bis ein unterstützter Review-/Adoption-/Authority-Pfad etwas stärker akzeptiert.
 
-Planung:
+Eine Provider-Verbindung gilt nicht als Zustimmung, das gesamte Projekt oder Project Brain hochzuladen.
+
+## Desktop Connections
+
+Die aktuelle Desktop-App besitzt einen echten lokalen Codex-Verbindungspfad über einen begrenzten lokalen Connector Host / App Server.
+
+Connection Intent kann lokal gespeichert werden, damit eine akzeptierte Verbindung bei einem späteren App-Start wiederhergestellt werden kann. Diese Persistenz speichert Connection-State-/Identity-Informationen, nicht Project Truth und keine Mutation Authority.
+
+Der externe Codex-Client/-Dienst kann nach seinen eigenen Authentifizierungs-, Account-, Modell- und Datenschutzeinstellungen über das Netzwerk kommunizieren. Dieser Provider-Traffic ist von Livariant-Telemetrie getrennt.
+
+## Desktop-Update-Verhalten
+
+Der aktuelle Desktop unterstützt **Remote-Update-Erkennung**. Ältere Dokumentation mit der Aussage, Livariant führe keine Remote-Update-Checks durch, beschrieb das frühere CLI-only-Update-Modell und ist heute global nicht mehr korrekt.
+
+Wenn der Nutzer den Desktop-Update-Flow aufruft, prüft Livariant seinen konfigurierten HTTPS-Updater-Endpunkt auf signierte Update-Metadaten. Der aktuelle Update-Pfad verwendet:
+
+- eine feste Updater-Endpunkt-/Channel-Konfiguration;
+- einen festen Updater-Public-Key;
+- signierte Update-Metadaten/-Artefakte;
+- lokalisierte DE/EN-Release-Notes in den Update-Metadaten;
+- echte Download-Callbacks/-Fortschrittszustände, wenn eine vertrauenswürdige Gesamtgröße vorliegt;
+- ausdrückliche Nutzerautorisierung vor Installation/Neustart.
+
+Update-Verfügbarkeit ist keine Installations-Authority. Der Renderer kann keine beliebige Update-URL oder Executable auswählen.
+
+Der aktuelle Desktop-Update-Pfad darf nicht als stille autonome Projektmutation beschrieben werden. Ein ausführbares App-Update und eine Projekt-Lifecycle-Mutation sind getrennte Domains.
+
+## CLI / Protected-Runtime-Update-Verhalten
+
+Livariant Core enthält zusätzlich das tiefergehende CLI-Lifecycle-/Update-Modell. Dieser Pfad arbeitet mit explizitem lokalem Release-Manifest-/Artefaktmaterial und geschützten Runtime-/Release-Authority-Grenzen.
+
+Ein typischer plan-first CLI-Update-Pfad bleibt konzeptionell von der Desktop-Updater-Erkennung getrennt:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-Zum Anwenden eines geprüften Updates brauchst du das lokale Artefakt und eine ausdrücklich ausgewählte vertrauenswürdige Quellidentität:
+Ein folgenreicher Apply erfordert weiterhin die unterstützten Exact-Artifact-/Source-/Authority-Prüfungen. Projektdateien, Provider-Ausgabe oder ein caller-controlled `--trusted-source`-Wert können keine geschützte Release-/Runtime-Authority herstellen.
 
-```bash
-livariant update \
-  --manifest ./release-manifest.json \
-  --apply \
-  --artifact ./livariant-runtime.tgz \
-  --trusted-source <source-id>
-```
+Die Existenz des Desktop-Updaters schwächt diese Core-/Guardian-Grenzen nicht.
 
-Für ausführbare Updates muss der exakte Artefakt-SHA-256 zusätzlich bereits durch eine unabhängige rechnerlokale Release-Authority außerhalb der Projektautorität autorisiert sein.
+## Project Brain und Diagnostics sind Projektdaten
 
-Manifest, `--trusted-source`, Projektdateien und die projektseitige Livariant-CLI oder API können diese Autorität nicht erzeugen. Fehlt sie, stoppt das Update vor npm-Installation oder Candidate-Runtime-Attestation. Einen projektseitigen `authorize-runtime`-Befehl gibt es nicht.
+Project Brain kann Projektidentität, Ziele, Entscheidungen, Wissen und offene Fragen enthalten. Diagnostics kann lokale technische Evidenz und Provenienz enthalten.
 
-Die aktuelle Runtime führt keinen automatischen Remote-Update-Check aus und lädt Releases nicht stillschweigend herunter.
+Behandle beides als Projekt-/Nutzerdaten. Livariant muss offensichtliche Secret-Dateien nicht einlesen, nur um diese Speicher anzureichern, und Diagnostics darf standardmäßig keine Roh-Prompt-/Projektinhalte erfassen, nur um Effizienz zu messen.
 
-Bei der Installation eines unabhängig autorisierten und geprüften lokalen Runtime-Artefakts verwendet Livariant npm in einem eingeschränkten lokalen Installationspfad. Lifecycle-Skripte, Audit- und Funding-Prompts sind dabei deaktiviert. Die aktuell gepackte Runtime hat keine Runtime-Abhängigkeiten, deshalb muss das unterstützte Release-Artefakt keine weiteren Runtime-Pakete aus dem Netz auflösen.
+Du bleibst dafür verantwortlich, was du bewusst in Project Brain festhältst und welchen Kontext du später an einen externen Provider sendest.
 
-Rechnerlokale Runtime-Trust- und Release-Authorization-Records sind Sicherheitszustand außerhalb der Projektautorität. Sie gehören nicht zum Project Brain und sind keine vom Repository kontrollierte Konfiguration.
+## Aktuelle Netzwerk-/Datenschutz-Zusammenfassung
 
-## Project Brain als Projektdaten behandeln
+Für das aktuelle Preview gilt:
 
-Das Project Brain kann Projektidentität, Entscheidungen, Ziele, Wissen und offene Fragen enthalten. Behandle diese Dateien wie andere Projektdaten auch.
+- für normale lokale Projektarbeit ist kein Livariant-Cloud-Konto nötig;
+- Livariant-Nutzungstelemetrie ist derzeit nicht implementiert;
+- Project Brain wird von Livariant nicht automatisch hochgeladen;
+- Diagnostics erfasst standardmäßig keine Roh-Prompt-/Projektinhalte;
+- Desktop kann den konfigurierten signierten Updater-Endpunkt kontaktieren, wenn der Update-Flow aufgerufen wird;
+- lokaler Desktop-Connector-State kann für Restore persistiert werden, ist aber weder Project Truth noch Authority;
+- Provider-Traffic und Provider-Aufbewahrung bleiben getrennte externe Provider-Themen;
+- geschützte CLI-Runtime-/Release-Authority bleibt von Desktop-Update-Erkennung getrennt.
 
-Livariant muss offensichtliche Secret-Dateien nicht einlesen, nur um das Project Brain mit mehr Informationen zu füllen. `.env`-artige Secrets und andere unabhängige private Dateien sind standardmäßig kein kanonischer Project-Brain-Input.
+## Künftige Netzwerkfeatures benötigen einen eigenen Review
 
-Du entscheidest selbst, welche Informationen du bewusst im Project Brain speicherst und welchen Kontext du später an einen externen KI-Provider weitergibst.
+Hosted Synchronization, Livariant-Accounts/Cloud-Storage, Telemetrie, Remote-Projektindizierung oder andere neue Netzwerkdienste würden neue Datenschutz-/Trust-Grenzen schaffen. Sie sind durch diese Seite nicht autorisiert oder beschrieben, nur weil sie als Roadmap-Idee möglich wären.
 
-## Zukünftige Netzwerkfunktionen brauchen eine neue Prüfung
-
-Funktionen wie automatische Update-Dienste, gehostete Registry-Integration, Telemetrie, Remote-Synchronisierung oder ein Livariant-Cloud-Konto würden neue Datenschutz- und Vertrauensgrenzen schaffen.
-
-Solche Funktionen sind nicht automatisch durch diese Erklärung abgedeckt, nur weil sie in einer späteren Version entstehen könnten. Bevor sie unterstützt werden, müssen Datenfluss, Standardverhalten, Nutzerkontrollen, Aufbewahrungsfolgen und Sicherheitsmodell dokumentiert und geprüft werden.
-
-## Aktueller Datenschutz in Kurzform
-
-Für den aktuellen Preview-Kandidaten gilt:
-
-- normaler lokaler Projektbetrieb braucht keinen Livariant-Cloud-Account;
-- Livariant-Telemetrie ist nicht implementiert;
-- automatische Remote-Update-Checks sind nicht implementiert;
-- das Project Brain wird von Livariant nicht automatisch hochgeladen;
-- Provider-Resume-Kontext wird lokal erzeugt;
-- ausführbare Updates brauchen bereits vorhandene unabhängige rechnerlokale Autorität für das exakte Artefakt;
-- Projektinput kann diese Autorität nicht über die projektseitige Livariant-CLI oder API erzeugen;
-- das Verhalten externer KI-Provider bleibt von Livariants eigener Runtime getrennt.
+Vor unterstützter Nutzung benötigt jedes solche Feature explizite Dokumentation zu Datenfluss, Defaults, Einwilligung, Aufbewahrung, Sicherheit und Disable-/Reversal-Verhalten.
