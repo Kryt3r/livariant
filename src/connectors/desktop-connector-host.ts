@@ -14,6 +14,7 @@ import {
   writeConnectionIntent,
   type ConnectionIntent,
 } from "./connection-intent.js";
+import { assertDiagnosticsMeasurementSession } from "./diagnostics-connection-policy.js";
 import { aggregateObservedAttribution } from "../diagnostics/attribution.js";
 import {
   aggregateDiagnosticEvents,
@@ -255,8 +256,8 @@ async function diagnostics(preset: DiagnosticPreset = "all") {
 }
 
 async function measure(preset: DiagnosticPreset = "all") {
-  if (!session?.isOpen() || !workflow) await connectSession();
-  if (!workflow || !session?.isOpen()) throw new Error("Codex connection did not become available.");
+  assertDiagnosticsMeasurementSession(Boolean(session?.isOpen() && workflow));
+  if (!workflow || !session?.isOpen()) throw new Error("Codex diagnostics measurement requires an already connected session.");
   const thread = await workflow.startThread({ ephemeral: true });
   sequencer.markNewThread(thread.threadId);
   const turn = await workflow.startTurn(thread.threadId, "Reply with exactly: Livariant diagnostics connection verified.");
