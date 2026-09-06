@@ -1,0 +1,57 @@
+name: Diagnostics Performance Baseline
+
+on:
+  pull_request:
+    paths:
+      - "src/diagnostics/**"
+      - "scripts/diagnostics-history-growth-benchmark.mjs"
+      - "scripts/diagnostics-history-growth-benchmark.test.mjs"
+      - "package.json"
+      - ".github/workflows/diagnostics-performance-baseline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics-history-growth:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build benchmark dependencies
+        run: npm run build
+
+      - name: Verify benchmark contract
+        run: npm run test:diagnostics-history-benchmark
+
+      - name: Capture source-bound Diagnostics growth evidence
+        shell: pwsh
+        env:
+          LIVARIANT_BENCHMARK_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          node scripts/diagnostics-history-growth-benchmark.mjs | Set-Content -Encoding utf8 diagnostics-history-baseline.json
+          $digest = (Get-FileHash diagnostics-history-baseline.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          "sha256=$digest" | Set-Content -Encoding utf8 diagnostics-history-baseline.sha256.txt
+          Write-Host "Diagnostics baseline SHA-256: $digest"
+
+      - name: Upload Diagnostics performance evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: diagnostics-history-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            diagnostics-history-baseline.json
+            diagnostics-history-baseline.sha256.txt
+          if-no-files-found: error
