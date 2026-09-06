@@ -81,7 +81,7 @@ Current Desktop areas: **Project Truth / First Steps**, **Connections**, **Diagn
 The gallery shows the current **Project Truth**, **Connections**, **Diagnostics**, **Updates**, and **Settings** surfaces.
 
 <p align="center">
-  <img src="docs/assets/screenshots/desktop/en/gallery.svg" alt="Current Livariant Desktop screenshots in English" width="900" />
+  <img src="docs/assets/screenshots/desktop/en/gallery.jpg" alt="Current Livariant Desktop screenshots in English" width="900" />
 </p>
 
 </details>
