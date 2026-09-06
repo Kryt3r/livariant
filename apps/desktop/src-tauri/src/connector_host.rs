@@ -148,7 +148,46 @@ fn request(
     result
 }
 
+fn persisted_connection_desired(raw: &[u8]) -> Result<bool, String> {
+    let value: Value = serde_json::from_slice(raw)
+        .map_err(|error| format!("Persisted Codex connection intent is invalid JSON: {error}"))?;
+    let record = value
+        .as_object()
+        .ok_or_else(|| "Persisted Codex connection intent must be an object.".to_owned())?;
+    if record.get("schemaVersion").and_then(Value::as_u64) != Some(1) {
+        return Err("Persisted Codex connection intent schema version is unsupported.".to_owned());
+    }
+    let desired = record
+        .get("desiredConnected")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| "Persisted Codex connection intent desiredConnected must be boolean.".to_owned())?;
+    let mode = record
+        .get("mode")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "Persisted Codex connection intent mode is invalid.".to_owned())?;
+    if mode != "auto" && mode != "manual" {
+        return Err("Persisted Codex connection intent mode is invalid.".to_owned());
+    }
+    if desired && mode == "manual" {
+        let manual_path = record.get("manualPath").and_then(Value::as_str).map(str::trim).unwrap_or_default();
+        if manual_path.is_empty() {
+            return Err("Persisted manual Codex connection intent is missing its executable path.".to_owned());
+        }
+    }
+    Ok(desired)
+}
+
 pub fn restore_persistent_connection(app: &AppHandle, state: &ConnectorHostState) -> Result<(), String> {
+    let app_data_root = app.path().app_data_dir().map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?;
+    let intent_path = app_data_root.join("connections").join("codex.json");
+    let desired = match fs::read(&intent_path) {
+        Ok(raw) => persisted_connection_desired(&raw)?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(format!("Persisted Codex connection intent could not be read: {error}")),
+    };
+    if !desired {
+        return Ok(());
+    }
     request(app, state, "inspect", None, None).map(|_| ())
 }
 
@@ -197,7 +236,7 @@ pub fn codex_diagnostics_measure(
 
 #[cfg(test)]
 mod tests {
-    use super::validate_diagnostics_preset;
+    use super::{persisted_connection_desired, validate_diagnostics_preset};
 
     #[test]
     fn accepts_supported_diagnostics_presets() {
@@ -211,5 +250,29 @@ mod tests {
     fn rejects_arbitrary_diagnostics_presets() {
         let error = validate_diagnostics_preset(Some("custom-script")).unwrap_err();
         assert!(error.contains("1d, 7d, 30d, 90d, all"));
+    }
+
+    #[test]
+    fn does_not_start_connector_host_for_disconnected_intent() {
+        let raw = br#"{"schemaVersion":1,"desiredConnected":false,"mode":"auto"}"#;
+        assert!(!persisted_connection_desired(raw).unwrap());
+    }
+
+    #[test]
+    fn restores_connector_host_only_for_valid_connected_intent() {
+        let auto = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"auto"}"#;
+        assert!(persisted_connection_desired(auto).unwrap());
+
+        let manual = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"manual","manualPath":"C:\\Tools\\codex.exe"}"#;
+        assert!(persisted_connection_desired(manual).unwrap());
+    }
+
+    #[test]
+    fn malformed_connected_intent_fails_closed_before_host_spawn() {
+        let missing_manual_path = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"manual"}"#;
+        assert!(persisted_connection_desired(missing_manual_path).is_err());
+
+        let unsupported_mode = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"shell"}"#;
+        assert!(persisted_connection_desired(unsupported_mode).is_err());
     }
 }
