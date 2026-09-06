@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 27",
+    "items": [
+      "Der Installations-Button für verfügbare Desktop-Updates besitzt jetzt nur noch eine aktive Render-Ownership, bleibt als stabiler DOM-Knoten erhalten und wird nicht mehr durch konkurrierende CTA-Logik ersetzt.",
+      "Die Diagnose-Zeiträume lassen sich wieder zuverlässig zwischen 24h, 7 Tagen, 30 Tagen, 90 Tagen und dem gesamten Zeitraum umschalten, ohne durch ein übergeordnetes Preset zurückgesetzt zu werden.",
+      "Das Layout für gemessene Nutzung und Evidence-Zuordnung ist wieder an die strukturelle Diagnose-Oberfläche gebunden, sodass Metriken und Zuordnungsbereiche nicht mehr auseinandergezogen werden.",
+      "Projektwissen verwendet für die im Live-Test aufgefallenen Texte jetzt den aktiven bilingualen i18n-Katalog, sodass die deutsche Oberfläche dort nicht mehr auf Englisch zurückfällt."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 27",
+    "items": [
+      "The install button for available Desktop updates now has a single active render owner, remains a stable DOM node and is no longer replaced by competing CTA logic.",
+      "Diagnostics ranges can again switch reliably between 24h, 7 days, 30 days, 90 days and all time without being reset by a parent preset handler.",
+      "Measured usage and evidence attribution layout is bound directly to the structural Diagnostics surface again so metric and attribution areas no longer stretch apart.",
+      "Project knowledge now uses the active bilingual i18n catalog for the strings found during live testing so the German surface no longer falls back to English there."
+    ]
+  }
+}
