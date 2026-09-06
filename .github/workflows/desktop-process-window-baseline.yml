@@ -1,4 +1,4 @@
-name: Desktop Process-to-Window Baseline
+name: Desktop Startup and Disconnected Idle Baseline
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  process-to-window:
+  startup-and-idle:
     runs-on: windows-latest
     steps:
       - name: Checkout exact source
@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:RUNNER_ARCH -ne "X64") {
-            throw "WP-052 process-to-window baseline currently supports the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
+            throw "WP-052 installed Desktop baseline currently supports the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
           }
 
           $sourceSha = "${{ github.event.pull_request.head.sha || github.sha }}"
@@ -108,7 +108,7 @@ jobs:
         working-directory: apps/desktop
         run: npm run tauri:build -- --config src-tauri/tauri.runtime.conf.json --bundles nsis --ci -- --locked
 
-      - name: Install candidate and capture process-to-window evidence
+      - name: Install candidate and capture startup plus disconnected-idle evidence
         shell: pwsh
         run: |
           $bundle = Join-Path $PWD "apps\desktop\src-tauri\target\release\bundle\nsis"
@@ -117,7 +117,7 @@ jobs:
             throw "Expected exactly one NSIS installer in $bundle; found $($installers.Count)."
           }
 
-          $installDir = Join-Path $env:RUNNER_TEMP "LivariantProcessWindowBaseline"
+          $installDir = Join-Path $env:RUNNER_TEMP "LivariantStartupIdleBaseline"
           Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
           $install = Start-Process -FilePath $installers[0].FullName -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
           if ($install.ExitCode -ne 0) {
@@ -137,19 +137,19 @@ jobs:
           ./scripts/desktop-process-window-baseline.ps1 `
             -AppPath $app `
             -SourceSha "${{ github.event.pull_request.head.sha || github.sha }}" `
-            -OutputPath "desktop-process-window-baseline.json"
+            -OutputPath "desktop-startup-idle-baseline.json"
 
-          $digest = (Get-FileHash -LiteralPath "desktop-process-window-baseline.json" -Algorithm SHA256).Hash.ToLowerInvariant()
-          "sha256=$digest" | Set-Content -LiteralPath "desktop-process-window-baseline.sha256.txt" -Encoding utf8
-          Write-Host "Desktop process-to-window baseline SHA-256: $digest"
+          $digest = (Get-FileHash -LiteralPath "desktop-startup-idle-baseline.json" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "sha256=$digest" | Set-Content -LiteralPath "desktop-startup-idle-baseline.sha256.txt" -Encoding utf8
+          Write-Host "Desktop startup/disconnected-idle baseline SHA-256: $digest"
 
           Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
 
-      - name: Upload Desktop startup performance evidence
+      - name: Upload Desktop startup and idle performance evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: desktop-process-window-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          name: desktop-startup-idle-baseline-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
-            desktop-process-window-baseline.json
-            desktop-process-window-baseline.sha256.txt
+            desktop-startup-idle-baseline.json
+            desktop-startup-idle-baseline.sha256.txt
           if-no-files-found: error
