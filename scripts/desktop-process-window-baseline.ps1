@@ -70,10 +70,28 @@ function Measure-WindowStart {
   }
 }
 
+function Get-ProcessRole {
+  param($Row)
+
+  $name = [string]$Row.Name
+  if ($name -ieq 'livariant-desktop.exe') { return 'livariant-host' }
+  if ($name -ine 'msedgewebview2.exe') { return 'other' }
+
+  $commandLine = [string]$Row.CommandLine
+  if ($commandLine -match '(?:^|\s)--type=([^\s"]+)') {
+    $type = $Matches[1]
+    if ($type -eq 'utility' -and $commandLine -match '(?:^|\s)--utility-sub-type=([^\s"]+)') {
+      return "utility:$($Matches[1])"
+    }
+    return $type
+  }
+  return 'browser'
+}
+
 function Get-ProcessTreeSnapshot {
   param([int]$RootProcessId)
 
-  $processRows = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name)
+  $processRows = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name, CommandLine)
   $ids = [System.Collections.Generic.HashSet[int]]::new()
   $null = $ids.Add($RootProcessId)
 
@@ -98,6 +116,7 @@ function Get-ProcessTreeSnapshot {
     $snapshots += [pscustomobject][ordered]@{
       processId = $processId
       name = if ($row) { [string]$row.Name } else { [string]$process.ProcessName }
+      role = if ($row) { Get-ProcessRole -Row $row } else { 'unknown' }
       workingSetBytes = [int64]$process.WorkingSet64
       privateMemoryBytes = [int64]$process.PrivateMemorySize64
       totalProcessorMs = [Math]::Round($process.TotalProcessorTime.TotalMilliseconds, 3)
@@ -125,11 +144,30 @@ function Measure-DisconnectedIdle {
     $startCpuByProcessId = @{}
     foreach ($entry in $start) { $startCpuByProcessId[[int]$entry.processId] = [double]$entry.totalProcessorMs }
     $cpuDeltaMs = 0.0
+    $cpuDeltaByProcessId = @{}
     foreach ($entry in $end) {
       $processId = [int]$entry.processId
       $endCpu = [double]$entry.totalProcessorMs
+      $delta = 0.0
       if ($startCpuByProcessId.ContainsKey($processId)) {
-        $cpuDeltaMs += [Math]::Max(0.0, $endCpu - [double]$startCpuByProcessId[$processId])
+        $delta = [Math]::Max(0.0, $endCpu - [double]$startCpuByProcessId[$processId])
+      }
+      $cpuDeltaByProcessId[$processId] = $delta
+      $cpuDeltaMs += $delta
+    }
+
+    $roleSummary = @()
+    foreach ($group in @($end | Group-Object -Property role | Sort-Object Name)) {
+      $roleCpuDeltaMs = 0.0
+      foreach ($entry in @($group.Group)) {
+        $roleCpuDeltaMs += [double]$cpuDeltaByProcessId[[int]$entry.processId]
+      }
+      $roleSummary += [ordered]@{
+        role = [string]$group.Name
+        processCount = $group.Count
+        workingSetBytes = [int64](($group.Group | Measure-Object -Property workingSetBytes -Sum).Sum)
+        privateMemoryBytes = [int64](($group.Group | Measure-Object -Property privateMemoryBytes -Sum).Sum)
+        cpuTimeDeltaMs = [Math]::Round($roleCpuDeltaMs, 3)
       }
     }
 
@@ -148,7 +186,17 @@ function Measure-DisconnectedIdle {
         privateMemoryBytesAfterSample = [int64](($end | Measure-Object -Property privateMemoryBytes -Sum).Sum)
         cpuTimeDeltaMsAcrossSurvivingProcesses = [Math]::Round($cpuDeltaMs, 3)
         approximateCpuPercentAcrossSample = [Math]::Round(($cpuDeltaMs / ($IdleSampleSeconds * 1000.0)) * 100.0, 3)
-        processesAfterSample = @($end | ForEach-Object { [ordered]@{ processId = $_.processId; name = $_.name; workingSetBytes = $_.workingSetBytes; privateMemoryBytes = $_.privateMemoryBytes } })
+        roleSummary = $roleSummary
+        processesAfterSample = @($end | ForEach-Object {
+          [ordered]@{
+            processId = $_.processId
+            name = $_.name
+            role = $_.role
+            workingSetBytes = $_.workingSetBytes
+            privateMemoryBytes = $_.privateMemoryBytes
+            cpuTimeDeltaMs = [Math]::Round([double]$cpuDeltaByProcessId[[int]$_.processId], 3)
+          }
+        })
       }
     }
   }
@@ -188,7 +236,7 @@ for ($run = 1; $run -le $Runs; $run++) {
 $repeated = @($measurements | Select-Object -Skip 1 | ForEach-Object { [double]$_.processToWindowMs })
 $idle = Measure-DisconnectedIdle
 $result = [ordered]@{
-  schemaVersion = 2
+  schemaVersion = 3
   benchmark = 'desktop-startup-and-disconnected-idle'
   sourceSha = $SourceSha.ToLowerInvariant()
   platform = [ordered]@{
@@ -201,7 +249,7 @@ $result = [ordered]@{
     repeatedProcessStarts = Get-Summary -Values $repeated
   }
   disconnectedIdle = $idle
-  interpretation = 'Startup measures process start to first top-level Windows window handle for the installed Livariant Desktop with packaged runtime present. Disconnected idle is a fresh CI-runner profile sampled after settling and reports process-tree snapshots plus CPU time across surviving processes. Neither measurement is Time to Interactive, a cold-boot guarantee, a connected-Codex profile, or a universal end-user performance claim.'
+  interpretation = 'Startup measures process start to first top-level Windows window handle for the installed Livariant Desktop with packaged runtime present. Disconnected idle is a fresh CI-runner profile sampled after settling and reports process-tree snapshots, derived WebView2 process roles, and CPU time across surviving processes. Raw process command lines are not persisted. Neither measurement is Time to Interactive, a cold-boot guarantee, a connected-Codex profile, or a universal end-user performance claim.'
 }
 
 $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $OutputPath -Encoding utf8
