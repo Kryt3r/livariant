@@ -68,11 +68,11 @@ test("Diagnostics refresh keeps its root node mounted", async () => {
   assert.doesNotMatch(diagnostics, /app\.innerHTML/);
 });
 
-test("Diagnostics range guard prevents a preset click from rebubbling into the surface preset handler", async () => {
+test("Diagnostics range guard preserves the button handler before stopping root bubbling", async () => {
   const guard = await read("apps/desktop/src/diagnostics-range-guard.ts");
   assert.match(guard, /\.diagnostics-range-option\[data-diagnostics-preset\]/);
   assert.match(guard, /event\.stopPropagation\(\)/);
-  assert.match(guard, /capture: true/);
+  assert.doesNotMatch(guard, /capture:\s*true/);
 });
 
 test("Diagnostics live layout is scoped to the structural diagnostics surface", async () => {
