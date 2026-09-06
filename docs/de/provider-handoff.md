@@ -1,119 +1,114 @@
 # Provider-Handoff
 
-Die aktuelle Preview unterstützt eine klar begrenzte Provider-Integration: **Project-Brain-Resume-Handoff** für Claude Code und Codex.
+<p align="center">
+  <a href="../provider-handoff.md">English</a> · <strong>Deutsch</strong>
+</p>
 
-Livariant versucht dabei nicht, jede Funktion dieser Tools zu kontrollieren. Die Aufgabe ist kleiner und klarer: Livariant erzeugt aus dem aktuellen Project Brain passenden Kontext für den Coding-Agent, den du gerade verwenden möchtest.
+Livariants aktuelle Provider-Integration ist breiter als die ursprüngliche Resume-only-Preview-Oberfläche. Core enthält inzwischen Project-Brain-Resume, begrenzten Provider Context/Return Evidence Flow, lokale MCP-Integration und Verification Trace. Der Desktop besitzt zusätzlich einen getrennten echten lokalen Codex-Verbindungspfad.
 
-## Was weitergegeben wird
+Alle diese Oberflächen teilen eine Regel:
 
-Livariant kopiert kein verstecktes Sitzungsmemory von einem Provider zum anderen.
+```text
+Provider != Connection Method != Capability != Role != Authority
+```
 
-Stattdessen bekommt jeder Provider neuen Resume-Kontext, der aus dem Project Brain erzeugt wird:
+## Project Brain bleibt die Quelle der Kontinuität
+
+Livariant kopiert kein verborgenes Provider-Memory von einem Agenten zum anderen.
+
+Provider-seitiger Kontext wird stattdessen aus aktuellem projekt-eigenem Zustand neu aufgebaut:
 
 ```text
 Project Brain
--> kanonischer ResumeContext
-   -> Claude-Code-Projektion
-   -> Codex-Projektion
+-> begrenzter aktueller Kontext
+   -> Claude-Code-Projektion / MCP-Kontext
+   -> Codex-Projektion / MCP-Kontext / Desktop-Verbindung
 ```
 
-Formulierung und Darstellung dürfen sich unterscheiden. Die zugrunde liegende Projektbedeutung muss gleich bleiben.
+Formatierung darf sich je Provider unterscheiden, während die zugrunde liegende Projektbedeutung an dieselbe aktuelle Project-Brain-Baseline gebunden bleibt.
 
-Bestätigte Ziele, aktive Entscheidungen, bekannte Fakten, offene Unklarheiten und verfügbare Projektidentität können Teil dieses Resume-Kontexts sein. Abgelöste Entscheidungen bleiben in der Historie, werden aber nicht mehr als aktuelle Wahrheit ausgegeben.
+Provider-lokales Memory, `CLAUDE.md`, `AGENTS.md` und Agentenausgabe können nützliche Evidenz oder Instruktionen sein, ersetzen aber nicht allein deshalb kanonische Project-Brain-Truth, weil ein Provider sie verwendet.
 
-## Warum das wichtig ist
+## Resume-Handoff
 
-Angenommen, du triffst mit Claude Code eine wichtige Architekturentscheidung. Wenn diese Entscheidung die aktuelle Sitzung überdauern soll, hältst du sie zuerst über Livariant als Projektwahrheit fest:
+Die explizite Resume-Oberfläche bleibt für Claude Code und Codex verfügbar.
 
-```bash
-livariant decisions add "Ansatz A für die Authentifizierung verwenden"
-```
-
-Der erste Befehl zeigt nur die geplante Änderung. Wenn sie korrekt ist, wendest du sie bewusst an:
-
-```bash
-livariant decisions add "Ansatz A für die Authentifizierung verwenden" --apply
-```
-
-Später startest du eine getrennte Codex-Sitzung. Codex braucht dafür keinen Zugriff auf das versteckte Memory der alten Claude-Code-Sitzung. Livariant erzeugt neuen, für Codex passenden Resume-Kontext aus demselben Project Brain.
-
-Damit bleibt das Projekt selbst die Quelle der Kontinuität und nicht das private Gedächtnis eines einzelnen Providers.
-
-Dasselbe Prinzip gilt für dauerhafte Ziele und bestätigte Projektfakten:
-
-```bash
-livariant goals add "Authentifizierungs-Migration abschließen"
-livariant knowledge add "Die Authentifizierung verwendet aktuell Ansatz A"
-```
-
-Prüfe zuerst den Plan und füge erst danach `--apply` zu dem Befehl hinzu, den du wirklich schreiben möchtest.
-
-## Provider bewusst auswählen
-
-Livariant verlangt explizite Evidenz dafür, welche Provider-Umgebung du gerade ansprechen möchtest.
-
-Unter Linux oder macOS:
+Beispiele:
 
 ```bash
 LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
 LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
 ```
 
-Unter Windows PowerShell setzt du die Umgebungsvariable zuerst:
+Unter Windows PowerShell:
 
 ```powershell
-$env:LIVARIANT_PROVIDER_ENV = "claude-code"
-livariant resume --provider claude-code
+$env:LIVARIANT_PROVIDER_ENV = "codex"
+livariant resume --provider codex
 ```
 
-Fehlt die passende Umgebungsevidenz, bricht ein provider-spezifischer Handoff geschlossen ab, statt Kompatibilität nur anzunehmen.
+Ein provider-spezifischer Resume-Pfad benötigt passende Umgebungsevidenz. Provider-Auswahl belegt die Anwendbarkeit dieser Capability und keine Mutation Authority.
 
-Die Auswahl eines Providers belegt die Anwendbarkeit der Resume-Funktion. Sie erzeugt keine Mutationsautorität.
+## Provider Context und Return
 
-Die gebündelten Preview-Adapteridentitäten sind:
+Der aktuelle Core kann begrenzten aufgabenspezifischen Provider Context aufbauen und später genau einen korrelierten Provider Return verarbeiten.
+
+Der Return bleibt externe nicht vertrauenswürdige Evidenz. Passender Provider, Packet, Projektidentität, Baseline und Task-Werte stellen Korrelation her, aber kein Approval und keine Project Truth.
+
+Mögliche Ergebnisse umfassen je nach Evidenz Review-required, Authorization-required, stale/mismatched context, no candidate oder blocked.
+
+## MCP-Handoff
+
+Die lokale stdio-MCP-Bridge stellt aktuell bereit:
+
+- `livariant_provider_context`
+- `livariant_provider_return`
+- `livariant_verification_trace`
+
+MCP transportiert Kontext/Evidenz. Es erzeugt oder konsumiert keine kanonische Mutation Authority allein deshalb, weil ein Agent ein Tool aufgerufen hat.
+
+Siehe [Lokale MCP-Agent-Bridge](mcp-agent-bridge.md).
+
+## Desktop-Codex-Verbindung
+
+Der Desktop besitzt einen getrennten echten lokalen Codex-Verbindungspfad über die begrenzte Connector-Host-/App-Server-Integration.
+
+Die Verbindung kann akzeptierte Connection Intent persistieren und bei einem späteren App-Start unter den vom Host implementierten Executable-Identity-/Trust-Prüfungen wiederherstellen.
+
+Eine erfolgreiche Verbindung vergibt weiterhin keine Mutation Authority und macht Provider-Ausgabe nicht zu Project Truth.
+
+Zusätzliche Desktop-Provider/-Connection-Methoden bleiben geplante Erweiterungen, solange sie nicht separat implementiert und qualifiziert wurden.
+
+## Dauerhafte semantische Änderung
+
+Ältere Dokumentation zeigte direkte Semantic-Writer-Commands mit einem nackten `--apply`, als wäre das die vollständige heutige Authority-Geschichte. Für geschützte folgenreiche Semantic Mutation ist das nicht mehr das richtige Modell.
+
+Der aktuelle kanonische Pfad ist Proposal-/Authority-gebunden. Semantic Apply konsumiert den exakt autorisierten Actionable Proposal:
 
 ```text
-livariant.claude-code.resume
-livariant.codex.resume
+livariant apply --authorization <authorization-id> --input <actionable-proposal.json>
 ```
 
-## Ein vollständiges Handoff-Beispiel
+Unterstützte Semantic Operations bleiben auf die implementierten Project-Brain-Domains begrenzt. Provider-Ausgabe, MCP-Kontext, passender Text oder frühere Chat-Zustimmung können die erforderliche geschützte Authority nicht herstellen.
 
-Ein normaler unterstützter Übergang sieht so aus:
+Siehe [Semantic Apply](semantic-apply.md) und [Semantic Maintenance](semantic-maintenance.md).
 
-1. Du arbeitest mit Claude Code am Projekt.
-2. Ein Ziel, Fakt oder eine Entscheidung wird wichtig genug, um über den aktuellen Chat hinaus erhalten zu bleiben.
-3. Du planst die Project-Brain-Änderung mit `goals`, `knowledge` oder `decisions`.
-4. Du prüfst den Plan und wiederholst den Befehl mit `--apply`.
-5. Die Claude-Code-Sitzung endet.
-6. Kein verstecktes Claude-Memory wird zu Codex kopiert.
-7. Du startest Codex im selben Projektordner.
-8. Livariant erzeugt eine Codex-spezifische Resume-Projektion aus dem aktuellen Project Brain.
-9. Codex erhält die aktuellen Entscheidungen, bekannten Fakten, Ziele, offenen Fragen und den Lifecycle-Kontext, den Livariant für Resume bereitstellt.
+## Veralteter Provider-Kontext
 
-Die ausführbare Hardening-Suite testet diesen Ablauf in getrennten Prozessen mit unterschiedlichen provider-lokalen Hidden-Memory-Werten.
+Provider Context ist temporäre Evidenz/Projektion. Ändert sich die Project-Brain-Baseline, kann alter Kontext veraltete Entscheidungen oder Fakten nicht still wieder zu kanonischer Truth machen.
 
-## `CLAUDE.md` und `AGENTS.md`
+Aktuelle Provider-Return-/Semantic-Flows prüfen relevante Projektidentität/Baseline/Material vor folgenreicher Nutzung erneut. Veralteter oder nicht passender Kontext verengt/blockiert den Pfad statt durch Presence vertraut zu werden.
 
-`CLAUDE.md` und `AGENTS.md` können weiterhin nützliche Projektdateien sein, sind aber nicht das Project Brain.
+## Was Livariant nicht behauptet
 
-Die aktuellen Resume-Adapter überschreiben diese Dateien nicht. Enthalten sie Text, der dem kanonischen Project-Brain-Zustand widerspricht, ersetzt dieser Text im unterstützten Resume-Pfad nicht die Project-Brain-Wahrheit.
+Livariant behauptet derzeit nicht:
 
-Eine zukünftige native Integration solcher Instruktionsdateien würde eine neue Mutationsoberfläche schaffen. Dafür wären eigene Autorisierungs-, Preservation-, Conformance- und adversariale Tests nötig, bevor Livariant dieses Verhalten als unterstützt bezeichnen könnte.
+- verborgenes Provider-Memory zu synchronisieren;
+- jedes Claude-Code- oder Codex-Feature zu verwalten;
+- Provider-Authentifizierung/-Model-Selection zu kontrollieren;
+- Provider-Ausgabe direkt zu Project Truth zu machen;
+- einem Provider zu erlauben, sich selbst Mutation Authority zu geben;
+- hosted Remote MCP anzubieten;
+- jeden Provider im Desktop zu unterstützen.
 
-## Wenn alter Resume-Kontext veraltet
-
-Resume-Ausgabe ist temporärer Kontext. Nur weil ein Provider diese Ausgabe erhalten hat, bekommt er dadurch keine Write-back-Autorität für das Project Brain.
-
-Ändert sich eine Project-Brain-Entscheidung später, einschließlich einer expliziten Ablösung durch eine neue Entscheidung, kann alter Resume-Kontext den früheren Zustand nicht wieder zur kanonischen Wahrheit machen.
-
-Um eine akzeptierte Entscheidung abzulösen und ihre Historie zu erhalten, lässt du dir zuerst die Entscheidungen anzeigen, wählst die passende ID und planst die Ablösung:
-
-```bash
-livariant decisions
-livariant decisions supersede <decision-id> "Ansatz B für die Authentifizierung verwenden" --reason "Architektur geändert"
-```
-
-Prüfe den Plan und wiederhole den Befehl mit `--apply`, wenn er korrekt ist.
-
-Die nächste Resume-Ausgabe wird immer aus dem aktuellen Project-Brain-Zustand erzeugt.
+Das Projekt besitzt die Kontinuität. Provider erhalten begrenzten Arbeitskontext darum herum.
