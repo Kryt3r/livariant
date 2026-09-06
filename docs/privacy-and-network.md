@@ -1,76 +1,95 @@
 # Privacy & Network Behavior
 
-The current Livariant Preview candidate is designed for local project use. This page explains what Livariant itself sends over the network, what stays local, and where external AI providers are a separate concern.
+<p align="center">
+  <strong>English</strong> · <a href="de/privacy-and-network.md">Deutsch</a>
+</p>
 
-## No Livariant telemetry in the current Runtime
+Livariant is local-first by default. This page separates local project behavior, Desktop update traffic, local connector traffic, and external AI-provider behavior.
 
-The current Runtime does not implement:
+## No Livariant usage telemetry in the current product
+
+Livariant does not currently implement its own:
 
 - analytics or usage telemetry;
-- crash reporting;
 - advertising identifiers;
-- Livariant account tracking;
-- automatic upload of Project Brain contents.
+- Livariant cloud-account tracking;
+- automatic upload of Project Brain contents;
+- automatic upload of raw prompts or arbitrary project files for Diagnostics.
 
-`status`, `doctor`, `init`, `resume`, and `recover` operate on local project state.
+Project Brain, local Diagnostics evidence, connection intent, and normal project inspection stay local unless a separate supported feature explicitly crosses a network boundary.
 
-Provider-specific Resume handoff is also rendered locally by Livariant. The Livariant adapter does not send the generated context to Claude Code, Codex, or another remote service by itself.
+This statement is about Livariant itself. Operating-system components, GitHub, package managers used in an advanced CLI workflow, and external AI providers have their own network/privacy behavior.
 
-If you then give that context to an external AI provider, the provider's own application, account, privacy settings, and terms determine what happens to it. That behavior is separate from Livariant's Runtime.
+## External AI providers are a separate boundary
 
-## Update behavior
+Livariant can prepare bounded provider context locally. Sending that context to Claude Code, Codex, or another external provider means the provider's application, account settings, retention policy, and terms apply.
 
-The current supported update flow reads a release manifest and artifact from paths you provide to the CLI.
+Provider output returning to Livariant remains evidence/candidate material until the supported review/adoption/Authority path accepts something more strongly.
 
-Planning example:
+Livariant does not treat a provider connection as consent to upload the entire project or Project Brain.
+
+## Desktop Connections
+
+The current Desktop has a live local Codex connection path through a bounded local connector host / App Server integration.
+
+Connection intent can be stored locally so an accepted connection can be restored on a later app start. That persistence stores connection state/identity information, not Project Truth and not mutation Authority.
+
+The external Codex client/service may itself communicate over the network according to its own authentication, account, model, and privacy settings. That provider traffic is separate from Livariant telemetry.
+
+## Desktop update behavior
+
+The current Desktop **does** support remote update discovery. Older documentation that said Livariant had no remote update checks described the earlier CLI-only update model and is no longer globally true.
+
+When the user invokes the Desktop update flow, Livariant checks its configured HTTPS updater endpoint for signed update metadata. The current update path uses:
+
+- a fixed updater endpoint/channel configuration;
+- a fixed updater public key;
+- signed update metadata/artifacts;
+- localized EN/DE release notes carried in the update metadata;
+- real download callbacks/progress state when a trustworthy total is available;
+- explicit user authorization before installation/restart.
+
+Update availability is not installation Authority. The renderer cannot choose an arbitrary update URL or executable path.
+
+The current Desktop update model should not be described as silent autonomous project mutation. An executable application update and a project lifecycle mutation are separate domains.
+
+## CLI / protected Runtime update behavior
+
+Livariant Core also contains the lower-level CLI lifecycle/update model. That path works with explicit local release manifest/artifact material and protected Runtime/release Authority boundaries.
+
+A typical plan-first CLI update remains conceptually separate from Desktop updater discovery:
 
 ```bash
 livariant update --manifest ./release-manifest.json
 ```
 
-Applying a reviewed update requires the local artifact and an explicitly selected trusted source identity:
+Consequential apply still requires the supported exact-artifact/source/Authority checks. Project files, provider output, or a caller-controlled `--trusted-source` value cannot manufacture protected release/Runtime Authority.
 
-```bash
-livariant update \
-  --manifest ./release-manifest.json \
-  --apply \
-  --artifact ./livariant-runtime.tgz \
-  --trusted-source <source-id>
-```
+The existence of the Desktop updater does not weaken those Core/Guardian boundaries.
 
-For executable updates, the exact artifact SHA-256 must also already have independent machine-local release authorization outside project authority.
+## Project Brain and Diagnostics are project data
 
-The manifest, `--trusted-source`, project files, and Livariant's project-facing CLI or API cannot create that authority. If it is missing, the update stops before npm installation or candidate Runtime attestation. Livariant exposes no project-facing `authorize-runtime` command.
+Project Brain can contain project identity, goals, decisions, knowledge, and unresolved questions. Diagnostics can contain local technical evidence and provenance.
 
-The current Runtime does not perform an automatic remote update check and does not silently download releases.
+Treat both as project/user data. Livariant does not need to ingest obvious secret files merely to make these stores richer, and Diagnostics must not capture raw prompt/project contents by default merely to measure efficiency.
 
-When Livariant installs an independently authorized and verified local Runtime artifact, npm is used in a constrained local-install flow with lifecycle scripts, audit, and funding prompts disabled. The current packed Runtime has no runtime dependencies, so the supported release artifact does not need dependency resolution to fetch additional Runtime packages.
+You remain responsible for what you deliberately record in Project Brain and what context you later choose to send to an external provider.
 
-Machine-local Runtime trust and release-authorization records are security state outside project authority. They are not Project Brain data and should not be treated as repository-controlled configuration.
+## Current network/privacy summary
 
-## Treat Project Brain as project data
+For the current Preview:
 
-Project Brain can contain project identity, decisions, goals, knowledge, and unresolved questions. Treat those files with the same care you give other project data.
-
-Livariant does not need to ingest obvious secret files just to make the Project Brain richer. `.env`-style secrets and unrelated private files are not canonical Project Brain input by default.
-
-You remain responsible for deciding what information you deliberately record in Project Brain files and what context you later pass to an external AI provider.
-
-## Future network features would need a new review
-
-Features such as automatic update services, hosted registry integration, telemetry, remote synchronization, or a Livariant cloud account would create new privacy and trust boundaries.
-
-Those features are not covered by this statement simply because they might exist in a future version. Before any such feature becomes supported, its data flow, defaults, user controls, retention implications, and security model must be documented and reviewed.
-
-## Current privacy summary
-
-For the current Preview candidate:
-
-- normal local project operation does not require a Livariant cloud account;
-- Livariant telemetry is not implemented;
-- automatic remote update checks are not implemented;
+- no Livariant cloud account is required for normal local project use;
+- Livariant usage telemetry is not currently implemented;
 - Project Brain is not automatically uploaded by Livariant;
-- provider Resume output is generated locally;
-- executable updates require pre-existing independent machine-local exact-artifact release authority;
-- project input cannot create that authority through Livariant's project-facing CLI or API;
-- external AI-provider behavior remains separate from Livariant's own Runtime behavior.
+- Diagnostics does not capture raw project prompts/content by default;
+- Desktop can contact the configured signed updater endpoint when the update flow is invoked;
+- Desktop local connector state can be persisted for restore, but connection state is not Project Truth or Authority;
+- provider traffic and provider retention remain separate external-provider concerns;
+- CLI protected Runtime/release Authority remains separate from Desktop update discovery.
+
+## Future network features need their own review
+
+Hosted synchronization, Livariant accounts/cloud storage, telemetry, remote project indexing, or other new network services would create new privacy/trust boundaries. They are not authorized or described by this page merely because they are possible roadmap ideas.
+
+Any such feature needs explicit data-flow, default, consent, retention, security, and disable/reversal documentation before it becomes supported behavior.
