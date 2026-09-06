@@ -1,119 +1,114 @@
 # Provider Handoff
 
-The current Preview supports one clear provider integration: **Project Brain Resume handoff** for Claude Code and Codex.
+<p align="center">
+  <strong>English</strong> · <a href="de/provider-handoff.md">Deutsch</a>
+</p>
 
-Livariant does not try to take over every feature of either provider. Its job here is narrower. It turns the current Project Brain state into useful context for the coding agent you choose to use.
+Livariant's current provider integration is broader than the original Resume-only Preview surface. Core now includes Project Brain Resume, bounded Provider Context/Return evidence flow, local MCP integration, and Verification Trace. The Desktop also has a separate live local Codex connection path.
 
-## What gets handed over
+These surfaces share one rule:
 
-Livariant does not copy hidden memory from one provider to another.
+```text
+Provider != Connection Method != Capability != Role != Authority
+```
 
-Instead, each provider receives fresh Resume context generated from the Project Brain:
+## Project Brain remains the continuity source
+
+Livariant does not copy hidden provider memory from one agent to another.
+
+Instead, provider-facing context is reconstructed from current project-owned state:
 
 ```text
 Project Brain
--> canonical ResumeContext
-   -> Claude Code projection
-   -> Codex projection
+-> bounded current context
+   -> Claude Code projection / MCP context
+   -> Codex projection / MCP context / Desktop connection
 ```
 
-The wording or formatting can differ between providers. The underlying project meaning must stay the same.
+Formatting can differ by provider while the underlying project meaning remains tied to the same current Project Brain baseline.
 
-Confirmed goals, active decisions, known facts, unresolved unknowns, and available project identity can be part of that Resume context. Superseded decisions stay in history but are not presented as current truth.
+Provider-local memory, `CLAUDE.md`, `AGENTS.md`, and agent output can all be useful evidence or instructions, but they do not replace canonical Project Brain truth merely because a provider uses them.
 
-## Why this matters
+## Resume handoff
 
-Imagine that you make an important architecture decision while working with Claude Code. If that decision should survive the current chat, you first record it as project truth through Livariant:
+The explicit Resume surface remains available for Claude Code and Codex.
 
-```bash
-livariant decisions add "Use approach A for authentication"
-```
-
-The first command only shows the planned change. After reviewing it, apply it deliberately:
-
-```bash
-livariant decisions add "Use approach A for authentication" --apply
-```
-
-Later, you start a separate Codex session. Codex does not need access to Claude Code's hidden session memory. Livariant creates new Codex-friendly Resume context from the same Project Brain state.
-
-The project remains the source of continuity, not one provider's private memory.
-
-The same pattern applies to durable goals and confirmed project facts:
-
-```bash
-livariant goals add "Complete the authentication migration"
-livariant knowledge add "Authentication currently uses approach A"
-```
-
-Review first, then add `--apply` to the command you want to commit.
-
-## Selecting the provider explicitly
-
-Livariant requires explicit evidence for the provider environment you are targeting.
-
-Linux or macOS:
+Examples:
 
 ```bash
 LIVARIANT_PROVIDER_ENV=claude-code livariant resume --provider claude-code
 LIVARIANT_PROVIDER_ENV=codex livariant resume --provider codex
 ```
 
-For Windows PowerShell, set the environment variable first:
+For Windows PowerShell:
 
 ```powershell
-$env:LIVARIANT_PROVIDER_ENV = "claude-code"
-livariant resume --provider claude-code
+$env:LIVARIANT_PROVIDER_ENV = "codex"
+livariant resume --provider codex
 ```
 
-A provider-targeted handoff without matching environment evidence fails closed instead of pretending that the environment is compatible.
+A provider-targeted Resume path requires matching environment evidence. Provider selection proves applicability for that capability, not mutation Authority.
 
-Selecting a provider proves applicability for the Resume capability. It does not grant mutation authority.
+## Provider Context and Return
 
-The bundled Preview adapter identities are:
+The current Core can build bounded task-specific Provider Context and later process one correlated Provider Return.
+
+The return remains external untrusted evidence. Matching provider, packet, project identity, baseline, and task values establish correlation, not approval or Project Truth.
+
+Possible outcomes include review-required, authorization-required, stale/mismatched context, no candidate, or blocked states depending on the current evidence.
+
+## MCP handoff
+
+The local stdio MCP bridge currently exposes:
+
+- `livariant_provider_context`
+- `livariant_provider_return`
+- `livariant_verification_trace`
+
+MCP transports context/evidence. It does not create or consume canonical mutation Authority merely because an agent called a tool.
+
+See [Local MCP Agent Bridge](mcp-agent-bridge.md).
+
+## Desktop Codex connection
+
+The Desktop has a separate local live Codex connection path through the bounded connector-host/App Server integration.
+
+That connection can persist accepted connection intent and restore it on later application start subject to the executable identity/trust checks implemented by the host.
+
+A successful connection still does not grant mutation Authority or turn provider output into Project Truth.
+
+Additional Desktop providers/connection methods remain planned extensions unless separately implemented and qualified.
+
+## Durable semantic change
+
+Older documentation showed direct semantic writer commands followed by a bare `--apply` as though that were the complete current Authority story. That is no longer the right model for protected consequential semantic mutation.
+
+The current canonical path is proposal/Authority bound. Semantic Apply consumes the exact authorized Actionable Proposal:
 
 ```text
-livariant.claude-code.resume
-livariant.codex.resume
+livariant apply --authorization <authorization-id> --input <actionable-proposal.json>
 ```
 
-## A complete handoff example
+Supported semantic operations remain bounded to the implemented Project Brain domains. Provider output, MCP context, matching text, or prior chat approval cannot manufacture the required protected Authority.
 
-A normal supported transition looks like this:
+See [Semantic Apply](semantic-apply.md) and [Semantic Maintenance](semantic-maintenance.md).
 
-1. You work on the project with Claude Code.
-2. A goal, fact, or decision becomes important enough to keep beyond the current chat.
-3. You plan the Project Brain change with `goals`, `knowledge`, or `decisions`.
-4. You review it and repeat the command with `--apply`.
-5. The Claude Code session ends.
-6. No hidden Claude session memory is copied to Codex.
-7. You start Codex in the same project directory.
-8. Livariant creates a Codex-specific Resume projection from the current Project Brain.
-9. Codex receives the current decisions, known facts, goals, unresolved questions, and lifecycle context that Livariant exposes for Resume.
+## Stale provider context
 
-The executable hardening suite tests this across isolated processes with different provider-local hidden-memory values.
+Provider context is temporary evidence/projection. If the Project Brain baseline changes, old context cannot silently promote stale decisions or facts back into canonical truth.
 
-## `CLAUDE.md` and `AGENTS.md`
+Current provider-return/semantic flows re-check the relevant project identity/baseline/material before consequential use. Stale or mismatched context narrows or blocks the path instead of being trusted by presence.
 
-`CLAUDE.md` and `AGENTS.md` can still be useful project files, but they are not the Project Brain.
+## What Livariant does not claim
 
-The current Resume adapters do not overwrite them. If those files contain text that conflicts with canonical Project Brain state, they do not replace Project Brain truth in the supported Resume path.
+Livariant does not currently claim to:
 
-Future native-instruction integration would create a new mutation surface. It would need its own authorization, preservation, conformance, and adversarial tests before Livariant could claim that behavior as supported.
+- synchronize hidden provider memory;
+- manage every Claude Code or Codex feature;
+- control provider authentication/model selection;
+- turn provider output directly into Project Truth;
+- let a provider grant itself mutation Authority;
+- provide hosted remote MCP;
+- support every provider in Desktop.
 
-## What happens when old Resume context becomes stale
-
-Resume output is temporary context. Receiving it does not give a provider write-back authority over the Project Brain.
-
-If a Project Brain decision changes later, including an explicit supersession, old Resume output cannot promote the earlier decision back into canonical truth.
-
-To replace an accepted decision while keeping its history, list the decisions, choose the relevant ID, and plan a supersession:
-
-```bash
-livariant decisions
-livariant decisions supersede <decision-id> "Use approach B for authentication" --reason "Architecture changed"
-```
-
-Review the plan, then repeat it with `--apply` if it is correct.
-
-The next Resume output is generated from the current Project Brain state.
+The project owns continuity. Providers receive bounded working context around it.
