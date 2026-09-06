@@ -1,4 +1,4 @@
-<img width="1851" height="737" alt="image" src="https://github.com/user-attachments/assets/e5e1c73b-b4fd-4df4-8b0a-1d278ac12d3e" />
+<img width="1851" height="737" alt="Livariant" src="https://github.com/user-attachments/assets/e5e1c73b-b4fd-4df4-8b0a-1d278ac12d3e" />
 
 <p align="center">
   <strong>English</strong> · <a href="README.de.md">Deutsch</a>
@@ -6,8 +6,8 @@
 
 <p align="center">
   <a href="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Kryt3r/livariant/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
-  <a href="https://github.com/Kryt3r/livariant/releases/tag/v0.1.0-rc.4"><img alt="CLI Public Preview" src="https://img.shields.io/badge/CLI%20preview-v0.1.0--rc.4-0ea5e9" /></a>
-  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-339933?logo=nodedotjs&logoColor=white" />
+  <a href="https://github.com/Kryt3r/livariant/releases/tag/desktop-preview-0.1.0-rc.28-ec2916979c19"><img alt="Desktop Preview" src="https://img.shields.io/badge/Desktop%20Preview-0.1.0--rc.28-0ea5e9" /></a>
+  <img alt="Windows x64" src="https://img.shields.io/badge/Desktop-Windows%20x64-2563eb" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-PolyForm%20Perimeter-7c3aed" /></a>
   <img alt="Local-first" src="https://img.shields.io/badge/local--first-default-06b6d4" />
   <img alt="MCP" src="https://img.shields.io/badge/MCP-supported-a855f7" />
@@ -15,31 +15,88 @@
 
 # Livariant
 
-**AI coding agents can be wrong. Livariant is built so their mistakes do not silently become project truth.**
+**LLM-assisted development is fast. Long-running software work exposes the parts a chat does not reliably preserve: context, decisions, evidence, change authority, documentation, and recovery state.**
 
-**Preserve what is true. Control what changes. Verify what is actually proven. Recover when things go wrong.**
+Livariant is a local-first reliability and governance layer for AI-assisted software development. It gives the **project** durable context and explicit rules for what is evidence, what is accepted project truth, what may change, what has actually been verified, and what must fail closed.
 
-Coding agents can lose context, act on stale assumptions, contradict earlier decisions, overstate completion, or turn plausible inference into durable project mistakes. Livariant does not try to make one model infallible. It gives the **project itself** durable truth, explicit Authority boundaries, verification evidence, and recovery semantics that survive individual chats, agents, tools, and providers.
+## The problem Livariant addresses
 
-> **The AI may be wrong. Your project should not automatically inherit the mistake.**
+Vibe-coding and coding agents can work extremely well until a project becomes larger, older, or more consequential. Then predictable failure modes appear:
 
-## The core idea
+- **context gets lost** across chats, agents, providers, and long sessions;
+- **decisions contradict each other** or old assumptions quietly return;
+- **plausible AI output becomes a project change** without a clear authority boundary;
+- **"done" is asserted more strongly than the available evidence supports**;
+- **documentation and project knowledge drift** away from what the software actually does;
+- **handoffs, updates, migrations, and recovery** become inconsistent or hard to reconstruct.
 
-Livariant sits between AI-assisted development and durable project state:
+Livariant does not try to make an LLM infallible. It makes the surrounding project state harder to corrupt accidentally.
+
+## What Livariant does today
+
+| Failure mode | Current Livariant response |
+| --- | --- |
+| Context loss | A project-owned **Project Brain**, bounded Project Context snapshots, provider handoff/context-return surfaces, and stable project identity. |
+| Contradictory or stale knowledge | Semantic proposal, drift/conflict assessment, controlled understanding/adoption, and semantic maintenance foundations. |
+| Unintended consequential changes | Explicit **Authority** boundaries, plan-first flows, Guardian-protected consequential authority, and fail-closed handling of ambiguous/stale trust state. |
+| Unsupported "done" claims | **Verification Trace** classifies supplied requirement/implementation/evidence relationships as `SUPPORTED`, `CONTRADICTED`, or `UNPROVEN`. |
+| External/agent material becoming truth too easily | Provider output, findings, external knowledge, and other derived material remain **Evidence** until the supported review/adoption path accepts something as Project Truth. |
+| Lifecycle/recovery mistakes | Separate initialization, update, migration, checkpoint, recovery, Runtime-trust, and release-authorization boundaries. |
+
+These are implemented foundations with deliberately bounded scope. Livariant does **not** claim universal code correctness, automatic trustworthy evidence generation, unrestricted autonomous mutation, or perfect detection of every contradiction.
+
+## Desktop app — the main graphical surface
+
+The Livariant Desktop app is the central graphical interface for normal day-to-day use. The current published Desktop Preview is **`0.1.0-rc.28` for Windows x64**.
+
+> [!WARNING]
+> **Early Development / Preview**
+>
+> Livariant is still in an early development phase. The Desktop app is usable as a Preview, but workflows, compatibility, and individual surfaces can still change. Do not treat Preview behavior as a Stable-release guarantee. The Windows installer also does not yet have the final production Authenticode publisher-signing/reputation setup, so Windows may show publisher/SmartScreen warnings depending on system policy and reputation.
+
+Current Desktop areas include:
+
+- **Project Truth / First Steps** — a curated workspace for project purpose, direction, rules, gaps, proposals, and manual review. The current renderer includes foundation/session-state behavior here; it must not be confused with fully persistent Project Brain mutation.
+- **Connections** — local provider/agent connection management around the currently implemented Codex connection boundary, including persisted connection intent and restore behavior.
+- **Diagnostics** — truthful local diagnostics/efficiency evidence with explicit time ranges and the permanent distinction `Observed != Avoided != Estimated`.
+- **Updates** — signed Desktop update discovery, localized EN/DE patch notes, real download state, and an explicitly authorized install/restart flow.
+- **Settings** — application language plus connection/system configuration and runtime identity/health information.
+
+### Current Desktop screenshots
+
+The repository does not currently contain a canonical set of Desktop screenshot assets. This documentation refresh will only add screenshots that are verified to represent the accepted current Desktop visual baseline; no mock or invented screenshot will be presented as product evidence.
+
+### Small roadmap — planned, not already implemented
+
+The next product direction is intentionally narrower than a giant feature list:
+
+1. finish the active **Desktop security/performance hardening** work;
+2. complete the normal **existing-project adoption** path so real projects can be onboarded without special treatment;
+3. deepen persistent **First Steps / Project Truth** integration while preserving `Evidence -> Review -> Project Truth` and single-mutation-authority boundaries;
+4. extend provider/connection support beyond the currently implemented connection surface;
+5. begin **Livariant-on-Livariant self-hosting** only after the normal adoption path works, starting with Read / Observe / Propose rather than mutation authority.
+
+Roadmap items are direction, not current capability or release promises.
+
+## The core model
+
+Livariant separates concepts that AI-assisted workflows often blur together:
 
 ```text
-AI / coding agent
+Inspect / observe
       ↓
-Evidence and bounded context
+Evidence + bounded context
       ↓
-Livariant
+Understand / assess / propose
       ↓
-Project Truth / Verification / Authority / Recovery boundaries
+Review + explicit Authority where required
       ↓
-Durable project state
+Mutate
+      ↓
+Verify
 ```
 
-Its permanent rules include:
+Permanent boundaries include:
 
 ```text
 Evidence != Truth
@@ -51,121 +108,11 @@ Presence != Currency
 Ambiguous consequential state -> Fail Closed
 ```
 
-## What the user experience is becoming
-
-Current development is designed for an **agent-native** workflow rather than a command-heavy daily routine.
-
-For a fresh supported machine, the remediated first-use path is deliberately staged:
-
-```text
-verify exact qualified release artifacts
--> install ordinary Livariant CLI
--> provision protected Stage-A release material
--> bootstrap Guardian from protected Stage-B bytes
--> verify Guardian ready
--> open project
--> livariant first-run
--> initialize deliberately if needed
--> explicitly connect Claude Code or Codex through MCP
--> work normally with the coding agent
-```
-
-The ordinary global CLI and the protected Guardian bootstrap source have separate trust roles. The CLI remains important for setup, diagnosis, direct inspection, explicit control, and provider-independent workflows, but it does not become a root of trust merely because it is globally installed.
-
-After an MCP-capable coding agent is connected, the user does **not** need to type a Livariant command into every normal interaction. For example, the user can simply ask the coding agent to implement a feature and verify the requested outcomes. The agent can call Livariant through MCP and return the result in the normal conversation.
-
-## The current reliability moment
-
-Current development exposes a read-only MCP tool:
-
-`livariant_verification_trace`
-
-It evaluates explicit requirements or acceptance criteria, implementation claims, and supplied verification evidence using the same deterministic Verification Trace semantics as the core/CLI assessor.
-
-Conceptually:
-
-```text
-requirement / acceptance criterion
-        +
-implementation claim
-        +
-verification evidence
-        ↓
-Livariant
-        ↓
-SUPPORTED / CONTRADICTED / UNPROVEN
-```
-
-Example:
-
-```text
-Email login ........ SUPPORTED
-Password reset ..... UNPROVEN
-Rate limiting ...... CONTRADICTED
-```
-
-This is deliberately stricter than accepting an agent's "done" statement.
-
-Important boundaries remain:
-
-```text
-SUPPORTED != DONE
-verification evidence != accepted completion
-agent-supplied evidence != independent trust
-MCP transport != Authority
-```
-
-Livariant does **not** currently discover every requirement automatically, manufacture trustworthy evidence automatically, universally verify arbitrary code, or catch every false-DONE claim without explicit trace/evidence material.
-
-See [Verification Trace](docs/verification-trace.md).
-
-## First Run
-
-The guided entry point is:
-
-```bash
-livariant first-run
-```
-
-The current First Run foundation is state-aware across both project state and protected machine readiness. It can compose:
-
-- EN/DE interaction localization;
-- read-only project discovery;
-- Project Brain initialization assessment;
-- protected bootstrap / Guardian readiness assessment;
-- an Autonomy Profile choice;
-- optional external knowledge evidence;
-- Guided Project Understanding Review;
-- optional Claude Code or Codex MCP setup guidance.
-
-First Run remains read-only. It does not silently initialize the project, configure the provider, adopt evidence, persist an Autonomy Profile, provision Guardian state, or grant Authority. If protected machine prerequisites are missing or unsafe, it must not direct the user straight to lifecycle authorization/application.
-
-See [First-Run Composition](docs/first-run.md).
-
-## MCP connection
-
-Installing Livariant and connecting a coding agent are separate operations.
-
-Livariant can render provider-native setup guidance:
-
-```bash
-livariant mcp setup --provider claude-code
-livariant mcp setup --provider codex
-```
-
-Those commands perform **zero provider-configuration writes** themselves. They tell the user how to register Livariant through the provider's own MCP configuration surface.
-
-Once connected, the MCP agent can discover current bounded tools including:
-
-- `livariant_provider_context`;
-- `livariant_provider_return`;
-- `livariant_verification_trace`.
-
-The MCP bridge does not create or consume mutation Authority and does not convert agent output into Project Truth merely because it arrived through MCP.
+The practical consequence is simple: a model can suggest, infer, inspect, or even technically possess a capability without that becoming permission to rewrite canonical project state.
 
 ## Project-owned continuity
 
-Livariant maintains a local **Project Brain**:
+Livariant's local Project Brain provides durable project context that does not belong to one chat or one model:
 
 ```text
 .project-brain/
@@ -176,130 +123,117 @@ Livariant maintains a local **Project Brain**:
   metadata.json
 ```
 
-It gives the project durable state that does not belong to one chat or one AI provider. A copied sentence, returned AI result, stale context packet, external note, or reconstructed summary does not become trusted project state merely because it exists.
+Supporting foundations include Project Context snapshots, provider context/return evidence, external-knowledge evidence, guided understanding/review, semantic proposal/drift assessment, findings, and Verification Trace.
 
-## Authority and safe mutation
+A copied sentence, provider result, stale context packet, external note, or stored finding is not automatically Project Truth merely because it exists.
 
-One of Livariant's central rules is:
+## Agent and MCP integration
 
-> **The ability to perform an action is not permission to perform it.**
+Livariant includes a local stdio MCP bridge for compatible coding agents. Current bounded tools include:
 
-Livariant separates:
+- `livariant_provider_context`;
+- `livariant_provider_return`;
+- `livariant_verification_trace`.
 
-```text
-Inspect
--> Understand
--> Propose
--> Authorize
--> Mutate
--> Verify
+The CLI can also render explicit provider setup guidance for Claude Code and Codex:
+
+```bash
+livariant mcp setup --provider claude-code
+livariant mcp setup --provider codex
 ```
 
-Current development includes protected Guardian-origin Authority for consequential consumers including semantic mutation authorization, Project Brain integrity protection, Runtime trust, and release authorization.
+Those commands do not silently rewrite provider configuration. MCP transport also does not create mutation Authority or turn provider output into Project Truth.
 
-## Existing projects first
+The Desktop connection surface currently has a deeper implemented local Codex connection path. Additional providers and connection methods remain future extensions unless separately implemented and qualified.
 
-Livariant is preservation-first and does not require a special project template.
+## Safety and trust principles
 
-```text
-inspect
--> discover
--> understand
--> review
--> adopt deliberately
-```
+Livariant is preservation-first:
 
-Existing project files, provider instructions, external notes, and AI output must not silently redefine canonical project truth.
+- consequential mutation is explicit;
+- capability and Authority are separate;
+- stale, substituted, ambiguous, or malformed consequential trust state fails closed;
+- historical evidence is not silently rewritten;
+- external knowledge and provider output remain evidence until reviewed/adopted;
+- update availability is not install authorization;
+- verification evidence is not automatically accepted completion;
+- Project Brain state is local by default;
+- Livariant usage telemetry is not currently implemented.
 
-## External knowledge stays external until deliberately adopted
+If project context is sent to an external AI provider, that provider's terms, retention settings, and security model apply.
 
-Current development includes a foundation for treating supported external text/Markdown knowledge sources as separate provenance-aware evidence.
+## Install / Quickstart
 
-```text
-external knowledge
--> read-only adapter
--> evidence
--> understanding / review
--> controlled adoption when something should become Project Truth
-```
+### Normal Windows Desktop path
 
-Future retrieval, relationship, graph, and token-efficiency work is intended to build on these explicit provenance/freshness boundaries rather than creating hidden second sources of truth.
+The current published graphical Preview is:
 
-## Published previews and current development
+- **Desktop:** `0.1.0-rc.28`
+- **Platform:** Windows x64
+- **Exact published source:** `ec2916979c1911a56203878d7102570ab71cd13c`
+- **Installer:** `Livariant_0.1.0-rc.28_x64-setup.exe`
+- **Installer SHA-256:** `2897e2bf7940b8d222b382bd6c3548861cd8dd5bbfbcca097783f08f6a21579d`
 
-Livariant currently has **independently versioned product surfaces**. The root/Core package identity and the Desktop Preview identity are intentionally not required to share the same RC number.
+Download it from the immutable [Desktop Preview rc.28 release](https://github.com/Kryt3r/livariant/releases/tag/desktop-preview-0.1.0-rc.28-ec2916979c19), verify the release identity, install it, and open Livariant.
 
-### Current published Desktop Preview
+Then use the app to inspect its current runtime state, configure a supported connection, work through Project Truth / First Steps, inspect Diagnostics, and use the explicit update flow when a signed compatible update is available.
 
-The canonical published Desktop Preview is `0.1.0-rc.17`, built from exact source `6214bfe2318dc5c0dc4ae0b949146451ad4d20f6` and accepted through the updater-first Windows path.
+See [Installation](docs/installation.md) and the [Five-Minute Quickstart](docs/quickstart.md) for the full current flow and limitations.
 
-The Desktop identity on current canonical `main` is `0.1.0-rc.18`. **rc.18 is not published yet.** It exists to perform the final installed-Windows dogfood acceptance for the active Diagnostics & Efficiency Measurement Foundation work before that work package can close.
+### CLI / advanced control surfaces
 
-### Historical CLI Public Preview
+Livariant Core and CLI remain important for provider-independent inspection, MCP setup, lifecycle operations, Guardian/protected-authority workflows, and lower-level diagnostics. The historical `v0.1.0-rc.4` CLI Public Preview is an immutable older release surface; it is **not** the current Desktop Preview and later Desktop capabilities are not retroactively part of RC4.
 
-`v0.1.0-rc.4` remains an immutable published **CLI Public Preview**. It contains the agent-native First Run/MCP workflow, Verification Trace, Active Project Intelligence foundations, external-knowledge foundations, Autonomy Profiles, and the Guardian/Self-Integrity enforcement present in the qualified RC4 source.
+## Current Preview boundaries
 
-RC4 was qualified from exact source `4f547751d9d53e7325e6ea1f2401f1dea45779dc`. Its installable CLI artifact SHA-256 is `6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e`.
+The current product is a Preview. In particular, Livariant does not currently claim:
 
-> [!WARNING]
-> Real Windows Fresh-Install dogfooding found that the published RC4 distribution does **not** include/provision the protected Stage-A bootstrap source required before Guardian-backed first-project lifecycle authorization. Installing the RC4 `.tgz` alone therefore does not provide a complete safe fresh-machine -> first-project path. Do not bypass this by manually copying requester-controlled package files into protected system locations. See [Installation & First Project](docs/installation.md).
+- Stable-release compatibility guarantees;
+- a complete persistent Project Truth editor in the Desktop renderer;
+- every provider or every provider connection method;
+- universal automatic requirement discovery;
+- automatic creation of independently trustworthy verification evidence;
+- universal correctness verification for arbitrary code;
+- automatic repair of every drift/conflict;
+- unrestricted autonomous repository mutation;
+- broad multi-agent orchestration or a third-party plugin marketplace;
+- exact provider-billed token/cost savings from proxy measurements.
 
-Later repository work does not retroactively change RC4.
+See [Public Preview Scope & Limitations](docs/preview-scope.md).
 
-### Historical RC3 Foundation Preview
+## Documentation
 
-`v0.1.0-rc.3` remains immutable historical Foundation Preview evidence. Later capabilities were not retroactively added to the RC3 artifact.
-
-### Current repository `main`
-
-Canonical product `main` is `e121edfe84061208ac5d1e3568a2c0c6c4ec3749` at this documentation reconciliation.
-
-On that source state:
-
-- Desktop identity is `0.1.0-rc.18`;
-- root/Core package identity remains independently versioned at `0.1.0-rc.12`;
-- rc.18 has not been tagged, published, or made discoverable through the updater;
-- repository presence alone must never be treated as release publication.
-
-### Current active development
-
-The active product Work Package is **WP-047 - Diagnostics & Efficiency Measurement Foundation**. Its bounded implementation is merged; final completion still requires installed-Windows dogfood evidence for real observed usage, period behavior, durable counters, truthful missing values, attribution, and the calculation/explanation path.
-
-The immediate release-sensitive path remains gated: CI trigger hardening must qualify and merge through its own explicit authorization boundary before an unpublished rc.18 candidate is built and verified. Publication remains a separate explicit authorization.
-
-### Future qualified releases
-
-A future release still requires its own exact-candidate CI/security/Self-Integrity qualification, real installed/fresh-machine evidence where required, a release decision, and explicit publication Authority.
-
-No README statement, merge, or CI result publishes a release automatically.
-
-## Local-first by default
-
-Current Livariant project operation is designed around a local-first model:
-
-- no Livariant cloud account required for normal local use;
-- no automatic Project Brain upload;
-- no Livariant usage telemetry in the current Runtime;
-- no automatic remote update check.
-
-If project context is sent to an external AI provider, that provider's own terms, retention settings, and security model apply.
-
-See [Privacy & Network Behavior](docs/privacy-and-network.md).
-
-## Start here
-
-For installation and current development truth:
+Start here:
 
 1. [Installation & First Project](docs/installation.md)
 2. [Five-Minute Quickstart](docs/quickstart.md)
-3. [First-Run Composition](docs/first-run.md)
-4. [Verification Trace](docs/verification-trace.md)
-5. [Existing Project Guide](docs/existing-projects.md)
-6. [Provider Handoff](docs/provider-handoff.md)
-7. [Architecture & Safety](docs/architecture-and-safety.md)
-8. [Updates, Migrations & Recovery](docs/lifecycle-guide.md)
+3. [Public Preview Scope & Limitations](docs/preview-scope.md)
+4. [Architecture & Safety](docs/architecture-and-safety.md)
+5. [First-Run Composition](docs/first-run.md)
+6. [Existing Projects](docs/existing-projects.md)
+7. [Local MCP Agent Bridge](docs/mcp-agent-bridge.md)
+8. [Provider Handoff](docs/provider-handoff.md)
+9. [Verification Trace](docs/verification-trace.md)
+10. [Privacy & Network Behavior](docs/privacy-and-network.md)
+11. [Updates, Migrations & Recovery](docs/lifecycle-guide.md)
 
 German documentation starts at [README.de.md](README.de.md).
+
+## Architecture and technical details
+
+Livariant currently combines:
+
+- a TypeScript/Node.js Core and CLI;
+- a Tauri 2 Desktop application with a Rust host and host WebView frontend;
+- protected Guardian/Authority boundaries for consequential operations;
+- a local stdio MCP bridge;
+- project-local Project Brain state;
+- provenance-aware evidence and verification contracts;
+- signed Desktop updater metadata and release identity.
+
+The Desktop renderer is not a root of trust and does not create an alternate project truth store. Platform-specific process, filesystem, updater, installer, and protected-authority behavior stays behind explicit host/Core boundaries.
+
+See [Architecture & Safety](docs/architecture-and-safety.md) for the deeper model.
 
 ## Licensing, security, and contributions
 
@@ -316,4 +250,4 @@ External code contributions are currently gated while contributor-rights terms c
 
 ---
 
-> **Livariant does not need the AI to be perfect. It needs the project to remain trustworthy when the AI is not.**
+**Livariant does not require the AI to be perfect. It requires consequential project state to remain reviewable, attributable, and explicitly controlled when the AI is not.**
