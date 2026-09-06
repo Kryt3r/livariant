@@ -73,9 +73,18 @@ The Desktop app is being built as the normal way to use Livariant: understand pr
 
 Current Desktop areas: **Project Truth / First Steps**, **Connections**, **Diagnostics**, **Updates**, and **Settings**.
 
-### Screenshots
+<details>
+<summary><strong>Show current Desktop screenshots</strong></summary>
 
-Current Desktop screenshots will be added here once the verified visual set is available.
+<br/>
+
+The gallery shows the current **Project Truth**, **Connections**, **Diagnostics**, **Updates**, and **Settings** surfaces.
+
+<p align="center">
+  <img src="docs/assets/screenshots/desktop/en/gallery.svg" alt="Current Livariant Desktop screenshots in English" width="900" />
+</p>
+
+</details>
 
 ---
 
