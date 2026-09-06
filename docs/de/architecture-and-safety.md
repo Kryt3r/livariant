@@ -1,132 +1,242 @@
 # Architektur & Sicherheit
 
-Livariant trennt Projektwissen, wiederverwendbare Framework-Regeln, provider-spezifische Übersetzung und Runtime-Autorität. Das Ziel ist einfach: Ein nützliches Tool soll nicht stillschweigend zum Eigentümer des Projekts werden.
+<p align="center">
+  <a href="../architecture-and-safety.md">English</a> · <strong>Deutsch</strong>
+</p>
 
-Diese Seite erklärt das tiefere Modell hinter diesem Prinzip. Für die ersten Schritte mit Livariant musst du nicht jeden Abschnitt im Detail verstehen.
+Livariant trennt Projektwissen, Evidenz, Provider-Integration, ausführbare Capability und Authority. Ein nützliches Tool, ein Agent, Renderer oder Runtime darf nicht still zum Eigentümer des Projekts werden, nur weil es technisch eine Aktion ausführen kann.
 
-## Die wichtigsten Ebenen
+## Aktuelle High-Level-Architektur
 
-Livariant hat fünf zentrale logische Ebenen:
+Livariant kombiniert derzeit:
 
-1. **Core**: allgemeine Governance- und Sicherheitsregeln des Frameworks.
-2. **Patterns**: wiederverwendbare Architektur- und Produktmuster.
-3. **Profiles**: domänenspezifische Leitlinien und Einschränkungen.
-4. **Adapters**: Erkennung und Übersetzung umgebungsspezifischer Fähigkeiten.
-5. **Project Brain**: projekt-eigenes Wissen und Lifecycle-Identität für ein konkretes Projekt.
+1. **Core / CLI** - TypeScript-/Node.js-Produktlogik, Lifecycle-Verträge, Project Brain, providerneutrale Semantik, MCP, Verification und tiefergehende Kontrolloberflächen.
+2. **Project Brain** - projekt-eigener dauerhafter Kontext, Ziele, Entscheidungen, Wissen und Metadaten.
+3. **Provider-/Connector-Schicht** - begrenzter Provider Context/Return, MCP und Desktop-Connector-Host-Integration.
+4. **Protected Guardian / Authority-Grenzen** - geschützte folgenreiche Authority für Domains wie Lifecycle Mutation, Semantic Mutation, Project-Brain-Integrity-Acceptance, Runtime Trust und Release Authorization.
+5. **Desktop Host** - Tauri-2-/Rust-Grenze für plattformsensitive Operationen, Runtime-/Connector-/Update-Integration und Desktop-Lifecycle.
+6. **Desktop Renderer** - TypeScript-/CSS-Oberfläche für Project Truth / First Steps, Connections, Diagnostics, Updates und Settings.
 
-Die ausführbare Runtime koordiniert diese Ebenen. Ein Adapter wird nicht allein deshalb autoritativ, weil er technisch eine Aktion ausführen kann.
+Der Desktop-Renderer ist **keine** Root of Trust und erzeugt keinen alternativen Project-Truth-Speicher.
 
-## Das Project Brain ist der dauerhafte Projektstand
+## Project Brain ist der dauerhafte Projektdatensatz
 
-Das Project Brain enthält den Projektkontext, den Livariant als kanonisch behandelt. Resume-Ausgaben, Provider-Projektionen, temporäre Pläne, Tool-Beobachtungen und verstecktes Provider-Memory können hilfreich sein, sind aber keine konkurrierenden kanonischen Speicher.
+Project Brain besitzt die dauerhaften Projektkontext-Domains, die Livariant ausdrücklich verwaltet:
 
-Zum Beispiel können Claude Code und Codex unterschiedlich formatierte Resume-Ausgaben bekommen und trotzdem denselben Project-Brain-Zustand beschreiben.
+```text
+.project-brain/
+  project.md
+  goals.md
+  decisions.md
+  knowledge.md
+  metadata.json
+```
 
-## Vorhandensein ist nicht Aktualität
+Resume-Ausgabe, Provider-Projektionen, Findings, External Knowledge, temporäre Pläne, Desktop-Session-State, Connector-State und verborgenes Provider Memory können nützlich sein, sind aber keine konkurrierenden kanonischen Stores.
 
-Eine Datei kann zum Projekt gehören und trotzdem veraltete Informationen enthalten.
+Der aktuelle Desktop-Project-Truth-/First-Steps-Workspace enthält noch Renderer-/Session-State-Foundation-Verhalten und darf nicht als vollständig persistente Project-Brain-Mutation beschrieben werden, solange der unterstützte Bridge-/Authority-Pfad nicht existiert.
 
-README, Quickstart, Architekturzusammenfassung, Provider-Instruktionsdatei, Beispiel oder Release-Guide können beim Schreiben korrekt gewesen sein und nach einer späteren Produkt-, Policy-, CLI-, Provider-, Lifecycle-, Lizenz- oder Architekturentscheidung veralten.
+## Presence ist nicht Currency
 
-Livariant nennt das **Knowledge Drift**.
+Eine legitime Datei kann trotzdem veraltet sein.
+
+READMEs, Provider-Instruktionen, Beispiele, Release-Guides, Architekturzusammenfassungen und Projektnotizen können früher korrekt gewesen und nach späteren Produkt-/Authority-/Runtime-Entscheidungen veraltet sein.
+
+Livariant unterscheidet deshalb:
+
+- **kanonische aktuelle Truth**;
+- **abhängige aktuelle Truth**, die ihr folgen muss;
+- **historische Truth**, die einen früheren Zustand bewahrt;
+- **ephemere Projektionen/Evidenz**, die aus aktuellem Zustand abgeleitet sind.
 
 > [!IMPORTANT]
-> **Vorhandensein ist nicht Aktualität.** Dass eine Aussage in einer legitimen projekt-eigenen Datei steht, beweist nicht, dass sie noch aktuell ist.
+> **Presence is not currency.** Eine Aussage in einer legitimen projekt-eigenen Datei ist nicht allein deshalb noch aktuell.
 
-Livariant unterscheidet vier Arten von Information:
+Drift zu finden vergibt außerdem keine Erlaubnis, ihn umzuschreiben. Detection und Authority bleiben getrennt.
 
-- **kanonische aktuelle Wahrheit**: das autoritative aktuelle Wissen für seine Domäne;
-- **abhängige aktuelle Wahrheit**: aktuelle Inhalte, die mit der kanonischen Wahrheit übereinstimmen müssen;
-- **historische Wahrheit**: Aufzeichnungen, die bewusst einen früheren Zustand oder eine frühere Entscheidung bewahren;
-- **ephemere Projektionen**: temporärer Kontext, der aus kanonischer Wahrheit erzeugt wird.
+## Evidence ist nicht Project Truth
 
-Wenn sich die kanonische Wahrheit ändert, sollten abhängige aktuelle Inhalte identifiziert und geprüft werden. Historische Aufzeichnungen bleiben normalerweise historisch, statt nur zur Entfernung alter Begriffe umgeschrieben zu werden.
+Provider-Ausgabe, externe Quellen, Findings, Discovery, Verification-Daten, Diagnostics-Evidenz und rekonstruierter Kontext sind nicht automatisch Project Truth.
 
-Das Erkennen veralteter Inhalte erzeugt keine Berechtigung, sie zu verändern. Erkennung und Autorität bleiben getrennt.
+Die beabsichtigte Form lautet:
 
-Der kanonische semantische Vertrag steht in [`core/knowledge-drift-and-truth-surfaces.md`](../../core/knowledge-drift-and-truth-surfaces.md).
+```text
+Evidence
+  -> verstehen / bewerten / vorschlagen
+  -> reviewen / wo unterstützt ausdrücklich übernehmen
+  -> Project Truth
+```
 
-## Fähigkeit ist nicht Autorität
+Nicht: „Ein Agent hat es gesagt, also schreiben wir es.“
 
-Ein Grundsatz zieht sich durch Livariant:
+## Capability ist nicht Authority
 
-> Die technische Fähigkeit, etwas zu verändern, bedeutet nicht, dass die Runtime dazu autorisiert ist.
+Dauerhafte Regeln:
 
-Unterstützte Änderungen benötigen explizite Autorität an der Runtime-Grenze. Das gilt für Initialisierung, kanonische Entscheidungsänderungen, Framework-Updates, Migrationen und Wiederherstellung.
+```text
+Capability != Authority
+Connection != Authority
+Proposal != Authorization
+```
 
-Dasselbe gilt für ausführbares Release-Vertrauen. Projektinput darf ein Release beschreiben oder ein Update anfordern, aber seine eigenen Bytes nicht selbst zur Ausführungsautorität machen.
+Technische Fähigkeit, eine Datei zu ändern, einen Prozess aufzurufen, einen Provider zu verbinden oder ein Update herunterzuladen, erzeugt keine Erlaubnis für eine folgenreiche Aktion.
 
-## Bestehende Projekte sind standardmäßig geschützt
+Geschützte folgenreiche Authority wird nicht durch Projektdateien, gewöhnliches Same-User-JSON, Provider-Ausgabe, Renderer-State oder caller-controlled Flags hergestellt.
 
-Livariant verwendet ein preservation-first Mutationsmodell:
+Für geschützte Domains schlägt fehlender, fehlerhafter, veralteter, substituierter, nicht passender oder bereits konsumierter Authority-State geschlossen fehl.
+
+## Aktuelle Guardian-/Authority-Domains
+
+Aktuelle geschützte Consumer umfassen folgenreiche Pfade für:
+
+- Lifecycle Mutation;
+- Semantic Mutation;
+- Project-Brain-Integrity-Acceptance;
+- Runtime Trust;
+- Release Authorization.
+
+Diese Domains bleiben getrennt. Authorization für ein Projekt/eine Operation/ein Material kann nicht für eine andere Domain zweckentfremdet werden.
+
+Ein nacktes `--apply` drückt nur Ausführungsabsicht aus; es ist dort, wo aktuelle Operationen Guardian-Authorization benötigen, nicht selbst die geschützte Authority.
+
+## Bestehende Projekte sind preservation-first
+
+Das beabsichtigte Mutationsmodell ist:
 
 ```text
 prüfen
--> Absicht und Umfang erklären
--> Auswirkung und Risiko bestimmen
--> bei Bedarf eine wiederherstellbare Ausgangsbasis schaffen
--> autorisieren
--> die kleinste ausreichende Änderung durchführen
+-> Evidenz sammeln/verstehen
+-> vorgeschlagenen Scope und Impact erklären
+-> reviewen
+-> exakte Authority herstellen, wo erforderlich
+-> kleinste ausreichende Mutation durchführen
 -> verifizieren
 ```
 
-Bestehende projekt-eigene Dateien werden nicht normalisiert, nur weil Livariant eine andere Struktur bevorzugen würde.
+Bestehende Projektdateien werden nicht normalisiert, nur weil Livariant eine andere Struktur bevorzugen würde.
 
-## Unklarer Zustand wird nicht erraten
+Das gilt besonders für `CLAUDE.md`, `AGENTS.md`, Dokumentation, Konfiguration und andere bestehende projekt-eigene Oberflächen.
 
-Kann Livariant nicht nachweisen, dass ein Zustand sicher und unterstützt ist, wird das Verhalten eingeschränkt, statt den Fehler automatisch zu übergehen.
+## Mehrdeutiger Zustand schlägt geschlossen fehl
 
-Beispiele sind:
+Kann Livariant für eine folgenreiche Operation keinen sicheren unterstützten Zustand herstellen, soll es einschränken/stoppen statt durch das Problem zu raten.
 
-- beschädigtes oder unvollständiges Project Brain;
-- ungültige Lifecycle-Journals;
-- ungelöste unterbrochene Migrationen;
-- Symlinks auf verwalteten Schreibflächen;
-- nicht unterstützte Migrationspfade;
-- unerwartete Release-Quellen oder Artefaktidentitäten;
-- fehlende unabhängige rechnerlokale Artefakt-Autorität;
-- Integritätsdrift der installierten Runtime;
-- mehrdeutige oder veraltete Kompatibilitätsevidenz.
+Beispiele:
 
-`doctor` ist absichtlich diagnostisch und read-only. Der Befehl meldet das Problem, statt es still zu reparieren.
+- beschädigter/teilweiser Project-Brain-State;
+- ungültige Lifecycle-/Recovery-Journals;
+- ungelöste unterbrochene Migration;
+- Filesystem-/Symlink-/Topology-Substitution;
+- nicht unterstützte Migration;
+- veraltetes/nicht passendes Authority-Material;
+- unerwartete Release-/Artefaktidentität;
+- Runtime-Integrity-/Trust-Mismatch;
+- Connector-Executable-Identity-Substitution;
+- Updater-Signature-/Source-Mismatch.
 
-## Update-Vertrauen und Aktivierung
+Read-only Diagnostics werden nicht zu Repair Authority, nur weil sie ein Problem erkennen können.
 
-Ein gültiges Release-Artefakt ist nicht automatisch autorisiert, kompatibel, installiert, für Ausführung vertrauenswürdig oder aktiv.
+## Desktop-Trust-Grenze
 
-Livariant prüft diese Punkte getrennt:
+Der Tauri-/Rust-Host besitzt plattformsensitive Operationen, die nicht beliebigem Renderer-Input überlassen werden dürfen.
+
+Aktuelle Desktop-Härtung umfasst begrenzte Kontrollen rund um:
+
+- exponierte Tauri-Commands / validierte IPC-Inputs;
+- Navigation-/CSP-/WebView-Grenzen;
+- Process Spawning und Executable Selection;
+- Codex-Connector-Host-Inputs/-Lifecycle;
+- App-Data- und Projekt-/Filesystem-Grenzen;
+- signierten Updater-Endpunkt/-Key/-Source-Identity;
+- Trennung von Release- und Dev-Capabilities;
+- Rendering nicht vertrauenswürdiger dynamischer Texte.
+
+Der aktuelle Codex-Pfad bewahrt die akzeptierte Executable Identity, damit ein App-Neustart nicht still mit einer anderen PATH-aufgelösten Executable gleichen Namens verbindet.
+
+Connection-Persistenz ist trotzdem keine Authority.
+
+## Runtime- und Release-Trust
+
+Ausführbarer Code wird nicht dadurch vertrauenswürdig, dass er auf dem Datenträger existiert oder projekt-kontrollierte Bytes ihn als trusted bezeichnen.
+
+Livariant trennt Konzepte wie:
 
 ```text
-Release-Identität
--> Artefakt- und Quellintegrität
--> Kompatibilität
--> explizite --apply-Autorisierung
--> bereits vorhandene unabhängige rechnerlokale Artefakt-Autorität
--> Runtime-Installation ohne Lifecycle-Skripte
--> Verifikation der Release-Evidenz
--> Messung des installierten Package-Trees
--> Aufbau und erneute Prüfung des rechnerlokalen Runtime-Trusts
--> Candidate-Runtime-Attestation und Ausführung
--> Lifecycle-Validierung
--> kanonischer Project-Brain-Release-Pin
+Release Identity
+Artifact Integrity
+Release Authorization
+Installed Runtime Measurement
+Runtime Trust
+Project Lifecycle Authorization
+Project Activation
 ```
 
-Projektkontrollierter Input kann den unabhängigen Release-Authority-Record weder über die Livariant-CLI noch über die produktive API erzeugen. Einen projektseitigen `authorize-runtime`-Befehl gibt es absichtlich nicht.
+Diese Prüfungen dürfen nicht zu einem einzigen Boolean zusammenfallen.
 
-Der Framework-Pin im Project Brain ist die kanonische Aktivierungsentscheidung. Eine vorbereitete Runtime auf der Festplatte kann sich nicht selbst aktivieren.
+Die genaue tiefergehende Reihenfolge hängt vom unterstützten Operation-/Release-Vertrag ab; Projektinput kann geschützte Runtime-/Release-Authority nicht über gewöhnlichen Product-State herstellen.
 
-## Migration und Wiederherstellung
+## Desktop-Updates sind eine eigene Lifecycle-Domain
 
-Schema-ändernde Updates verwenden dauerhafte Migrationsevidenz und auf Integrität geprüfte Checkpoints. Unterbrochene Arbeit, die nicht sicher wiederholt werden kann, darf nicht einfach erneut ausgeführt werden, nur weil derselbe Befehl noch einmal gestartet wurde.
+Der aktuelle Desktop-Updater kann über seinen festen konfigurierten HTTPS-Feed und Public Key signierte Updates entdecken, lokalisierte Release Notes darstellen, das Update herunterladen und ausdrückliche Nutzerautorisierung für Installation/Neustart anfordern.
 
-Wiederherstellung ist eine separat autorisierte Lifecycle-Operation. Vor einem Restore prüft Livariant sowohl die Pfadbindung als auch die Inhaltsintegrität des Checkpoints.
+Dauerhafte Trennung:
 
-Hat ein Rollback das wiederhergestellte Project Brain erzeugt und validiert, darf die anschließende Bereinigung diesen erfolgreichen Restore nicht wieder zerstören. Verdrängter Zustand wird entfernt, bevor der letzte gültige Checkpoint gelöscht wird. Scheitert die späte Bereinigung, bleiben das wiederhergestellte Project Brain und der Checkpoint erhalten.
+```text
+Update verfügbar != zur Installation autorisiert
+Anwendungsupdate != Project-Brain-Mutation
+Renderer-Darstellung != Release Authority
+```
+
+Der Renderer kann keine beliebigen Update-URLs oder Executables auswählen.
+
+Siehe [Updates, Migrationen & Recovery](lifecycle-guide.md).
+
+## Migration und Recovery
+
+Core-/Projekt-Lifecycle-Operationen bleiben plan-first und nach Operation-Domain getrennt.
+
+Unterbrochene Arbeit wird durch dauerhafte Evidenz dargestellt, statt so behandelt zu werden, als sei nichts passiert. Recovery prüft Checkpoint-Identität/-Material, Lifecycle-Evidenz und die konkrete unterbrochene Operation; veraltetes oder mehrdeutiges Recovery-Material schlägt geschlossen fehl.
+
+Manuelles Ersetzen von Project-Brain-/Lifecycle-/Protected-State ist kein unterstützter Repair-Shortcut.
 
 ## Provider-Grenze
 
-Die aktuelle Preview unterstützt Project-Brain-Resume-Handoff für Claude Code und Codex.
+Livariant Core stellt providerneutrale Context-/Return- und MCP-Grundlagen bereit. Aktuelle MCP-Setup-Hinweise existieren für Claude Code und Codex.
 
-Adapter können Umgebungsevidenz und Kompatibilität für diese Fähigkeit melden. Sie verleihen sich selbst keine Projekt-Autorität und schreiben native Provider-Instruktionsdateien nicht stillschweigend um.
+Der Desktop besitzt aktuell den tiefer implementierten echten lokalen Verbindungspfad für Codex. Zusätzliche Provider/Connection-Methoden bleiben zukünftige Erweiterungen, solange sie nicht separat implementiert und qualifiziert wurden.
 
-Zukünftige Adapter-Fähigkeiten benötigen eigene Conformance- und adversariale Evidenz, bevor sie als unterstützt gelten.
+Dauerhafte Regel:
+
+```text
+Provider != Connection Method != Capability != Role != Authority
+```
+
+Provider-Ausgabe bleibt Evidence/Kandidatenmaterial, bis ein relevanter unterstützter Review-/Adoption-Pfad etwas stärker akzeptiert.
+
+## Diagnostics und Measurement Truth
+
+Diagnostics hält Evidenzklassen getrennt:
+
+```text
+Observed != Avoided != Estimated
+```
+
+Fehlende Evidenz muss fehlend bleiben. Proxy-/Context-/Token-/Resource-Messungen sind nicht automatisch exakte Provider-Billing-/Kostenclaims oder universelle Endnutzer-Performance-Garantien.
+
+Diagnostics benötigt standardmäßig keine Roh-Prompt-/Projektcontent-Erfassung.
+
+## Architektur-Zusammenfassung
+
+Die zentrale Safety-Idee ist nicht, dass Livariant alles weiß. Unsicheres Wissen und technische Capability sollen nicht still zu kanonischer Truth oder Erlaubnis werden.
+
+```text
+Evidence != Truth
+Capability != Authority
+Proposal != Authorization
+Persistence != Trust
+Presence != Currency
+Verification Evidence != akzeptierte Completion
+Mehrdeutiger folgenreicher Zustand -> Fail Closed
+```
+
+Für aktuellen Release-/User-Scope siehe [Public Preview Scope & Limitations](preview-scope.md).
