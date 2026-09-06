@@ -168,6 +168,14 @@ fn persisted_connection_desired(raw: &[u8]) -> Result<bool, String> {
     if mode != "auto" && mode != "manual" {
         return Err("Persisted Codex connection intent mode is invalid.".to_owned());
     }
+    if let Some(resolved_command) = record.get("resolvedCommand") {
+        let command = resolved_command
+            .as_str()
+            .ok_or_else(|| "Persisted Codex connection intent resolvedCommand must be a string when present.".to_owned())?;
+        if command.trim().is_empty() {
+            return Err("Persisted Codex connection intent resolvedCommand must not be blank.".to_owned());
+        }
+    }
     if desired && mode == "manual" {
         let manual_path = record.get("manualPath").and_then(Value::as_str).map(str::trim).unwrap_or_default();
         if manual_path.is_empty() {
@@ -260,8 +268,11 @@ mod tests {
 
     #[test]
     fn restores_connector_host_only_for_valid_connected_intent() {
-        let auto = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"auto"}"#;
-        assert!(persisted_connection_desired(auto).unwrap());
+        let legacy_auto = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"auto"}"#;
+        assert!(persisted_connection_desired(legacy_auto).unwrap());
+
+        let pinned_auto = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"auto","resolvedCommand":"C:\\Tools\\codex.exe"}"#;
+        assert!(persisted_connection_desired(pinned_auto).unwrap());
 
         let manual = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"manual","manualPath":"C:\\Tools\\codex.exe"}"#;
         assert!(persisted_connection_desired(manual).unwrap());
@@ -274,5 +285,11 @@ mod tests {
 
         let unsupported_mode = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"shell"}"#;
         assert!(persisted_connection_desired(unsupported_mode).is_err());
+
+        let invalid_resolved_command = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"auto","resolvedCommand":42}"#;
+        assert!(persisted_connection_desired(invalid_resolved_command).is_err());
+
+        let blank_resolved_command = br#"{"schemaVersion":1,"desiredConnected":true,"mode":"auto","resolvedCommand":"   "}"#;
+        assert!(persisted_connection_desired(blank_resolved_command).is_err());
     }
 }

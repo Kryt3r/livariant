@@ -8,6 +8,7 @@ export type ConnectionIntent = {
   desiredConnected: boolean;
   mode: ConnectionMode;
   manualPath?: string;
+  resolvedCommand?: string;
 };
 
 export const disconnectedConnectionIntent = (): ConnectionIntent => ({
@@ -24,17 +25,28 @@ function parseConnectionIntent(value: unknown): ConnectionIntent {
   if (record.schemaVersion !== 1) throw new Error("Persisted Codex connection intent schema version is unsupported.");
   if (typeof record.desiredConnected !== "boolean") throw new Error("Persisted Codex connection intent desiredConnected must be boolean.");
   if (record.mode !== "auto" && record.mode !== "manual") throw new Error("Persisted Codex connection intent mode is invalid.");
+  if (record.manualPath !== undefined && typeof record.manualPath !== "string") {
+    throw new Error("Persisted Codex connection intent manualPath must be a string when present.");
+  }
+  if (record.resolvedCommand !== undefined && typeof record.resolvedCommand !== "string") {
+    throw new Error("Persisted Codex connection intent resolvedCommand must be a string when present.");
+  }
 
   const manualPath = typeof record.manualPath === "string" ? record.manualPath.trim() : undefined;
+  const resolvedCommand = typeof record.resolvedCommand === "string" ? record.resolvedCommand.trim() : undefined;
   if (record.mode === "manual" && record.desiredConnected && !manualPath) {
     throw new Error("Persisted manual Codex connection intent is missing its executable path.");
+  }
+  if (record.resolvedCommand !== undefined && !resolvedCommand) {
+    throw new Error("Persisted Codex connection intent resolvedCommand must not be blank.");
   }
 
   return {
     schemaVersion: 1,
     desiredConnected: record.desiredConnected,
     mode: record.mode,
-    ...(manualPath ? { manualPath } : {}),
+    ...(record.mode === "manual" && manualPath ? { manualPath } : {}),
+    ...(record.mode === "auto" && resolvedCommand ? { resolvedCommand } : {}),
   };
 }
 
