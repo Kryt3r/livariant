@@ -1,209 +1,169 @@
 # Public-Preview-Umfang & Einschränkungen
 
-Diese Seite beschreibt den Umfang des **aktuell veröffentlichten Livariant Public Preview**. Sie ist eine Release-Truth-Oberfläche, kein historisches Entwicklungsprotokoll und kein Versprechen, dass Roadmap-Arbeit bereits implementiert ist.
+<p align="center">
+  <a href="../preview-scope.md">English</a> · <strong>Deutsch</strong>
+</p>
 
-## Aktuelles veröffentlichtes Release
+Diese Seite beschreibt den Umfang des **aktuell veröffentlichten Livariant Desktop Preview** und trennt ihn von historischen CLI-Releases sowie von Roadmap-Arbeit.
 
-Das aktuelle öffentliche Prerelease ist:
-
-```text
-v0.1.0-rc.4
-```
-
-RC4 wurde aus folgendem exakten Quellstand qualifiziert:
+## Aktuelles veröffentlichtes Desktop Preview
 
 ```text
-4f547751d9d53e7325e6ea1f2401f1dea45779dc
+Version: 0.1.0-rc.28
+Plattform: Windows x64
+Exakter Quellstand: ec2916979c1911a56203878d7102570ab71cd13c
+Tag: desktop-preview-0.1.0-rc.28-ec2916979c19
+Installer: Livariant_0.1.0-rc.28_x64-setup.exe
+Installer SHA-256: 2897e2bf7940b8d222b382bd6c3548861cd8dd5bbfbcca097783f08f6a21579d
 ```
 
-Qualifiziertes installierbares CLI-Artefakt:
+Das Release ist ein unveränderliches GitHub-Prerelease und **nicht Stable**.
+
+Das Repository kann Änderungen enthalten, die neuer als dieser veröffentlichte Quellstand sind. Repository-Existenz, ein gemergter PR oder eine gleiche Versionsnummer veröffentlicht kein neues Release.
+
+## Grenze der frühen Entwicklungsphase
+
+Livariant Desktop befindet sich noch in einer frühen Entwicklungsphase. Aktuelles Preview-Verhalten ist reales Produktverhalten, aber einzelne Workflows, unterstützte Provider, UI-Oberflächen, Performance-Eigenschaften und Kompatibilität können sich bis Stable noch ändern.
+
+Dem Windows-Preview-Installer fehlt außerdem noch die finale produktive Authenticode-Publisher-Signierung bzw. Reputation. Abhängig von Windows-Richtlinie und Reputation können Publisher- oder SmartScreen-Hinweise erscheinen. Das ist ein Distribution-Signing-Residual und kein Beleg dafür, dass Guardian-/Runtime-Authority fehlgeschlagen oder erfolgreich ist.
+
+## Was das aktuelle Desktop Preview enthält
+
+### Desktop-Shell und Project Truth / First Steps
+
+Die aktuelle Desktop-Anwendung ist die grafische Normal-User-Oberfläche und enthält die akzeptierte Livariant-Shell sowie:
+
+- Project Truth / First Steps Workspace;
+- Connections;
+- Diagnostics;
+- Updates;
+- Settings mit Deutsch/English-Anwendungssprache;
+- Darstellung von Desktop-/Core-/Runtime-Identität und Health.
+
+Der Project-Truth-Renderer enthält aktuell kuratiertes Foundation-/Session-State-Verhalten für Purpose, Direction, Rules, Knowledge Gaps, Proposals, Source-/Review-Darstellung und explizite Review-Aktionen. Er darf **nicht** als fertiger persistenter Project-Brain-Editor oder alternativer kanonischer Truth-Store beschrieben werden.
+
+### Connections
+
+Die Desktop-App besitzt einen echten lokalen **Codex**-Verbindungspfad über die begrenzte Connector-Host-/App-Server-Architektur. Die aktuelle Entwicklung enthält persistierte Connection Intent und automatisches Restore-Verhalten, das an die zuvor akzeptierte Executable Identity gebunden ist.
+
+Dauerhafte Grenzen bleiben:
 
 ```text
-livariant-0.1.0-rc.4.tgz
+Provider != Connection Method != Capability != Role != Authority
+Connection != Authority
 ```
 
-SHA-256:
+Das breitere Connector-Modell ist bewusst erweiterbar, aber zusätzliche Provider oder Connection-Methoden sind nicht allein deshalb aktuelle Desktop-Fähigkeiten, weil die Architektur sie darstellen kann.
+
+### Diagnostics & Efficiency Evidence
+
+Die Desktop-App enthält Diagnostics auf Basis lokal gespeicherter Evidenz. Die unterstützte Darstellung trennt:
 
 ```text
-6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e
+Observed != Avoided != Estimated
 ```
 
-`v0.1.0-rc.3` bleibt unveränderliche historische Foundation-Preview-Evidenz. RC4 schreibt die RC3-Historie nicht um, sondern ist der spätere separat qualifizierte Public-Preview-Kandidat.
+Aktuelle Zeiträume enthalten begrenzte Presets wie `1d`, `7d`, `30d`, `90d` und die gesamte gespeicherte Historie. Fehlende Evidenz muss fehlend bleiben und darf nicht erfunden werden. Diagnostics erfasst standardmäßig keine Rohinhalte von Projekt-Prompts/-Content.
 
-## Wichtige RC4-Fresh-Install-Einschränkung
+Performance-Messungen aus der Entwicklung sind Engineering Evidence und keine universellen Ressourcen- oder Einsparungsgarantien für Endnutzer.
 
-Echtes Windows-Dogfooding hat eine wichtige Distributionslücke in RC4 gezeigt:
+### Desktop-Updates
 
-- die normale RC4-CLI-`.tgz` lässt sich installieren und ausführen;
-- Guardian Enforcement verlangt korrekt eine bereits geschützte Bootstrap-Quelle;
-- der veröffentlichte RC4-Installations-/Distributionspfad provisioniert diese geschützte Stage-A-Quelle **nicht**;
-- RC4 bietet deshalb keinen vollständigen unterstützten Clean-Machine -> Protected-Guardian -> First-Project-Initialisierungspfad.
+Die Desktop-App enthält einen echten signierten Updater-Pfad mit:
 
-Das ist kein Grund, Guardian-Prüfungen abzuschwächen. Kopiere keine beliebigen/globalen npm-Paketbytes als Workaround nach `C:\Program Files\Livariant` oder `/opt/livariant`.
+- festem HTTPS-Update-Feed und Updater-Public-Key;
+- signierten Release-/Update-Metadaten;
+- lokalisierten DE/EN-Release-Notes;
+- echtem Download-Zustand;
+- ausdrücklicher Nutzerautorisierung vor der Installation;
+- Installations-/Restart-Darstellung ohne erfundenen Fortschritt.
 
-WP-044 remediates dies für ein späteres separat qualifiziertes Release durch releasegebundene Stage-A-/Stage-B-Provisionierung, Maschinen-Readiness-Führung, EN/DE-First-Run-Lokalisierung und qualifizierte Release-Asset-Veröffentlichung/Provenance. Diese Änderungen sind **nicht rückwirkend Teil von RC4**.
+Update-Erkennung/-Verfügbarkeit ist keine Installations-Authority. Ein Preview-Release wird nicht zu Stable, nur weil der Updater es entdecken kann.
 
-Siehe [Installation & erstes Projekt](installation.md).
+### Core / projekt-eigene Kontinuität
 
-## Was RC4 enthält
+Die aktuelle Codebasis enthält außerdem die projekt-eigenen Reliability-Grundlagen, auf denen Desktop- und Agenten-Workflows aufbauen, darunter:
 
-RC4 verbindet die gehärtete Grundlage für projekt-eigene Kontinuität/Lifecycle mit begrenzter Active Project Intelligence und einem agent-nativen MCP-Pfad.
-
-### Projekt-eigene Kontinuität und Lifecycle
-
-Das Public Preview enthält das Project Brain und unterstützte Lifecycle-Oberflächen für:
-
-- Initialisierung sowie Status-/Diagnose-Inspektion;
-- bestätigte Ziele, Projektwissen und akzeptierte Entscheidungen;
-- plan-first unterstützte Mutationsabläufe;
-- Supersession von Entscheidungen mit erhaltener Historie;
-- Project-Brain-Resume-Handoff;
-- Schutz vor veraltetem Kontext;
-- Update- und unterstützte Migrations-/Recovery-Flows;
-- Runtime-/Release-Integrität und geschützte Authority-Grenzen;
-- stabile logische Project-Brain-Identität;
-- Dateisystem-/Topologie-Sicherheit für die implementierten Lifecycle-Operationen;
-- ein installierbares normales CLI-Paket.
-
-Der letzte Punkt bedeutet **nicht**, dass RC4s Release-Distribution die getrennte Protected-Stage-A-Guardian-Provisioning-Voraussetzung vollständig erfüllt.
-
-### Active-Project-Intelligence-Grundlagen
-
-RC4 enthält begrenzte read-only/review-orientierte Grundlagen wie:
-
+- Project-Brain-Kontext/Ziele/Entscheidungen/Wissen/Metadaten;
+- stabile logische/physische Projektidentitätsgrenzen;
 - Project Context Snapshot;
 - Semantic Proposal und Conflict/Drift Assessment;
-- Provider Context und Provider Return Evidence Intake;
-- Guided Project Understanding Review und kontrollierte Übernahme;
-- External-Knowledge-Evidenz-Grundlagen;
+- Provider Context/Return Evidence Intake;
+- providerneutrale Semantic Maintenance;
+- Guided Project Understanding Review und Controlled Adoption;
+- External-Knowledge-Evidence-Grundlagen;
 - Autonomy Profiles;
 - Evidence-backed Findings;
-- Requirement -> Implementation -> Verification Trace.
+- Requirement -> Implementation -> Verification Trace;
+- Lifecycle-/Update-/Migration-/Recovery-Safeguards;
+- Guardian-geschützte folgenreiche Authority-Domains;
+- lokale stdio-MCP-Bridge.
 
-Diese Fähigkeiten erhalten die Trennung zwischen Evidenz, Inferenz, Project Truth, Verifikation, Autorisierung und Mutation.
+Das konkrete aktuelle Verhalten jeder einzelnen Fähigkeit wird immer durch kanonischen Produktcode/-tests bestimmt, nicht allein durch diese Übersicht.
 
-### First Run
+## Historisches CLI Public Preview
 
-RC4 enthält den geführten Einstieg:
+`v0.1.0-rc.4` bleibt ein unveränderliches historisches **CLI Public Preview**. Es ist eine getrennte ältere Release-Oberfläche und darf nicht so dargestellt werden, als hätte es spätere Desktop-Releases, spätere Remediation oder das aktuelle Desktop-UI enthalten.
 
-```bash
-livariant first-run
-```
+Seine historischen Installationsgrenzen und das exakte RC4-Verhalten sind nur relevant, wenn jemand bewusst dieses Artefakt verwendet oder auditiert.
 
-RC4 First Run kombiniert bestehende read-only Setup-/Understanding-Oberflächen und erfasst eine Interaktionssprache. Echtes Dogfooding hat gezeigt, dass RC4s Human-Readable-First-Run-Lokalisierung unvollständig ist und seine Next-Action-Führung fehlende Guardian-Maschinenvoraussetzungen nicht ausreichend sichtbar macht. WP-044 behebt beide Findings für ein zukünftiges qualifiziertes Release.
+## Provider-Unterstützung
 
-RC4 First Run endet weiterhin mit `Changes made: 0` und initialisiert das Projekt nicht stillschweigend, übernimmt keine Evidenz automatisch, konfiguriert keinen Provider, persistiert keine Authority und macht Agent-Ausgabe nicht zu Project Truth.
-
-Siehe [First-Run-Komposition](first-run.md).
-
-### Lokale MCP-Agent-Bridge
-
-RC4 enthält die lokale stdio-MCP-Bridge:
-
-```bash
-livariant mcp
-```
-
-und explizite Provider-Setup-Hinweise:
-
-```bash
-livariant mcp setup --provider claude-code
-livariant mcp setup --provider codex
-```
-
-Aktuelle begrenzte MCP-Tools sind:
+Livariant Core stellt MCP-Setup-Hinweise für **Claude Code** und **Codex** bereit; die aktuelle begrenzte MCP-Bridge enthält unter anderem:
 
 - `livariant_provider_context`;
 - `livariant_provider_return`;
 - `livariant_verification_trace`.
 
-Provider-Konfiguration bleibt explizit. Livariant schreibt Provider-Konfiguration nicht stillschweigend um, und MCP-Transport verleiht weder unabhängiges Vertrauen noch Mutation Authority.
+Der aktuelle Desktop-Live-Verbindungspfad ist für **Codex** tiefer implementiert. Aus providerneutralen Core-Verträgen darf keine vollständige Desktop-Unterstützung jedes Providers abgeleitet werden.
 
-Siehe [Lokale MCP-Agent-Bridge](mcp-agent-bridge.md), [Provider-Handoff](provider-handoff.md) und [Verification Trace](verification-trace.md).
+Provider-Ausgabe ist Evidenz/Kandidatenmaterial. Sie wird nicht allein deshalb Project Truth oder Mutation Authority, weil sie über MCP oder eine Desktop-Verbindung eingetroffen ist.
 
-### Verification Trace
+## Plattformumfang
 
-RC4 kann explizite Anforderungen oder Acceptance Criteria gegen bereitgestellte Implementierungsclaims und Verification Evidence bewerten mit:
+Aktuell veröffentlichtes Desktop Preview:
 
-```text
-SUPPORTED
-CONTRADICTED
-UNPROVEN
-```
+- Windows x64.
 
-Diese Zustände beschreiben Evidenzunterstützung. Sie bedeuten **nicht** automatisch akzeptierte Completion oder Project Truth.
+Core/CLI und geschützte Guardian-Pfade besitzen breitere plattformspezifische Implementierungshistorie; daraus wird das aktuelle Desktop Preview aber nicht zu einem Linux-/macOS-Desktop-Release.
 
-Dauerhafte Grenzen sind unter anderem:
+Ein künftiges Desktop-Plattform-Release benötigt eigene qualifizierte Distribution-/Installations-Evidenz.
 
-```text
-SUPPORTED != DONE
-Verification Evidence != akzeptierte Completion
-Evidence != Project Truth
-Capability != Authority
-MCP-Transport != unabhängiges Vertrauen
-```
+## Was das aktuelle Preview nicht behauptet
 
-## Provider-Unterstützung
+Livariant behauptet derzeit **nicht**:
 
-Das aktuelle Public Preview bietet explizite Integrations-/Setup-Pfade für **Claude Code** und **Codex**.
-
-Provider-Auswahl oder Provider-Ausgabe verleiht selbst keine Livariant Authority. Provider-/Client-Material, das Livariant erreicht, bleibt Evidenz oder Kandidatenmaterial, solange es nicht den passenden bestehenden Project-Truth-/Authority-Prozess durchläuft.
-
-Livariant behauptet nicht, jede Provider-Funktion, jeden Authentifizierungsmechanismus, jede Modellauswahl, native Memory-Oberfläche oder künftiges MCP-Verhalten zu verwalten.
-
-## Plattform- und Paketumfang
-
-Die RC4-Release-Qualifikation hat release-relevante CI unter **Ubuntu und Windows** ausgeführt. Das Paket deklariert Node.js `>=20`.
-
-Diese CI-Evidenz beweist keinen vollständigen Clean-Machine-Protected-Guardian-Installationspfad. Der reale Windows-Fresh-Install-Pfad ist jetzt ein explizites WP-044-Acceptance-Kriterium.
-
-Guardian-v1-Protected-Provisioning ist für Windows und Linux vorgesehen; für macOS existiert aktuell kein geschützter Guardian-v1-Pfad.
-
-Siehe [Installation & erstes Projekt](installation.md).
-
-## Was RC4 nicht behauptet
-
-Das Public Preview behauptet **nicht**:
-
-- einen vollständigen RC4-Fresh-Machine-Protected-Guardian-Provisioning-Pfad;
-- vollständige RC4-First-Run-Lokalisierung für jede gewählte Sprache;
-- universelle automatische Anforderungsentdeckung;
-- automatische Erzeugung vertrauenswürdiger Verification Evidence;
-- universelle Korrektheitsverifikation für beliebigen Code;
-- provider-gesteuerte, Wildcard- oder Standing-Autorisierung semantischer Mutation;
-- Provider-Ausgabe werde allein durch MCP automatisch Project Truth;
-- Remote-/Cloud-MCP-Hosting als Livariant-Dienst;
-- Besitz einer breiten Repository-Graph-/Index-/Search-Schicht;
-- automatische Drift-Reparatur;
+- Stable-Release-Kompatibilitätsgarantien;
+- finale produktive Windows-Publisher-Signierung/-Reputation;
+- einen fertigen persistenten Project-Truth-Editor im Desktop;
+- einen vollständigen normalen Existing-Project-Adoption-UI/Pfad;
+- jeden Provider, jede Authentifizierungsmethode, jede Model-Selection-Option oder jedes provider-native Feature;
+- universelle automatische Requirement Discovery;
+- automatische Erzeugung unabhängig vertrauenswürdiger Verification Evidence;
+- universelle Correctness-Verifikation für beliebigen Code;
+- automatische Reparatur jedes Drift-/Conflict-Falls;
 - uneingeschränkte autonome Repository-Mutation;
-- breite Multi-Agent-Orchestrierung oder Concurrent-Agent-Containment;
+- breite Multi-Agent-Orchestrierung/Concurrent-Agent-Containment als fertiges Nutzerfeature;
 - ein allgemeines Drittanbieter-Plugin-/Marketplace-Ausführungsmodell;
-- exakte Einsparungen bei provider-abgerechneten Tokens.
+- exakte providerseitig abgerechnete Token-/Kosteneinsparungen aus Proxy-Messungen;
+- stabiles Livariant-on-Livariant Self-Hosting.
 
-RC4 enthält deterministische Kontext-/Token-Proxy-Evidenz, aber diese Messungen sind keine exakten Claude-/Codex-Billing-Tokenwerte und belegen keinen universellen Token-Sparprozentsatz.
+## Geplante Richtung — keine aktuelle Fähigkeit
 
-## Stable-Release-Arbeit bleibt getrennt
+Die aktuelle kurzfristige Richtung lautet:
 
-RC4 ist ein **Public-Preview-Prerelease**, kein Stable Release.
+1. Desktop-Security-/Performance-Härtung abschließen;
+2. normalen Existing-Project-Adoption-Pfad fertigstellen;
+3. persistente First-Steps-/Project-Truth-Integration unter Evidence-/Review-/Authority-Grenzen vertiefen;
+4. Provider-/Connection-Unterstützung bewusst erweitern;
+5. Livariant-on-Livariant Self-Hosting erst nach funktionierender normaler Adoption beginnen, zunächst Read / Observe / Propose.
 
-Vor einem ersten Stable Release benötigt Livariant weiterhin repräsentative Real-Agent-Workflow-Qualifikation, soweit sinnvoll einschließlich:
+Das ist Roadmap-Richtung und kein Release-Versprechen.
 
-- korrekte MCP-Tool-Auswahl;
-- verpasste oder unnötige Tool-Aufrufe;
-- Interpretation von `SUPPORTED / CONTRADICTED / UNPROVEN`;
-- Unterschiede zwischen Claude Code und Codex;
-- Verhalten in längeren Sessions und bei Kontextverlust;
-- Fehlermodi;
-- provider-beobachtetes Token-/Kontextverhalten, soweit praktikabel.
-
-WP-044 verlangt separat provenance-attestierte Release-Inputs und eine reale Windows-Fresh-Install-/First-Project-Qualifikation vor seinem eigenen GO. Diese Anforderung entscheidet nicht automatisch jede künftige Stable-Provenance-/Audit-Policy.
-
-## Historisches RC3
-
-`v0.1.0-rc.3` bleibt als unveränderliche historische Foundation-Preview-Evidenz verfügbar. Aussagen darüber, was RC3 enthielt, bleiben historisch und dürfen nicht als Umfang des aktuellen RC4 Public Preview gelesen werden.
-
-Für den aktuellen Nutzerpfad beginne mit:
+## Hier beginnen
 
 - [Installation & erstes Projekt](installation.md)
 - [Fünf-Minuten-Schnellstart](quickstart.md)
 - [Architektur & Sicherheit](architecture-and-safety.md)
+- [Datenschutz & Netzwerkverhalten](privacy-and-network.md)
+- [Updates, Migrationen & Recovery](lifecycle-guide.md)
