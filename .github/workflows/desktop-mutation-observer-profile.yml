@@ -1,0 +1,198 @@
+name: Desktop MutationObserver Performance Profile
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/desktop-mutation-observer-profile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install Desktop dependencies from lockfile
+        working-directory: apps/desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Windows Desktop executable without bundling
+        working-directory: apps/desktop
+        run: npm run tauri:build -- --no-bundle --ci -- --locked
+
+      - name: Profile MutationObserver callbacks across real Desktop navigation
+        shell: pwsh
+        run: |
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+          $debugProfile = Join-Path $env:RUNNER_TEMP "LivariantObserverProfileWebView2"
+          Remove-Item -LiteralPath $debugProfile -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $debugProfile -Force | Out-Null
+
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
+          $env:WEBVIEW2_USER_DATA_FOLDER = $debugProfile
+
+          $app = Join-Path $PWD "apps\desktop\src-tauri\target\release\livariant-desktop.exe"
+          if (-not (Test-Path -LiteralPath $app -PathType Leaf)) {
+            throw "Desktop executable not found: $app"
+          }
+
+          $profileScript = Join-Path $env:RUNNER_TEMP "livariant-mutation-observer-profile.mjs"
+          @'
+          import { writeFile } from "node:fs/promises";
+
+          const sourceSha = process.argv[2];
+          const outputPath = process.argv[3];
+          if (!/^[0-9a-f]{40}$/i.test(sourceSha)) throw new Error("Exact source SHA is required.");
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          let target;
+          for (let attempt = 0; attempt < 300; attempt += 1) {
+            try {
+              const response = await fetch("http://127.0.0.1:9222/json");
+              const targets = await response.json();
+              target = targets.find((entry) => entry.type === "page" && entry.webSocketDebuggerUrl);
+            } catch {}
+            if (target) break;
+            await sleep(100);
+          }
+          if (!target) throw new Error("WebView2 DevTools target did not appear on port 9222.");
+
+          const socket = new WebSocket(target.webSocketDebuggerUrl);
+          await new Promise((resolve, reject) => {
+            socket.addEventListener("open", resolve, { once: true });
+            socket.addEventListener("error", reject, { once: true });
+          });
+
+          let nextId = 1;
+          const pending = new Map();
+          socket.addEventListener("message", (event) => {
+            const message = JSON.parse(String(event.data));
+            if (!message.id) return;
+            const waiter = pending.get(message.id);
+            if (!waiter) return;
+            pending.delete(message.id);
+            if (message.error) waiter.reject(new Error(JSON.stringify(message.error)));
+            else waiter.resolve(message.result);
+          });
+          const send = (method, params = {}) => new Promise((resolve, reject) => {
+            const id = nextId++;
+            pending.set(id, { resolve, reject });
+            socket.send(JSON.stringify({ id, method, params }));
+          });
+
+          await send("Page.enable");
+          await send("Runtime.enable");
+          const instrumentation = `(() => {
+            const NativeMutationObserver = window.MutationObserver;
+            const aggregate = { created: 0, callbacks: 0, records: 0, totalMs: 0, maxMs: 0, observers: [] };
+            window.__livariantMutationObserverStats = aggregate;
+            window.MutationObserver = class LivariantProfiledMutationObserver extends NativeMutationObserver {
+              constructor(callback) {
+                const stack = String(new Error().stack || "").split("\\n").find((line) => line.includes("/assets/")) || "unknown";
+                const originMatch = stack.match(/assets\\/[^\\s)]+/);
+                const entry = { id: aggregate.created + 1, origin: originMatch ? originMatch[0] : "unknown", callbacks: 0, records: 0, totalMs: 0, maxMs: 0 };
+                aggregate.created += 1;
+                aggregate.observers.push(entry);
+                super((records, observer) => {
+                  const started = performance.now();
+                  try { return callback(records, observer); }
+                  finally {
+                    const elapsed = performance.now() - started;
+                    entry.callbacks += 1;
+                    entry.records += records.length;
+                    entry.totalMs += elapsed;
+                    entry.maxMs = Math.max(entry.maxMs, elapsed);
+                    aggregate.callbacks += 1;
+                    aggregate.records += records.length;
+                    aggregate.totalMs += elapsed;
+                    aggregate.maxMs = Math.max(aggregate.maxMs, elapsed);
+                  }
+                });
+              }
+            };
+          })();`;
+
+          await send("Page.addScriptToEvaluateOnNewDocument", { source: instrumentation });
+          await send("Page.reload", { ignoreCache: true });
+          await sleep(1800);
+
+          const expression = `(async () => {
+            const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const views = Array.from(document.querySelectorAll('.nav-item[data-view]'))
+              .map((node) => node.getAttribute('data-view'))
+              .filter(Boolean);
+            for (const view of views) {
+              const node = document.querySelector('.nav-item[data-view="' + CSS.escape(view) + '"]');
+              if (!node) continue;
+              node.click();
+              await wait(120);
+            }
+            await wait(600);
+            return { views, stats: window.__livariantMutationObserverStats || null };
+          })()`;
+
+          const evaluated = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+          if (evaluated.exceptionDetails) throw new Error(`Renderer profiling expression failed: ${JSON.stringify(evaluated.exceptionDetails)}`);
+          const value = evaluated.result?.value;
+          if (!value?.stats) throw new Error("MutationObserver profiling stats were not available after reload.");
+
+          const normalize = (entry) => ({
+            ...entry,
+            totalMs: Number(entry.totalMs.toFixed(3)),
+            maxMs: Number(entry.maxMs.toFixed(3)),
+          });
+          const evidence = {
+            schemaVersion: 1,
+            benchmark: "desktop-mutation-observer-navigation-profile",
+            sourceSha: sourceSha.toLowerCase(),
+            navigationCount: value.views.length,
+            views: value.views,
+            aggregate: normalize(value.stats),
+            observers: value.stats.observers.map(normalize),
+            interpretation: "Measurement-only WebView2 CDP profile. MutationObserver is wrapped before a reload, then each current primary navigation item is clicked once. Times are callback execution time only, not full navigation latency or TTI. The profiling executable is an exact-source release build without installer/runtime packaging, so runtime-health state may differ from an installed candidate while renderer navigation code is unchanged."
+          };
+          delete evidence.aggregate.observers;
+          await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+          socket.close();
+          '@ | Set-Content -LiteralPath $profileScript -Encoding utf8
+
+          $desktop = Start-Process -FilePath $app -PassThru
+          try {
+            node $profileScript "${{ github.event.pull_request.head.sha || github.sha }}" "desktop-mutation-observer-profile.json"
+            if ($LASTEXITCODE -ne 0) {
+              throw "MutationObserver profile helper failed with exit code $LASTEXITCODE."
+            }
+            $digest = (Get-FileHash -LiteralPath "desktop-mutation-observer-profile.json" -Algorithm SHA256).Hash.ToLowerInvariant()
+            "sha256=$digest" | Set-Content -LiteralPath "desktop-mutation-observer-profile.sha256.txt" -Encoding utf8
+            Write-Host "Desktop MutationObserver profile SHA-256: $digest"
+          }
+          finally {
+            if ($desktop -and -not $desktop.HasExited) {
+              Stop-Process -Id $desktop.Id -Force -ErrorAction SilentlyContinue
+              $desktop.WaitForExit()
+            }
+            Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $debugProfile -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Upload MutationObserver performance evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: desktop-mutation-observer-profile-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            desktop-mutation-observer-profile.json
+            desktop-mutation-observer-profile.sha256.txt
+          if-no-files-found: error
