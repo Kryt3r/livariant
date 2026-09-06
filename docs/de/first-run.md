@@ -1,41 +1,44 @@
 # First-Run-Komposition
 
-`livariant first-run` ist der geführte, read-only Einstieg, um Livariant in ein Projekt einzubinden, ohne dieses Projekt stillschweigend zu verändern.
+<p align="center">
+  <a href="../first-run.md">English</a> · <strong>Deutsch</strong>
+</p>
 
-Der remediated First Run verbindet Project Discovery, Initialisierungsbewertung, Auswahl eines Autonomy Profile, optionale externe Wissensevidenz, Guided Project Understanding Review, Provider-Setup-Hinweise **und die Guardian-Readiness des Rechners**.
+`livariant first-run` ist die **CLI**-Oberfläche für einen geführten, read-only Projekteinstieg. Sie ist vom aktuellen Desktop-Workspace **Project Truth / First Steps** getrennt.
+
+Beide Oberflächen teilen Livariants Preservation-/Trust-Modell, sind aber nicht austauschbar:
+
+- CLI First Run verbindet read-only Projekt-/Machine-Understanding mit zustandsabhängiger Next-Action-Führung;
+- Desktop First Steps / Project Truth ist der grafische Workspace und enthält aktuell noch Renderer-/Session-State-Foundation-Verhalten statt eines fertigen persistenten Project-Brain-Editors.
 
 ## Interaktions-Lokalisierung
 
-Für deterministische Nutzung gibst du die bevorzugte Interaktionssprache explizit an:
+Für deterministische CLI-Nutzung eine unterstützte Interaktionssprache explizit auswählen:
 
 ```bash
 livariant first-run --language Deutsch
 livariant first-run --language English
 ```
 
-Deutsch und Englisch sind in der WP-044-Remediation eingebaute unterstützte CLI-Interaktions-Locals. Wird eine davon gewählt, verwenden nutzerseitige First-Run-Prompts, Warnungen, Überschriften, Erklärungen und Next-Action-Beschreibungen ab dem ersten lokalisierten Prompt diese Sprache.
+Deutsch und Englisch sind eingebaute CLI-Interaktions-Locals. Sichtbare Prompts, Warnungen, Überschriften, Erklärungen und Next-Action-Beschreibungen verwenden die gewählte unterstützte Sprache.
 
-Übliche Aliase wie `de`, `de-DE`, `en`, `en-US`, `Deutsch` und `English` werden dem entsprechenden Locale zugeordnet.
+Interaktions-Lokalisierung bleibt getrennt von:
 
-Eine noch nicht als CLI-Locale implementierte Sprache kann weiterhin als bevorzugter Interaktionssprachwert für maschinenlesbaren/Projekt-Kontext erhalten bleiben; die CLI meldet dann jedoch ausdrücklich, dass die sichtbare Oberfläche auf Englisch zurückfällt. Livariant behauptet nicht, beliebige Sprachen vollständig zu lokalisieren, wenn das nicht der Fall ist.
-
-Interaktions-Lokalisierung ist getrennt von:
-
-- der Sprache von Project Truth;
-- Befehlsnamen;
-- Machine-Identifiern und Enum-Werten;
+- Project-Truth-Sprache/-Inhalt;
+- Command-Namen;
+- Machine Identifiern/Enums;
 - Provider-Protokollfeldern;
-- Authority oder Trust Evidence.
+- Authority-/Trust-Evidenz.
 
-Die Sprachpräferenz vergibt keine Authority.
+Sprachpräferenz vergibt keine Authority.
 
-## Festlegen, wie oft der Agent fragen soll
+## Autonomy Profile
 
-First Run enthält die Auswahl eines Autonomy Profile:
+CLI First Run kann eine Autonomy-Profile-Wahl enthalten:
 
-- `ask-always` - vor routinemäßigen und wichtigen frei entscheidbaren nächsten Schritten anhalten;
-- `ask-important` - routinemäßige/read-only Arbeit fortsetzen, vor wichtigen oder folgenreichen frei entscheidbaren Schritten anhalten; ausgewogener Standard;
-- `continue-without-confirmation` - frei entscheidbare Workflow-Schritte ohne zusätzliche Bestätigung fortsetzen, wenn keine feste Livariant-Authority erforderlich ist.
+- `ask-always` - vor routinemäßigen und wichtigen Ermessensschritten stoppen;
+- `ask-important` - routinemäßige/read-only Arbeit fortsetzen, vor wichtigen/folgenreichen Ermessensentscheidungen stoppen; balancierter Default;
+- `continue-without-confirmation` - Ermessensschritte ohne zusätzliche Bestätigung fortsetzen, sofern keine harte Livariant-Authority erforderlich ist.
 
 Beispiel:
 
@@ -43,51 +46,34 @@ Beispiel:
 livariant first-run --language Deutsch --autonomy-profile ask-important
 ```
 
-Das Profil mit der höchsten Autonomie erfordert bei deterministischer/nicht-interaktiver Nutzung eine explizite Risikobestätigung:
+Autonomy ist Interaktionspolitik und keine harte Authority. Auch das höchste Autonomy Profile kann Mutation-, Runtime-, Guardian-, Lifecycle- oder Release-Authority nicht umgehen.
 
-```bash
-livariant first-run \
-  --language Deutsch \
-  --autonomy-profile continue-without-confirmation \
-  --acknowledge-autonomy-risk \
-  --json
-```
+CLI First Run persistiert das gewählte Profil nicht still.
 
-Autonomy Profile != Authority. Auch `continue-without-confirmation` kann Mutation Authorization, Runtime Authority, Guardian Authority oder Release Authority nicht umgehen.
+## Projekt- und Machine-Readiness
 
-First Run speichert das Profil nicht dauerhaft. Persistenter Autonomy-Profile-State bleibt eine separate explizite maschinenlokale Aktion, die an eine stabile Projektidentität gebunden ist.
+CLI First Run prüft Projektzustand sowie die Protected-Machine-/Guardian-Readiness, die der tiefergehende Core-Lifecycle erwartet.
 
-## Maschinen-Readiness gehört zum Onboarding
-
-First Run prüft nun neben dem Projekt auch die geschützte Lifecycle-Basis des Rechners.
-
-Der Report unterscheidet mindestens diese Zustände:
+Es kann Zustände unterscheiden wie:
 
 ```text
-geschützte Bootstrap-Quelle fehlt
-geschützte Bootstrap-Quelle unsicher
-Guardian Bootstrap erforderlich
-Guardian bereit
-Guardian-Plattform nicht unterstützt
+protected bootstrap source missing
+protected bootstrap source unsafe
+guardian bootstrap required
+guardian ready
+unsupported Guardian platform
 ```
 
-Diese Prüfung ist read-only und vergibt keine Authority.
+Diese Inspektion ist read-only und vergibt keine Authority.
 
-### Frischer unterstützter Rechner
+> [!IMPORTANT]
+> Diese tiefergehenden Guardian-Readiness-Zustände sind **nicht** die normalen Installationsanweisungen für das aktuelle Windows Desktop Preview. Normale Desktop-Nutzer beginnen bei [Installation](installation.md). Der CLI-/Guardian-Pfad bleibt für Advanced-Core-/Lifecycle-Workflows relevant.
 
-Wurde die geschützte Stage-A-Quelle noch nicht provisioniert, muss First Run auf den verifizierten Protected-Installationspfad verweisen. `livariant init --authorize` oder `livariant init --apply` dürfen dann **nicht** als unmittelbar nächster Lifecycle-Schritt erscheinen.
+Ist Protected-State für eine Lifecycle-Operation unsicher oder unvollständig, darf First Run nicht zum Umgehen raten oder Projektmutation als unmittelbar sicher darstellen.
 
-Ist Stage A bereit, Guardian aber noch nicht gebootstrapped, verweist First Run auf den geschützten Stage-B-Pfad.
+## Optionales External Knowledge
 
-Wird geschützter State als `unsafe` bewertet, stoppt First Run die Lifecycle-Führung, statt diesen Zustand aufgrund seiner bloßen Existenz zu segnen, zu reparieren oder als vertrauenswürdig zu behandeln.
-
-Erst wenn Guardian Readiness hergestellt ist, darf First Run die normale Projektinitialisierungssequenz anzeigen.
-
-Siehe [Installation & erstes Projekt](installation.md) für den Stage-A-/Stage-B-Vertrauenspfad.
-
-## Optional ein bestehendes Second Brain anbinden
-
-Eine unterstützte lokale Text-/Markdown-Wissensquelle kann read-only angebunden werden:
+Eine unterstützte lokale Text-/Markdown-Wissensquelle kann read-only eingebunden werden:
 
 ```bash
 livariant first-run \
@@ -96,58 +82,53 @@ livariant first-run \
   --external-source ../meine-notizen
 ```
 
-Externes Material bleibt External Evidence. Es wird nicht zu Project Truth und kann nicht direkt übernommen werden.
+Externes Material bleibt External Evidence. Es wird nicht automatisch Project Truth oder Mutation Authority.
 
-## Einen Provider-Setup-Pfad anzeigen
+## Optionale Provider-Setup-Hinweise
 
-First Run kann den separaten MCP-Setup-Befehl als optionalen nächsten Schritt anzeigen:
+First Run kann Provider-Setup-Hinweise als nächsten Schritt einblenden:
 
 ```bash
 livariant first-run --language Deutsch --provider claude-code
 livariant first-run --language Deutsch --provider codex
 ```
 
-First Run führt das Provider-Setup nicht aus und nimmt selbst null Provider-Konfigurationsänderungen vor.
+First Run führt Provider-Setup nicht selbst aus und verändert Provider-Konfiguration nicht still.
 
-## Was First Run tut
+Der aktuelle Desktop besitzt eine getrennte echte Codex-Verbindungsoberfläche. Zusätzliche Desktop-Provider/-Connection-Methoden bleiben Zukunft, solange sie nicht implementiert und qualifiziert wurden.
 
-First Run:
+## Was CLI First Run tut
 
-1. löst bevorzugte Interaktionssprache und unterstütztes CLI-Locale auf;
-2. zeigt/wählt ein Autonomy Profile, ohne es dauerhaft zu speichern;
-3. prüft Projekt und aktuellen Project-Brain-Zustand read-only;
-4. prüft Protected-Bootstrap-/Guardian-Maschinen-Readiness read-only;
-5. liest optional eine unterstützte externe Wissensquelle über die sichere Adapter-Grenze;
-6. erstellt die anfängliche Guided Project Understanding Review;
-7. zeigt konkrete Erkenntnisse und offene Review-Punkte;
-8. erklärt Evidence-/Project-Truth- und Capability-/Authority-Grenzen;
-9. listet ausschließlich nächste Schritte auf, die zum aktuellen Maschinen-/Projektzustand passen.
+CLI First Run kann:
 
-## Was First Run nicht tut
+1. die Interaktionssprache auflösen;
+2. ein Autonomy Profile anzeigen/auswählen, ohne daraus Authority zu machen;
+3. Projekt und aktuellen Project-Brain-State read-only prüfen;
+4. tiefergehende Protected-Machine-/Guardian-Readiness read-only prüfen;
+5. optional unterstütztes External Knowledge über die sichere Adaptergrenze lesen;
+6. Guided-Project-Understanding-Review-Information zusammensetzen;
+7. Findings/offene Review-Punkte melden;
+8. Evidence-/Project-Truth- und Capability-/Authority-Grenzen erklären;
+9. für den beobachteten Zustand gültige nächste Schritte anzeigen.
 
-First Run führt **nicht** aus:
+## Was CLI First Run nicht tut
 
-- Stage-A-Provisionierung;
-- Guardian Bootstrap;
-- Erzeugung von Guardian-/Lifecycle-Authority;
-- dauerhaftes Speichern des Autonomy Profile;
-- Erstellen oder Umschreiben des Project Brain;
-- automatisches `init --authorize` oder `init --apply`;
-- Umwandlung von Discovery oder External Evidence in Project Truth;
-- Erzeugen von Adoption-Kandidaten aus rohem externem Text;
-- Konfiguration von Claude Code oder Codex;
-- Vergabe von Runtime oder Release Authority;
-- Vertrauen in einen geschützt wirkenden Pfad allein deshalb, weil er existiert.
+CLI First Run:
 
-Die menschlich lesbare Ausgabe endet mit null Änderungen (`Vorgenommene Änderungen: 0` auf Deutsch; entsprechende englische Ausgabe bei English).
+- initialisiert/überschreibt Project Brain nicht automatisch;
+- persistiert ein Autonomy Profile nicht still;
+- macht Discovery-/External-Evidence nicht automatisch zu Project Truth;
+- konfiguriert Claude Code oder Codex nicht automatisch;
+- erzeugt keine Mutation-/Runtime-/Lifecycle-/Release-Authority;
+- repariert unsicheren Protected-State nicht durch Raten;
+- macht den aktuellen Desktop-Project-Truth-Renderer nicht persistent;
+- veröffentlicht oder installiert kein Release.
 
-Maschinenlesbare Nutzung ist mit `--json` möglich. Im JSON-Modus bleibt `--language` erforderlich, damit automatisierte Nutzung nicht an einem interaktiven Prompt hängen bleibt. Der Report bewahrt stabile Machine-Identifier und führt den Interaction-Locale-State getrennt.
+Der menschliche Pfad bleibt Zero-Change-Onboarding/-Inspektion. Maschinenlesbare Nutzung ist mit `--json` unter den aktuellen deterministischen Eingabeanforderungen des Commands möglich.
 
-## Lifecycle-Next-Actions bleiben zustandsabhängig
+## Lifecycle-Schritte bleiben zustandsabhängig
 
-Solange Guardian nicht bereit ist, zeigt First Run Maschinenvorbereitung/Diagnose statt Projekt-Lifecycle-Autorisierung.
-
-Ist Guardian bereit und eine Project-Brain-Initialisierung nötig, bleibt die sichere Sequenz explizit:
+Wenn tiefergehende Projektinitialisierung passend ist und Protected-Voraussetzungen bereit sind, trennt der aktuelle Lifecycle weiterhin:
 
 ```bash
 livariant init
@@ -155,14 +136,15 @@ livariant init --authorize
 livariant init --apply
 ```
 
-Plan, Autorisierung und Anwendung bleiben getrennte Vorgänge. First Run führt keinen davon selbst aus.
+First Run selbst führt keine dieser Mutationen aus.
 
-Nach Entstehung einer stabilen Projektidentität kann First Run separat das Persistieren des Autonomy Profile anzeigen, zum Beispiel:
+Für den normalen aktuellen Desktop-Pfad:
 
-```bash
-livariant autonomy set --profile ask-important
-```
+- [Installation](installation.md)
+- [Fünf-Minuten-Schnellstart](quickstart.md)
+- [Bestehende Projekte](existing-projects.md)
 
-Das verändert ausschließlich maschinenlokalen Präferenz-State und vergibt keine Mutation-, Runtime-, Guardian- oder Release-Authority.
+Für tiefergehende Trust-/Lifecycle-Details:
 
-First Run ist damit Komposition und zustandsbewusste Führung, aber keine Abkürzung um Livariants Sicherheitsmodell.
+- [Architektur & Sicherheit](architecture-and-safety.md)
+- [Updates, Migrationen & Recovery](lifecycle-guide.md)
