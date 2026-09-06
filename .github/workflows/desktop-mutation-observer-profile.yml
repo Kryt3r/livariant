@@ -47,15 +47,15 @@ jobs:
             }
             if (-not $ready) { throw "Desktop renderer preview did not become ready on port 4173." }
 
-            $edgeCandidates = @(
+            $edge = @(
               (Join-Path ${env:ProgramFiles(x86)} "Microsoft\Edge\Application\msedge.exe"),
               (Join-Path $env:ProgramFiles "Microsoft\Edge\Application\msedge.exe")
-            ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) }
-            if ($edgeCandidates.Count -lt 1) { throw "Microsoft Edge executable not found on Windows runner." }
+            ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
+            if (-not $edge) { throw "Microsoft Edge executable not found on Windows runner." }
 
             $edgeProfile = Join-Path $env:RUNNER_TEMP "LivariantObserverChromiumProfile"
             Remove-Item -LiteralPath $edgeProfile -Recurse -Force -ErrorAction SilentlyContinue
-            $browser = Start-Process -FilePath $edgeCandidates[0] -ArgumentList @(
+            $browser = Start-Process -FilePath $edge -ArgumentList @(
               "--headless=new",
               "--disable-gpu",
               "--no-first-run",
