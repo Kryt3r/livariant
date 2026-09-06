@@ -1,88 +1,128 @@
 # Public-Preview-Support & Stabilität
 
-Livariant `0.1.0-rc.3` ist der aktuelle Foundation-Preview-Kandidat. Preview bedeutet, dass unterstütztes Verhalten durch Evidenz abgesichert ist. Es bedeutet noch keinen endgültigen 1.0-Kompatibilitäts-Freeze.
+<p align="center">
+  <a href="../preview-support-and-stability.md">English</a> · <strong>Deutsch</strong>
+</p>
 
-Das bestehende unveränderliche GitHub Release `v0.1.0-rc.2` ist historische Pre-Public-Release-Evidenz und nicht der aktuelle Kandidat.
+Das aktuell veröffentlichte grafische Preview ist **Livariant Desktop `0.1.0-rc.28` für Windows x64**. Preview bedeutet, dass aktuelles unterstütztes Verhalten durch Engineering-/Release-Evidenz gestützt ist. Livariant befindet sich trotzdem noch in einer frühen Entwicklungsphase und besitzt noch keinen finalen Stable-/1.0-Kompatibilitätsvertrag.
 
-## Worauf du dich bei unterstützten Pfaden verlassen können sollst
+Das historische CLI Public Preview `v0.1.0-rc.4` bleibt eine getrennte unveränderliche ältere Release-Oberfläche.
 
-Für unterstützte Preview-Abläufe gelten weiterhin diese Eigenschaften:
+## Was unterstützte Preview-Pfade bewahren sollen
 
-- projekt-eigener Zustand wird nicht stillschweigend überschrieben;
-- projektverändernde Aktionen brauchen explizite Autorität;
-- Release-Artefakte und installierte Runtime werden auf Integrität geprüft;
-- Schema-Migrationen verwenden deklarierte Kompatibilitäts- und Checkpoint-Regeln;
-- unterbrochener oder mehrdeutiger Lifecycle-Zustand führt zu Diagnose und Recovery statt zu geratenen Reparaturen;
-- unterstützter Provider-Resume-Handoff rekonstruiert Project-Brain-Kontext, ohne verstecktes Provider-Memory zu benötigen.
+Auch vor Stable soll Livariant seine Safety-/Trust-Eigenschaften bewahren:
 
-Preview bedeutet nicht, dass schwere Sicherheits- oder Datenprobleme akzeptabel wären. Ein bekannter Datenverlustpfad, Authority-Bypass, Migrationsintegritätsfehler oder Release-Trust-Bypass auf einem unterstützten Ablauf ist ein Release-Blocker und keine normale Preview-Einschränkung.
+- projekt-eigener Zustand wird nicht still durch Provider-Ausgabe oder UI-State neu definiert;
+- folgenreiche Mutation benötigt den unterstützten Authority-Pfad;
+- Connection/Capability wird nicht zu Authority;
+- mehrdeutiger, veralteter, substituierter oder fehlerhafter folgenreicher Trust-State schlägt geschlossen fehl;
+- Update-Verfügbarkeit ist keine Installationsautorisierung;
+- Release-/Update-Artefakte verwenden explizite Identity-/Integrity-Prüfungen;
+- Migration/Recovery verwendet, wo relevant, explizite Compatibility-, Checkpoint-, Journal- und Operation-Domain-Grenzen;
+- Verification Evidence wird nicht still zu akzeptierter Completion hochgestuft;
+- historische Release-Evidenz wird nicht umgeschrieben, damit sie zu späterem Produktverhalten passt.
 
-## Was sich vor 1.0 noch ändern kann
+Preview bedeutet **nicht**, dass schwere Safety-Probleme akzeptabel wären. Ein bestätigter Datenverlustpfad, Authority-Bypass, Release-/Update-Trust-Bypass, Project-Truth-Korruptionspfad oder vergleichbarer Security-Fehler auf einem unterstützten Workflow ist ein Blocker-/Remediation-Thema und keine normale Preview-Einschränkung.
 
-Vor einem stabilen 1.0-Vertrag kann Livariant noch folgende Dinge ändern:
+## Was sich vor Stable / 1.0 noch ändern kann
 
+Preview-Releases können weiterhin ändern:
+
+- Desktop-UI-Struktur und Interaktionsdetails;
+- unterstützte Desktop-Plattformen;
+- Provider-/Connection-Methoden;
 - CLI-Details und Flags;
-- Felder des Release-Manifests;
-- Adapter-Fähigkeiten;
-- das Project-Brain-Schema über explizit unterstützte Migrationen;
-- interne Framework-Struktur;
-- Preview-Kompatibilitätsbereiche;
-- Installations- und Distributionsmechanik.
+- Release-/Update-Metadatenverträge;
+- Project-Brain-Schema über explizite unterstützte Migrationen;
+- Adapter-/Connector-Fähigkeiten;
+- Installations- und Distributionsmechanik;
+- Performance-Eigenschaften und Budgets;
+- Preview-Kompatibilitätsbereiche.
 
-Auch Breaking Changes müssen die Projektbewahrung respektieren. "Preview" ist keine Erlaubnis, alten Project-Brain-Zustand stillschweigend neu zu interpretieren oder eine notwendige Migration zu überspringen.
+Änderungen müssen Preservation- und Authority-Grenzen trotzdem respektieren. „Preview“ ist keine Erlaubnis, alten Project-Brain-Zustand still neu zu interpretieren, eine erforderliche Migration zu umgehen oder Safety nur für Kompatibilität zu schwächen.
 
-Nutzerrelevante Änderungen sollten in Release Notes zusammen mit Migrationshinweisen und erforderlichen Aktionen erklärt werden.
+Nutzerrelevante Änderungen sollen in Release Notes zusammen mit erforderlichen Aktionen oder bekannten Einschränkungen beschrieben werden.
+
+## Aktueller Desktop-Supportumfang
+
+Aktuell veröffentlichtes Desktop Preview:
+
+- Windows x64;
+- Current-User-NSIS-Installation;
+- gebündelte qualifizierte Runtime;
+- Project Truth / First Steps Foundation Workspace;
+- echte Codex-Verbindungsoberfläche;
+- lokale Diagnostics-Evidence-Darstellung;
+- signierter Desktop-Update-Discovery-/Install-Flow;
+- Deutsch/English-Anwendungs-UI.
+
+Der Project-Truth-Renderer ist noch kein fertiger persistenter Project-Brain-Editor; der normale Existing-Project-Adoption-Pfad wird ebenfalls noch fertiggestellt.
+
+Ein künftiges Linux-/macOS-Desktop-Release benötigt getrennte Packaging-/Installations-Evidenz. Breitere Core-/CLI-Plattformunterstützung impliziert kein Desktop-Release.
 
 ## Aktueller Provider-Umfang
 
-Die aktuelle Supportaussage für Claude Code und Codex ist auf Project-Brain-Resume-Handoff begrenzt.
+Livariant Core stellt provider-native MCP-Setup-Hinweise für Claude Code und Codex bereit. Der aktuelle Desktop besitzt den tiefer implementierten echten lokalen Verbindungspfad für Codex.
 
-Livariant verspricht nicht, jede Provider-Funktion, Authentifizierungsmethode, Tool-Ausführung, Modelloption oder native Instruktionsdatei zu verwalten.
+Livariant verspricht nicht, jedes Provider-Feature, jede Authentifizierungsmethode, jede Model-Selection-Option, jeden nativen Memory-/Instruction-Mechanismus oder zukünftiges MCP-Verhalten zu verwalten.
 
-## Aktueller Migrationsumfang
+Zusätzliche Provider/Connection-Methoden sind zukünftige Fähigkeiten, solange sie nicht implementiert und qualifiziert wurden.
 
-Nur ausdrücklich deklarierte Migrationspfade werden unterstützt.
+## Aktueller Migration-/Recovery-Umfang
 
-Die aktuelle ausführbare Baseline belegt Project-Brain-Schema `1 -> 2`. Die Existenz einer Migrationsengine bedeutet nicht, dass Livariant beliebige Schema-Versionen sicher ineinander überführen kann.
+Nur ausdrücklich implementierte und deklarierte Migration-/Recovery-Pfade sind unterstützt.
+
+Generische Lifecycle-Mechanik bedeutet nicht, dass beliebige Schema-/Runtime-Transitions sicher sind. Folgenreiche Lifecycle-Operationen bleiben plan-first und, wo erforderlich, Authority-gebunden.
+
+Ist Installations-/Projektzustand mehrdeutig, ist Diagnose/Recovery statt geratener Mutation das sichere Verhalten.
+
+## Windows-Signing-/Reputation-Einschränkung
+
+Der aktuelle Desktop-Preview-Installer besitzt exakte Release-Identität sowie Updater-Signing-/Integrity-Evidenz, aber noch **nicht** die finale produktive Authenticode-Publisher-Signierung/-Reputation.
+
+Windows kann deshalb abhängig von Richtlinie/Reputation Publisher-/SmartScreen-Hinweise anzeigen. Diese Einschränkung muss sichtbar bleiben, bis produktives Signing/Reputation gelöst ist; sie darf nicht hinter einem generischen „Preview“-Label versteckt werden.
 
 ## Support erhalten
 
-Die Public Preview wird durch Maintainer und Community unterstützt. Es gibt keinen bezahlten SLA, sofern nichts anderes separat vereinbart wurde.
+Public-Preview-Support erfolgt durch Maintainer/Community. Es gibt keinen bezahlten Response-Time-SLA, sofern nicht separat vereinbart.
 
-Unter [SUPPORT.md](../../SUPPORT.md) findest du den richtigen Weg für Nutzungsfragen, Bugs, Dokumentationsprobleme, Ideen und Sicherheitsmeldungen.
+Unter [SUPPORT.md](../../SUPPORT.md) findest du den richtigen Weg für Nutzungsfragen, Bugs, Dokumentationsprobleme, Feature-Ideen oder Security-Reporting.
 
-Ein guter Bugreport enthält normalerweise:
+Ein hilfreicher Desktop-Bugreport enthält normalerweise:
 
-- Livariant-Version und Channel;
-- Betriebssystem;
-- Node.js-Version;
-- betroffenen Befehl oder Workflow;
-- beobachteten Lifecycle-Zustand;
+- Livariant-Desktop-Version und Release-/Tag-Identität;
+- Windows-Version/-Architektur;
+- betroffenen Bereich (Project Truth, Connections, Diagnostics, Updates, Settings, Installer, Startup);
+- beobachtetes und erwartetes Verhalten;
 - minimale Reproduktionsschritte;
-- die Information, ob projekt-eigene Daten betroffen waren.
+- ob projekt-eigene Daten oder Connection-/Update-State betroffen waren.
 
-Vermutete Sicherheitslücken gehören nicht in ein öffentliches Issue. Folge [SECURITY.md](../../SECURITY.md).
+Für Core-/CLI-Probleme zusätzlich relevante Core-/CLI-Version, Node.js-/Runtime-Informationen, Command/Workflow und gegebenenfalls Lifecycle-State angeben.
 
-## Was jedes Preview-Release mitteilen sollte
+Vermutete Vulnerability-Details nicht in einem öffentlichen Issue veröffentlichen. Siehe [SECURITY.md](../../SECURITY.md).
 
-Ein öffentliches Preview-Release sollte mindestens nennen:
+## Was jedes Preview-Release kommunizieren soll
 
-- Livariant-Version und Channel;
-- Project-Brain-Schema-Kompatibilität;
-- ob eine Migration erforderlich ist;
-- unterstützten Source-Version-Bereich;
+Ein öffentliches Preview-Release soll mindestens nennen:
+
+- genaue Produktoberfläche/Version und Plattform;
+- exakte Source-/Release-Identität;
+- Installationsartefakt und relevante Verifikationsdaten;
 - bekannte Probleme und Einschränkungen;
-- erforderliche Nutzeraktionen;
-- Recovery-Hinweise für schema-ändernde Releases.
+- wesentliche nutzerrelevante Änderungen;
+- erforderliche Aktionen, wo relevant;
+- Compatibility-/Migration-/Recovery-Hinweise, wenn relevant.
 
-## Veraltete oder zurückgezogene Funktionen
+Desktop und Core/CLI sind unabhängig versionierte Produktoberflächen; Release Notes dürfen nicht suggerieren, gleiche oder unterschiedliche RC-Nummern würden ihre Trust-Rollen verändern.
 
-Preview-Funktionen können geändert oder entfernt werden, wenn sie den Sicherheits- oder Wartungsanspruch von Livariant nicht erfüllen.
+## Deprecation
 
-Wird ein unterstützter Pfad zurückgezogen, sollte das klar kommuniziert werden, statt einen kaputten Ablauf weiterhin nominell als unterstützt zu führen.
+Preview-Funktionen können geändert oder entfernt werden, wenn sie Livariants Safety-, Wartbarkeits- oder Produktqualitätsniveau nicht erfüllen können.
 
-## 1.0 ist eine eigene Stabilitätsentscheidung
+Wird ein unterstützter Pfad zurückgezogen, soll das ausdrücklich dokumentiert werden, statt einen defekten Pfad nominell unterstützt zu lassen.
 
-Eine erfolgreiche Public Preview definiert nicht automatisch das spätere 1.0-Kompatibilitätsversprechen.
+## Stable / 1.0 ist eine eigene Entscheidung
 
-Vor 1.0 muss ein eigener Stable-Release-Readiness-Review die langfristige Kompatibilitäts- und Support-Policy festlegen.
+Ein erfolgreiches Preview definiert nicht automatisch das spätere Stable-/1.0-Kompatibilitätsversprechen.
+
+Vor Stable/1.0 muss eine eigene Readiness-Entscheidung die langfristigen Plattform-, Compatibility-, Support-, Migration-, Distribution-Signing- und Release-Maintenance-Zusagen definieren.
