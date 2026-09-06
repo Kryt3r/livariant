@@ -73,9 +73,18 @@ Die Desktop-App wird als normale Oberfläche für Livariant gebaut: Projekt vers
 
 Aktuelle Desktop-Bereiche: **Project Truth / First Steps**, **Connections**, **Diagnostics**, **Updates** und **Settings**.
 
-### Screenshots
+<details>
+<summary><strong>Aktuelle Desktop-Screenshots anzeigen</strong></summary>
 
-Aktuelle Desktop-Screenshots werden hier ergänzt, sobald der verifizierte visuelle Satz vorliegt.
+<br/>
+
+Die Galerie zeigt die aktuellen Bereiche **Projektwissen**, **Verbindungen**, **Diagnose**, **Updates** und **Einstellungen**.
+
+<p align="center">
+  <img src="docs/assets/screenshots/desktop/de/gallery.svg" alt="Aktuelle Livariant Desktop-Screenshots auf Deutsch" width="900" />
+</p>
+
+</details>
 
 ---
 
