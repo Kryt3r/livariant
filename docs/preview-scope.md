@@ -1,209 +1,169 @@
 # Public Preview Scope & Limitations
 
-This page states the scope of the **currently published Livariant Public Preview**. It is a release-truth surface, not a historical development log or a promise that roadmap work is already implemented.
+<p align="center">
+  <strong>English</strong> · <a href="de/preview-scope.md">Deutsch</a>
+</p>
 
-## Current published release
+This page states the scope of the **currently published Livariant Desktop Preview** and separates it from historical CLI releases and from roadmap work.
 
-The current public prerelease is:
-
-```text
-v0.1.0-rc.4
-```
-
-RC4 was qualified from exact source:
+## Current published Desktop Preview
 
 ```text
-4f547751d9d53e7325e6ea1f2401f1dea45779dc
+Version: 0.1.0-rc.28
+Platform: Windows x64
+Exact source: ec2916979c1911a56203878d7102570ab71cd13c
+Tag: desktop-preview-0.1.0-rc.28-ec2916979c19
+Installer: Livariant_0.1.0-rc.28_x64-setup.exe
+Installer SHA-256: 2897e2bf7940b8d222b382bd6c3548861cd8dd5bbfbcca097783f08f6a21579d
 ```
 
-Qualified installable CLI artifact:
+The release is an immutable GitHub prerelease and is **not Stable**.
+
+The repository may contain changes newer than this published source. Repository presence, a merged PR, or a matching version string does not publish a new release.
+
+## Early-development boundary
+
+Livariant Desktop is still in an early development phase. Current Preview behavior is real product behavior, but individual workflows, supported providers, UI surfaces, performance characteristics, and compatibility may still change before Stable.
+
+The Windows Preview installer also does not yet have the final production Authenticode publisher-signing/reputation setup. Depending on Windows policy and reputation, users may see publisher or SmartScreen warnings. This is a distribution-signing residual, not evidence that Guardian/runtime Authority has failed or succeeded.
+
+## What the current Desktop Preview includes
+
+### Desktop shell and Project Truth / First Steps
+
+The current Desktop application is the normal-user graphical surface and includes the accepted Livariant shell plus:
+
+- Project Truth / First Steps workspace;
+- Connections;
+- Diagnostics;
+- Updates;
+- Settings with Deutsch/English application language;
+- Desktop/Core/runtime identity and health presentation.
+
+The Project Truth renderer currently includes curated/session-state foundation behavior for purpose, direction, rules, knowledge gaps, proposals, source/review presentation, and explicit review actions. It must **not** be described as a finished persistent Project Brain editor or as an alternate canonical truth store.
+
+### Connections
+
+The Desktop has a live local **Codex** connection path using the bounded connector-host/App Server architecture. Current development includes persisted connection intent and automatic restore behavior that is tied to the previously accepted executable identity.
+
+Permanent boundaries remain:
 
 ```text
-livariant-0.1.0-rc.4.tgz
+Provider != Connection Method != Capability != Role != Authority
+Connection != Authority
 ```
 
-SHA-256:
+The broader connector model is intentionally extensible, but additional providers or connection methods are not current Desktop capability merely because the architecture can represent them.
+
+### Diagnostics & efficiency evidence
+
+The Desktop includes Diagnostics based on retained local evidence. Supported presentation distinguishes:
 
 ```text
-6a8a287e55344e22c97c543cb4a9e071d27d9e18c5ff585cab8235aaa37dce8e
+Observed != Avoided != Estimated
 ```
 
-`v0.1.0-rc.3` remains immutable historical Foundation Preview evidence. RC4 does not rewrite RC3 history; it is the later separately qualified Public Preview candidate.
+Current ranges include bounded presets such as `1d`, `7d`, `30d`, `90d`, and all retained history. Missing evidence must remain missing rather than being invented. Diagnostics does not capture raw project prompts/content by default.
 
-## Important RC4 Fresh Install limitation
+Performance measurements gathered during development are engineering evidence; they are not universal end-user resource or savings guarantees.
 
-Real Windows dogfooding found an important distribution gap in RC4:
+### Desktop updates
 
-- the ordinary RC4 CLI `.tgz` installs and runs;
-- Guardian enforcement correctly requires an already protected bootstrap source;
-- the published RC4 installation/distribution path does **not** provision that protected Stage-A source;
-- therefore RC4 does not provide a complete supported clean-machine -> protected Guardian -> first-project initialization path.
+The Desktop includes a real signed updater path with:
 
-This is not a reason to weaken Guardian checks. Do not copy arbitrary/global npm package bytes into `C:\Program Files\Livariant` or `/opt/livariant` as a workaround.
+- a fixed HTTPS update feed and updater public key;
+- signed release/update metadata;
+- localized EN/DE release notes;
+- real download state;
+- explicit user authorization before installation;
+- install/restart presentation that does not fabricate progress.
 
-WP-044 is remediating this for a later separately qualified release by adding release-bound Stage-A/Stage-B provisioning, machine-readiness guidance, EN/DE First-Run localization and qualified release-asset publication/provenance. Those changes are **not retroactively part of RC4**.
+Update discovery/availability is not installation Authority. A Preview release is not Stable merely because the updater can discover it.
 
-See [Installation & First Project](installation.md).
+### Core / project-owned continuity
 
-## What RC4 includes
+The current codebase also contains the project-owned reliability foundations that Desktop and agent workflows build on, including:
 
-RC4 combines the hardened project-owned continuity/lifecycle foundation with bounded Active Project Intelligence and an agent-native MCP path.
-
-### Project-owned continuity and lifecycle
-
-The Public Preview includes the Project Brain and supported lifecycle surfaces for:
-
-- initialization and status/diagnostic inspection;
-- confirmed goals, project knowledge, and accepted decisions;
-- plan-first supported mutation flows;
-- decision supersession with preserved history;
-- Project Brain Resume handoff;
-- stale-context protection;
-- update and supported migration/recovery flows;
-- Runtime/release integrity and protected Authority boundaries;
-- stable logical Project Brain identity;
-- filesystem/topology safety for the implemented lifecycle operations;
-- an installable ordinary CLI package.
-
-The last item does **not** imply that RC4's release distribution completed the separate protected Stage-A Guardian provisioning prerequisite described above.
-
-### Active Project Intelligence foundations
-
-RC4 includes bounded read-only/review-oriented foundations such as:
-
+- Project Brain durable context/goals/decisions/knowledge/metadata;
+- stable logical/physical project identity boundaries;
 - Project Context Snapshot;
-- Semantic Proposal and Conflict/Drift Assessment;
-- Provider Context and Provider Return evidence intake;
+- semantic proposal and conflict/drift assessment;
+- provider context/return evidence intake;
+- provider-neutral semantic maintenance;
 - Guided Project Understanding Review and controlled adoption;
 - External Knowledge evidence foundations;
 - Autonomy Profiles;
 - Evidence-backed Findings;
-- Requirement -> Implementation -> Verification Trace.
+- Requirement -> Implementation -> Verification Trace;
+- lifecycle/update/migration/recovery safeguards;
+- Guardian-protected consequential Authority domains;
+- local stdio MCP bridge.
 
-These capabilities preserve the distinction between evidence, inference, Project Truth, verification, authorization, and mutation.
+Current behavior for any one capability is always defined by canonical product code/tests, not by this overview alone.
 
-### First Run
+## Historical CLI Public Preview
 
-RC4 includes the guided entry point:
+`v0.1.0-rc.4` remains an immutable historical **CLI Public Preview**. It is a separate older release surface and must not be presented as though it contained later Desktop releases, later remediation, or current Desktop UI behavior.
 
-```bash
-livariant first-run
-```
+Its historical installation limitations and exact RC4 behavior remain relevant only when someone intentionally uses or audits that artifact.
 
-RC4 First Run composes existing read-only setup/understanding surfaces and records an interaction-language choice. Real dogfooding showed that RC4's human-readable First-Run localization is incomplete and that its next-action guidance does not sufficiently surface missing Guardian machine prerequisites. WP-044 addresses both findings for a future qualified release.
+## Provider support
 
-RC4 First Run still ends with `Changes made: 0` and does not silently initialize the project, adopt evidence, configure a provider, persist Authority, or turn agent output into Project Truth.
-
-See [First-Run Composition](first-run.md).
-
-### Local MCP agent bridge
-
-RC4 includes the local stdio MCP bridge:
-
-```bash
-livariant mcp
-```
-
-and explicit provider setup guidance:
-
-```bash
-livariant mcp setup --provider claude-code
-livariant mcp setup --provider codex
-```
-
-Current bounded MCP tools include:
+Livariant Core exposes MCP setup guidance for **Claude Code** and **Codex**, and the current bounded MCP bridge includes tools such as:
 
 - `livariant_provider_context`;
 - `livariant_provider_return`;
 - `livariant_verification_trace`.
 
-Provider configuration remains explicit. Livariant does not silently rewrite provider configuration, and MCP transport does not grant independent trust or mutation Authority.
+The current Desktop live connection path is deeper for **Codex**. Do not infer full Desktop support for every provider from Core's provider-neutral contracts.
 
-See [Local MCP Agent Bridge](mcp-agent-bridge.md), [Provider Handoff](provider-handoff.md), and [Verification Trace](verification-trace.md).
+Provider output is evidence/candidate material. It does not become Project Truth or mutation Authority merely because it arrived through MCP or a Desktop connection.
 
-### Verification Trace
+## Platform scope
 
-RC4 can assess explicit requirements or acceptance criteria against supplied implementation claims and verification evidence using:
+Current published Desktop Preview:
 
-```text
-SUPPORTED
-CONTRADICTED
-UNPROVEN
-```
+- Windows x64.
 
-These states describe evidence support. They do **not** automatically mean accepted completion or Project Truth.
+Core/CLI and protected Guardian paths have broader platform-specific implementation history, but that does not make the current Desktop Preview a Linux/macOS Desktop release.
 
-Permanent boundaries include:
+A future Desktop platform release requires its own qualified distribution/installation evidence.
 
-```text
-SUPPORTED != DONE
-Verification evidence != accepted completion
-Evidence != Project Truth
-Capability != Authority
-MCP transport != independent trust
-```
+## What the current Preview does not claim
 
-## Provider support
+Livariant does **not** currently claim:
 
-The current Public Preview provides explicit integration/setup paths for **Claude Code** and **Codex**.
-
-Provider selection or provider output does not itself grant Livariant Authority. Provider/client material entering Livariant remains evidence or candidate material unless it passes the appropriate existing Project Truth/Authority process.
-
-Livariant does not claim to manage every provider feature, authentication mechanism, model-selection option, native memory surface, or future MCP behavior.
-
-## Platform and packaging scope
-
-RC4 release qualification exercised release-relevant CI across **Ubuntu and Windows**. The package declares Node.js `>=20`.
-
-That CI evidence does not prove a complete clean-machine protected Guardian installation path. The real Windows Fresh-Install path is now an explicit WP-044 acceptance requirement.
-
-Guardian v1 protected provisioning is designed for Windows and Linux; macOS does not currently have a protected Guardian v1 path.
-
-See [Installation & First Project](installation.md).
-
-## What RC4 does not claim
-
-The Public Preview does **not** claim:
-
-- a complete RC4 fresh-machine protected Guardian provisioning path;
-- complete RC4 First-Run localization for every selected language;
+- Stable-release compatibility guarantees;
+- final production Windows publisher signing/reputation;
+- a finished persistent Project Truth editor in Desktop;
+- a complete normal existing-project adoption UI/path;
+- every provider, authentication method, model-selection option, or provider-native feature;
 - universal automatic requirement discovery;
-- automatic manufacture of trustworthy verification evidence;
+- automatic manufacture of independently trustworthy verification evidence;
 - universal correctness verification for arbitrary code;
-- provider-driven, wildcard, or standing semantic mutation authorization;
-- provider output becoming Project Truth merely because it arrived through MCP;
-- remote/cloud MCP hosting as a Livariant service;
-- broad repository graph/index/search ownership;
-- automatic drift repair;
+- automatic repair of every drift/conflict;
 - unrestricted autonomous repository mutation;
-- broad multi-agent orchestration or concurrent-agent containment;
+- broad multi-agent orchestration/concurrent-agent containment as a finished user feature;
 - a general third-party plugin/marketplace execution model;
-- exact provider-billed token savings.
+- exact provider-billed token/cost savings from proxy measurements;
+- Stable Livariant-on-Livariant self-hosting.
 
-RC4 includes deterministic context/token proxy evidence, but those measurements are not exact Claude/Codex billing-token counts and do not establish a universal token-savings percentage.
+## Planned direction — not current capability
 
-## Stable-release work remains separate
+Current near-term direction is:
 
-RC4 is a **Public Preview prerelease**, not Stable.
+1. finish Desktop security/performance hardening;
+2. complete the normal existing-project adoption path;
+3. deepen persistent First Steps / Project Truth integration under Evidence/Review/Authority boundaries;
+4. extend provider/connection support deliberately;
+5. begin Livariant-on-Livariant self-hosting only after normal adoption works, initially Read / Observe / Propose.
 
-Before a first Stable release, Livariant still needs representative real-agent workflow qualification, including where feasible:
+This is roadmap direction, not a release promise.
 
-- correct MCP tool selection;
-- missed or unnecessary tool calls;
-- interpretation of `SUPPORTED / CONTRADICTED / UNPROVEN`;
-- Claude Code / Codex differences;
-- longer-session and context-loss behavior;
-- failure modes;
-- provider-observed token/context behavior where practical.
-
-WP-044 separately requires provenance-attested release inputs and a real Windows Fresh-Install/First-Project qualification before its own GO. That requirement does not automatically decide every future Stable provenance/audit policy.
-
-## Historical RC3
-
-`v0.1.0-rc.3` remains available as immutable historical Foundation Preview evidence. Statements about what RC3 contained should remain historical and must not be interpreted as the scope of the current RC4 Public Preview.
-
-For the current user path, start with:
+## Where to start
 
 - [Installation & First Project](installation.md)
 - [Five-Minute Quickstart](quickstart.md)
 - [Architecture & Safety](architecture-and-safety.md)
+- [Privacy & Network Behavior](privacy-and-network.md)
+- [Updates, Migrations & Recovery](lifecycle-guide.md)
