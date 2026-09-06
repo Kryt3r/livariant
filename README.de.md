@@ -261,7 +261,7 @@ Livariant basiert nicht auf der Behauptung, dass niemand sonst diese Probleme si
 
 Beispiele sind [Cursor Rules](https://docs.cursor.com/context/rules), [GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory), [projectmem](https://projectmem.dev/), [Sonar AI Code Assurance](https://www.sonarsource.com/solutions/ai-code-assurance/) und AI-Review-Produkte wie [CodeRabbit](https://www.coderabbit.ai/).
 
-Livarian ts Wette ist, dass die nächste hilfreiche Schicht nicht noch ein isoliertes Memory-Feature oder noch ein Review-Bot ist, sondern ein zusammenhängender Reliability-Layer, der Kontinuität, Evidenz, Authority, Verification, Recovery und kontrollierte Autonomie rund um das Projekt selbst verbindet.
+Livariants Wette ist, dass die nächste hilfreiche Schicht nicht noch ein isoliertes Memory-Feature oder noch ein Review-Bot ist, sondern ein zusammenhängender Reliability-Layer, der Kontinuität, Evidenz, Authority, Verification, Recovery und kontrollierte Autonomie rund um das Projekt selbst verbindet.
 
 ---
 
