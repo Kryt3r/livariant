@@ -4,112 +4,103 @@
   <a href="../quickstart.md">English</a> · <strong>Deutsch</strong>
 </p>
 
-Die kürzeste Erklärung von Livariant lautet:
+Der schnellste aktuelle Einstieg in Livariant ist das **Windows-x64-Desktop-Preview**. Die CLI bleibt für tiefergehende und providerunabhängige Workflows erhalten, ist für normale Desktop-Nutzer aber nicht mehr der richtige erste Einstieg.
 
-> Du arbeitest mit deinem Coding-Agenten. Livariant stellt lokal eine Reliability-/Governance-Schicht bereit, während dauerhafte Project Truth und folgenschwere Authority explizit bleiben.
+> [!WARNING]
+> **Frühe Entwicklungsphase / Preview**
+>
+> Livariant Desktop ist weiterhin ein Preview. Aktuelle Abläufe können sich bis Stable noch ändern. Dem aktuellen Windows-Installer fehlt außerdem noch die finale produktive Authenticode-Publisher-Signierung bzw. Reputation; Windows kann deshalb Publisher- oder SmartScreen-Hinweise anzeigen.
 
-## Warnung zum aktuellen Public Preview
+## 1. Aktuelles Desktop Preview laden
 
-Das aktuell veröffentlichte Release ist **`v0.1.0-rc.4`**. Das normale CLI-Paket funktioniert, aber echtes Fresh-Install-Dogfooding hat gezeigt, dass RC4 die geschützte Stage-A-Guardian-Bootstrap-Quelle für einen vollständigen Fresh-Machine-/First-Project-Lifecycle **nicht** veröffentlicht/provisioniert.
-
-Kopiere deshalb keine RC4-Paketdateien manuell in geschützte Systempfade, um diese Lücke zu umgehen. Die vollständige Sequenz unten beschreibt die WP-044-Remediation und wird erst in einem späteren Release zum unterstützten öffentlichen Fresh-Install-Pfad, wenn dieses Release die Änderungen ausdrücklich enthält und qualifiziert.
-
-Die vollständigen Trust-/Provenance-Details stehen unter [Installation & erstes Projekt](installation.md).
-
-## 1. Qualifizierte Release-Artefakte prüfen
-
-Ein remediated qualifiziertes Release stellt explizite Assets bereit, darunter normales CLI-Paket, Protected-Bootstrap-Paket, plattformspezifischen Stage-A-Installer, Manifest und Prüfsummen.
-
-GitHubs automatisch erzeugte Downloads `Source code (zip)` und `Source code (tar.gz)` sind **keine** installierbaren Livariant-Pakete.
-
-Vor einer privilegierten Stage-A-Ausführung prüfst du die heruntergeladenen installierbaren Inputs über GitHub Artifact Attestations gegen:
+Aktuell veröffentlichtes Desktop Preview:
 
 ```text
-Repository: Kryt3r/livariant
-Signer Workflow: Kryt3r/livariant/.github/workflows/rc-bundle.yml
-Source Ref: refs/heads/main
-Source Digest: exakter qualifizierter Release-Source-SHA
+Version: 0.1.0-rc.28
+Plattform: Windows x64
+Exakter Quellstand: ec2916979c1911a56203878d7102570ab71cd13c
+Installer: Livariant_0.1.0-rc.28_x64-setup.exe
+SHA-256: 2897e2bf7940b8d222b382bd6c3548861cd8dd5bbfbcca097783f08f6a21579d
 ```
 
-Danach prüfst du `SHA256SUMS` und `PROTECTED-SHA256SUMS`.
+Verwende das unveränderliche [Desktop Preview rc.28 Release](https://github.com/Kryt3r/livariant/releases/tag/desktop-preview-0.1.0-rc.28-ec2916979c19).
 
-## 2. Normale CLI installieren
+Prüfe, dass du genau diese Release-Identität verwendest und nicht nur eine ähnlich benannte Datei aus einer anderen Quelle. Das Preview-Release enthält außerdem die Updater-Signatur und maschinenlesbare Update-Metadaten.
+
+## 2. Livariant installieren und öffnen
+
+Starte den verifizierten Windows-x64-Installer. Livariant wird als Current-User-Desktop-Anwendung mit gebündelter Runtime installiert.
+
+Nach dem Start kann die App ihren aktuellen Desktop-/Core-/Runtime-Identitäts- und Health-Zustand anzeigen. Ein funktionierender Renderer ist dabei keine Root of Trust; folgenreiche Security-/Authority-Entscheidungen bleiben hinter Host-/Core-/Protected-Grenzen.
+
+## 3. Die wichtigsten Desktop-Bereiche verstehen
+
+Die aktuelle App ist um wenige primäre Oberflächen organisiert:
+
+- **Project Truth / First Steps** — Projektzweck, Richtung, Regeln, Lücken, Vorschläge und Review. Das aktuelle Renderer-/Session-State-Verhalten ist eine Foundation und darf nicht als vollständig persistente Project-Brain-Mutation verstanden werden.
+- **Connections** — die aktuell implementierte lokale Codex-Verbindungsoberfläche prüfen/konfigurieren. Connection Intent kann persistiert und für Restore-Verhalten genutzt werden; eine Verbindung ist trotzdem keine Authority.
+- **Diagnostics** — lokale Diagnostics-/Efficiency-Evidenz über explizite Zeiträume prüfen. `Observed`, `Avoided` und `Estimated` sind bewusst getrennte Evidenzklassen.
+- **Updates** — den konfigurierten signierten Desktop-Update-Feed prüfen, lokalisierte Release Notes lesen, ein kompatibles Update laden und Installation/Neustart ausdrücklich autorisieren.
+- **Settings** — zwischen Deutsch/English wechseln und Connection-/System-Konfiguration prüfen.
+
+## 4. Einen unterstützten Coding-Agenten verbinden
+
+Die Desktop-App besitzt aktuell den tiefer implementierten Live-Verbindungspfad für **Codex**.
+
+Livariant Core bietet zusätzlich provider-native MCP-Setup-Hinweise für Claude Code und Codex:
 
 ```bash
-npm install --global --ignore-scripts ./livariant-<version>.tgz
-livariant version
+livariant mcp setup --provider claude-code
+livariant mcp setup --provider codex
 ```
 
-Damit wird ausschließlich User-Tooling installiert. Es entstehen weder Guardian Readiness noch Authority.
+Diese CLI-Setup-Befehle zeigen Anweisungen an und schreiben selbst keine Provider-Konfiguration.
 
-## 3. Geschützte Maschinenbasis herstellen
+Aktuelle begrenzte MCP-Tools sind unter anderem:
 
-Zuerst den Zustand prüfen:
+- `livariant_provider_context`;
+- `livariant_provider_return`;
+- `livariant_verification_trace`.
 
-```bash
-livariant guardian status
-```
+Provider-Ausgabe und MCP-Transport erzeugen keine Mutation Authority und werden nicht automatisch Project Truth, nur weil sie Livariant erreicht haben.
 
-Auf einem frischen Windows-/Linux-Rechner lautet der remediated Pfad:
+## 5. Die zentrale Reliability-Regel
+
+Ein nützliches Denkmodell ist:
 
 ```text
-verifizierte Release-Artefakte
--> normale CLI installieren
--> geschützte Stage-A-Installation aus exaktem Release-Material
--> guardian status
--> geschützter Stage-B-Guardian-Bootstrap
--> guardian status: ready
+Evidence
+  -> verstehen / bewerten / vorschlagen
+  -> reviewen / bei Bedarf autorisieren
+  -> ändern
+  -> verifizieren
 ```
 
-Stage A und Stage B benötigen bereits privilegierte lokale Terminals und starten UAC/`sudo`/`pkexec` nicht selbst. Sie erzeugen keine Mutation-, Runtime- oder Release-Authority.
+Wichtige Grenzen:
 
-Für macOS existiert aktuell kein geschützter Guardian-v1-Bootstrap-Pfad.
-
-## 4. Projekt öffnen und First Run ausführen
-
-Im Projekt-Hauptordner:
-
-```bash
-livariant first-run --language Deutsch
+```text
+Evidence != Truth
+Capability != Authority
+Proposal != Authorization
+SUPPORTED != DONE
+Verification Evidence != akzeptierte Completion
 ```
 
-oder:
+Verification Trace kann beispielsweise bereitgestellte Beziehungen aus Anforderung, Implementierung und Evidenz so klassifizieren:
 
-```bash
-livariant first-run --language English
+```text
+SUPPORTED
+CONTRADICTED
+UNPROVEN
 ```
 
-Deutsch und Englisch sind in der Remediation eingebaute Interaktions-Locals. Nutzerseitige First-Run-Prompts und Human-Readable-Ausgabe verwenden ab dem ersten lokalisierten Prompt die gewählte unterstützte Sprache.
+Diese Klassifikation beschreibt Evidenzunterstützung; sie akzeptiert nicht still die Fertigstellung.
 
-First Run ist read-only. Er meldet Projektzustand **und Maschinen-/Guardian-Readiness** und endet mit null Änderungen. Er initialisiert das Projekt nicht stillschweigend, persistiert kein Autonomy Profile, konfiguriert keinen Coding-Agenten und vergibt keine Authority.
+## 6. Bestehende Projekte und Project Brain
 
-Fehlt Guardian Readiness oder ist geschützter State unsicher, darf First Run nicht unmittelbar zu Lifecycle-Autorisierung/-Anwendung führen.
+Livariant arbeitet preservation-first. Ein Projekt benötigt kein spezielles Starter-Template.
 
-Mehr unter [First-Run-Komposition](first-run.md).
-
-## 5. Bewusst initialisieren, wenn der Rechner bereit ist
-
-Ist Guardian bereit und benötigt das Projekt ein Project Brain:
-
-```bash
-livariant init
-```
-
-Zuerst den Plan prüfen. Danach, sofern passend:
-
-```bash
-livariant init --authorize
-livariant init --apply
-```
-
-Anschließend:
-
-```bash
-livariant status
-livariant doctor
-```
-
-Das Project Brain ist projekt-eigener dauerhafter State:
+Das dauerhafte lokale Project-Brain-Modell ist:
 
 ```text
 .project-brain/
@@ -120,82 +111,27 @@ Das Project Brain ist projekt-eigener dauerhafter State:
   metadata.json
 ```
 
-Evidence, Inference, Project Truth, Autorisierung und Mutation bleiben getrennte Konzepte.
+Bestehende Projektdateien, Provider-Instruktionen, externe Notizen, Agenten-Ausgabe, Findings und rekonstruierter Kontext bleiben Evidenz/Kandidatenmaterial, bis ein unterstützter Review-/Adoption-Pfad etwas als Project Truth akzeptiert.
 
-## 6. Coding-Agent über MCP verbinden
+Der normale Existing-Project-Desktop-Adoption-Pfad wird noch fertiggestellt. Der aktuelle Project-Truth-Renderer-Workspace ist deshalb nicht als fertige persistente Adoption-UI zu verstehen.
 
-Provider-Konfiguration bleibt explizit:
+## 7. CLI / geschützte Lifecycle-Workflows
 
-```bash
-livariant mcp setup --provider claude-code
-```
+Die CLI bleibt die tiefergehende Kontrolloberfläche für providerunabhängige Inspektion, MCP-Setup, Lifecycle-Operationen, Guardian-/Protected-Authority-Flows, Status/Doctor und verwandte Advanced-Use-Cases.
 
-oder:
+Das historische veröffentlichte CLI Public Preview ist `v0.1.0-rc.4`. Es bleibt unveränderliche historische Release-Evidenz und enthält spätere Desktop-Arbeit **nicht** rückwirkend.
 
-```bash
-livariant mcp setup --provider codex
-```
+Die aktuelle Core-/CLI-Entwicklung im Repository ist neuer als RC4, aber Repository-Existenz ist keine Veröffentlichung. Für manuelle/erweiterte Installation und Protected-Guardian-Details siehe [Installation & erstes Projekt](installation.md).
 
-Der Befehl zeigt provider-spezifische Setup-Hinweise und führt selbst null Provider-Konfigurationsänderungen aus.
-
-Aktuelle begrenzte MCP-Tools sind:
-
-- `livariant_provider_context`;
-- `livariant_provider_return`;
-- `livariant_verification_trace`.
-
-Nach der normalen Provider-Registrierung kann der Alltag weiterhin natural-language/agent-native statt command-lastig bleiben.
-
-## 7. Der zentrale Reliability-Moment
-
-`livariant_verification_trace` bewertet explizite Anforderungen/Claims gegen bereitgestellte Verification Evidence und liefert:
-
-```text
-SUPPORTED
-CONTRADICTED
-UNPROVEN
-```
-
-Die Grenzen bleiben:
-
-```text
-SUPPORTED != DONE
-Verification Evidence != akzeptierte Completion
-Evidence != Project Truth
-MCP-Transport != unabhängiges Vertrauen
-Capability != Authority
-```
-
-Livariant entdeckt nicht automatisch jede Anforderung und erzeugt nicht automatisch vertrauenswürdige Verification Evidence.
-
-Mehr unter [Verification Trace](verification-trace.md).
-
-## Fresh-Install-Abnahme für WP-044
-
-WP-044 ist nicht abgeschlossen, nur weil Tests grün sind. Der erforderliche reale Ablauf lautet:
-
-```text
-clean machine/user state
--> verified RC install
--> protected Stage A provisioning
--> protected Stage B Guardian bootstrap
--> guardian status ready
--> existing-project First Run
--> init plan
--> init --authorize
--> init --apply
--> Project Brain valid
--> status/doctor clean
-```
-
-Unter Windows muss dieser Pfad ohne manuelles Trust-Bypass-Kopieren funktionieren.
-
-## Danach lesen
+## Danach weiterlesen
 
 - [Installation & erstes Projekt](installation.md)
-- [First-Run-Komposition](first-run.md)
-- [Verification Trace](verification-trace.md)
-- [Bestehende Projekte](existing-projects.md)
-- [Provider-Handoff](provider-handoff.md)
+- [Public Preview Scope & Limitations](preview-scope.md)
 - [Architektur & Sicherheit](architecture-and-safety.md)
-- [Updates, Migrationen & Wiederherstellung](lifecycle-guide.md)
+- [First-Run-Komposition](first-run.md)
+- [Bestehende Projekte](existing-projects.md)
+- [Lokale MCP-Agent-Bridge](mcp-agent-bridge.md)
+- [Provider-Handoff](provider-handoff.md)
+- [Verification Trace](verification-trace.md)
+- [Datenschutz & Netzwerkverhalten](privacy-and-network.md)
+- [Updates, Migrationen & Recovery](lifecycle-guide.md)
