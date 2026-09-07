@@ -34,6 +34,25 @@ Jedes strukturierte Evidence-Element enthält:
 
 Zum Beispiel kann eine deklarierte `next`-Abhängigkeit ein `strongly_inferred`-Signal für Next.js stützen, während das Vorhandensein von `README.md` ein `confirmed`-Dokumentationsfakt ist.
 
+## Adoption-Surface-Inventar für bestehende Projekte
+
+Für das Onboarding bestehender Projekte enthält der strukturierte Discovery-Report zusätzlich ein begrenztes `adoption`-Inventar. Es erfasst Vorhandensein und Provenienz ausgewählter projektlokaler Oberflächen, die bei einer späteren Prüfung relevant sein können, darunter:
+
+- Agent-Guidance wie oberste `AGENTS.md` und `CLAUDE.md`;
+- verbreitete Projektregel-Dateien wie `CONTRIBUTING.md`, `DEVELOPMENT.md`, `GOVERNANCE.md`, `SECURITY.md` und `.github/CODEOWNERS`;
+- verbreitete Architektur- und Decision-Record-Dateinamen im Projekt-Root sowie unterstützte Dokumentationsdateien direkt in `docs`;
+- GitHub-Actions-Workflow-Dateien und ausgewählte verbreitete CI-Einstiegspunkte;
+- verbreitete Test-Verzeichnisse;
+- ausgewählte Build-/Tooling-Manifeste und Konfigurationsdateien.
+
+Das Adoption-Inventar ist **ausschließlich Metadaten-/Provenienz-Evidence**. Es interpretiert die Inhalte dieser Oberflächen nicht, vergibt keine Authority und erhebt sie nicht zu Project Truth. Seine Grenzen melden ausdrücklich `evidenceIsProjectTruth: false`, `contentsInterpreted: false`, `grantsAuthority: false` und `changesMade: 0`.
+
+Dieses erste Adoption-Inventar bleibt bewusst begrenzt. Es ist kein beliebiger rekursiver Repository-Index und modelliert noch keine verschachtelten bzw. gescopten Instruction-Semantiken über den gesamten Repository-Baum.
+
+Wenn mehrere projektlokale Agent-Guidance-Oberflächen oder mehrere CI-Systeme vorhanden sind, zeigt Livariant ein Review-Attention-Signal, statt Vorrang, Gleichwertigkeit oder das maßgebliche System anzunehmen.
+
+Unsichere Kandidatenpfade werden nicht als Adoption-Evidence interpretiert. Ist ein Kandidatenpfad nicht die erwartete reguläre Nicht-Symlink-Datei bzw. das erwartete Verzeichnis, wird er zur Prüfung angezeigt, statt verfolgt oder als vertrauenswürdig behandelt zu werden.
+
 ## Evidence ist nicht Project Truth
 
 Discovery-Ausgabe ist nur Beobachtung und Inferenz.
@@ -45,7 +64,9 @@ Sie wird nicht automatisch in den Project Brain übernommen und wird nicht zu Au
 Discovery kann begrenzte Review-Signale anzeigen, wenn lokale Evidence mehrdeutig ist oder Aufmerksamkeit verdient. Aktuelle Beispiele:
 
 - mehrere Node-Paketmanager-Lockfiles;
-- nicht lesbare oder unsichere High-Signal-Manifest-/Guidance-Pfade;
+- mehrere projektlokale Agent-Guidance-Oberflächen ohne angenommenen Vorrang;
+- mehrere CI-Systeme ohne Annahme eines maßgeblichen Systems;
+- nicht lesbare oder unsichere High-Signal-Manifest-/Guidance-/Adoption-Pfade;
 - Vorhandensein verbreiteter sensibler Dateinamen wie `.env`, `.env.local` oder `credentials.json`.
 
 Bei sensiblen Dateien wird bewusst nur das Vorhandensein erfasst. Livariant liest oder klassifiziert deren Inhalt während Bootstrap Discovery nicht.
@@ -54,7 +75,7 @@ Diese Signale sind kein vollständiger Security Audit und dürfen nicht als solc
 
 ## Strukturierte Ausgabe
 
-`livariant discover --json` liefert denselben begrenzten Discovery-Stand als strukturiertes JSON, einschließlich Evidence, Attention-Signalen, ungelösten übergeordneten Unknowns und:
+`livariant discover --json` liefert denselben begrenzten Discovery-Stand als strukturiertes JSON, einschließlich Evidence, Adoption-Surfaces, Attention-Signalen, ungelösten übergeordneten Unknowns und:
 
 ```json
 {
