@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "id": "RUSTSEC-2024-0429",
+      "package": "glib",
+      "observedVersion": "0.18.5",
+      "patchedVersion": "0.20.0",
+      "dependabotAlert": 1,
+      "severity": "moderate",
+      "scope": "linux-only-transitive-tauri-gtk3",
+      "status": "upstream-blocked",
+      "reviewBy": "2026-10-07",
+      "directAffectedApiUsageAllowed": false,
+      "affectedApi": "VariantStrIter",
+      "rationale": "glib 0.18.5 is transitively resolved through Tauri/Wry's Linux GTK3 stack. The supported migration to glib 0.20 or newer requires the upstream GTK4/WebKitGTK 6 migration. Livariant does not directly use VariantStrIter, Windows does not use this GTK runtime path, and the Dependabot alert must remain open until the upstream-compatible fix is available.",
+      "upstream": [
+        "https://github.com/tauri-apps/wry/issues/1474",
+        "https://github.com/tauri-apps/tauri/issues/12561"
+      ]
+    }
+  ]
+}
