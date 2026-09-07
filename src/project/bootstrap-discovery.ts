@@ -1,5 +1,6 @@
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { buildAdoptionSurfaceInventory, type AdoptionSurfaceInventory } from "./adoption-inventory.js";
 import type { ProjectDiscovery } from "./discovery.js";
 
 export type DiscoveryConfidence = "confirmed" | "strongly_inferred" | "uncertain" | "unknown";
@@ -24,6 +25,7 @@ export interface BootstrapDiscoveryReport {
   projectShape: ProjectDiscovery["shape"];
   evidence: BootstrapDiscoveryEvidence[];
   attention: BootstrapDiscoveryAttention[];
+  adoption?: AdoptionSurfaceInventory;
   unknowns: string[];
   changesMade: 0;
 }
@@ -153,6 +155,7 @@ export function buildBootstrapDiscovery(project: ProjectDiscovery): BootstrapDis
   const evidence: BootstrapDiscoveryEvidence[] = [];
   const attention: BootstrapDiscoveryAttention[] = [];
   const root = project.root;
+  const adoption = buildAdoptionSurfaceInventory(root);
 
   addEvidence(evidence, {
     kind: "project",
@@ -216,6 +219,7 @@ export function buildBootstrapDiscovery(project: ProjectDiscovery): BootstrapDis
     }
   }
 
+  attention.push(...adoption.attention);
   inspectPackageJson(root, evidence, attention);
 
   const unknowns = project.shape === "empty"
@@ -230,6 +234,7 @@ export function buildBootstrapDiscovery(project: ProjectDiscovery): BootstrapDis
     projectShape: project.shape,
     evidence,
     attention,
+    adoption,
     unknowns,
     changesMade: 0,
   };
