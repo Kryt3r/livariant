@@ -23,9 +23,9 @@ There is no implicit transition between these states.
 
 Each reviewed evidence item may receive exactly one current decision:
 
-- `accept-as-candidate` — include the exact reviewed material as candidate Evidence for a later proposal;
-- `reject` — exclude that reviewed material from the proposal;
-- `defer` — keep the item unresolved and block proposal readiness.
+- `accept-as-candidate`: include the exact reviewed material as candidate Evidence for a later proposal;
+- `reject`: exclude that reviewed material from the proposal;
+- `defer`: keep the item unresolved and block proposal readiness.
 
 Reviewed evidence without a decision is also unresolved and is never implicitly accepted.
 
