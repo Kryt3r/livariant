@@ -23,9 +23,9 @@ Zwischen diesen Zuständen gibt es keinen impliziten Übergang.
 
 Jedes geprüfte Evidence-Element kann genau eine aktuelle Entscheidung erhalten:
 
-- `accept-as-candidate` — das exakt geprüfte Material als Candidate Evidence für ein späteres Proposal einbeziehen;
-- `reject` — dieses geprüfte Material aus dem Proposal ausschließen;
-- `defer` — das Element ungelöst lassen und Proposal-Readiness blockieren.
+- `accept-as-candidate`: das exakt geprüfte Material als Candidate Evidence für ein späteres Proposal einbeziehen;
+- `reject`: dieses geprüfte Material aus dem Proposal ausschließen;
+- `defer`: das Element ungelöst lassen und Proposal-Readiness blockieren.
 
 Geprüfte Evidence ohne Entscheidung bleibt ebenfalls ungelöst und wird niemals stillschweigend akzeptiert.
 
