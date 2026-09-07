@@ -31,6 +31,7 @@ test("existing-project adoption inventory records relevant truth surfaces as evi
 
     const plan = await inspectInitialization(projectPath);
     const inventory = plan.discovery.adoption;
+    assert.ok(inventory, "runtime discovery must include the adoption inventory");
 
     assert.equal(plan.projectState, "existing-project-without-brain");
     assert.equal(plan.discovery.changesMade, 0);
@@ -63,6 +64,7 @@ test("adoption inventory surfaces overlapping guidance and multiple CI systems w
 
     const plan = await inspectInitialization(projectPath);
     const inventory = plan.discovery.adoption;
+    assert.ok(inventory, "runtime discovery must include the adoption inventory");
 
     const guidanceAttention = inventory.attention.find((item) => item.code === "adoption-multiple-agent-guidance-surfaces");
     assert.ok(guidanceAttention);
@@ -88,6 +90,7 @@ test("adoption inventory does not ingest surface contents and refuses unsafe can
 
     const plan = await inspectInitialization(projectPath);
     const inventory = plan.discovery.adoption;
+    assert.ok(inventory, "runtime discovery must include the adoption inventory");
     const serialized = JSON.stringify(inventory);
 
     assert.doesNotMatch(serialized, new RegExp(sensitiveText));
