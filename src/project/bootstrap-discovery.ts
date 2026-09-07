@@ -25,7 +25,7 @@ export interface BootstrapDiscoveryReport {
   projectShape: ProjectDiscovery["shape"];
   evidence: BootstrapDiscoveryEvidence[];
   attention: BootstrapDiscoveryAttention[];
-  adoption: AdoptionSurfaceInventory;
+  adoption?: AdoptionSurfaceInventory;
   unknowns: string[];
   changesMade: 0;
 }
