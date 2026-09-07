@@ -1,0 +1,12 @@
+[advisories]
+# RUSTSEC-2024-0429 is temporarily ignored only because the affected glib
+# version is pulled transitively through Tauri's Linux GTK3 stack and the
+# supported upstream migration to glib >= 0.20 is not available yet.
+# The companion exception guard makes this ignore expire and verifies that
+# Livariant does not directly use VariantStrIter.
+ignore = ["RUSTSEC-2024-0429"]
+informational_warnings = ["unsound"]
+
+[output]
+quiet = false
+deny = ["unsound"]
