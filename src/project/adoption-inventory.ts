@@ -62,6 +62,20 @@ const ROOT_SURFACES: ReadonlyArray<readonly [string, AdoptionSurfaceKind]> = [
   ["tsconfig.json", "tooling"],
 ];
 
+const GUIDANCE_FILE_NAMES = new Set(["AGENTS.md", "CLAUDE.md"]);
+const GUIDANCE_TRAVERSAL_EXCLUSIONS = new Set([
+  ".git",
+  ".livariant",
+  "node_modules",
+  "vendor",
+  "dist",
+  "build",
+  "target",
+  "coverage",
+]);
+const MAX_GUIDANCE_DEPTH = 4;
+const MAX_GUIDANCE_DIRECTORIES = 256;
+
 function toProjectPath(root: string, absolutePath: string): string {
   return relative(root, absolutePath).replaceAll("\\", "/");
 }
@@ -191,6 +205,56 @@ function inspectTestDirectories(root: string, surfaces: AdoptionSurfaceEvidence[
   }
 }
 
+function inspectScopedGuidance(root: string, surfaces: AdoptionSurfaceEvidence[], attention: AdoptionInventoryAttention[]): void {
+  const queue: Array<{ projectPath: string; depth: number }> = [{ projectPath: ".", depth: 0 }];
+  let enumeratedDirectories = 0;
+
+  while (queue.length > 0 && enumeratedDirectories < MAX_GUIDANCE_DIRECTORIES) {
+    const current = queue.shift();
+    if (!current) break;
+    enumeratedDirectories += 1;
+    const absoluteDirectory = current.projectPath === "." ? root : resolve(root, current.projectPath);
+    let entries;
+    try {
+      entries = readdirSync(absoluteDirectory, { withFileTypes: true });
+    } catch {
+      attention.push({
+        code: "adoption-unreadable-guidance-scope",
+        severity: "review",
+        message: `${current.projectPath} could not be enumerated while looking for scoped guidance. Livariant did not infer guidance below it.`,
+        provenance: [current.projectPath],
+      });
+      continue;
+    }
+
+    for (const entry of entries) {
+      const projectPath = current.projectPath === "." ? entry.name : `${current.projectPath}/${entry.name}`;
+      if (GUIDANCE_FILE_NAMES.has(entry.name)) {
+        const state = inspectRegularFile(root, projectPath);
+        if (state === "regular") addSurface(surfaces, "agent-guidance", projectPath);
+        else if (state === "unsafe") unsafeAttention(attention, projectPath);
+      }
+
+      if (
+        entry.isDirectory()
+        && current.depth < MAX_GUIDANCE_DEPTH
+        && !GUIDANCE_TRAVERSAL_EXCLUSIONS.has(entry.name)
+      ) {
+        queue.push({ projectPath, depth: current.depth + 1 });
+      }
+    }
+  }
+
+  if (queue.length > 0) {
+    attention.push({
+      code: "adoption-guidance-traversal-limit",
+      severity: "review",
+      message: `Scoped guidance discovery reached its bounded limit of ${MAX_GUIDANCE_DIRECTORIES} directories. Livariant did not infer anything from unvisited directories.`,
+      provenance: [],
+    });
+  }
+}
+
 function addAmbiguityAttention(surfaces: AdoptionSurfaceEvidence[], attention: AdoptionInventoryAttention[]): void {
   const agentGuidance = surfaces.filter((surface) => surface.kind === "agent-guidance").map((surface) => surface.path);
   if (agentGuidance.length > 1) {
@@ -234,6 +298,7 @@ export function buildAdoptionSurfaceInventory(root: string): AdoptionSurfaceInve
   inspectDocsDirectory(root, surfaces, attention);
   inspectGithubWorkflows(root, surfaces, attention);
   inspectTestDirectories(root, surfaces, attention);
+  inspectScopedGuidance(root, surfaces, attention);
   addAmbiguityAttention(surfaces, attention);
 
   surfaces.sort((a, b) => `${a.kind}:${a.path}`.localeCompare(`${b.kind}:${b.path}`));
