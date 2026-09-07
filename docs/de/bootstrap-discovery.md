@@ -21,7 +21,7 @@ Aktuelle Evidence kann umfassen:
 - verbreitete Projekt-/Build-Manifeste wie `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, Maven-/Gradle-Dateien und TypeScript-Konfiguration;
 - verbreitete Node-Paketmanager-Lockfiles;
 - README und ein oberstes `docs`-Verzeichnis;
-- oberste `CLAUDE.md`- und `AGENTS.md`-Guidance-Dateien;
+- projektlokale `CLAUDE.md`- und `AGENTS.md`-Guidance-Dateien, die durch die unten beschriebene begrenzte Scope-Suche gefunden werden;
 - Vorhandensein verbreiteter Source-/Test-Verzeichnisse;
 - eine begrenzte Menge von Framework-/Tooling-Signalen aus deklarierten `package.json`-Abhängigkeiten und Scripts.
 
@@ -38,7 +38,7 @@ Zum Beispiel kann eine deklarierte `next`-Abhängigkeit ein `strongly_inferred`-
 
 Für das Onboarding bestehender Projekte enthält der strukturierte Discovery-Report zusätzlich ein begrenztes `adoption`-Inventar. Es erfasst Vorhandensein und Provenienz ausgewählter projektlokaler Oberflächen, die bei einer späteren Prüfung relevant sein können, darunter:
 
-- Agent-Guidance wie oberste `AGENTS.md` und `CLAUDE.md`;
+- Agent-Guidance wie `AGENTS.md` und `CLAUDE.md`;
 - verbreitete Projektregel-Dateien wie `CONTRIBUTING.md`, `DEVELOPMENT.md`, `GOVERNANCE.md`, `SECURITY.md` und `.github/CODEOWNERS`;
 - verbreitete Architektur- und Decision-Record-Dateinamen im Projekt-Root sowie unterstützte Dokumentationsdateien direkt in `docs`;
 - GitHub-Actions-Workflow-Dateien und ausgewählte verbreitete CI-Einstiegspunkte;
@@ -47,26 +47,58 @@ Für das Onboarding bestehender Projekte enthält der strukturierte Discovery-Re
 
 Das Adoption-Inventar ist **ausschließlich Metadaten-/Provenienz-Evidence**. Es interpretiert die Inhalte dieser Oberflächen nicht, vergibt keine Authority und erhebt sie nicht zu Project Truth. Seine Grenzen melden ausdrücklich `evidenceIsProjectTruth: false`, `contentsInterpreted: false`, `grantsAuthority: false` und `changesMade: 0`.
 
-Dieses erste Adoption-Inventar bleibt bewusst begrenzt. Es ist kein beliebiger rekursiver Repository-Index und modelliert noch keine verschachtelten bzw. gescopten Instruction-Semantiken über den gesamten Repository-Baum.
+### Begrenzte Scope-Suche für Guidance
+
+Das Inventar kann verschachtelte `AGENTS.md`- und `CLAUDE.md`-Dateien entdecken, damit eine spätere Prüfung deren projektlokalen Scope erhalten kann. Das ist weiterhin kein beliebiger Repository-Index:
+
+- rekursiv gesucht werden ausschließlich diese exakten Guidance-Dateinamen;
+- die Traversierung ist in der Tiefe begrenzt;
+- die Zahl untersuchter Verzeichnisse ist begrenzt;
+- bekannte schwere oder generierte Bereiche wie `.git`, `.livariant`, `node_modules`, `vendor`, `dist`, `build`, `target` und `coverage` werden ausgeschlossen;
+- Symlink-Guidance wird abgelehnt statt verfolgt;
+- wird das Traversierungs-Limit erreicht, entsteht ein Attention-Signal, statt stillschweigend anzunehmen, dass keine weitere Guidance existiert.
 
 Wenn mehrere projektlokale Agent-Guidance-Oberflächen oder mehrere CI-Systeme vorhanden sind, zeigt Livariant ein Review-Attention-Signal, statt Vorrang, Gleichwertigkeit oder das maßgebliche System anzunehmen.
 
 Unsichere Kandidatenpfade werden nicht als Adoption-Evidence interpretiert. Ist ein Kandidatenpfad nicht die erwartete reguläre Nicht-Symlink-Datei bzw. das erwartete Verzeichnis, wird er zur Prüfung angezeigt, statt verfolgt oder als vertrauenswürdig behandelt zu werden.
 
+## Expliziter Adoption-Content-Review
+
+Discovery selbst bleibt für Adoption-Surfaces inhaltsfrei. Ein separater expliziter Review-Schritt kann ausgewählte inventarisierte Text-Surfaces über `reviewAdoptionSurfaces(...)` lesen.
+
+Diese Review-Schicht ist absichtlich enger als „alles lesen“:
+
+- berücksichtigt werden nur explizit vom Aufrufer ausgewählte Pfade;
+- ein ausgewählter Pfad muss bereits im Adoption-Inventar vorhanden sein;
+- gelesen werden nur unterstützte Textdatei-Surface-Typen;
+- die Pfadbindung an den Projekt-Root wird erneut geprüft;
+- erforderlich sind reguläre Nicht-Symlink-Dateien;
+- Limits pro Surface, für Gesamtbytes und für die Zahl der Surfaces begrenzen den Review;
+- abgeschnittene Inhalte werden sichtbar gemeldet und ausgelassener Inhalt wird nicht inferiert;
+- verschachtelte Guidance erhält einen expliziten Verzeichnis-Scope;
+- überlappende Guidance wird als ungelöste Review-Attention angezeigt, statt automatisch geordnet oder zusammengeführt zu werden.
+
+Gelesener Text bleibt **beobachtete Evidence**. Das Review-Ergebnis meldet ausdrücklich `evidenceIsProjectTruth: false`, `contentReviewIsAcceptance: false`, `grantsAuthority: false`, `automaticConflictResolution: false` und `changesMade: 0`.
+
+Das Lesen einer Datei übernimmt sie daher nicht, macht sie nicht kanonisch, entscheidet keinen Vorrang, löst keinen Widerspruch und vergibt keine Mutation Authority.
+
 ## Evidence ist nicht Project Truth
 
-Discovery-Ausgabe ist nur Beobachtung und Inferenz.
+Discovery-Ausgabe und expliziter Content-Review sind nur Beobachtung.
 
-Sie wird nicht automatisch in den Project Brain übernommen und wird nicht zu Authority, nur weil sie aus einer Repository-Datei stammt. Bestehende Dokumentation und providerspezifische Instruction-Dateien bleiben externe Projekt-Evidence, bis ein unterstützter Acceptance-Pfad daraus dauerhafte Project-Brain-Truth macht.
+Sie werden nicht automatisch in den Project Brain übernommen, und Evidence wird nicht zu Authority, nur weil sie aus einer Repository-Datei stammt. Bestehende Dokumentation und providerspezifische Instruction-Dateien bleiben externe Projekt-Evidence, bis ein unterstützter Acceptance-Pfad daraus dauerhafte Project-Brain-Truth macht.
 
 ## Attention-Signale
 
-Discovery kann begrenzte Review-Signale anzeigen, wenn lokale Evidence mehrdeutig ist oder Aufmerksamkeit verdient. Aktuelle Beispiele:
+Discovery und Adoption-Review können begrenzte Review-Signale anzeigen, wenn lokale Evidence mehrdeutig ist oder Aufmerksamkeit verdient. Aktuelle Beispiele:
 
 - mehrere Node-Paketmanager-Lockfiles;
 - mehrere projektlokale Agent-Guidance-Oberflächen ohne angenommenen Vorrang;
 - mehrere CI-Systeme ohne Annahme eines maßgeblichen Systems;
 - nicht lesbare oder unsichere High-Signal-Manifest-/Guidance-/Adoption-Pfade;
+- erreichte Scope-Guidance-Traversierungsgrenzen;
+- überlappende geprüfte Guidance ohne automatischen Vorrang oder Konfliktlösung;
+- wegen expliziter Byte-Budgets abgeschnittene Review-Inhalte;
 - Vorhandensein verbreiteter sensibler Dateinamen wie `.env`, `.env.local` oder `credentials.json`.
 
 Bei sensiblen Dateien wird bewusst nur das Vorhandensein erfasst. Livariant liest oder klassifiziert deren Inhalt während Bootstrap Discovery nicht.
