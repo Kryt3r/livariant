@@ -34,6 +34,25 @@ Each structured evidence item includes:
 
 For example, a declared `next` dependency can support a `strongly_inferred` Next.js stack signal, while the presence of `README.md` is a `confirmed` documentation fact.
 
+## Existing-project adoption surface inventory
+
+For existing-project onboarding, the structured discovery report also contains a bounded `adoption` inventory. It records the presence and provenance of selected project-local surfaces that may matter during later review, including:
+
+- agent guidance such as top-level `AGENTS.md` and `CLAUDE.md`;
+- common project-rule files such as `CONTRIBUTING.md`, `DEVELOPMENT.md`, `GOVERNANCE.md`, `SECURITY.md` and `.github/CODEOWNERS`;
+- common architecture and decision-record filenames at the project root plus supported documentation files directly inside `docs`;
+- GitHub Actions workflow files and selected common CI entry points;
+- common test directories;
+- selected build/tooling manifests and configuration files.
+
+The adoption inventory is **metadata/provenance evidence only**. It does not interpret the contents of those surfaces, grant Authority, or promote them to Project Truth. Its boundaries explicitly report `evidenceIsProjectTruth: false`, `contentsInterpreted: false`, `grantsAuthority: false` and `changesMade: 0`.
+
+This first adoption inventory remains intentionally bounded. It is not an arbitrary recursive repository index and does not yet model nested/scoped instruction semantics across an entire repository tree.
+
+When multiple project-local agent-guidance surfaces or multiple CI systems are present, Livariant surfaces a review attention signal instead of assuming precedence, equivalence, or which system is authoritative.
+
+Unsafe candidate paths are not interpreted as adoption evidence. A candidate path that is not the expected regular non-symlink file or directory is surfaced for review instead of being followed or trusted.
+
 ## Evidence is not Project Truth
 
 Discovery output is observation and inference only.
@@ -45,7 +64,9 @@ It is not automatically accepted into the Project Brain, and it does not become 
 Discovery may surface bounded review signals when local evidence is ambiguous or deserves attention. Current examples include:
 
 - multiple Node package-manager lockfiles;
-- unreadable or unsafe high-signal manifest/guidance paths;
+- multiple project-local agent-guidance surfaces without an assumed precedence;
+- multiple CI systems without an assumed authoritative system;
+- unreadable or unsafe high-signal manifest/guidance/adoption paths;
 - presence of common sensitive-file names such as `.env`, `.env.local`, or `credentials.json`.
 
 Sensitive-file handling is deliberately presence-only. Livariant does not read or classify the contents of those files during Bootstrap Discovery.
@@ -54,7 +75,7 @@ These signals are not a complete security audit and should not be presented as o
 
 ## Structured output
 
-`livariant discover --json` returns the same bounded discovery result as structured JSON, including evidence, attention signals, unresolved high-level unknowns and:
+`livariant discover --json` returns the same bounded discovery result as structured JSON, including evidence, adoption surfaces, attention signals, unresolved high-level unknowns and:
 
 ```json
 {
