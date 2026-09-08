@@ -17,7 +17,7 @@ function review(): UnderstandingReviewReport {
   return {
     schemaVersion: 1,
     projectRoot: "C:/projects/example",
-    projectShape: "single-project",
+    projectShape: "existing",
     confirmed: [],
     stronglyInferred: [],
     uncertain: [],
