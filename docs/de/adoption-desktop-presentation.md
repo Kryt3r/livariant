@@ -1,4 +1,4 @@
-# Existing-Project-Adoption — Desktop-Präsentationsvertrag
+# Existing-Project-Adoption: Desktop-Präsentationsvertrag
 
 Die Desktop-Präsentationsschicht muss den kanonischen Existing-Project-Adoption-Lifecycle sichtbar machen, ohne selbst zu einer zweiten Adoption-Engine zu werden.
 
