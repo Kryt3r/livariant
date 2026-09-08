@@ -265,3 +265,5 @@ try {
   await rm(recoveryProject, { recursive: true, force: true });
   await rm(staging, { recursive: true, force: true });
 }
+
+await import("./adoption-existing-project-e2e.mjs");
