@@ -153,7 +153,7 @@ test("adoption authorization consumption rejects a handoff after the Project Bra
 
     await assert.rejects(
       authorizeAdoptionAuthorizationHandoff(current, accepted(current), request, handoff, path),
-      /no longer matches the current Actionable Proposal, project identity, or baseline|stale or substituted Actionable Proposal/,
+      /current handoff that is still ready for explicit authorization|no longer matches the current Actionable Proposal, project identity, or baseline|stale or substituted Actionable Proposal/,
     );
     await assertMissing(resolve(path, ".project-brain", ".authorizations"));
   });
