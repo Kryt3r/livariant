@@ -8,7 +8,7 @@ Es entdeckt keine Repositories, entscheidet keine Project Truth, vergibt keine A
 
 Ein Projekt enthält genau ein Hauptrepository plus null oder mehr zusätzliche Repositories. Beschreibungen zusätzlicher Repositories bleiben ausschließlich semantischer Kontext.
 
-Die Präsentation zeigt – sofern Evidence vorhanden ist:
+Die Präsentation zeigt, sofern Evidence vorhanden ist:
 
 - Haupt-/Zusatzrolle;
 - Repository-Identität und optionale Remote-URL;
