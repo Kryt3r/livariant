@@ -1,4 +1,4 @@
-# Existing-Project Adoption — Desktop presentation contract
+# Existing-Project Adoption: Desktop presentation contract
 
 The Desktop presentation layer must expose the canonical Existing-Project-Adoption lifecycle without becoming a second adoption engine.
 
