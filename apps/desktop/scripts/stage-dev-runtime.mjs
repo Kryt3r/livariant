@@ -25,12 +25,19 @@ function capture(program, args, cwd) {
   return result.stdout.trim();
 }
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+function runNpm(args, cwd) {
+  const npmCli = process.env.npm_execpath;
+  if (!npmCli) {
+    throw new Error("npm_execpath is unavailable; run Tauri development through the npm script so the bounded npm CLI path is known.");
+  }
+  run(process.execPath, [npmCli, ...args], cwd);
+}
+
 const rootNodeModules = join(repoRoot, "node_modules");
 if (!existsSync(rootNodeModules)) {
-  run(npm, ["ci", "--no-audit", "--no-fund"], repoRoot);
+  runNpm(["ci", "--no-audit", "--no-fund"], repoRoot);
 }
-run(npm, ["run", "build"], repoRoot);
+runNpm(["run", "build"], repoRoot);
 
 const sourceDir = join(repoRoot, "dist", "src");
 if (!existsSync(sourceDir)) throw new Error(`Built Core source directory is missing: ${sourceDir}`);
