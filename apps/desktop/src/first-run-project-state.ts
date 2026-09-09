@@ -1,12 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { FirstRunOnboardingState } from "../../../src/project/first-run-onboarding.js";
-import type { ProjectSourceReviewDecisionConfiguration } from "../../../src/project/first-run-source-review-configuration.js";
 
 export interface PersistFirstRunProjectStateInput {
   schemaVersion: 1;
-  onboardingState: FirstRunOnboardingState;
+  /** Serialized canonical FirstRunOnboardingState. Validation/projection stays in bundled Core. */
+  onboardingState: unknown;
   selectedReviewPaths?: string[];
-  decisions?: ProjectSourceReviewDecisionConfiguration[];
+  decisions?: Array<{
+    evidenceId: string;
+    materialDigest: string;
+    decision: "accept-as-candidate" | "reject" | "defer";
+  }>;
 }
 
 export interface PersistFirstRunProjectStateResult {
