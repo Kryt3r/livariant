@@ -85,7 +85,9 @@ fn parse_runtime_snapshot(value: Value) -> Result<FirstRunLifecycleResult, Strin
 }
 
 fn preserved_review_material(path: &Path) -> Result<(Vec<String>, Vec<Value>), String> {
-    if !path.is_file() return Ok((vec![], vec![]));
+    if !path.is_file() {
+        return Ok((vec![], vec![]));
+    }
     let request: PersistedRequest = serde_json::from_slice(
         &fs::read(path).map_err(|error| format!("Persisted first-run state could not be read: {error}"))?,
     ).map_err(|error| format!("Persisted first-run state is invalid: {error}"))?;
