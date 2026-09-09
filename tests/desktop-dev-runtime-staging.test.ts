@@ -17,6 +17,9 @@ test("Tauri dev stages the bounded Core runtime before native launch", async () 
   const stageScript = await text("apps/desktop/scripts/stage-dev-runtime.mjs");
   assert.match(stageScript, /src-tauri[\s\S]*target[\s\S]*debug/);
   assert.match(stageScript, /cpSync\(process\.execPath, nodeTarget\)/);
+  assert.match(stageScript, /process\.env\.npm_execpath/);
+  assert.match(stageScript, /run\(process\.execPath, \[npmCli, \.\.\.args\], cwd\)/);
+  assert.doesNotMatch(stageScript, /npm\.cmd/);
   assert.match(stageScript, /coreSourceSha:/);
   assert.match(stageScript, /developmentRuntime:\s*true/);
   assert.match(stageScript, /authorityIssued:\s*false/);
