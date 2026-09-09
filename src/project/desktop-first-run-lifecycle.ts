@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { buildBootstrapDiscovery } from "./bootstrap-discovery.js";
+import { discoverProject } from "./discovery.js";
 import {
   addOnboardingAdditionalRepository,
   answerOnboardingQuestion,
@@ -9,13 +11,14 @@ import {
   selectOnboardingProject,
   setOnboardingPrimaryRepository,
   setOnboardingProviders,
+  setOnboardingUnderstandingReview,
   skipOnboardingQuestion,
   type FirstRunOnboardingState,
   type FirstRunOnboardingStep,
 } from "./first-run-onboarding.js";
 import { projectSourceReviewConfigurationFromFirstRun } from "./first-run-source-review-configuration.js";
 import type { RepositoryIdentity } from "./source-registry.js";
-import type { UnderstandingReviewReport } from "./understanding-review.js";
+import { buildUnderstandingReview, type UnderstandingReviewReport } from "./understanding-review.js";
 
 export type DesktopFirstRunLifecycleAction =
   | { type: "move"; step: FirstRunOnboardingStep }
@@ -184,8 +187,15 @@ export function transitionDesktopFirstRunState(
   switch (action.type) {
     case "move":
       return moveFirstRunOnboardingTo(state, action.step);
-    case "select-project":
-      return selectOnboardingProject(state, { projectId: action.projectId, localRoot: action.localRoot });
+    case "select-project": {
+      let next = selectOnboardingProject(state, { projectId: action.projectId, localRoot: action.localRoot });
+      const localRoot = action.localRoot?.trim();
+      if (localRoot) {
+        const review = buildUnderstandingReview(buildBootstrapDiscovery(discoverProject(localRoot)));
+        next = setOnboardingUnderstandingReview(next, review);
+      }
+      return next;
+    }
     case "answer-question":
       return answerOnboardingQuestion(state, action.questionId, action.response);
     case "skip-question":
