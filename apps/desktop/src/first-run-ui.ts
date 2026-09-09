@@ -1,7 +1,7 @@
 import "./first-run-ui.css";
+import "./first-run-ux-polish.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
 import { getLanguage } from "./i18n/runtime.js";
 import { presentFirstRunQuestion, suggestProjectIdFromPath } from "./first-run-presentation.js";
 import {
@@ -191,8 +191,8 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
   };
 
   const chooseFolder = async (): Promise<string | null> => {
-    const selected = await open({ directory: true, multiple: false });
-    return typeof selected === "string" ? selected : null;
+    try { return await invoke<string | null>("pick_first_run_folder"); }
+    catch (cause) { error = String(cause); render(captureContext()); return null; }
   };
 
   const render = (context?: RenderContext) => {
@@ -227,7 +227,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
 
     root.querySelectorAll<HTMLButtonElement>("[data-fr-pick-repo]").forEach((button) => button.addEventListener("click", async () => {
       const selected = await chooseFolder(); if (!selected) return; const form = button.closest("form"); const input = form?.querySelector<HTMLInputElement>('input[name="localPath"]'); if (input) input.value = selected;
-      if (button.dataset.frPickRepo === "primary") { await inspectRepository(selected); render(captureContext()); }
+      if (button.dataset.frPickRepo === "primary") { const context = captureContext(); await inspectRepository(selected); render(context); }
     }));
     root.querySelector<HTMLFormElement>("[data-fr-primary]")?.addEventListener("submit", (event) => { event.preventDefault(); void apply(repoAction(event.currentTarget as HTMLFormElement, false), true); });
     root.querySelector<HTMLFormElement>("[data-fr-additional]")?.addEventListener("submit", (event) => { event.preventDefault(); void apply(repoAction(event.currentTarget as HTMLFormElement, true), true); });
