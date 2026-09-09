@@ -13,7 +13,8 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.8.0"
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.0",
