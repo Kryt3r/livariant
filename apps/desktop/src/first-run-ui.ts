@@ -221,12 +221,12 @@ export async function mountFirstRunOnboarding(
 
   const formValue = (form: HTMLFormElement, name: string) => new FormData(form).get(name)?.toString().trim() ?? "";
   const repoAction = (form: HTMLFormElement, additional: boolean): FirstRunLifecycleAction => {
-    const provider = formValue(form, "provider") === "git" ? "git" : "github";
+    const provider: RepoIdentity["provider"] = formValue(form, "provider") === "git" ? "git" : "github";
     const repositoryId = formValue(form, "repositoryId");
     const displayName = formValue(form, "displayName");
     const remoteUrl = formValue(form, "remoteUrl");
     const localPath = formValue(form, "localPath");
-    const identity = { provider, repositoryId, displayName, ...(remoteUrl ? { remoteUrl } : {}) };
+    const identity: RepoIdentity = { provider, repositoryId, displayName, ...(remoteUrl ? { remoteUrl } : {}) };
     return additional
       ? { type: "add-additional-repository", identity, description: formValue(form, "description"), ...(localPath ? { localPath } : {}) }
       : { type: "set-primary-repository", identity, ...(localPath ? { localPath } : {}) };
