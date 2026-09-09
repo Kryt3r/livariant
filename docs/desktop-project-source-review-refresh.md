@@ -4,8 +4,8 @@ The Desktop Project Sources & Review screen refreshes through a fixed host-side 
 
 The Tauri host resolves two fixed Livariant app-data files:
 
-- `project-source-review-input.json` — bounded runtime input owned by Livariant configuration/state;
-- `project-source-review-presentation.json` — generated presentation snapshot consumed read-only by the Desktop bridge.
+- `project-source-review-input.json` - bounded runtime input owned by Livariant configuration/state;
+- `project-source-review-presentation.json` - generated presentation snapshot consumed read-only by the Desktop bridge.
 
 The host starts only the bundled Livariant Node runtime and the bundled Core refresh module. Ordinary bundled runtime material is rejected if its manifest claims Authority.
 
