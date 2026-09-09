@@ -143,7 +143,8 @@ export function setOnboardingUnderstandingReview(
   state: FirstRunOnboardingState,
   review: UnderstandingReviewReport,
 ): FirstRunOnboardingState {
-  const existing = new Map(state.understanding.questions.map((question) => [question.id, question]));
+  const sameProject = state.understanding.projectRoot === review.projectRoot;
+  const existing = new Map((sameProject ? state.understanding.questions : []).map((question) => [question.id, question]));
   const questions = review.questions.map((question) => {
     const previous = existing.get(question.id);
     if (!previous) return { ...question, state: "open" as const };
