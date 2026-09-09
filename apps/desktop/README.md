@@ -1,15 +1,14 @@
 # Livariant Desktop Foundation
 
-This directory contains the deliberately small first desktop shell for Livariant.
+This directory contains Livariant's Windows-first Tauri Desktop surface.
 
 ## Current purpose
 
-The Desktop Foundation is the preferred future normal-user surface for:
+The Desktop is the normal product surface for:
 
-- installation/security health;
-- protected component and Guardian readiness;
-- project selection;
-- First Steps;
+- first-run project setup;
+- project/source review;
+- connections;
 - updates;
 - settings;
 - diagnostics.
@@ -18,7 +17,7 @@ It is not a second source of Authority and must not invent a lifecycle separate 
 
 ## Technology direction
 
-The initial shell uses Tauri 2 with a framework-light TypeScript/CSS frontend.
+The Desktop uses Tauri 2 with a framework-light TypeScript/CSS frontend.
 
 Reasons for this foundation choice:
 
@@ -29,13 +28,7 @@ Reasons for this foundation choice:
 - small runtime footprint by using the host webview;
 - full control over Livariant's visual system.
 
-Platform-specific security, installer, ownership/ACL and update behavior must remain behind explicit platform adapters. The renderer is never a root of trust.
-
-## First Steps UX
-
-First Steps is intentionally not a one-shot wizard. Project questions should be answerable one at a time and may be skipped, revisited, corrected or extended later.
-
-The current UI is a foundation preview. Its answers are in-memory UI state only. Before persistence is introduced, the implementation must preserve Livariant's Evidence -> Review -> Project Truth boundaries and distinguish unanswered, deferred, discovered evidence, user candidate input and confirmed Project Truth.
+Platform-specific security, installer, ownership/ACL and update behavior remain behind explicit platform adapters. The renderer is never a root of trust.
 
 ## Development
 
@@ -46,14 +39,16 @@ npm install
 npm run tauri:dev
 ```
 
-A production build will eventually use:
+`npm run tauri:dev` first builds the current Livariant Core and stages a local, non-authoritative development runtime beside the native debug executable. This mirrors the installed runtime layout closely enough for first-run, connector and Project Sources & Review host bridges to work during native development. The development runtime records its exact Core source SHA and explicitly carries `authorityIssued: false`; it is not a release artifact and does not replace the pinned production runtime qualification.
+
+If the repository-level dependencies are missing, the staging step installs them from the root lockfile before building Core. It does not infer project Authority, Project Truth or mutation permission.
+
+A production build uses the separately qualified pinned runtime/bundle path:
 
 ```bash
 npm run tauri:build
 ```
 
-The Desktop Foundation is not yet wired to live Guardian/runtime state and must not display placeholder state as verified security truth.
-
 ## Scope boundary
 
-Do not expand this milestone into a marketplace, plugin browser, large dashboard, remote server, mobile runtime or background auto-updater. Those are later concerns.
+Do not treat a development runtime, renderer state or repository content as verified Authority. Evidence remains Evidence; project-owned mutation and publication require their separate accepted boundaries.
