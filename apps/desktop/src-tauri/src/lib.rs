@@ -1,4 +1,5 @@
 mod connector_host;
+mod first_run_project_state;
 mod project_source_observation;
 mod project_source_review_bridge;
 mod updater;
@@ -161,6 +162,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             runtime_health,
             installer_language,
+            first_run_project_state::persist_first_run_project_state,
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
             project_source_review_bridge::project_source_review_presentation,
