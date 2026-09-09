@@ -160,6 +160,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             runtime_health,
             installer_language,
+            project_source_review_bridge::configure_project_source_review,
             project_source_review_bridge::project_source_review_presentation,
             project_source_review_bridge::refresh_project_source_review_presentation,
             updater::check_for_update,
