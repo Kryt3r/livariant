@@ -139,6 +139,27 @@ export function selectOnboardingProject(
   });
 }
 
+export function setOnboardingUnderstandingReview(
+  state: FirstRunOnboardingState,
+  review: UnderstandingReviewReport,
+): FirstRunOnboardingState {
+  const existing = new Map(state.understanding.questions.map((question) => [question.id, question]));
+  const questions = review.questions.map((question) => {
+    const previous = existing.get(question.id);
+    if (!previous) return { ...question, state: "open" as const };
+    if (previous.state === "answered" && previous.response) return { ...question, state: "answered" as const, response: previous.response };
+    if (previous.state === "skipped") return { ...question, state: "skipped" as const };
+    return { ...question, state: "open" as const };
+  });
+  return withHealth({
+    ...state,
+    understanding: {
+      projectRoot: review.projectRoot,
+      questions,
+    },
+  });
+}
+
 export function answerOnboardingQuestion(
   state: FirstRunOnboardingState,
   questionId: string,
