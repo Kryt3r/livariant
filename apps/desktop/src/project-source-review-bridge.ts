@@ -5,6 +5,46 @@ import {
   type DesktopSourceReviewPresentation,
 } from "./project-source-review-view.js";
 
+export interface ProjectSourceReviewRepositoryIdentityInput {
+  provider: "github" | "git";
+  repositoryId: string;
+  displayName: string;
+  remoteUrl?: string;
+}
+
+export interface ProjectSourceReviewConfigurationInput {
+  schemaVersion: 1;
+  projectId: string;
+  primary: {
+    identity: ProjectSourceReviewRepositoryIdentityInput;
+    localPath: string;
+  };
+  additional?: Array<{
+    identity: ProjectSourceReviewRepositoryIdentityInput;
+    description: string;
+    localPath?: string;
+  }>;
+  selectedReviewPaths?: string[];
+  decisions?: Array<{
+    evidenceId: string;
+    materialDigest: string;
+    decision: "accept-as-candidate" | "reject" | "defer";
+  }>;
+}
+
+interface ProjectSourceReviewConfigurationResult {
+  state: "configured";
+  detail: string;
+  boundaries: {
+    outputPathIsFixed: true;
+    configurationGrantsAuthority: false;
+    configurationIsProjectTruth: false;
+    configurationCreatesObservedEvidence: false;
+    changesProjectOwnedFiles: false;
+    performsSemanticApply: false;
+  };
+}
+
 interface ProjectSourceReviewBridgeResult {
   state: "ready" | "unavailable";
   presentation: DesktopSourceReviewPresentation | null;
@@ -25,6 +65,12 @@ const isPresentation = (value: unknown): value is DesktopSourceReviewPresentatio
   if (!candidate.summary || typeof candidate.summary !== "object") return false;
   return true;
 };
+
+export async function configureProjectSourceReview(
+  configuration: ProjectSourceReviewConfigurationInput,
+): Promise<ProjectSourceReviewConfigurationResult> {
+  return invoke<ProjectSourceReviewConfigurationResult>("configure_project_source_review", { configuration });
+}
 
 export async function refreshProjectSourceReviewPresentation(): Promise<void> {
   try {
