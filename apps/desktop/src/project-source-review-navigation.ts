@@ -1,4 +1,5 @@
 import "./project-source-review-view.css";
+import { getLanguage } from "./i18n/runtime.js";
 import {
   refreshProjectSourceReviewPresentation,
   renderProjectSourceReviewBridgeView,
@@ -7,6 +8,7 @@ import {
 let sourceReviewActive = false;
 let refreshGeneration = 0;
 
+const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
 const sourcesIcon = () => '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v4H4zM4 15h16v4H4z"/><path d="M8 9v6M16 9v6"/></svg>';
 
 const renderIntoContent = async () => {
@@ -43,9 +45,9 @@ const installNavigation = () => {
     button.type = "button";
     button.className = "nav-item";
     button.dataset.view = "source-review";
-    button.innerHTML = `${sourcesIcon()}<span>Project Sources & Review</span>`;
     nav.insertBefore(button, nav.querySelector("[data-view='diagnostics']"));
   }
+  button.innerHTML = `${sourcesIcon()}<span>${text("Project Sources & Review", "Projektquellen & Prüfung")}</span>`;
 
   if (button.dataset.sourceReviewBound !== "true") {
     button.dataset.sourceReviewBound = "true";
