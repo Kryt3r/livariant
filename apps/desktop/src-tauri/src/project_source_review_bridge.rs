@@ -1,9 +1,16 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::fs;
+use std::{fs, path::Path, process::Command};
 use tauri::Manager;
 
 const PRESENTATION_FILE: &str = "project-source-review-presentation.json";
+const REFRESH_INPUT_FILE: &str = "project-source-review-input.json";
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeManifest {
+    authority_issued: bool,
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +26,24 @@ fn unavailable(detail: impl Into<String>) -> ProjectSourceReviewBridgeResult {
         presentation: None,
         detail: detail.into(),
     }
+}
+
+fn bundled_node_path(install_root: &Path) -> std::path::PathBuf {
+    #[cfg(target_os = "windows")]
+    { install_root.join("livariant-node.exe") }
+    #[cfg(not(target_os = "windows"))]
+    { install_root.join("livariant-node") }
+}
+
+fn hidden_command(program: &Path) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
 }
 
 fn validate_presentation(value: &Value) -> Result<(), String> {
@@ -38,8 +63,7 @@ fn validate_presentation(value: &Value) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub fn project_source_review_presentation(app: tauri::AppHandle) -> ProjectSourceReviewBridgeResult {
+fn read_presentation(app: &tauri::AppHandle) -> ProjectSourceReviewBridgeResult {
     let app_data = match app.path().app_data_dir() {
         Ok(path) => path,
         Err(error) => return unavailable(format!("Livariant app-data location could not be resolved: {error}")),
@@ -66,6 +90,71 @@ pub fn project_source_review_presentation(app: tauri::AppHandle) -> ProjectSourc
         presentation: Some(value),
         detail: "Canonical runtime presentation snapshot loaded read-only. The bridge grants no Truth, Authority or mutation capability.".to_owned(),
     }
+}
+
+#[tauri::command]
+pub fn project_source_review_presentation(app: tauri::AppHandle) -> ProjectSourceReviewBridgeResult {
+    read_presentation(&app)
+}
+
+#[tauri::command]
+pub fn refresh_project_source_review_presentation(app: tauri::AppHandle) -> ProjectSourceReviewBridgeResult {
+    let app_data = match app.path().app_data_dir() {
+        Ok(path) => path,
+        Err(error) => return unavailable(format!("Livariant app-data location could not be resolved: {error}")),
+    };
+    if let Err(error) = fs::create_dir_all(&app_data) {
+        return unavailable(format!("Livariant app-data directory could not be prepared: {error}"));
+    }
+    let input = app_data.join(REFRESH_INPUT_FILE);
+    let output = app_data.join(PRESENTATION_FILE);
+    if !input.is_file() {
+        return unavailable("Project Source & Review runtime input is not configured yet; no refresh was attempted.");
+    }
+
+    let executable = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(error) => return unavailable(format!("Desktop executable location could not be resolved: {error}")),
+    };
+    let Some(install_root) = executable.parent() else {
+        return unavailable("Desktop executable has no installation directory.");
+    };
+    let node = bundled_node_path(install_root);
+    let script = install_root.join("runtime").join("core").join("dist").join("src").join("project").join("desktop-project-source-review-refresh.js");
+    let manifest_path = install_root.join("runtime").join("manifest.json");
+    if !node.is_file() || !script.is_file() || !manifest_path.is_file() {
+        return unavailable("Bundled Project Source & Review refresh runtime is not present in this Desktop build.");
+    }
+    let manifest: RuntimeManifest = match fs::read(&manifest_path)
+        .map_err(|error| format!("Bundled runtime manifest could not be read: {error}"))
+        .and_then(|bytes| serde_json::from_slice(&bytes).map_err(|error| format!("Bundled runtime manifest is invalid: {error}")))
+    {
+        Ok(value) => value,
+        Err(error) => return unavailable(error),
+    };
+    if manifest.authority_issued {
+        return unavailable("Ordinary bundled runtime material must never claim Authority.");
+    }
+
+    let process = match hidden_command(&node)
+        .arg(&script)
+        .current_dir(install_root)
+        .env("LIVARIANT_PROJECT_SOURCE_REVIEW_INPUT", &input)
+        .env("LIVARIANT_PROJECT_SOURCE_REVIEW_OUTPUT", &output)
+        .output()
+    {
+        Ok(value) => value,
+        Err(error) => return unavailable(format!("Project Source & Review refresh runtime could not be started: {error}")),
+    };
+    if !process.status.success() {
+        let stderr = String::from_utf8_lossy(&process.stderr).trim().to_owned();
+        return unavailable(if stderr.is_empty() {
+            "Project Source & Review refresh failed closed without replacing the current snapshot.".to_owned()
+        } else {
+            format!("Project Source & Review refresh failed closed: {stderr}")
+        });
+    }
+    read_presentation(&app)
 }
 
 #[cfg(test)]

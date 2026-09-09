@@ -161,6 +161,7 @@ pub fn run() {
             runtime_health,
             installer_language,
             project_source_review_bridge::project_source_review_presentation,
+            project_source_review_bridge::refresh_project_source_review_presentation,
             updater::check_for_update,
             updater::apply_update,
             connector_host::codex_connector_status,

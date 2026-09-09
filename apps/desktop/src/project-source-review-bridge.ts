@@ -28,7 +28,7 @@ const isPresentation = (value: unknown): value is DesktopSourceReviewPresentatio
 
 export async function refreshProjectSourceReviewPresentation(): Promise<void> {
   try {
-    const result = await invoke<ProjectSourceReviewBridgeResult>("project_source_review_presentation");
+    const result = await invoke<ProjectSourceReviewBridgeResult>("refresh_project_source_review_presentation");
     if (result.state === "ready" && result.presentation && isPresentation(result.presentation)) {
       bridgeState = result;
       return;
@@ -42,7 +42,7 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
     bridgeState = {
       state: "unavailable",
       presentation: null,
-      detail: `Project Source Center bridge failed closed: ${String(error)}`,
+      detail: `Project Source Center refresh failed closed: ${String(error)}`,
     };
   }
 }
