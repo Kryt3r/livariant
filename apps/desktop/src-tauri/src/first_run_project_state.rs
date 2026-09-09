@@ -5,7 +5,7 @@ use tauri::Manager;
 
 use crate::project_source_review_bridge::{configure_project_source_review, ProjectSourceReviewConfigurationInput};
 
-const REQUEST_FILE: &str = "first-run-project-source-review-request.json";
+pub(crate) const REQUEST_FILE: &str = "first-run-project-source-review-request.json";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,13 +15,13 @@ struct RuntimeManifest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PersistFirstRunProjectStateInput {
-    schema_version: u32,
-    onboarding_state: Value,
+pub(crate) struct PersistFirstRunProjectStateInput {
+    pub(crate) schema_version: u32,
+    pub(crate) onboarding_state: Value,
     #[serde(default)]
-    selected_review_paths: Vec<String>,
+    pub(crate) selected_review_paths: Vec<String>,
     #[serde(default)]
-    decisions: Vec<Value>,
+    pub(crate) decisions: Vec<Value>,
 }
 
 #[derive(Debug, Serialize)]
