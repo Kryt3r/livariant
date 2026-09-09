@@ -1,5 +1,6 @@
 import { readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { buildAdoptionSurfaceInventory } from "./adoption-inventory.js";
 import { reviewAdoptionSurfaces } from "./adoption-review.js";
 import { bindAdoptionReviewDecisions, type AdoptionReviewDecisionInput } from "./adoption-review-decisions.js";
@@ -10,15 +11,8 @@ import type { ProjectSourceObservation } from "./project-source-center-presentat
 interface RefreshInput {
   schemaVersion: 1;
   projectId: string;
-  primary: {
-    identity: RepositoryIdentity;
-    localPath: string;
-  };
-  additional?: Array<{
-    identity: RepositoryIdentity;
-    description: string;
-    localPath?: string;
-  }>;
+  primary: { identity: RepositoryIdentity; localPath: string };
+  additional?: Array<{ identity: RepositoryIdentity; description: string; localPath?: string }>;
   observations?: ProjectSourceObservation[];
   selectedReviewPaths?: string[];
   decisions?: AdoptionReviewDecisionInput[];
@@ -154,12 +148,12 @@ export async function refreshDesktopProjectSourceReviewPresentation(inputPath: s
   });
 
   const absoluteOutput = resolve(outputPath);
-  const temp = resolve(dirname(absoluteOutput), `${absoluteOutput.split(/[\\/]/).at(-1)}.tmp`);
+  const temp = resolve(dirname(absoluteOutput), `${basename(absoluteOutput)}.tmp`);
   await writeFile(temp, `${JSON.stringify(presentation, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await rename(temp, absoluteOutput);
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${resolve(process.argv[1]).replace(/\\/g, "/")}`).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const inputPath = process.env.LIVARIANT_PROJECT_SOURCE_REVIEW_INPUT;
   const outputPath = process.env.LIVARIANT_PROJECT_SOURCE_REVIEW_OUTPUT;
   if (!inputPath?.trim() || !outputPath?.trim()) throw new Error("Fixed Desktop Project Source & Review input/output paths are required.");
