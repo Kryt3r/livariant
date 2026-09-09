@@ -27,18 +27,10 @@ fn hidden_git(path: &Path, args: &[&str]) -> Option<String> {
 
 fn github_repository_id(remote: &str) -> Option<String> {
     let normalized = remote.trim().trim_end_matches('/').trim_end_matches(".git");
-    if let Some(rest) = normalized.strip_prefix("https://github.com/") {
-        return Some(rest.to_owned());
-    }
-    if let Some(rest) = normalized.strip_prefix("http://github.com/") {
-        return Some(rest.to_owned());
-    }
-    if let Some(rest) = normalized.strip_prefix("git@github.com:") {
-        return Some(rest.to_owned());
-    }
-    if let Some(rest) = normalized.strip_prefix("ssh://git@github.com/") {
-        return Some(rest.to_owned());
-    }
+    if let Some(rest) = normalized.strip_prefix("https://github.com/") { return Some(rest.to_owned()); }
+    if let Some(rest) = normalized.strip_prefix("http://github.com/") { return Some(rest.to_owned()); }
+    if let Some(rest) = normalized.strip_prefix("git@github.com:") { return Some(rest.to_owned()); }
+    if let Some(rest) = normalized.strip_prefix("ssh://git@github.com/") { return Some(rest.to_owned()); }
     None
 }
 
@@ -68,5 +60,30 @@ pub fn inspect_first_run_repository(local_path: String) -> FirstRunRepositoryIns
         provider: Some(if repository_id.is_some() { "github" } else { "git" }),
         repository_id,
         remote_url: remote,
+    }
+}
+
+#[tauri::command]
+pub fn pick_first_run_folder() -> Result<Option<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        const SCRIPT: &str = "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Select a project folder'; $dialog.ShowNewFolderButton = $false; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath) }";
+        let output = Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-STA", "-Command", SCRIPT])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|error| format!("Native folder picker could not be started: {error}"))?;
+        if !output.status.success() {
+            return Err("Native folder picker did not complete successfully.".to_owned());
+        }
+        let selected = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        return Ok(if selected.is_empty() { None } else { Some(selected) });
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Native folder selection is not available on this Desktop platform yet.".to_owned())
     }
 }
