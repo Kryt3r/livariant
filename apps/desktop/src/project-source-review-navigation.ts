@@ -61,7 +61,9 @@ const installNavigation = () => {
   if (sourceReviewActive) {
     document.querySelectorAll<HTMLElement>("nav.nav .nav-item").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
-    void renderIntoContent();
+    const content = document.querySelector<HTMLElement>("main.content");
+    const alreadyRendered = content?.querySelector(".source-review-summary, .source-review-empty");
+    if (!alreadyRendered) void renderIntoContent();
   }
 };
 
