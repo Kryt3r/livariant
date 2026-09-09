@@ -45,6 +45,19 @@ interface ProjectSourceReviewConfigurationResult {
   };
 }
 
+interface ProjectSourceObservationResult {
+  state: "observed";
+  detail: string;
+  boundaries: {
+    inputPathIsFixed: true;
+    rendererSuppliesCommand: false;
+    observationIsProjectTruth: false;
+    observationGrantsAuthority: false;
+    changesProjectOwnedFiles: false;
+    performsSemanticApply: false;
+  };
+}
+
 interface ProjectSourceReviewBridgeResult {
   state: "ready" | "unavailable";
   presentation: DesktopSourceReviewPresentation | null;
@@ -72,8 +85,13 @@ export async function configureProjectSourceReview(
   return invoke<ProjectSourceReviewConfigurationResult>("configure_project_source_review", { configuration });
 }
 
+export async function observeProjectSources(): Promise<ProjectSourceObservationResult> {
+  return invoke<ProjectSourceObservationResult>("observe_project_sources");
+}
+
 export async function refreshProjectSourceReviewPresentation(): Promise<void> {
   try {
+    await observeProjectSources();
     const result = await invoke<ProjectSourceReviewBridgeResult>("refresh_project_source_review_presentation");
     if (result.state === "ready" && result.presentation && isPresentation(result.presentation)) {
       bridgeState = result;
@@ -88,7 +106,7 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
     bridgeState = {
       state: "unavailable",
       presentation: null,
-      detail: `Project Source Center refresh failed closed: ${String(error)}`,
+      detail: `Project Source Center observation/refresh failed closed: ${String(error)}`,
     };
   }
 }
