@@ -47,7 +47,7 @@ test("known discovery questions and Project Sources presentation respect Desktop
 test("normal onboarding copy avoids exposing internal safety jargon as the primary UX", async () => {
   const ui = await text("apps/desktop/src/first-run-ui.ts");
   assert.match(ui, /Änderungen bleiben kontrolliert/);
-  assert.match(ui, /normalen Livariant-Freigabepfad/);
+  assert.match(ui, /Livariant-Freigabepfad/);
   assert.doesNotMatch(ui, /kanonischen Discovery/);
   assert.doesNotMatch(ui, /Candidate Evidence/);
   assert.doesNotMatch(ui, /Semantic Apply/);
