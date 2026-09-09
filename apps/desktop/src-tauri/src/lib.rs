@@ -1,4 +1,5 @@
 mod connector_host;
+mod project_source_review_bridge;
 mod updater;
 
 use serde::{Deserialize, Serialize};
@@ -159,6 +160,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             runtime_health,
             installer_language,
+            project_source_review_bridge::project_source_review_presentation,
             updater::check_for_update,
             updater::apply_update,
             connector_host::codex_connector_status,
