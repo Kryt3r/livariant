@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getLanguage } from "./i18n/runtime.js";
 import {
   renderProjectSourceReviewUnavailable,
   renderProjectSourceReviewView,
@@ -15,21 +16,10 @@ export interface ProjectSourceReviewRepositoryIdentityInput {
 export interface ProjectSourceReviewConfigurationInput {
   schemaVersion: 1;
   projectId: string;
-  primary: {
-    identity: ProjectSourceReviewRepositoryIdentityInput;
-    localPath: string;
-  };
-  additional?: Array<{
-    identity: ProjectSourceReviewRepositoryIdentityInput;
-    description: string;
-    localPath?: string;
-  }>;
+  primary: { identity: ProjectSourceReviewRepositoryIdentityInput; localPath: string };
+  additional?: Array<{ identity: ProjectSourceReviewRepositoryIdentityInput; description: string; localPath?: string }>;
   selectedReviewPaths?: string[];
-  decisions?: Array<{
-    evidenceId: string;
-    materialDigest: string;
-    decision: "accept-as-candidate" | "reject" | "defer";
-  }>;
+  decisions?: Array<{ evidenceId: string; materialDigest: string; decision: "accept-as-candidate" | "reject" | "defer" }>;
 }
 
 interface ProjectSourceReviewConfigurationResult {
@@ -64,10 +54,11 @@ interface ProjectSourceReviewBridgeResult {
   detail: string;
 }
 
+const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
 let bridgeState: ProjectSourceReviewBridgeResult = {
   state: "unavailable",
   presentation: null,
-  detail: "Project Source Center runtime data has not been requested yet.",
+  detail: text("Project source data has not been requested yet.", "Projektquellen-Daten wurden noch nicht abgerufen."),
 };
 
 const isPresentation = (value: unknown): value is DesktopSourceReviewPresentation => {
@@ -79,9 +70,7 @@ const isPresentation = (value: unknown): value is DesktopSourceReviewPresentatio
   return true;
 };
 
-export async function configureProjectSourceReview(
-  configuration: ProjectSourceReviewConfigurationInput,
-): Promise<ProjectSourceReviewConfigurationResult> {
+export async function configureProjectSourceReview(configuration: ProjectSourceReviewConfigurationInput): Promise<ProjectSourceReviewConfigurationResult> {
   return invoke<ProjectSourceReviewConfigurationResult>("configure_project_source_review", { configuration });
 }
 
@@ -100,20 +89,18 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
     bridgeState = {
       state: "unavailable",
       presentation: null,
-      detail: result.detail || "Project Source Center runtime presentation is unavailable.",
+      detail: result.detail || text("Project source presentation is unavailable.", "Die Darstellung der Projektquellen ist nicht verfügbar."),
     };
   } catch (error: unknown) {
     bridgeState = {
       state: "unavailable",
       presentation: null,
-      detail: `Project Source Center observation/refresh failed closed: ${String(error)}`,
+      detail: `${text("Project source observation could not be refreshed safely", "Die Projektquellen-Beobachtung konnte nicht sicher aktualisiert werden")}: ${String(error)}`,
     };
   }
 }
 
 export function renderProjectSourceReviewBridgeView(): string {
-  if (bridgeState.state !== "ready" || !bridgeState.presentation) {
-    return renderProjectSourceReviewUnavailable(bridgeState.detail);
-  }
+  if (bridgeState.state !== "ready" || !bridgeState.presentation) return renderProjectSourceReviewUnavailable(bridgeState.detail);
   return renderProjectSourceReviewView(bridgeState.presentation);
 }
