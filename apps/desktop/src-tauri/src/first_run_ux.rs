@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::{path::{Path, PathBuf}, process::Command};
+use std::{env, path::{Path, PathBuf}, process::Command};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,14 +64,31 @@ pub fn inspect_first_run_repository(local_path: String) -> FirstRunRepositoryIns
 }
 
 #[tauri::command]
-pub fn pick_first_run_folder() -> Result<Option<String>, String> {
+pub fn pick_first_run_folder(language: String) -> Result<Option<String>, String> {
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        const SCRIPT: &str = "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Select a project folder'; $dialog.ShowNewFolderButton = $false; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath) }";
-        let output = Command::new("powershell.exe")
-            .args(["-NoProfile", "-NonInteractive", "-STA", "-Command", SCRIPT])
+        const SCRIPT_EN: &str = "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Select a project folder'; $dialog.ShowNewFolderButton = $false; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath) }";
+        const SCRIPT_DE: &str = "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Projektordner auswählen'; $dialog.ShowNewFolderButton = $false; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath) }";
+
+        let script = match language.as_str() {
+            "de" => SCRIPT_DE,
+            "en" => SCRIPT_EN,
+            _ => return Err("Unsupported folder-picker language.".to_owned()),
+        };
+        let system_root = env::var_os("SystemRoot").ok_or_else(|| "Windows system root is unavailable.".to_owned())?;
+        let powershell = PathBuf::from(system_root)
+            .join("System32")
+            .join("WindowsPowerShell")
+            .join("v1.0")
+            .join("powershell.exe");
+        if !powershell.is_file() {
+            return Err("Windows system PowerShell is unavailable for native folder selection.".to_owned());
+        }
+
+        let output = Command::new(&powershell)
+            .args(["-NoProfile", "-NonInteractive", "-STA", "-Command", script])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|error| format!("Native folder picker could not be started: {error}"))?;
@@ -84,6 +101,7 @@ pub fn pick_first_run_folder() -> Result<Option<String>, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = language;
         Err("Native folder selection is not available on this Desktop platform yet.".to_owned())
     }
 }
