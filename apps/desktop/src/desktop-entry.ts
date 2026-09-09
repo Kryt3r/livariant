@@ -1,7 +1,8 @@
 import { mountFirstRunOnboarding } from "./first-run-ui.js";
 
-const root = document.querySelector<HTMLDivElement>("#app");
-if (!root) throw new Error("Livariant desktop root not found");
+const rootElement = document.querySelector<HTMLDivElement>("#app");
+if (!rootElement) throw new Error("Livariant desktop root not found");
+const root: HTMLDivElement = rootElement;
 
 const logoUrl = new URL("./assets/livariant-logo.png", import.meta.url).href;
 let mainLoaded = false;
