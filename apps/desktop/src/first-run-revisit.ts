@@ -11,7 +11,13 @@ const addRevisitControl = () => {
   body.append(card);
 };
 
+const scheduleRevisitControl = () => {
+  window.setTimeout(addRevisitControl, 0);
+};
+
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
-  if (event.target.closest("[data-open-settings], [data-settings-section='general']")) queueMicrotask(addRevisitControl);
+  if (event.target.closest("[data-open-settings], [data-settings-section='general']")) scheduleRevisitControl();
 }, { capture: true });
+
+addRevisitControl();
