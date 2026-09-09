@@ -92,10 +92,14 @@ test("UI polish discovers Updates structurally, not through visible text", async
 
 test("Updater has one active install CTA owner and keeps the available action stable", async () => {
   const index = await read("apps/desktop/index.html");
+  const entry = await read("apps/desktop/src/desktop-entry.ts");
   const updater = await read("apps/desktop/src/updater-ui.ts");
   const css = await read("apps/desktop/src/live-ui-regressions.css");
-  assert.match(index, /\/src\/updater-ui\.ts/);
+  assert.match(index, /\/src\/desktop-entry\.ts/);
+  assert.doesNotMatch(index, /\/src\/updater-ui\.ts/);
   assert.doesNotMatch(index, /updater-cta-stabilizer/);
+  assert.match(entry, /import\("\.\/updater-ui\.js"\)/);
+  assert.doesNotMatch(entry, /updater-cta-stabilizer/);
   assert.match(updater, /const button = installButton \?\? document\.createElement\("button"\)/);
   assert.match(updater, /button\.parentElement !== panel/);
   assert.doesNotMatch(updater, /document\.querySelector\("\.install-update"\)\?\.remove\(\);/);
