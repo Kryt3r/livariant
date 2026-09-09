@@ -36,15 +36,14 @@ export function projectDesktopFirstRunSourceReviewRequest(value: unknown) {
   return configuration;
 }
 
-async function main() {
-  const requestPath = process.env.LIVARIANT_FIRST_RUN_SOURCE_REVIEW_REQUEST?.trim();
-  if (!requestPath) throw new Error("LIVARIANT_FIRST_RUN_SOURCE_REVIEW_REQUEST is required.");
+async function main(requestPath: string) {
   const request = JSON.parse(await readFile(requestPath, "utf8"));
   process.stdout.write(`${JSON.stringify(projectDesktopFirstRunSourceReviewRequest(request))}\n`);
 }
 
-if (process.argv[1] && new URL(import.meta.url).pathname.replace(/^\/(.:\/)/, "$1") === process.argv[1].replace(/\\/g, "/")) {
-  main().catch((error: unknown) => {
+const runtimeRequestPath = process.env.LIVARIANT_FIRST_RUN_SOURCE_REVIEW_REQUEST?.trim();
+if (runtimeRequestPath) {
+  main(runtimeRequestPath).catch((error: unknown) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
   });
