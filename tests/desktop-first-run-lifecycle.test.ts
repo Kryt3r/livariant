@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   createDesktopFirstRunInitialState,
   desktopFirstRunLifecycleSnapshot,
@@ -7,6 +10,17 @@ import {
   parsePersistedFirstRunOnboardingState,
   transitionDesktopFirstRunState,
 } from "../src/project/desktop-first-run-lifecycle.js";
+
+function withProject<T>(run: (root: string) => T): T {
+  const root = mkdtempSync(join(tmpdir(), "livariant-first-run-"));
+  try {
+    writeFileSync(join(root, "package.json"), JSON.stringify({ name: "sample-project", private: true }), "utf8");
+    writeFileSync(join(root, "README.md"), "# Sample project\n", "utf8");
+    return run(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
 
 test("fresh Desktop lifecycle begins at canonical welcome without fabricated project state", () => {
   const state = createDesktopFirstRunInitialState();
@@ -22,13 +36,27 @@ test("fresh Desktop lifecycle begins at canonical welcome without fabricated pro
   assert.equal(snapshot.boundaries.lifecycleGrantsAuthority, false);
 });
 
-test("lifecycle actions delegate to canonical first-run transitions", () => {
+test("selecting a local project hydrates canonical understanding questions from discovery", () => withProject((root) => {
+  let state = createDesktopFirstRunInitialState();
+  state = transitionDesktopFirstRunState(state, {
+    type: "select-project",
+    projectId: "sample-project",
+    localRoot: root,
+  });
+  assert.equal(state.project.localRoot, root);
+  assert.equal(state.understanding.projectRoot, root);
+  assert.ok(state.understanding.questions.length > 0);
+  assert.ok(state.understanding.questions.every((question) => question.state === "open"));
+  assert.equal(state.boundaries.onboardingEvidenceIsProjectTruth, false);
+}));
+
+test("lifecycle actions delegate to canonical first-run transitions", () => withProject((root) => {
   let state = createDesktopFirstRunInitialState();
   state = transitionDesktopFirstRunState(state, { type: "move", step: "project" });
   state = transitionDesktopFirstRunState(state, {
     type: "select-project",
     projectId: "livariant",
-    localRoot: "C:/projects/livariant",
+    localRoot: root,
   });
   state = transitionDesktopFirstRunState(state, {
     type: "set-primary-repository",
@@ -38,7 +66,7 @@ test("lifecycle actions delegate to canonical first-run transitions", () => {
       displayName: "livariant",
       remoteUrl: "https://github.com/Kryt3r/livariant",
     },
-    localPath: "C:/projects/livariant",
+    localPath: root,
   });
   state = transitionDesktopFirstRunState(state, {
     type: "add-additional-repository",
@@ -48,30 +76,29 @@ test("lifecycle actions delegate to canonical first-run transitions", () => {
       displayName: "livariant-internal",
     },
     description: "Internal governance and development control state.",
-    localPath: "C:/projects/livariant-internal",
   });
 
   assert.equal(state.project.sourceRegistry?.primary.identity.repositoryId, "Kryt3r/livariant");
   assert.equal(state.project.sourceRegistry?.additional[0]?.description, "Internal governance and development control state.");
   assert.equal(firstRunSourceReviewReady(state), true);
-});
+}));
 
-test("project localRoot is never silently promoted to primary repository binding", () => {
+test("project localRoot is never silently promoted to primary repository binding", () => withProject((root) => {
   let state = createDesktopFirstRunInitialState();
   state = transitionDesktopFirstRunState(state, {
     type: "select-project",
     projectId: "livariant",
-    localRoot: "C:/projects/livariant",
+    localRoot: root,
   });
   state = transitionDesktopFirstRunState(state, {
     type: "set-primary-repository",
     identity: { provider: "github", repositoryId: "Kryt3r/livariant", displayName: "livariant" },
   });
 
-  assert.equal(state.project.localRoot, "C:/projects/livariant");
+  assert.equal(state.project.localRoot, root);
   assert.equal(state.project.sourceRegistry?.primary.local, undefined);
   assert.equal(firstRunSourceReviewReady(state), false);
-});
+}));
 
 test("completed onboarding remains non-authoritative and may be incomplete by conscious user choice", () => {
   let state = createDesktopFirstRunInitialState();
@@ -83,7 +110,7 @@ test("completed onboarding remains non-authoritative and may be incomplete by co
   assert.equal(snapshot.onboardingState.boundaries.mutationAuthorized, false);
 });
 
-test("malformed or authority-claiming persisted state fails closed", () => {
+test("malformed, invalid-path or authority-claiming state fails closed", () => {
   const state = createDesktopFirstRunInitialState();
   assert.throws(() => parsePersistedFirstRunOnboardingState({ ...state, schemaVersion: 2 }), /schemaVersion/);
   assert.throws(() => parsePersistedFirstRunOnboardingState({
@@ -91,4 +118,9 @@ test("malformed or authority-claiming persisted state fails closed", () => {
     boundaries: { ...state.boundaries, grantsAuthority: true },
   }), /grantsAuthority/);
   assert.throws(() => transitionDesktopFirstRunState(state, { type: "unknown" }), /Unsupported/);
+  assert.throws(() => transitionDesktopFirstRunState(state, {
+    type: "select-project",
+    projectId: "missing",
+    localRoot: join(tmpdir(), "livariant-definitely-missing-project"),
+  }));
 });
