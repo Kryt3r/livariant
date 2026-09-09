@@ -1,8 +1,7 @@
 const addRevisitControl = () => {
   const body = document.querySelector<HTMLElement>(".settings-content-body");
-  if (!body || body.querySelector("[data-reopen-first-run]")) return;
-  const heading = body.querySelector("h2")?.textContent?.trim();
-  if (heading !== "General") return;
+  const generalActive = document.querySelector<HTMLElement>("[data-settings-section='general'].active");
+  if (!body || !generalActive || body.querySelector("[data-reopen-first-run]")) return;
   const card = document.createElement("div");
   card.className = "settings-card";
   card.innerHTML = `<div><strong>Setup assistant</strong><span>Review or continue the resumable first-run project, source and provider setup.</span></div><button class="button secondary" data-reopen-first-run type="button">Open setup</button>`;
