@@ -1,3 +1,5 @@
+import "./glass.css";
+import "./styles.css";
 import { mountFirstRunOnboarding } from "./first-run-ui.js";
 
 const rootElement = document.querySelector<HTMLDivElement>("#app");
