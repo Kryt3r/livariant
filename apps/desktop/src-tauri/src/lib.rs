@@ -2,6 +2,7 @@ mod connector_host;
 mod first_run_lifecycle;
 mod first_run_project_state;
 mod first_run_ux;
+mod github_remote;
 mod project_source_observation;
 mod project_source_review_bridge;
 mod updater;
@@ -150,6 +151,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(connector_host::ConnectorHostState::default())
+        .manage(github_remote::GitHubRemoteState::default())
         .setup(|app| {
             #[cfg(feature = "ci-updater-acceptance")]
             updater::start_ci_acceptance_if_requested(app.handle().clone());
@@ -169,6 +171,12 @@ pub fn run() {
             first_run_project_state::persist_first_run_project_state,
             first_run_ux::inspect_first_run_repository,
             first_run_ux::pick_first_run_folder,
+            github_remote::github_connection_status,
+            github_remote::github_begin_device_authorization,
+            github_remote::github_open_verification_page,
+            github_remote::github_poll_device_authorization,
+            github_remote::github_disconnect,
+            github_remote::github_list_repositories,
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
             project_source_review_bridge::project_source_review_presentation,
