@@ -18,6 +18,17 @@ test("GitHub project telemetry is bounded to read-only owner/name repository req
   assert.doesNotMatch(host, /Invoke-RestMethod -Method (Post|Patch|Put|Delete)/);
 });
 
+test("GitHub top-level list transport preserves empty, singleton and multi-item arrays", async () => {
+  const host = await text("apps/desktop/src-tauri/src/github_telemetry.rs");
+
+  assert.match(host, /fn github_get_top_level_list_json/);
+  assert.match(host, /ConvertTo-Json -InputObject @\(\$r\) -Compress -Depth 30/);
+  assert.match(host, /if field\.is_none\(\) \{\s*github_get_top_level_list_json\(path, token\)/s);
+  assert.match(host, /assert_eq!\(list_items\(json!\(\[\]\), None\)\.unwrap\(\), json!\(\[\]\)\)/);
+  assert.match(host, /assert_eq!\(list_items\(json!\(\[\{\"number\": 1\}\]\), None\)\.unwrap\(\), json!\(\[\{\"number\": 1\}\]\)\)/);
+  assert.match(host, /assert!\(list_items\(json!\(\{\"number\": 1\}\), None\)\.is_err\(\)\)/);
+});
+
 test("GitHub telemetry keeps remote evidence and mutation Authority separate", async () => {
   const host = await text("apps/desktop/src-tauri/src/github_telemetry.rs");
   const ui = await text("apps/desktop/src/github-project-telemetry.ts");
