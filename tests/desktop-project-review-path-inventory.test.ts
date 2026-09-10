@@ -24,15 +24,17 @@ function input(localPath: string, selectedReviewPaths: string[] = []) {
   };
 }
 
-test("Desktop review path inventory reuses adoption surfaces without reading test directories as review material", () => {
+test("Desktop review path inventory reuses adoption surfaces without reading test directories or fixture guidance as review material", () => {
   const root = mkdtempSync(join(tmpdir(), "livariant-review-paths-"));
   try {
     mkdirSync(join(root, "docs"));
-    mkdirSync(join(root, "tests"));
+    mkdirSync(join(root, "tests", "fixtures", "existing-messy"), { recursive: true });
     writeFileSync(join(root, "README.md"), "# Project\n");
     writeFileSync(join(root, "SECURITY.md"), "# Security\n");
     writeFileSync(join(root, "docs", "architecture.md"), "# Architecture\n");
     writeFileSync(join(root, "tests", "example.test.ts"), "test\n");
+    writeFileSync(join(root, "tests", "fixtures", "existing-messy", "AGENTS.md"), "fixture guidance\n");
+    writeFileSync(join(root, "tests", "fixtures", "existing-messy", "CLAUDE.md"), "fixture guidance\n");
 
     const inventory = buildDesktopProjectReviewPathInventory(input(root, ["README.md"]));
 
@@ -43,6 +45,8 @@ test("Desktop review path inventory reuses adoption surfaces without reading tes
     assert.ok(inventory.candidates.some((candidate) => candidate.path === "SECURITY.md" && candidate.kind === "project-rules" && candidate.scope === "."));
     assert.ok(inventory.candidates.some((candidate) => candidate.path === "docs/architecture.md" && candidate.kind === "architecture"));
     assert.ok(!inventory.candidates.some((candidate) => candidate.kind === "tests"));
+    assert.ok(!inventory.candidates.some((candidate) => candidate.path.startsWith("tests/fixtures/")));
+    assert.ok(!inventory.attention.some((item) => item.provenance.some((path) => path.startsWith("tests/fixtures/"))));
     assert.equal(inventory.boundaries.evidenceIsProjectTruth, false);
     assert.equal(inventory.boundaries.contentsInterpreted, false);
     assert.equal(inventory.boundaries.grantsAuthority, false);
