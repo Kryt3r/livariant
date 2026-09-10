@@ -50,6 +50,7 @@ function statusNode(form: HTMLFormElement): HTMLElement {
 }
 
 function localChoiceMarkup(repository: GitHubRepositorySummary): string {
+  const repositoryId = esc(repository.repositoryId);
   return `<div class="fr-github-local" data-gh-local-choice>
     <strong>${text("Local checkout", "Lokaler Checkout")}</strong>
     <span>${text(
@@ -62,8 +63,8 @@ function localChoiceMarkup(repository: GitHubRepositorySummary): string {
       <button class="button secondary" data-gh-later type="button">${text("Later / remote only", "Später / nur Remote")}</button>
     </div>
     <small>${text(
-      `Clone is limited to ${repository.repositoryId} and only into an empty folder you choose. A successful clone still does not confirm this source automatically.`,
-      `Das Klonen ist auf ${repository.repositoryId} begrenzt und erfolgt nur in einen von dir gewählten leeren Ordner. Auch ein erfolgreicher Clone bestätigt diese Quelle nicht automatisch.`,
+      `Clone is limited to ${repositoryId} and only into an empty folder you choose. A successful clone still does not confirm this source automatically.`,
+      `Das Klonen ist auf ${repositoryId} begrenzt und erfolgt nur in einen von dir gewählten leeren Ordner. Auch ein erfolgreicher Clone bestätigt diese Quelle nicht automatisch.`,
     )}</small>
   </div>`;
 }
