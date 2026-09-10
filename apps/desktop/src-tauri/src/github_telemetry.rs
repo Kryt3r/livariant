@@ -190,6 +190,13 @@ fn github_get_json(path: &str, token: &str) -> Result<Value, String> {
     )
 }
 
+fn github_get_top_level_list_json(path: &str, token: &str) -> Result<Value, String> {
+    run_powershell_json(
+        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); try{$r=Invoke-RestMethod -Method Get -Uri $p.url -Headers @{Accept='application/vnd.github+json';Authorization=('Bearer '+$p.token);'X-GitHub-Api-Version'=$p.apiVersion;'User-Agent'=$p.userAgent}; ConvertTo-Json -InputObject @($r) -Compress -Depth 30}catch{Write-Error $_; exit 1}",
+        &json!({"url": format!("{GITHUB_API}{path}"), "token": token, "apiVersion": API_VERSION, "userAgent": USER_AGENT}),
+    )
+}
+
 fn list_items(value: Value, field: Option<&str>) -> Result<Value, String> {
     let value = match field {
         Some(field) => value.get(field).cloned().ok_or_else(|| format!("GitHub response did not include {field}."))?,
@@ -224,7 +231,12 @@ fn map_array(value: Value, fields: &[&str], exclude_pull_requests: bool) -> Resu
 }
 
 fn surface_request(path: &str, token: &str, field: Option<&str>, fields: &[&str], exclude_pull_requests: bool) -> GitHubTelemetrySurface {
-    match github_get_json(path, token)
+    let response = if field.is_none() {
+        github_get_top_level_list_json(path, token)
+    } else {
+        github_get_json(path, token)
+    };
+    match response
         .and_then(|value| list_items(value, field))
         .and_then(|value| map_array(value, fields, exclude_pull_requests))
     {
@@ -291,7 +303,8 @@ pub fn github_project_telemetry(repository_id: String) -> Result<GitHubProjectTe
 
 #[cfg(test)]
 mod tests {
-    use super::{boundaries, validate_repository_id};
+    use super::{boundaries, list_items, validate_repository_id};
+    use serde_json::json;
 
     #[test]
     fn repository_id_is_bounded_to_owner_name() {
@@ -299,6 +312,14 @@ mod tests {
         assert!(validate_repository_id("https://github.com/Kryt3r/livariant").is_err());
         assert!(validate_repository_id("Kryt3r/livariant/actions").is_err());
         assert!(validate_repository_id("Kryt3r/li vari ant").is_err());
+    }
+
+    #[test]
+    fn top_level_list_shape_stays_fail_closed() {
+        assert_eq!(list_items(json!([]), None).unwrap(), json!([]));
+        assert_eq!(list_items(json!([{"number": 1}]), None).unwrap(), json!([{"number": 1}]));
+        assert_eq!(list_items(json!([{"number": 1}, {"number": 2}]), None).unwrap(), json!([{"number": 1}, {"number": 2}]));
+        assert!(list_items(json!({"number": 1}), None).is_err());
     }
 
     #[test]
