@@ -11,7 +11,7 @@ import type { ProjectSourceObservation } from "./project-source-center-presentat
 interface RefreshInput {
   schemaVersion: 1;
   projectId: string;
-  primary: { identity: RepositoryIdentity; localPath: string };
+  primary: { identity: RepositoryIdentity; localPath?: string };
   additional?: Array<{ identity: RepositoryIdentity; description: string; localPath?: string }>;
   observations?: ProjectSourceObservation[];
   selectedReviewPaths?: string[];
@@ -23,12 +23,16 @@ function requiredString(value: unknown, field: string): string {
   return value.trim();
 }
 
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function identity(value: unknown, field: string): RepositoryIdentity {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${field} must be an object.`);
   const record = value as Record<string, unknown>;
   const provider = record.provider;
   if (provider !== "github" && provider !== "git") throw new Error(`${field}.provider is unsupported.`);
-  const remoteUrl = typeof record.remoteUrl === "string" && record.remoteUrl.trim() ? record.remoteUrl.trim() : undefined;
+  const remoteUrl = optionalString(record.remoteUrl);
   return {
     provider,
     repositoryId: requiredString(record.repositoryId, `${field}.repositoryId`),
@@ -55,10 +59,10 @@ function observations(value: unknown): ProjectSourceObservation[] {
       reachability: record.reachability,
       observedAt: requiredString(record.observedAt, `observations[${index}].observedAt`),
       stale: record.stale,
-      ...(typeof record.branch === "string" && record.branch.trim() ? { branch: record.branch.trim() } : {}),
-      ...(typeof record.revision === "string" && record.revision.trim() ? { revision: record.revision.trim() } : {}),
+      ...(optionalString(record.branch) ? { branch: optionalString(record.branch) } : {}),
+      ...(optionalString(record.revision) ? { revision: optionalString(record.revision) } : {}),
       ...(attention ? { attention } : {}),
-    };
+    } as ProjectSourceObservation;
   });
 }
 
@@ -98,12 +102,12 @@ export function parseDesktopProjectSourceReviewRefreshInput(value: unknown): Ref
     projectId: requiredString(record.projectId, "projectId"),
     primary: {
       identity: identity(primary.identity, "primary.identity"),
-      localPath: requiredString(primary.localPath, "primary.localPath"),
+      ...(optionalString(primary.localPath) ? { localPath: optionalString(primary.localPath) } : {}),
     },
     additional: additionalRaw.map((item, index) => {
       if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`additional[${index}] must be an object.`);
       const entry = item as Record<string, unknown>;
-      const localPath = typeof entry.localPath === "string" && entry.localPath.trim() ? entry.localPath.trim() : undefined;
+      const localPath = optionalString(entry.localPath);
       return {
         identity: identity(entry.identity, `additional[${index}].identity`),
         description: requiredString(entry.description, `additional[${index}].description`),
@@ -120,7 +124,7 @@ export async function refreshDesktopProjectSourceReviewPresentation(inputPath: s
   const parsed = parseDesktopProjectSourceReviewRefreshInput(JSON.parse(await readFile(inputPath, "utf8")));
   let registry = createProjectSourceRegistry(parsed.projectId, {
     identity: parsed.primary.identity,
-    local: { localPath: parsed.primary.localPath },
+    ...(parsed.primary.localPath ? { local: { localPath: parsed.primary.localPath } } : {}),
   });
   for (const additional of parsed.additional ?? []) {
     registry = addAdditionalProjectRepository(registry, {
@@ -134,6 +138,7 @@ export async function refreshDesktopProjectSourceReviewPresentation(inputPath: s
   let review = undefined;
   let decisions = undefined;
   if (selectedReviewPaths.length > 0) {
+    if (!parsed.primary.localPath) throw new Error("Selected local review paths require a linked primary local checkout.");
     const inventory = buildAdoptionSurfaceInventory(parsed.primary.localPath);
     review = reviewAdoptionSurfaces(parsed.primary.localPath, inventory, selectedReviewPaths);
     decisions = bindAdoptionReviewDecisions(review, parsed.decisions ?? []);

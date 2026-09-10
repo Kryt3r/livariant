@@ -22,6 +22,7 @@ function registry() {
       provider: "github",
       repositoryId: "Kryt3r/livariant-internal",
       displayName: "livariant-internal",
+      remoteUrl: "https://github.com/Kryt3r/livariant-internal",
     },
     description: "Internal governance and development control state.",
   }).registry;
@@ -52,19 +53,26 @@ function review(): AdoptionDesktopPresentation {
   };
 }
 
-test("source center presents configured primary and additional repositories without inventing observations", () => {
+test("source center distinguishes remote identity from local checkout without inventing observations", () => {
   const presentation = buildProjectSourceCenterPresentation(registry());
   assert.equal(presentation.sources.length, 2);
   assert.equal(presentation.sources[0]?.kind, "primary");
   assert.equal(presentation.sources[0]?.localPath, "C:/projects/livariant");
+  assert.equal(presentation.sources[0]?.localState, "linked");
+  assert.equal(presentation.sources[0]?.remoteState, "recorded");
   assert.equal(presentation.sources[0]?.reachability, "unknown");
   assert.equal(presentation.sources[0]?.branch, null);
   assert.equal(presentation.sources[0]?.revision, null);
   assert.equal(presentation.sources[1]?.kind, "additional");
   assert.equal(presentation.sources[1]?.description, "Internal governance and development control state.");
-  assert.equal(presentation.boundaries.repositoryDescriptionIsProjectTruth, false);
-  assert.equal(presentation.boundaries.repositoryDescriptionGrantsAuthority, false);
-  assert.equal(presentation.boundaries.sourceObservationGrantsAuthority, false);
+  assert.equal(presentation.sources[1]?.localState, "not-linked");
+  assert.equal(presentation.sources[1]?.remoteState, "recorded");
+  assert.match(presentation.sources[1]?.attention.join(" ") ?? "", /No local checkout/);
+  assert.equal(presentation.summary.localCheckoutCount, 1);
+  assert.equal(presentation.summary.remoteOnlyCount, 1);
+  assert.equal(presentation.boundaries.remoteIdentityIsProjectTruth, false);
+  assert.equal(presentation.boundaries.remoteIdentityGrantsAuthority, false);
+  assert.equal(presentation.boundaries.localBindingGrantsAuthority, false);
 });
 
 test("source observations expose reachability revision stale attention as evidence only", () => {

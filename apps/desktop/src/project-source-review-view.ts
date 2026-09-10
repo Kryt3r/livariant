@@ -1,6 +1,8 @@
 import { getLanguage } from "./i18n/runtime.js";
 
 export type SourceReachability = "unknown" | "reachable" | "unreachable";
+export type SourceRemoteState = "recorded" | "not-recorded";
+export type SourceLocalState = "linked" | "not-linked";
 export type ReviewLifecycleState = "blocked" | "ready-for-authorization-review" | "authorized-for-separate-apply" | "completed";
 
 export interface DesktopSourceItem {
@@ -8,6 +10,8 @@ export interface DesktopSourceItem {
   identity: { provider: string; repositoryId: string; displayName: string; remoteUrl?: string };
   description: string | null;
   localPath: string | null;
+  remoteState: SourceRemoteState;
+  localState: SourceLocalState;
   reachability: SourceReachability;
   branch: string | null;
   revision: string | null;
@@ -47,6 +51,8 @@ export interface DesktopSourceReviewPresentation {
   summary: {
     sourceCount: number;
     additionalSourceCount: number;
+    remoteOnlyCount: number;
+    localCheckoutCount: number;
     unavailableCount: number;
     staleCount: number;
     reviewAttentionCount: number;
@@ -81,15 +87,18 @@ const labelApply = (state: DesktopReviewPresentation["applyState"]): string => s
 
 const sourceCard = (source: DesktopSourceItem): string => {
   const role = source.kind === "primary" ? text("Primary repository", "Hauptrepository") : text("Additional repository", "Zusätzliches Repository");
+  const remoteLabel = source.remoteState === "recorded" ? text("Remote recorded", "Remote hinterlegt") : text("No remote recorded", "Kein Remote hinterlegt");
+  const localLabel = source.localState === "linked" ? text("Local checkout linked", "Lokaler Checkout verknüpft") : text("Remote only / no local checkout", "Nur Remote / kein lokaler Checkout");
   const attention = source.attention.length > 0
     ? `<ul class="source-review-attention">${source.attention.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
     : "";
 
-  return `<article class="source-review-card">
+  return `<article class="source-review-card ${source.localState === "not-linked" ? "is-remote-only" : ""}">
     <div class="source-review-card-head">
       <div><span class="eyebrow">${role}</span><h3>${escapeHtml(source.identity.displayName)}</h3><p>${escapeHtml(source.identity.repositoryId)}</p></div>
       <span class="source-review-state source-review-state-${source.reachability}">${labelReachability(source.reachability)}</span>
     </div>
+    <div class="source-review-source-modes"><span>${remoteLabel}</span><span>${localLabel}</span></div>
     ${source.description ? `<p class="source-review-description">${escapeHtml(source.description)}</p>` : ""}
     <dl class="source-review-meta">
       <div><dt>${text("Provider", "Provider")}</dt><dd>${escapeHtml(source.identity.provider)}</dd></div>
@@ -99,6 +108,7 @@ const sourceCard = (source: DesktopSourceItem): string => {
       <div><dt>${text("Revision", "Revision")}</dt><dd>${source.revision ? escapeHtml(source.revision) : text("Unknown", "Unbekannt")}</dd></div>
       <div><dt>${text("Observed", "Beobachtet")}</dt><dd>${source.observedAt ? escapeHtml(source.observedAt) : text("Not yet", "Noch nicht")}</dd></div>
     </dl>
+    ${source.localState === "not-linked" ? `<div class="source-review-warning">${text("This source can remain associated remotely, but local inspection, builds and local review material are unavailable until a checkout is linked.", "Diese Quelle kann weiterhin remote zugeordnet bleiben. Lokale Prüfung, Builds und lokales Review-Material sind jedoch erst verfügbar, wenn ein Checkout verknüpft ist.")}</div>` : ""}
     ${source.stale ? `<div class="source-review-warning">${text("This observation is stale and should be refreshed.", "Diese Beobachtung ist veraltet und sollte aktualisiert werden.")}</div>` : ""}
     ${attention}
   </article>`;
@@ -146,6 +156,8 @@ export function renderProjectSourceReviewView(presentation: DesktopSourceReviewP
   <section class="source-review-summary">
     <div><small>${text("Project", "Projekt")}</small><strong>${escapeHtml(presentation.projectId)}</strong></div>
     <div><small>${text("Sources", "Quellen")}</small><strong>${presentation.summary.sourceCount}</strong></div>
+    <div><small>${text("Local checkouts", "Lokale Checkouts")}</small><strong>${presentation.summary.localCheckoutCount}</strong></div>
+    <div><small>${text("Remote only", "Nur Remote")}</small><strong>${presentation.summary.remoteOnlyCount}</strong></div>
     <div><small>${text("Unavailable", "Nicht verfügbar")}</small><strong>${presentation.summary.unavailableCount}</strong></div>
     <div><small>${text("Stale", "Veraltet")}</small><strong>${presentation.summary.staleCount}</strong></div>
     <div><small>${text("Review attention", "Prüfung nötig")}</small><strong>${presentation.summary.reviewAttentionCount}</strong></div>

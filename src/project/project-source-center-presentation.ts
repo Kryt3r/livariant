@@ -2,6 +2,8 @@ import type { AdoptionDesktopPresentation } from "./adoption-desktop-presentatio
 import type { ProjectSourceRegistry, RepositoryIdentity } from "./source-registry.js";
 
 export type ProjectSourceReachability = "unknown" | "reachable" | "unreachable";
+export type ProjectSourceRemoteState = "recorded" | "not-recorded";
+export type ProjectSourceLocalState = "linked" | "not-linked";
 
 export interface ProjectSourceObservation {
   identity: RepositoryIdentity;
@@ -18,6 +20,8 @@ export interface ProjectSourceCenterItem {
   identity: RepositoryIdentity;
   description: string | null;
   localPath: string | null;
+  remoteState: ProjectSourceRemoteState;
+  localState: ProjectSourceLocalState;
   reachability: ProjectSourceReachability;
   branch: string | null;
   revision: string | null;
@@ -28,6 +32,8 @@ export interface ProjectSourceCenterItem {
     descriptionGrantsAuthority: false;
     observationIsProjectTruth: false;
     observationGrantsAuthority: false;
+    remoteIdentityGrantsAuthority: false;
+    localBindingGrantsAuthority: false;
   };
 }
 
@@ -39,6 +45,8 @@ export interface ProjectSourceCenterPresentation {
   summary: {
     sourceCount: number;
     additionalSourceCount: number;
+    remoteOnlyCount: number;
+    localCheckoutCount: number;
     unavailableCount: number;
     staleCount: number;
     reviewAttentionCount: number;
@@ -49,6 +57,9 @@ export interface ProjectSourceCenterPresentation {
     repositoryDescriptionGrantsAuthority: false;
     sourceObservationIsProjectTruth: false;
     sourceObservationGrantsAuthority: false;
+    remoteIdentityIsProjectTruth: false;
+    remoteIdentityGrantsAuthority: false;
+    localBindingGrantsAuthority: false;
     reviewPresentationGrantsAuthority: false;
     hiddenConflictResolution: false;
     changesMade: 0;
@@ -77,14 +88,20 @@ function item(
   observation: ProjectSourceObservation | undefined,
 ): ProjectSourceCenterItem {
   const attention = [...(observation?.attention ?? [])].map((value) => value.trim()).filter(Boolean).sort();
+  const remoteState: ProjectSourceRemoteState = identity.remoteUrl?.trim() ? "recorded" : "not-recorded";
+  const localState: ProjectSourceLocalState = localPath?.trim() ? "linked" : "not-linked";
+
   if (observation?.reachability === "unreachable") attention.unshift("Source is currently unreachable.");
   if (observation?.stale) attention.unshift("Source observation is stale and should be refreshed.");
+  if (localState === "not-linked") attention.unshift("No local checkout is linked. Local inspection is unavailable until a checkout is associated.");
 
   return {
     kind,
     identity,
     description,
     localPath,
+    remoteState,
+    localState,
     reachability: observation?.reachability ?? "unknown",
     branch: observation?.branch?.trim() || null,
     revision: observation?.revision?.trim() || null,
@@ -95,6 +112,8 @@ function item(
       descriptionGrantsAuthority: false,
       observationIsProjectTruth: false,
       observationGrantsAuthority: false,
+      remoteIdentityGrantsAuthority: false,
+      localBindingGrantsAuthority: false,
     },
   };
 }
@@ -144,6 +163,8 @@ export function buildProjectSourceCenterPresentation(
     summary: {
       sourceCount: sources.length,
       additionalSourceCount: sources.filter((source) => source.kind === "additional").length,
+      remoteOnlyCount: sources.filter((source) => source.remoteState === "recorded" && source.localState === "not-linked").length,
+      localCheckoutCount: sources.filter((source) => source.localState === "linked").length,
       unavailableCount: sources.filter((source) => source.reachability === "unreachable").length,
       staleCount: sources.filter((source) => source.stale).length,
       reviewAttentionCount: review?.attention.length ?? 0,
@@ -154,6 +175,9 @@ export function buildProjectSourceCenterPresentation(
       repositoryDescriptionGrantsAuthority: false,
       sourceObservationIsProjectTruth: false,
       sourceObservationGrantsAuthority: false,
+      remoteIdentityIsProjectTruth: false,
+      remoteIdentityGrantsAuthority: false,
+      localBindingGrantsAuthority: false,
       reviewPresentationGrantsAuthority: false,
       hiddenConflictResolution: false,
       changesMade: 0,
