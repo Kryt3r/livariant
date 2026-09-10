@@ -100,6 +100,10 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
   }
 }
 
+export function getCurrentProjectSourceReviewPresentation(): DesktopSourceReviewPresentation | null {
+  return bridgeState.state === "ready" ? bridgeState.presentation : null;
+}
+
 export function renderProjectSourceReviewBridgeView(): string {
   if (bridgeState.state !== "ready" || !bridgeState.presentation) return renderProjectSourceReviewUnavailable(bridgeState.detail);
   return renderProjectSourceReviewView(bridgeState.presentation);
