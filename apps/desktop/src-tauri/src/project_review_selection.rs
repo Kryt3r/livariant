@@ -54,13 +54,21 @@ fn hidden_command(program: &Path) -> Command {
     command
 }
 
+fn looks_like_windows_rooted_path(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':')
+        || value.starts_with("\\\\")
+        || value.starts_with("//")
+}
+
 fn normalize_review_path(value: &str, index: usize) -> Result<String, String> {
     let normalized = value.trim();
     if normalized.is_empty() {
         return Err(format!("selectedReviewPaths[{index}] must not be empty."));
     }
     let path = Path::new(normalized);
-    if path.is_absolute()
+    if looks_like_windows_rooted_path(normalized)
+        || path.is_absolute()
         || path.components().any(|component| {
             matches!(
                 component,
@@ -331,6 +339,9 @@ mod tests {
         assert!(normalize_selection(&[]).is_err());
         assert!(normalize_selection(&["../outside.md".to_owned()]).is_err());
         assert!(normalize_selection(&["C:/outside.md".to_owned()]).is_err());
+        assert!(normalize_selection(&["C:\\outside.md".to_owned()]).is_err());
+        assert!(normalize_selection(&["C:outside.md".to_owned()]).is_err());
+        assert!(normalize_selection(&["\\\\server\\share\\outside.md".to_owned()]).is_err());
         assert!(normalize_selection(&["README.md".to_owned(), "readme.md".to_owned()]).is_err());
     }
 
