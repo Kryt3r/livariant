@@ -44,6 +44,14 @@ test("known discovery questions and Project Sources presentation respect Desktop
   assert.match(navigation, /Projektquellen & Prüfung/);
 });
 
+test("Project Sources navigation localization does not self-trigger its MutationObserver", async () => {
+  const navigation = await text("apps/desktop/src/project-source-review-navigation.ts");
+  assert.match(navigation, /const desiredLabel = text\(/);
+  assert.match(navigation, /if \(label && label\.textContent !== desiredLabel\) label\.textContent = desiredLabel/);
+  assert.match(navigation, /button\.innerHTML = `\$\{sourcesIcon\(\)\}<span>\$\{desiredLabel\}<\/span>`/);
+  assert.doesNotMatch(navigation, /\n\s*button\.innerHTML = `\$\{sourcesIcon\(\)\}<span>\$\{text\(/);
+});
+
 test("normal onboarding copy avoids exposing internal safety jargon as the primary UX", async () => {
   const ui = await text("apps/desktop/src/first-run-ui.ts");
   assert.match(ui, /Änderungen bleiben kontrolliert/);
