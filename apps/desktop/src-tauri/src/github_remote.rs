@@ -4,7 +4,7 @@ use std::{
     env,
     fs,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::Mutex,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -74,6 +74,16 @@ pub struct GitHubRepositorySummary {
     archived: bool,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubCloneResult {
+    state: &'static str,
+    repository_id: String,
+    local_path: String,
+    detail: String,
+    boundaries: Value,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredCredential {
@@ -114,6 +124,17 @@ fn boundaries() -> Value {
         "remoteEvidenceIsProjectTruth": false,
         "writeCapabilityEnabled": false,
         "changesProjectOwnedFiles": false,
+        "performsSemanticApply": false
+    })
+}
+
+fn clone_boundaries() -> Value {
+    json!({
+        "cloneIsProjectTruth": false,
+        "cloneGrantsAuthority": false,
+        "localBindingAutomatic": false,
+        "remoteMutationPerformed": false,
+        "arbitraryCommandSurface": false,
         "performsSemanticApply": false
     })
 }
@@ -308,6 +329,65 @@ fn parse_repository(value: &Value) -> Result<GitHubRepositorySummary, String> {
     })
 }
 
+fn validate_clone_destination(destination: &Path) -> Result<PathBuf, String> {
+    if !destination.is_absolute() {
+        return Err("Clone destination must be an absolute path selected by the user.".to_owned());
+    }
+    let parent = destination.parent().ok_or_else(|| "Filesystem roots cannot be used as clone destinations.".to_owned())?;
+    if destination.exists() {
+        let metadata = fs::symlink_metadata(destination).map_err(|error| format!("Clone destination could not be inspected: {error}"))?;
+        if metadata.file_type().is_symlink() {
+            return Err("Clone destination must not be a symbolic link.".to_owned());
+        }
+        if !metadata.is_dir() {
+            return Err("Clone destination must be a directory.".to_owned());
+        }
+        let mut entries = fs::read_dir(destination).map_err(|error| format!("Clone destination could not be read: {error}"))?;
+        if entries.next().is_some() {
+            return Err("Clone destination is not empty. Livariant refuses to overwrite or reuse a non-empty folder.".to_owned());
+        }
+        return destination.canonicalize().map_err(|error| format!("Clone destination could not be canonicalized: {error}"));
+    }
+    if !parent.is_dir() {
+        return Err("Clone destination parent must already exist. Livariant will not create an ambiguous directory tree.".to_owned());
+    }
+    let canonical_parent = parent.canonicalize().map_err(|error| format!("Clone destination parent could not be canonicalized: {error}"))?;
+    let name = destination.file_name().ok_or_else(|| "Clone destination requires a final folder name.".to_owned())?;
+    Ok(canonical_parent.join(name))
+}
+
+fn git_clone(repository: &GitHubRepositorySummary, destination: &Path, token: &str) -> Result<(), String> {
+    let mut command = Command::new("git");
+    command
+        .args(["clone", "--origin", "origin", "--"])
+        .arg(&repository.remote_url)
+        .arg(destination)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_CONFIG_COUNT", "2")
+        .env("GIT_CONFIG_KEY_0", "http.https://github.com/.extraheader")
+        .env("GIT_CONFIG_VALUE_0", format!("AUTHORIZATION: bearer {token}"))
+        .env("GIT_CONFIG_KEY_1", "credential.helper")
+        .env("GIT_CONFIG_VALUE_1", "")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = command.output().map_err(|error| format!("Git clone could not be started: {error}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+    Err(if stderr.is_empty() {
+        "Git clone failed. Livariant did not remove the destination automatically; review any partial checkout before retrying.".to_owned()
+    } else {
+        format!("Git clone failed: {stderr}. Livariant did not remove the destination automatically; review any partial checkout before retrying.")
+    })
+}
+
 #[tauri::command]
 pub fn github_connection_status() -> GitHubConnectionStatus {
     let configured = github_client_id().is_some();
@@ -392,9 +472,47 @@ pub fn github_list_repositories() -> Result<Vec<GitHubRepositorySummary>, String
     items.iter().map(parse_repository).collect()
 }
 
+#[tauri::command]
+pub fn github_clone_repository(repository_id: String, numeric_id: u64, destination_path: String) -> Result<GitHubCloneResult, String> {
+    let repository_id = repository_id.trim();
+    if repository_id.is_empty() || numeric_id == 0 {
+        return Err("Clone requires the exact selected GitHub repository identity.".to_owned());
+    }
+    let destination_raw = destination_path.trim();
+    if destination_raw.is_empty() {
+        return Err("Clone destination must be explicitly selected.".to_owned());
+    }
+
+    let credential = usable_credential()?;
+    let live = github_get_json(&format!("/repositories/{numeric_id}"), &credential.access_token)?;
+    let repository = parse_repository(&live)?;
+    if repository.numeric_id != numeric_id || !repository.repository_id.eq_ignore_ascii_case(repository_id) {
+        return Err("Selected repository identity no longer matches the repository currently exposed by GitHub. Refresh repository selection before cloning.".to_owned());
+    }
+    if repository.archived {
+        return Err("Archived repositories are not cloned automatically. Use an existing checkout or keep this source remote-only.".to_owned());
+    }
+
+    let destination = validate_clone_destination(Path::new(destination_raw))?;
+    git_clone(&repository, &destination, &credential.access_token)?;
+    let git_dir = destination.join(".git");
+    if !git_dir.exists() {
+        return Err("Git reported a successful clone, but the destination is not a Git checkout. Local binding was not accepted.".to_owned());
+    }
+
+    Ok(GitHubCloneResult {
+        state: "cloned",
+        repository_id: repository.repository_id,
+        local_path: destination.to_string_lossy().to_string(),
+        detail: "Repository cloned into the explicitly selected destination. Local binding still requires explicit source confirmation in Livariant.".to_owned(),
+        boundaries: clone_boundaries(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{boundaries, github_client_id};
+    use super::{boundaries, clone_boundaries, github_client_id, validate_clone_destination};
+    use std::path::Path;
 
     #[test]
     fn connection_boundaries_remain_non_authoritative() {
@@ -403,6 +521,21 @@ mod tests {
         assert_eq!(value["repositorySelectionGrantsAuthority"], false);
         assert_eq!(value["remoteEvidenceIsProjectTruth"], false);
         assert_eq!(value["writeCapabilityEnabled"], false);
+    }
+
+    #[test]
+    fn clone_boundaries_remain_non_authoritative() {
+        let value = clone_boundaries();
+        assert_eq!(value["cloneIsProjectTruth"], false);
+        assert_eq!(value["cloneGrantsAuthority"], false);
+        assert_eq!(value["localBindingAutomatic"], false);
+        assert_eq!(value["remoteMutationPerformed"], false);
+        assert_eq!(value["arbitraryCommandSurface"], false);
+    }
+
+    #[test]
+    fn relative_clone_destination_is_rejected() {
+        assert!(validate_clone_destination(Path::new("relative/folder")).is_err());
     }
 
     #[test]

@@ -177,6 +177,7 @@ pub fn run() {
             github_remote::github_poll_device_authorization,
             github_remote::github_disconnect,
             github_remote::github_list_repositories,
+            github_remote::github_clone_repository,
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
             project_source_review_bridge::project_source_review_presentation,
