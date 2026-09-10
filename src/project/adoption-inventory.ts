@@ -72,6 +72,8 @@ const GUIDANCE_TRAVERSAL_EXCLUSIONS = new Set([
   "build",
   "target",
   "coverage",
+  "fixtures",
+  "__fixtures__",
 ]);
 const MAX_GUIDANCE_DEPTH = 4;
 const MAX_GUIDANCE_DIRECTORIES = 256;
