@@ -8,7 +8,9 @@ The intended production identity is a GitHub App. Desktop uses the GitHub device
 
 If no client ID is configured, the GitHub picker reports that the integration is unavailable and the existing manual repository entry remains usable.
 
-Access/refresh token material is stored through the operating-system credential boundary on Windows. It is not written to project-owned files or ordinary plaintext Livariant app-state.
+On Windows, access and refresh token material is protected with the operating system's DPAPI boundary for the current user before ciphertext is persisted under Livariant app data. Plaintext tokens are not written to project-owned files or ordinary plaintext Livariant app state. The protected file is not project truth and grants no Livariant Authority.
+
+The GitHub transport is host-owned and bounded. It uses a fixed Windows PowerShell helper path and fixed request scripts rather than exposing arbitrary renderer-supplied shell commands. The renderer can invoke only the declared GitHub commands.
 
 ## Repository discovery
 
