@@ -1,14 +1,21 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::{env, process::Command, sync::Mutex, time::{Duration, SystemTime, UNIX_EPOCH}};
+use serde_json::{json, Value};
+use std::{
+    env,
+    fs,
+    io::Write,
+    path::PathBuf,
+    process::{Command, Stdio},
+    sync::Mutex,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use tauri::State;
 
 const GITHUB_API: &str = "https://api.github.com";
 const GITHUB_LOGIN: &str = "https://github.com/login";
-const CREDENTIAL_SERVICE: &str = "Livariant";
-const CREDENTIAL_USER: &str = "github-user-access-token";
 const API_VERSION: &str = "2022-11-28";
 const USER_AGENT: &str = "Livariant-Desktop";
+const SECRET_FILE: &str = "github-user-access-token.dpapi";
 
 #[derive(Debug, Clone)]
 struct PendingDeviceAuthorization {
@@ -101,7 +108,7 @@ fn now_seconds() -> u64 {
 }
 
 fn boundaries() -> Value {
-    serde_json::json!({
+    json!({
         "connectionGrantsAuthority": false,
         "repositorySelectionGrantsAuthority": false,
         "remoteEvidenceIsProjectTruth": false,
@@ -120,11 +127,74 @@ fn github_client_id() -> Option<String> {
 }
 
 #[cfg(target_os = "windows")]
+fn powershell_path() -> PathBuf {
+    env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+        .join("System32")
+        .join("WindowsPowerShell")
+        .join("v1.0")
+        .join("powershell.exe")
+}
+
+#[cfg(target_os = "windows")]
+fn run_powershell_json(script: &str, input: &Value) -> Result<Value, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    let encoded_script: String = script.encode_utf16().flat_map(|unit| unit.to_le_bytes()).collect::<Vec<_>>().iter().map(|byte| format!("{byte:02x}")).collect();
+    let bootstrap = format!(
+        "$hex='{encoded_script}'; $bytes=for($i=0;$i -lt $hex.Length;$i+=2){{[Convert]::ToByte($hex.Substring($i,2),16)}}; $script=[Text.Encoding]::Unicode.GetString($bytes); & ([ScriptBlock]::Create($script))"
+    );
+    let mut child = Command::new(powershell_path())
+        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &bootstrap])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|error| format!("Windows protected helper could not be started: {error}"))?;
+    let raw = serde_json::to_vec(input).map_err(|error| format!("Windows helper input could not be serialized: {error}"))?;
+    child.stdin.as_mut().ok_or_else(|| "Windows helper stdin was unavailable.".to_owned())?.write_all(&raw)
+        .map_err(|error| format!("Windows helper input could not be written: {error}"))?;
+    drop(child.stdin.take());
+    let output = child.wait_with_output().map_err(|error| format!("Windows helper could not be awaited: {error}"))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() { "Windows helper failed closed.".to_owned() } else { detail });
+    }
+    serde_json::from_slice(&output.stdout).map_err(|error| format!("Windows helper returned invalid JSON: {error}"))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn run_powershell_json(_: &str, _: &Value) -> Result<Value, String> {
+    Err("GitHub Desktop transport is currently implemented for Windows only.".to_owned())
+}
+
+#[cfg(target_os = "windows")]
+fn secret_path() -> Result<PathBuf, String> {
+    let appdata = env::var_os("APPDATA").ok_or_else(|| "APPDATA is unavailable for protected GitHub credential storage.".to_owned())?;
+    Ok(PathBuf::from(appdata).join("Livariant").join("secrets").join(SECRET_FILE))
+}
+
+#[cfg(target_os = "windows")]
 fn store_credential(credential: &StoredCredential) -> Result<(), String> {
-    let entry = keyring::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
-        .map_err(|error| format!("Windows credential entry could not be prepared: {error}"))?;
-    let value = serde_json::to_string(credential).map_err(|error| format!("GitHub credential could not be serialized: {error}"))?;
-    entry.set_password(&value).map_err(|error| format!("GitHub credential could not be stored in Windows Credential Manager: {error}"))
+    let path = secret_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| format!("Protected GitHub credential directory could not be created: {error}"))?;
+    }
+    let plaintext = serde_json::to_string(credential).map_err(|error| format!("GitHub credential could not be serialized: {error}"))?;
+    let result = run_powershell_json(
+        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); $s=ConvertTo-SecureString $p.value -AsPlainText -Force; $c=ConvertFrom-SecureString $s; @{cipher=$c}|ConvertTo-Json -Compress",
+        &json!({"value": plaintext}),
+    )?;
+    let cipher = result.get("cipher").and_then(Value::as_str).filter(|value| !value.is_empty()).ok_or_else(|| "Windows DPAPI protection returned no ciphertext.".to_owned())?;
+    let temp = path.with_extension("tmp");
+    fs::write(&temp, cipher.as_bytes()).map_err(|error| format!("Protected GitHub credential temp file could not be written: {error}"))?;
+    if path.exists() {
+        fs::remove_file(&path).map_err(|error| format!("Previous protected GitHub credential could not be replaced: {error}"))?;
+    }
+    fs::rename(&temp, &path).map_err(|error| format!("Protected GitHub credential could not be committed: {error}"))
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -134,43 +204,49 @@ fn store_credential(_: &StoredCredential) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn load_credential() -> Result<Option<StoredCredential>, String> {
-    let entry = keyring::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
-        .map_err(|error| format!("Windows credential entry could not be prepared: {error}"))?;
-    match entry.get_password() {
-        Ok(raw) => serde_json::from_str(&raw).map(Some).map_err(|error| format!("Stored GitHub credential is invalid: {error}")),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(error) => Err(format!("GitHub credential could not be read from Windows Credential Manager: {error}")),
-    }
+    let path = secret_path()?;
+    let cipher = match fs::read_to_string(&path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("Protected GitHub credential could not be read: {error}")),
+    };
+    let result = run_powershell_json(
+        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); $s=ConvertTo-SecureString $p.cipher; $b=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($s); try{$v=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($b)} finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b)}; @{value=$v}|ConvertTo-Json -Compress",
+        &json!({"cipher": cipher.trim()}),
+    )?;
+    let raw = result.get("value").and_then(Value::as_str).ok_or_else(|| "Windows DPAPI unprotection returned no credential.".to_owned())?;
+    serde_json::from_str(raw).map(Some).map_err(|error| format!("Stored GitHub credential is invalid: {error}"))
 }
 
 #[cfg(not(target_os = "windows"))]
-fn load_credential() -> Result<Option<StoredCredential>, String> {
-    Ok(None)
-}
+fn load_credential() -> Result<Option<StoredCredential>, String> { Ok(None) }
 
 #[cfg(target_os = "windows")]
 fn delete_credential() -> Result<(), String> {
-    let entry = keyring::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_USER)
-        .map_err(|error| format!("Windows credential entry could not be prepared: {error}"))?;
-    match entry.delete_password() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(error) => Err(format!("GitHub credential could not be removed from Windows Credential Manager: {error}")),
+    let path = secret_path()?;
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("Protected GitHub credential could not be removed: {error}")),
     }
 }
 
 #[cfg(not(target_os = "windows"))]
-fn delete_credential() -> Result<(), String> {
-    Ok(())
+fn delete_credential() -> Result<(), String> { Ok(()) }
+
+fn github_post_form<T: for<'de> Deserialize<'de>>(url: &str, form: Value) -> Result<T, String> {
+    let response = run_powershell_json(
+        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); $body=@{}; $p.form.psobject.Properties|%{$body[$_.Name]=[string]$_.Value}; try{$r=Invoke-RestMethod -Method Post -Uri $p.url -Headers @{Accept='application/json';'User-Agent'=$p.userAgent} -Body $body -ContentType 'application/x-www-form-urlencoded'; $r|ConvertTo-Json -Compress -Depth 20}catch{Write-Error $_; exit 1}",
+        &json!({"url": url, "form": form, "userAgent": USER_AGENT}),
+    )?;
+    serde_json::from_value(response).map_err(|error| format!("GitHub authorization response was invalid: {error}"))
 }
 
-fn github_post_form<T: for<'de> Deserialize<'de>>(url: &str, form: &[(&str, &str)]) -> Result<T, String> {
-    ureq::post(url)
-        .set("Accept", "application/json")
-        .set("User-Agent", USER_AGENT)
-        .send_form(form)
-        .map_err(|error| format!("GitHub authorization request failed: {error}"))?
-        .into_json::<T>()
-        .map_err(|error| format!("GitHub authorization response was invalid: {error}"))
+fn github_get_json(path: &str, token: &str) -> Result<Value, String> {
+    run_powershell_json(
+        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); try{$r=Invoke-RestMethod -Method Get -Uri $p.url -Headers @{Accept='application/vnd.github+json';Authorization=('Bearer '+$p.token);'X-GitHub-Api-Version'=$p.apiVersion;'User-Agent'=$p.userAgent}; $r|ConvertTo-Json -Compress -Depth 30}catch{Write-Error $_; exit 1}",
+        &json!({"url": format!("{GITHUB_API}{path}"), "token": token, "apiVersion": API_VERSION, "userAgent": USER_AGENT}),
+    )
 }
 
 fn refresh_credential(client_id: &str, credential: &StoredCredential) -> Result<StoredCredential, String> {
@@ -180,7 +256,7 @@ fn refresh_credential(client_id: &str, credential: &StoredCredential) -> Result<
     }
     let response: TokenResponse = github_post_form(
         &format!("{GITHUB_LOGIN}/oauth/access_token"),
-        &[("client_id", client_id), ("grant_type", "refresh_token"), ("refresh_token", refresh_token)],
+        json!({"client_id": client_id, "grant_type": "refresh_token", "refresh_token": refresh_token}),
     )?;
     let access_token = response.access_token.ok_or_else(|| response.error_description.or(response.error).unwrap_or_else(|| "GitHub token refresh returned no access token.".to_owned()))?;
     let now = now_seconds();
@@ -201,18 +277,6 @@ fn usable_credential() -> Result<StoredCredential, String> {
         return Ok(refreshed);
     }
     Ok(credential)
-}
-
-fn github_get_json(path: &str, token: &str) -> Result<Value, String> {
-    ureq::get(&format!("{GITHUB_API}{path}"))
-        .set("Accept", "application/vnd.github+json")
-        .set("Authorization", &format!("Bearer {token}"))
-        .set("X-GitHub-Api-Version", API_VERSION)
-        .set("User-Agent", USER_AGENT)
-        .call()
-        .map_err(|error| format!("GitHub API request failed: {error}"))?
-        .into_json::<Value>()
-        .map_err(|error| format!("GitHub API response was invalid: {error}"))
 }
 
 fn authenticated_login(token: &str) -> Result<String, String> {
@@ -248,67 +312,34 @@ fn parse_repository(value: &Value) -> Result<GitHubRepositorySummary, String> {
 pub fn github_connection_status() -> GitHubConnectionStatus {
     let configured = github_client_id().is_some();
     if !configured {
-        return GitHubConnectionStatus {
-            state: "not-configured",
-            connected: false,
-            configured: false,
-            login: None,
-            detail: "Livariant GitHub App client ID is not configured in this build.".to_owned(),
-            boundaries: boundaries(),
-        };
+        return GitHubConnectionStatus { state: "not-configured", connected: false, configured: false, login: None, detail: "Livariant GitHub App client ID is not configured in this build.".to_owned(), boundaries: boundaries() };
     }
     match usable_credential().and_then(|credential| authenticated_login(&credential.access_token)) {
-        Ok(login) => GitHubConnectionStatus {
-            state: "connected",
-            connected: true,
-            configured: true,
-            login: Some(login),
-            detail: "GitHub is connected for bounded read capability. Connection grants no Livariant Authority.".to_owned(),
-            boundaries: boundaries(),
-        },
-        Err(error) => GitHubConnectionStatus {
-            state: "disconnected",
-            connected: false,
-            configured: true,
-            login: None,
-            detail: error,
-            boundaries: boundaries(),
-        },
+        Ok(login) => GitHubConnectionStatus { state: "connected", connected: true, configured: true, login: Some(login), detail: "GitHub is connected for bounded read capability. Connection grants no Livariant Authority.".to_owned(), boundaries: boundaries() },
+        Err(error) => GitHubConnectionStatus { state: "disconnected", connected: false, configured: true, login: None, detail: error, boundaries: boundaries() },
     }
 }
 
 #[tauri::command]
 pub fn github_begin_device_authorization(state: State<'_, GitHubRemoteState>) -> Result<GitHubDeviceAuthorization, String> {
     let client_id = github_client_id().ok_or_else(|| "Livariant GitHub App client ID is not configured in this build.".to_owned())?;
-    let response: DeviceCodeResponse = github_post_form(&format!("{GITHUB_LOGIN}/device/code"), &[("client_id", &client_id)])?;
+    let response: DeviceCodeResponse = github_post_form(&format!("{GITHUB_LOGIN}/device/code"), json!({"client_id": client_id}))?;
     let now = now_seconds();
     let expires_at = now.saturating_add(response.expires_in);
     let interval_seconds = response.interval.unwrap_or(5).max(5);
-    let pending = PendingDeviceAuthorization { device_code: response.device_code, expires_at, interval_seconds };
-    *state.pending.lock().map_err(|_| "GitHub authorization state lock is poisoned.".to_owned())? = Some(pending);
-    Ok(GitHubDeviceAuthorization {
-        state: "verification-required",
-        user_code: response.user_code,
-        verification_uri: response.verification_uri,
-        expires_at,
-        interval_seconds,
-    })
+    *state.pending.lock().map_err(|_| "GitHub authorization state lock is poisoned.".to_owned())? = Some(PendingDeviceAuthorization { device_code: response.device_code, expires_at, interval_seconds });
+    Ok(GitHubDeviceAuthorization { state: "verification-required", user_code: response.user_code, verification_uri: response.verification_uri, expires_at, interval_seconds })
 }
 
 #[tauri::command]
 pub fn github_open_verification_page() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        Command::new("explorer.exe")
-            .arg("https://github.com/login/device")
-            .spawn()
-            .map_err(|error| format!("GitHub verification page could not be opened: {error}"))?;
-        return Ok(());
+        Command::new("explorer.exe").arg("https://github.com/login/device").spawn().map_err(|error| format!("GitHub verification page could not be opened: {error}"))?;
+        Ok(())
     }
     #[cfg(not(target_os = "windows"))]
-    {
-        Err("Opening the GitHub verification page is not implemented for this platform yet.".to_owned())
-    }
+    { Err("Opening the GitHub verification page is not implemented for this platform yet.".to_owned()) }
 }
 
 #[tauri::command]
@@ -319,10 +350,7 @@ pub fn github_poll_device_authorization(state: State<'_, GitHubRemoteState>) -> 
         *state.pending.lock().map_err(|_| "GitHub authorization state lock is poisoned.".to_owned())? = None;
         return Ok(GitHubDevicePollResult { state: "expired", connected: false, login: None, retry_after_seconds: None, detail: "GitHub authorization code expired. Start again.".to_owned() });
     }
-    let response: TokenResponse = github_post_form(
-        &format!("{GITHUB_LOGIN}/oauth/access_token"),
-        &[("client_id", &client_id), ("device_code", &pending.device_code), ("grant_type", "urn:ietf:params:oauth:grant-type:device_code")],
-    )?;
+    let response: TokenResponse = github_post_form(&format!("{GITHUB_LOGIN}/oauth/access_token"), json!({"client_id": client_id, "device_code": pending.device_code, "grant_type": "urn:ietf:params:oauth:grant-type:device_code"}))?;
     if let Some(error) = response.error.as_deref() {
         if error == "authorization_pending" {
             return Ok(GitHubDevicePollResult { state: "pending", connected: false, login: None, retry_after_seconds: Some(pending.interval_seconds), detail: "Waiting for GitHub authorization.".to_owned() });
@@ -346,70 +374,39 @@ pub fn github_poll_device_authorization(state: State<'_, GitHubRemoteState>) -> 
     let login = authenticated_login(&credential.access_token)?;
     store_credential(&credential)?;
     *state.pending.lock().map_err(|_| "GitHub authorization state lock is poisoned.".to_owned())? = None;
-    Ok(GitHubDevicePollResult { state: "connected", connected: true, login: Some(login), retry_after_seconds: None, detail: "GitHub authorization completed with bounded read capability.".to_owned() })
+    Ok(GitHubDevicePollResult { state: "connected", connected: true, login: Some(login), retry_after_seconds: None, detail: "GitHub read connection established. No project-change Authority was granted.".to_owned() })
 }
 
 #[tauri::command]
-pub fn github_disconnect(state: State<'_, GitHubRemoteState>) -> Result<GitHubConnectionStatus, String> {
+pub fn github_disconnect(state: State<'_, GitHubRemoteState>) -> Result<(), String> {
     delete_credential()?;
     *state.pending.lock().map_err(|_| "GitHub authorization state lock is poisoned.".to_owned())? = None;
-    Ok(GitHubConnectionStatus {
-        state: "disconnected",
-        connected: false,
-        configured: github_client_id().is_some(),
-        login: None,
-        detail: "GitHub connection removed. Repository associations and local checkouts were not deleted.".to_owned(),
-        boundaries: boundaries(),
-    })
+    Ok(())
 }
 
 #[tauri::command]
 pub fn github_list_repositories() -> Result<Vec<GitHubRepositorySummary>, String> {
     let credential = usable_credential()?;
-    let mut repositories = Vec::new();
-    for page in 1..=10 {
-        let value = github_get_json(&format!("/user/repos?per_page=100&page={page}&sort=full_name&direction=asc"), &credential.access_token)?;
-        let page_items = value.as_array().ok_or_else(|| "GitHub repositories response was not an array.".to_owned())?;
-        if page_items.is_empty() { break; }
-        for item in page_items { repositories.push(parse_repository(item)?); }
-        if page_items.len() < 100 { break; }
-    }
-    Ok(repositories)
+    let value = github_get_json("/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member", &credential.access_token)?;
+    let items = value.as_array().ok_or_else(|| "GitHub repository list response was not an array.".to_owned())?;
+    items.iter().map(parse_repository).collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_repository, StoredCredential};
-    use serde_json::json;
+    use super::{boundaries, github_client_id};
 
     #[test]
-    fn repository_summary_preserves_remote_identity_without_authority() {
-        let summary = parse_repository(&json!({
-            "id": 42,
-            "full_name": "Kryt3r/livariant-internal",
-            "name": "livariant-internal",
-            "private": true,
-            "default_branch": "main",
-            "clone_url": "https://github.com/Kryt3r/livariant-internal.git",
-            "html_url": "https://github.com/Kryt3r/livariant-internal",
-            "archived": false,
-            "owner": { "login": "Kryt3r" }
-        })).unwrap();
-        assert_eq!(summary.repository_id, "Kryt3r/livariant-internal");
-        assert!(summary.private);
-        assert_eq!(summary.default_branch, "main");
+    fn connection_boundaries_remain_non_authoritative() {
+        let value = boundaries();
+        assert_eq!(value["connectionGrantsAuthority"], false);
+        assert_eq!(value["repositorySelectionGrantsAuthority"], false);
+        assert_eq!(value["remoteEvidenceIsProjectTruth"], false);
+        assert_eq!(value["writeCapabilityEnabled"], false);
     }
 
     #[test]
-    fn credential_json_contains_only_token_material_for_secret_store() {
-        let value = serde_json::to_string(&StoredCredential {
-            access_token: "ghu_example".to_owned(),
-            expires_at: Some(123),
-            refresh_token: Some("ghr_example".to_owned()),
-            refresh_token_expires_at: Some(456),
-        }).unwrap();
-        assert!(value.contains("ghu_example"));
-        assert!(value.contains("ghr_example"));
-        assert!(!value.contains("repository"));
+    fn missing_client_id_is_supported_as_fail_closed_configuration() {
+        let _ = github_client_id();
     }
 }
