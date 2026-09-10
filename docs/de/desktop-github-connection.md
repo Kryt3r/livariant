@@ -8,7 +8,9 @@ Für die Produktion ist eine GitHub App vorgesehen. Der Desktop verwendet den Gi
 
 Ist keine Client-ID konfiguriert, zeigt die GitHub-Auswahl an, dass die Integration in diesem Build noch nicht verfügbar ist. Die bestehende manuelle Repository-Eingabe bleibt dann nutzbar.
 
-Zugriffs- und Refresh-Token werden unter Windows über den geschützten Zugangsdaten-Speicher des Betriebssystems gespeichert. Sie werden nicht in Projektdateien oder gewöhnlichen unverschlüsselten Livariant-App-Daten abgelegt.
+Unter Windows werden Zugriffs- und Refresh-Token mit der DPAPI-Schutzgrenze des Betriebssystems an den aktuellen Benutzer gebunden, bevor ausschließlich der verschlüsselte Inhalt unter den Livariant-App-Daten gespeichert wird. Klartext-Tokens werden weder in Projektdateien noch in gewöhnlichen unverschlüsselten Livariant-Zustand geschrieben. Die geschützte Datei ist keine Project Truth und erteilt keine Livariant-Authority.
+
+Der GitHub-Transport gehört dem nativen Host und bleibt eng begrenzt. Er verwendet einen festen Windows-PowerShell-Pfad und feste Request-Skripte, statt dem Renderer beliebige Shell-Befehle zu erlauben. Der Renderer kann nur die ausdrücklich registrierten GitHub-Kommandos aufrufen.
 
 ## Repository-Auswahl
 
