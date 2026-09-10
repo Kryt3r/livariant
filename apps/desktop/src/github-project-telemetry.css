@@ -1,0 +1,132 @@
+.gh-telemetry {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(12, 18, 38, 0.66);
+}
+
+.gh-telemetry .source-review-section-head p {
+  margin: 4px 0 0;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.86rem;
+}
+
+.gh-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.gh-telemetry-grid > section {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.gh-telemetry-grid > section:nth-child(2),
+.gh-telemetry-grid > section:last-child {
+  grid-column: 1 / -1;
+}
+
+.gh-telemetry-grid h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+
+.gh-telemetry-loading,
+.gh-telemetry-unavailable,
+.gh-telemetry-muted {
+  color: var(--text-muted, #94a3b8);
+}
+
+.gh-telemetry-unavailable {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.gh-telemetry-unavailable strong {
+  color: var(--text-primary, #e5e7eb);
+}
+
+.gh-telemetry-repo-meta {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.gh-telemetry-repo-meta > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.gh-telemetry-repo-meta dt {
+  color: var(--text-muted, #94a3b8);
+}
+
+.gh-telemetry-repo-meta dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.gh-telemetry-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gh-telemetry-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.gh-telemetry-list article > div {
+  min-width: 0;
+}
+
+.gh-telemetry-list strong,
+.gh-telemetry-list span,
+.gh-telemetry-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.gh-telemetry-list span,
+.gh-telemetry-list small {
+  color: var(--text-muted, #94a3b8);
+}
+
+.gh-telemetry-list em {
+  align-self: start;
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.gh-telemetry-list small {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .gh-telemetry-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gh-telemetry-grid > section:nth-child(2),
+  .gh-telemetry-grid > section:last-child {
+    grid-column: auto;
+  }
+}
