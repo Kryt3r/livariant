@@ -5,6 +5,7 @@ import {
   getCurrentProjectSourceReviewPresentation,
   refreshProjectSourceReviewPresentation,
   renderProjectSourceReviewBridgeView,
+  startProjectSourceReview,
 } from "./project-source-review-bridge.js";
 import {
   loadGitHubProjectTelemetry,
@@ -38,6 +39,56 @@ const renderTelemetry = async (content: HTMLElement, generation: number) => {
   }
 };
 
+const bindReviewSelection = (content: HTMLElement, generation: number) => {
+  const checkboxes = [...content.querySelectorAll<HTMLInputElement>("[data-review-path]")];
+  const startButton = content.querySelector<HTMLButtonElement>("[data-start-project-review]");
+  const count = content.querySelector<HTMLElement>("[data-review-selection-count]");
+  const status = content.querySelector<HTMLElement>("[data-review-start-status]");
+  const filter = content.querySelector<HTMLInputElement>("[data-review-path-filter]");
+
+  const updateSelectionState = () => {
+    const selectedCount = checkboxes.filter((input) => input.checked).length;
+    if (count) count.textContent = `${selectedCount} ${text("selected", "ausgewählt")}`;
+    if (startButton) startButton.disabled = selectedCount === 0;
+  };
+
+  checkboxes.forEach((input) => input.addEventListener("change", updateSelectionState));
+  filter?.addEventListener("input", () => {
+    const query = filter.value.trim().toLocaleLowerCase();
+    content.querySelectorAll<HTMLElement>("[data-review-path-row]").forEach((row) => {
+      const searchable = row.dataset.reviewPathSearch ?? "";
+      row.hidden = !!query && !searchable.includes(query);
+    });
+  });
+
+  startButton?.addEventListener("click", async () => {
+    const selectedReviewPaths = checkboxes.filter((input) => input.checked).map((input) => input.value);
+    if (selectedReviewPaths.length === 0) return;
+    startButton.disabled = true;
+    checkboxes.forEach((input) => { input.disabled = true; });
+    if (filter) filter.disabled = true;
+    if (status) status.textContent = text("Starting review…", "Review wird gestartet…");
+
+    try {
+      await startProjectSourceReview(selectedReviewPaths);
+      if (!sourceReviewActive || generation !== refreshGeneration) return;
+      const currentContent = document.querySelector<HTMLElement>("main.content");
+      if (!currentContent) return;
+      currentContent.innerHTML = renderProjectSourceReviewBridgeView();
+      bindReviewSelection(currentContent, generation);
+      void renderTelemetry(currentContent, generation);
+    } catch (cause) {
+      if (!sourceReviewActive || generation !== refreshGeneration) return;
+      checkboxes.forEach((input) => { input.disabled = false; });
+      if (filter) filter.disabled = false;
+      updateSelectionState();
+      if (status) status.textContent = `${text("Review could not be started safely", "Review konnte nicht sicher gestartet werden")}: ${String(cause)}`;
+    }
+  });
+
+  updateSelectionState();
+};
+
 const renderIntoContent = async () => {
   const generation = ++refreshGeneration;
   const content = document.querySelector<HTMLElement>("main.content");
@@ -50,6 +101,7 @@ const renderIntoContent = async () => {
   const currentContent = document.querySelector<HTMLElement>("main.content");
   if (!currentContent) return;
   currentContent.innerHTML = renderProjectSourceReviewBridgeView();
+  bindReviewSelection(currentContent, generation);
   void renderTelemetry(currentContent, generation);
 };
 
