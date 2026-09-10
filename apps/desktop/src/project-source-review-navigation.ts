@@ -1,15 +1,42 @@
 import "./project-source-review-view.css";
+import "./github-project-telemetry.css";
 import { getLanguage } from "./i18n/runtime.js";
 import {
+  getCurrentProjectSourceReviewPresentation,
   refreshProjectSourceReviewPresentation,
   renderProjectSourceReviewBridgeView,
 } from "./project-source-review-bridge.js";
+import {
+  loadGitHubProjectTelemetry,
+  renderGitHubTelemetry,
+  renderGitHubTelemetryError,
+  renderGitHubTelemetryLoading,
+} from "./github-project-telemetry.js";
 
 let sourceReviewActive = false;
 let refreshGeneration = 0;
 
 const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
 const sourcesIcon = () => '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v4H4zM4 15h16v4H4z"/><path d="M8 9v6M16 9v6"/></svg>';
+
+const renderTelemetry = async (content: HTMLElement, generation: number) => {
+  const presentation = getCurrentProjectSourceReviewPresentation();
+  const primary = presentation?.sources.find((source) => source.kind === "primary");
+  if (!primary || primary.identity.provider !== "github") return;
+
+  content.insertAdjacentHTML("beforeend", renderGitHubTelemetryLoading(primary.identity.repositoryId));
+  const placeholder = content.querySelector<HTMLElement>("[data-gh-project-telemetry]");
+  if (!placeholder) return;
+
+  try {
+    const telemetry = await loadGitHubProjectTelemetry(primary.identity.repositoryId);
+    if (!sourceReviewActive || generation !== refreshGeneration || !placeholder.isConnected) return;
+    placeholder.outerHTML = renderGitHubTelemetry(telemetry);
+  } catch (cause) {
+    if (!sourceReviewActive || generation !== refreshGeneration || !placeholder.isConnected) return;
+    placeholder.outerHTML = renderGitHubTelemetryError(primary.identity.repositoryId, String(cause));
+  }
+};
 
 const renderIntoContent = async () => {
   const generation = ++refreshGeneration;
@@ -21,7 +48,9 @@ const renderIntoContent = async () => {
 
   if (!sourceReviewActive || generation !== refreshGeneration) return;
   const currentContent = document.querySelector<HTMLElement>("main.content");
-  if (currentContent) currentContent.innerHTML = renderProjectSourceReviewBridgeView();
+  if (!currentContent) return;
+  currentContent.innerHTML = renderProjectSourceReviewBridgeView();
+  void renderTelemetry(currentContent, generation);
 };
 
 const installNavigation = () => {
