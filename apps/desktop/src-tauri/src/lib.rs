@@ -1,6 +1,7 @@
 mod connector_host;
 mod first_run_lifecycle;
 mod first_run_project_state;
+mod first_run_ux;
 mod project_source_observation;
 mod project_source_review_bridge;
 mod updater;
@@ -166,6 +167,8 @@ pub fn run() {
             first_run_lifecycle::first_run_onboarding_state,
             first_run_lifecycle::transition_first_run_onboarding,
             first_run_project_state::persist_first_run_project_state,
+            first_run_ux::inspect_first_run_repository,
+            first_run_ux::pick_first_run_folder,
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
             project_source_review_bridge::project_source_review_presentation,
