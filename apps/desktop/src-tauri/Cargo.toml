@@ -29,4 +29,4 @@ ureq = { version = "2.12.1", features = ["json"] }
 tauri-plugin-updater = "2.10.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "2.3.3", default-features = false, features = ["windows-native"] }
+keyring = { version = "2.3.3", default-features = false, features = ["platform-windows"] }
