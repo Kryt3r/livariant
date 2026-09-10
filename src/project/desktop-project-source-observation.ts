@@ -71,9 +71,11 @@ export function observeLocalProjectSource(
 export async function observeDesktopProjectSources(inputPath: string): Promise<ProjectSourceObservation[]> {
   const parsed = parseDesktopProjectSourceReviewRefreshInput(JSON.parse(await readFile(inputPath, "utf8")));
   const observedAt = new Date().toISOString();
-  const observations: ProjectSourceObservation[] = [
-    observeLocalProjectSource(parsed.primary.identity, parsed.primary.localPath, observedAt),
-  ];
+  const observations: ProjectSourceObservation[] = [];
+
+  if (parsed.primary.localPath) {
+    observations.push(observeLocalProjectSource(parsed.primary.identity, parsed.primary.localPath, observedAt));
+  }
 
   for (const additional of parsed.additional ?? []) {
     if (!additional.localPath) continue;
