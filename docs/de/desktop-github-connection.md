@@ -12,7 +12,7 @@ Zugriffs- und Refresh-Token werden unter Windows über den geschützten Zugangsd
 
 ## Repository-Auswahl
 
-Nach der Autorisierung fragt Livariant die Repositories ab, die GitHub über die authentifizierte GitHub-App-/Benutzerverbindung bereitstellt. Dadurch können auch private Repositories erscheinen – aber nur, wenn GitHub sie für genau diese Verbindung freigibt.
+Nach der Autorisierung fragt Livariant die Repositories ab, die GitHub über die authentifizierte GitHub-App-/Benutzerverbindung bereitstellt. Dadurch können auch private Repositories erscheinen, aber nur, wenn GitHub sie für genau diese Verbindung freigibt.
 
 Die Auswahl eines Repositorys füllt lediglich das bestehende Quellenformular voraus. Livariant bestätigt oder übernimmt das Repository nicht automatisch. Remote-Repository-Identität und lokaler Checkout bleiben getrennte Konzepte.
 
