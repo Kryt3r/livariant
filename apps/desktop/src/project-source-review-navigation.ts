@@ -39,15 +39,19 @@ const installNavigation = () => {
     }, { capture: true });
   });
 
+  const desiredLabel = text("Project Sources & Review", "Projektquellen & Prüfung");
   let button = nav.querySelector<HTMLButtonElement>("[data-view='source-review']");
   if (!button) {
     button = document.createElement("button");
     button.type = "button";
     button.className = "nav-item";
     button.dataset.view = "source-review";
+    button.innerHTML = `${sourcesIcon()}<span>${desiredLabel}</span>`;
     nav.insertBefore(button, nav.querySelector("[data-view='diagnostics']"));
+  } else {
+    const label = button.querySelector<HTMLSpanElement>("span");
+    if (label && label.textContent !== desiredLabel) label.textContent = desiredLabel;
   }
-  button.innerHTML = `${sourcesIcon()}<span>${text("Project Sources & Review", "Projektquellen & Prüfung")}</span>`;
 
   if (button.dataset.sourceReviewBound !== "true") {
     button.dataset.sourceReviewBound = "true";
