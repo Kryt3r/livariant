@@ -6,7 +6,7 @@ import test from "node:test";
 const repoRoot = process.cwd();
 const text = (path: string) => readFile(resolve(repoRoot, path), "utf8");
 
-test("GitHub Desktop host keeps connection read-only and credentials out of ordinary app state", async () => {
+test("GitHub Desktop host keeps connection read-only and credentials outside project/plaintext state", async () => {
   const host = await text("apps/desktop/src-tauri/src/github_remote.rs");
   const cargo = await text("apps/desktop/src-tauri/Cargo.toml");
   const lib = await text("apps/desktop/src-tauri/src/lib.rs");
@@ -15,14 +15,15 @@ test("GitHub Desktop host keeps connection read-only and credentials out of ordi
   assert.match(host, /github_poll_device_authorization/);
   assert.match(host, /github_list_repositories/);
   assert.match(host, /GitHub App client ID/);
-  assert.match(host, /Windows Credential Manager/);
+  assert.match(host, /ConvertFrom-SecureString/);
+  assert.match(host, /github-user-access-token\.dpapi/);
   assert.match(host, /connectionGrantsAuthority[^\n]*false/);
   assert.match(host, /writeCapabilityEnabled[^\n]*false/);
   assert.match(host, /remoteEvidenceIsProjectTruth[^\n]*false/);
   assert.match(host, /https:\/\/api\.github\.com/);
   assert.doesNotMatch(host, /scope["']?\s*[:=]\s*["']repo["']/i);
   assert.doesNotMatch(host, /fs::write[^\n]*(access_token|refresh_token)/i);
-  assert.match(cargo, /keyring/);
+  assert.doesNotMatch(cargo, /keyring|ureq/);
   assert.match(lib, /manage\(github_remote::GitHubRemoteState::default\(\)\)/);
 });
 
