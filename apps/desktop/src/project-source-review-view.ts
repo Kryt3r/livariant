@@ -96,12 +96,17 @@ const labelApply = (state: DesktopReviewPresentation["applyState"]): string => s
 const sourceCard = (source: DesktopSourceItem): string => {
   const role = source.kind === "primary" ? text("Primary repository", "Hauptrepository") : text("Additional repository", "Zusätzliches Repository");
   const remoteLabel = source.remoteState === "recorded" ? text("Remote recorded", "Remote hinterlegt") : text("No remote recorded", "Kein Remote hinterlegt");
-  const localLabel = source.localState === "linked" ? text("Local checkout linked", "Lokaler Checkout verknüpft") : text("Remote only / no local checkout", "Nur Remote / kein lokaler Checkout");
+  const localLabel = source.localState === "linked"
+    ? text("Local checkout linked", "Lokaler Checkout verknüpft")
+    : source.remoteState === "recorded"
+      ? text("Remote only / no local checkout", "Nur Remote / kein lokaler Checkout")
+      : text("No local checkout linked", "Keine lokale Bindung");
+  const isRemoteOnly = source.remoteState === "recorded" && source.localState === "not-linked";
   const attention = source.attention.length > 0
     ? `<ul class="source-review-attention">${source.attention.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
     : "";
 
-  return `<article class="source-review-card ${source.localState === "not-linked" ? "is-remote-only" : ""}">
+  return `<article class="source-review-card ${isRemoteOnly ? "is-remote-only" : ""}">
     <div class="source-review-card-head">
       <div><span class="eyebrow">${role}</span><h3>${escapeHtml(source.identity.displayName)}</h3><p>${escapeHtml(source.identity.repositoryId)}</p></div>
       <span class="source-review-state source-review-state-${source.reachability}">${labelReachability(source.reachability)}</span>
@@ -116,7 +121,9 @@ const sourceCard = (source: DesktopSourceItem): string => {
       <div><dt>${text("Revision", "Revision")}</dt><dd>${source.revision ? escapeHtml(source.revision) : text("Unknown", "Unbekannt")}</dd></div>
       <div><dt>${text("Observed", "Beobachtet")}</dt><dd>${source.observedAt ? escapeHtml(source.observedAt) : text("Not yet", "Noch nicht")}</dd></div>
     </dl>
-    ${source.localState === "not-linked" ? `<div class="source-review-warning">${text("This source can remain associated remotely, but local inspection, builds and local review material are unavailable until a checkout is linked.", "Diese Quelle kann weiterhin remote zugeordnet bleiben. Lokale Prüfung, Builds und lokales Review-Material sind jedoch erst verfügbar, wenn ein Checkout verknüpft ist.")}</div>` : ""}
+    ${source.localState === "not-linked" ? `<div class="source-review-warning">${source.remoteState === "recorded"
+      ? text("This source can remain associated remotely, but local inspection, builds and local review material are unavailable until a checkout is linked.", "Diese Quelle kann weiterhin remote zugeordnet bleiben. Lokale Prüfung, Builds und lokales Review-Material sind jedoch erst verfügbar, wenn ein Checkout verknüpft ist.")
+      : text("No local checkout or remote URL is recorded. Local inspection and remote telemetry remain unavailable until a source binding is added.", "Es ist weder ein lokaler Checkout noch eine Remote-URL hinterlegt. Lokale Prüfung und Remote-Telemetrie bleiben nicht verfügbar, bis eine Quellenbindung hinzugefügt wird.")}</div>` : ""}
     ${source.stale ? `<div class="source-review-warning">${text("This observation is stale and should be refreshed.", "Diese Beobachtung ist veraltet und sollte aktualisiert werden.")}</div>` : ""}
     ${attention}
   </article>`;
