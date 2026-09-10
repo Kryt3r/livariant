@@ -4,6 +4,7 @@ mod first_run_project_state;
 mod first_run_ux;
 mod github_remote;
 mod github_telemetry;
+mod project_review_selection;
 mod project_source_observation;
 mod project_source_review_bridge;
 mod updater;
@@ -184,6 +185,8 @@ pub fn run() {
             project_source_observation::observe_project_sources,
             project_source_review_bridge::project_source_review_presentation,
             project_source_review_bridge::refresh_project_source_review_presentation,
+            project_review_selection::inventory_project_source_review_paths,
+            project_review_selection::start_project_source_review,
             updater::check_for_update,
             updater::apply_update,
             connector_host::codex_connector_status,

@@ -60,6 +60,14 @@ export interface DesktopSourceReviewPresentation {
   };
 }
 
+export interface DesktopReviewSelectionState {
+  state: "idle" | "ready" | "unavailable";
+  candidates: Array<{ path: string; kind: string; scope: string; trust: "evidence-only" }>;
+  selectedReviewPaths: string[];
+  attention: Array<{ code: string; message: string; provenance: string[] }>;
+  detail: string;
+}
+
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 const escapeHtml = (value: string): string => value.replace(/[&<>'"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
@@ -121,6 +129,45 @@ const decisionLabel = (decision: DesktopReviewEvidenceItem["decision"]): string 
   return text("Undecided", "Unentschieden");
 };
 
+const kindLabel = (kind: string): string => {
+  const labels: Record<string, [string, string]> = {
+    "agent-guidance": ["Agent guidance", "Agent-Anweisungen"],
+    "project-rules": ["Project rules", "Projektregeln"],
+    architecture: ["Architecture", "Architektur"],
+    "decision-record": ["Decision record", "Entscheidungsprotokoll"],
+    documentation: ["Documentation", "Dokumentation"],
+    ci: ["CI / workflow", "CI / Workflow"],
+    tooling: ["Tooling", "Tooling"],
+  };
+  const label = labels[kind];
+  return label ? text(label[0], label[1]) : kind;
+};
+
+const reviewSelectionSection = (selection: DesktopReviewSelectionState): string => {
+  if (selection.state !== "ready") {
+    return `<section class="source-review-selection"><div class="source-review-section-head"><div><span class="eyebrow">${text("Review material", "Review-Material")}</span><h2>${text("Select what Livariant should inspect", "Auswählen, was Livariant prüfen soll")}</h2></div></div><p class="source-review-muted">${escapeHtml(selection.detail)}</p><p class="source-review-boundary"><strong>${text("Evidence ≠ Truth · Proposal ≠ Authorization · Authorization ≠ Apply", "Evidence ≠ Truth · Vorschlag ≠ Autorisierung · Autorisierung ≠ Übernahme")}</strong></p></section>`;
+  }
+
+  const selected = new Set(selection.selectedReviewPaths);
+  const candidateRows = selection.candidates.map((candidate) => {
+    const search = `${candidate.path} ${candidate.kind} ${candidate.scope}`.toLocaleLowerCase();
+    return `<label class="source-review-candidate" data-review-path-row data-review-path-search="${escapeHtml(search)}">
+      <input type="checkbox" data-review-path value="${escapeHtml(candidate.path)}" ${selected.has(candidate.path) ? "checked" : ""} />
+      <span><strong>${escapeHtml(candidate.path)}</strong><small>${escapeHtml(kindLabel(candidate.kind))} · ${text("Scope", "Geltungsbereich")}: ${escapeHtml(candidate.scope)} · evidence-only</small></span>
+    </label>`;
+  }).join("");
+  const attention = selection.attention.length > 0
+    ? `<details class="source-review-inventory-attention"><summary>${text("Inventory notes", "Hinweise zur Inventarisierung")} (${selection.attention.length})</summary><ul>${selection.attention.map((item) => `<li><strong>${escapeHtml(item.code)}</strong>: ${escapeHtml(item.message)}</li>`).join("")}</ul></details>`
+    : "";
+
+  return `<section class="source-review-selection">
+    <div class="source-review-section-head"><div><span class="eyebrow">${text("Review material", "Review-Material")}</span><h2>${text("Select what Livariant should inspect", "Auswählen, was Livariant prüfen soll")}</h2><p>${text("The list comes from the linked primary checkout. Selecting a path is only a review request; it does not confirm the content as project knowledge.", "Die Liste stammt aus dem verknüpften Haupt-Checkout. Die Auswahl eines Pfads ist nur ein Prüfauftrag; der Inhalt wird dadurch nicht als Projektwissen bestätigt.")}</p></div></div>
+    ${selection.candidates.length > 0 ? `<div class="source-review-selection-toolbar"><input type="search" data-review-path-filter placeholder="${text("Filter review material…", "Review-Material filtern…")}" aria-label="${text("Filter review material", "Review-Material filtern")}"/><span data-review-selection-count>${selected.size} ${text("selected", "ausgewählt")}</span></div><div class="source-review-candidate-list">${candidateRows}</div><div class="source-review-selection-actions"><button type="button" data-start-project-review ${selected.size === 0 ? "disabled" : ""}>${text("Start review", "Review starten")}</button><span data-review-start-status aria-live="polite"></span></div>` : `<p class="source-review-muted">${text("No bounded reviewable surfaces were found in the linked primary checkout.", "Im verknüpften Haupt-Checkout wurden keine begrenzten prüfbaren Oberflächen gefunden.")}</p>`}
+    ${attention}
+    <p class="source-review-boundary"><strong>${text("Evidence ≠ Truth · Proposal ≠ Authorization · Authorization ≠ Apply", "Evidence ≠ Truth · Vorschlag ≠ Autorisierung · Autorisierung ≠ Übernahme")}</strong><br/>${text("Starting a review writes only Livariant app-data configuration and invokes the existing canonical review producer. It grants no file-change permission.", "Das Starten eines Reviews schreibt ausschließlich Livariant-App-Data-Konfiguration und ruft den bestehenden kanonischen Review-Produzenten auf. Es erteilt keine Berechtigung, Dateien zu ändern.")}</p>
+  </section>`;
+};
+
 const reviewSection = (review: DesktopReviewPresentation | null): string => {
   if (!review) {
     return `<section class="source-review-empty"><span class="eyebrow">${text("Review", "Prüfung")}</span><h2>${text("No current review loaded", "Keine aktuelle Prüfung geladen")}</h2><p>${text("Livariant does not yet have a current project-adoption or self-observation review to show here. This does not mean the project is healthy or fully understood.", "Livariant hat für dieses Projekt noch keine aktuelle Übernahme- oder Selbstbeobachtungsprüfung, die hier angezeigt werden kann. Das bedeutet nicht, dass das Projekt gesund oder vollständig verstanden ist.")}</p></section>`;
@@ -151,7 +198,7 @@ export function renderProjectSourceReviewUnavailable(detail = text("Project sour
   return `<header class="topbar"><div><span class="eyebrow">${text("Project operations", "Projektbetrieb")}</span><h1>${text("Project sources & review", "Projektquellen & Prüfung")}</h1><p>${text("Repositories, source status, findings and proposals for the current project.", "Repositories, Quellenstatus, Befunde und Vorschläge für das aktuelle Projekt.")}</p></div></header><section class="source-review-empty"><span class="eyebrow">${text("Runtime bridge", "Laufzeitverbindung")}</span><h2>${text("Source state unavailable", "Quellenstatus nicht verfügbar")}</h2><p>${escapeHtml(detail)}</p><p>${text("The state is unknown and is not presented as healthy or current.", "Der Zustand ist unbekannt und wird nicht als gesund oder aktuell dargestellt.")}</p></section>`;
 }
 
-export function renderProjectSourceReviewView(presentation: DesktopSourceReviewPresentation): string {
+export function renderProjectSourceReviewView(presentation: DesktopSourceReviewPresentation, selection: DesktopReviewSelectionState): string {
   return `<header class="topbar"><div><span class="eyebrow">${text("Project operations", "Projektbetrieb")}</span><h1>${text("Project sources & review", "Projektquellen & Prüfung")}</h1><p>${text("Repositories, source status, findings and proposals for the current project.", "Repositories, Quellenstatus, Befunde und Vorschläge für das aktuelle Projekt.")}</p></div></header>
   <section class="source-review-summary">
     <div><small>${text("Project", "Projekt")}</small><strong>${escapeHtml(presentation.projectId)}</strong></div>
@@ -164,5 +211,6 @@ export function renderProjectSourceReviewView(presentation: DesktopSourceReviewP
     <div><small>${text("Blockers", "Blocker")}</small><strong>${presentation.summary.reviewBlockerCount}</strong></div>
   </section>
   <section class="source-review-sources"><div class="source-review-section-head"><div><span class="eyebrow">${text("Configured sources", "Eingerichtete Quellen")}</span><h2>${text("Repositories", "Repositories")}</h2></div></div><div class="source-review-source-grid">${presentation.sources.map(sourceCard).join("")}</div></section>
+  ${reviewSelectionSection(selection)}
   ${reviewSection(presentation.review)}`;
 }
