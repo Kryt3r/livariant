@@ -36,9 +36,10 @@ fn validate_export_for_save(value: &Value) -> Result<(), String> {
     }
     for field in [
         "rawPromptsIncluded",
+        "freeformReasonsIncluded",
         "projectFileContentsIncluded",
         "localPathsIncluded",
-        "credentialsIncluded",
+        "appCredentialStateIncluded",
     ] {
         require_false(value, "privacy", field)?;
     }
@@ -131,9 +132,10 @@ mod tests {
             "kind": "livariant-diagnostics-evidence-export",
             "privacy": {
                 "rawPromptsIncluded": false,
+                "freeformReasonsIncluded": false,
                 "projectFileContentsIncluded": false,
                 "localPathsIncluded": false,
-                "credentialsIncluded": false
+                "appCredentialStateIncluded": false
             },
             "boundaries": {
                 "modelAuthoredUsageAcceptedAsObserved": false,
@@ -154,6 +156,14 @@ mod tests {
         let mut raw_prompt = valid_export();
         raw_prompt["privacy"]["rawPromptsIncluded"] = json!(true);
         assert!(validate_export_for_save(&raw_prompt).is_err());
+
+        let mut freeform_reason = valid_export();
+        freeform_reason["privacy"]["freeformReasonsIncluded"] = json!(true);
+        assert!(validate_export_for_save(&freeform_reason).is_err());
+
+        let mut credential_state = valid_export();
+        credential_state["privacy"]["appCredentialStateIncluded"] = json!(true);
+        assert!(validate_export_for_save(&credential_state).is_err());
 
         let mut authority = valid_export();
         authority["boundaries"]["exportGrantsAuthority"] = json!(true);
