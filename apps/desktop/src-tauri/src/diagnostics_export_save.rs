@@ -62,7 +62,7 @@ fn pick_export_path(default_file_name: &str) -> Result<Option<PathBuf>, String> 
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        const SCRIPT: &str = "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.SaveFileDialog; $dialog.Filter = 'JSON files (*.json)|*.json|All files (*.*)|*.*'; $dialog.DefaultExt = 'json'; $dialog.AddExtension = $true; $dialog.OverwritePrompt = $true; $dialog.FileName = $args[0]; if ([Globalization.CultureInfo]::CurrentUICulture.Name -like 'de-*') { $dialog.Title = 'Diagnosedaten exportieren' } else { $dialog.Title = 'Export diagnostics evidence' }; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }";
+        const SCRIPT: &str = "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.SaveFileDialog; $dialog.Filter = 'JSON files (*.json)|*.json|All files (*.*)|*.*'; $dialog.DefaultExt = 'json'; $dialog.AddExtension = $true; $dialog.OverwritePrompt = $true; $dialog.FileName = $env:LIVARIANT_EXPORT_DEFAULT_FILE_NAME; if ([Globalization.CultureInfo]::CurrentUICulture.Name -like 'de-*') { $dialog.Title = 'Diagnosedaten exportieren' } else { $dialog.Title = 'Export diagnostics evidence' }; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.FileName) }";
 
         let system_root = env::var_os("SystemRoot").ok_or_else(|| "Windows system root is unavailable.".to_owned())?;
         let powershell = PathBuf::from(system_root)
@@ -75,7 +75,8 @@ fn pick_export_path(default_file_name: &str) -> Result<Option<PathBuf>, String> 
         }
 
         let output = Command::new(&powershell)
-            .args(["-NoProfile", "-NonInteractive", "-STA", "-Command", SCRIPT, default_file_name])
+            .args(["-NoProfile", "-NonInteractive", "-STA", "-Command", SCRIPT])
+            .env("LIVARIANT_EXPORT_DEFAULT_FILE_NAME", default_file_name)
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|error| format!("Native diagnostics export dialog could not be started: {error}"))?;
