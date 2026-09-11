@@ -9,6 +9,8 @@ test("update availability records durable notification without changing updater 
   const host = await text("apps/desktop/src-tauri/src/notification_center.rs");
   const lib = await text("apps/desktop/src-tauri/src/lib.rs");
 
+  assert.match(producer, /#\[tauri::command\(rename = "check_for_update"\)\]/);
+  assert.match(producer, /check_for_update_with_notifications/);
   assert.match(producer, /crate::updater::check_for_update\(app\.clone\(\)\)\.await/);
   assert.match(producer, /state == Some\("available"\)/);
   assert.match(producer, /updater:available:\{version\}/);
@@ -20,7 +22,7 @@ test("update availability records durable notification without changing updater 
   assert.match(host, /NOTIFICATION_CENTER_CHANGED_EVENT/);
   assert.match(host, /app\.emit\(NOTIFICATION_CENTER_CHANGED_EVENT, \(\)\)/);
 
-  assert.match(lib, /notification_product_events::check_for_update/);
+  assert.match(lib, /notification_product_events::check_for_update_with_notifications/);
   assert.doesNotMatch(lib, /\n\s*updater::check_for_update,/);
 });
 
