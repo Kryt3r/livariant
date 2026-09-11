@@ -6,6 +6,7 @@ mod first_run_ux;
 mod github_remote;
 mod github_telemetry;
 mod notification_center;
+mod notification_product_events;
 mod project_review_selection;
 mod project_source_observation;
 mod project_source_review_bridge;
@@ -74,7 +75,7 @@ fn inspect_runtime_root(install_root: &Path) -> RuntimeHealth {
     };
     let manifest: BundledRuntimeManifest = match serde_json::from_slice(&manifest_bytes) {
         Ok(value) => value,
-        Err(error) => return runtime_health_result("invalid", None, format!("Bundled runtime manifest is invalid: {error}")),
+        Err(error) => return runtime_health_result("invalid", None, format!("Bundled Livariant runtime manifest is invalid: {error}")),
     };
 
     if manifest.schema_version != 1 {
@@ -192,7 +193,7 @@ pub fn run() {
             project_source_review_bridge::refresh_project_source_review_presentation,
             project_review_selection::inventory_project_source_review_paths,
             project_review_selection::start_project_source_review,
-            updater::check_for_update,
+            notification_product_events::check_for_update,
             updater::apply_update,
             connector_host::codex_connector_status,
             connector_host::codex_connector_connect,
