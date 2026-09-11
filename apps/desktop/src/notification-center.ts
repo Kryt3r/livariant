@@ -1,5 +1,6 @@
 import "./notification-center.css";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getLanguage } from "./i18n/runtime.js";
 
 type DurableNotification = {
@@ -19,6 +20,7 @@ type NotificationCenterSnapshot = {
   notifications: DurableNotification[];
 };
 
+const NOTIFICATION_CENTER_CHANGED_EVENT = "livariant://notification-center-changed";
 let active = false;
 let snapshot: NotificationCenterSnapshot | null = null;
 let loadGeneration = 0;
@@ -37,6 +39,23 @@ const formatTime = (value: number) => new Intl.DateTimeFormat(getLanguage() === 
   dateStyle: "medium",
   timeStyle: "short",
 }).format(new Date(value));
+
+const updateNavUnreadBadge = () => {
+  const button = document.querySelector<HTMLButtonElement>("nav.nav [data-view='notifications']");
+  if (!button) return;
+  let badge = button.querySelector<HTMLElement>("[data-notification-nav-badge]");
+  const unread = snapshot?.unreadCount ?? 0;
+  if (unread === 0) {
+    badge?.remove();
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement("b");
+    badge.dataset.notificationNavBadge = "true";
+    button.appendChild(badge);
+  }
+  badge.textContent = unread > 99 ? "99+" : String(unread);
+};
 
 const renderSurface = (content: HTMLElement) => {
   const data = snapshot;
@@ -68,6 +87,7 @@ const renderSurface = (content: HTMLElement) => {
 
   content.querySelector<HTMLButtonElement>("[data-notification-mark-all]")?.addEventListener("click", async () => {
     snapshot = await markAllRead();
+    updateNavUnreadBadge();
     if (active) renderSurface(content);
   });
   content.querySelectorAll<HTMLButtonElement>("[data-notification-read-toggle]").forEach((button) => {
@@ -76,9 +96,23 @@ const renderSurface = (content: HTMLElement) => {
       const id = row?.dataset.notificationId;
       if (!id) return;
       snapshot = await setRead(id, button.dataset.read !== "true");
+      updateNavUnreadBadge();
       if (active) renderSurface(content);
     });
   });
+};
+
+const refreshSnapshot = async () => {
+  try {
+    snapshot = await loadSnapshot();
+    updateNavUnreadBadge();
+    if (active) {
+      const content = document.querySelector<HTMLElement>("main.content");
+      if (content) renderSurface(content);
+    }
+  } catch {
+    // A live refresh hint is best-effort presentation. The durable store remains authoritative.
+  }
 };
 
 const renderIntoContent = async () => {
@@ -91,6 +125,7 @@ const renderIntoContent = async () => {
     const next = await loadSnapshot();
     if (!active || generation !== loadGeneration) return;
     snapshot = next;
+    updateNavUnreadBadge();
     const current = document.querySelector<HTMLElement>("main.content");
     if (current) renderSurface(current);
   } catch (cause) {
@@ -127,6 +162,7 @@ const installNavigation = () => {
     const label = button.querySelector("span");
     if (label && label.textContent !== desiredLabel) label.textContent = desiredLabel;
   }
+  updateNavUnreadBadge();
 
   if (button.dataset.notificationBound !== "true") {
     button.dataset.notificationBound = "true";
@@ -148,3 +184,5 @@ const installNavigation = () => {
 const observer = new MutationObserver(() => installNavigation());
 observer.observe(document.body, { childList: true, subtree: true });
 installNavigation();
+void refreshSnapshot();
+void listen(NOTIFICATION_CENTER_CHANGED_EVENT, () => { void refreshSnapshot(); });
