@@ -80,12 +80,15 @@ test("diagnostics export preserves measurement classes and bounded provider-owne
   assert.equal(evidence.measurementSemantics.observed, "provider-or-runtime-owned-evidence");
   assert.equal(evidence.boundaries.modelAuthoredUsageAcceptedAsObserved, false);
   assert.equal(evidence.boundaries.exportGrantsAuthority, false);
-  assert.equal(evidence.privacy.credentialsIncluded, false);
+  assert.equal(evidence.privacy.appCredentialStateIncluded, false);
+  assert.equal(evidence.privacy.freeformReasonsIncluded, false);
 
   const serialized = JSON.stringify(evidence);
   assert.doesNotMatch(serialized, /internal-event-id/);
   assert.doesNotMatch(serialized, /outside-range/);
   assert.doesNotMatch(serialized, /other-provider/);
+  assert.doesNotMatch(serialized, /Qualified context selection/);
+  assert.doesNotMatch(serialized, /Modeled comparison fixture/);
 });
 
 test("diagnostics export reports explicit truncation while aggregates still cover all matching events", () => {
@@ -110,6 +113,37 @@ test("diagnostics export reports explicit truncation while aggregates still cove
   assert.equal(evidence.eventExport.exportedEvents, DIAGNOSTIC_EXPORT_EVENT_LIMIT);
   assert.equal(evidence.events.length, DIAGNOSTIC_EXPORT_EVENT_LIMIT);
   assert.equal(evidence.eventExport.truncated, true);
+});
+
+test("diagnostics export uses chronological event bounds rather than timestamp text ordering", () => {
+  const offsetEvents: DiagnosticEvent[] = [
+    {
+      id: "later",
+      kind: "observed",
+      timestamp: "2026-09-11T13:00:00+02:00",
+      source: { kind: "runtime", id: "fixture", version: "1" },
+      usage: { totalTokens: 1 },
+    },
+    {
+      id: "earlier",
+      kind: "observed",
+      timestamp: "2026-09-11T10:30:00Z",
+      source: { kind: "runtime", id: "fixture", version: "1" },
+      usage: { totalTokens: 1 },
+    },
+  ];
+
+  const evidence = buildDiagnosticEvidenceExport(offsetEvents, {
+    preset: "all",
+    range: {},
+    coreVersion: "0.1.0-rc.12",
+    generatedAt: "2026-09-11T13:00:00.000Z",
+  });
+
+  assert.deepEqual(evidence.eventWindow, {
+    first: "2026-09-11T10:30:00Z",
+    last: "2026-09-11T13:00:00+02:00",
+  });
 });
 
 test("diagnostics export rejects missing provenance version", () => {
