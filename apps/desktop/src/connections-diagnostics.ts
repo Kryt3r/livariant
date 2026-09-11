@@ -63,6 +63,7 @@ type DiagnosticsSummary = {
 };
 
 type MeasureResult = { connection: ConnectorStatus; diagnostics: DiagnosticsSummary };
+type DiagnosticsExportSaveResult = { saved: boolean; fileName?: string | null };
 type ProviderId = "codex" | "claude" | "gemini" | "custom";
 type ConnectorAction = "connect" | "disconnect" | null;
 
@@ -70,8 +71,9 @@ let connector: ConnectorStatus | null = null;
 let diagnostics: DiagnosticsSummary | null = null;
 let checkingConnector = false;
 let connectorAction: ConnectorAction = null;
-let diagnosticsBusy: "measure" | "diagnostics" | null = null;
+let diagnosticsBusy: "measure" | "diagnostics" | "export" | null = null;
 let error: string | null = null;
+let diagnosticsNotice: string | null = null;
 let selectedProvider: ProviderId | null = null;
 let selectedDiagnosticsPreset: DiagnosticPreset = "30d";
 
@@ -138,6 +140,7 @@ export async function refreshConnector(): Promise<void> {
 export async function refreshDiagnostics(): Promise<void> {
   diagnosticsBusy = "diagnostics";
   error = null;
+  diagnosticsNotice = null;
   try { diagnostics = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: selectedDiagnosticsPreset }); }
   catch (cause) { error = String(cause); }
   finally { diagnosticsBusy = null; }
@@ -283,7 +286,7 @@ export function renderDiagnosticsView(): string {
   ];
   return `
     <div class="diagnostics-surface" data-surface="diagnostics" data-diagnostics-preset="${selectedDiagnosticsPreset}">
-      <header class="topbar"><div><span class="eyebrow">${t("diagnostics.measuredEvidence")}</span><h1>${t("diagnostics.title")}</h1><p>${t("diagnostics.intro")}</p></div><div class="topbar-actions"><label hidden><span class="sr-only">${t("diagnostics.period")}</span><select class="diagnostics-period" ${diagnosticsBusy ? "disabled" : ""}><option value="1d" ${selectedDiagnosticsPreset === "1d" ? "selected" : ""}>${t("diagnostics.day")}</option><option value="7d" ${selectedDiagnosticsPreset === "7d" ? "selected" : ""}>${t("diagnostics.days7")}</option><option value="30d" ${selectedDiagnosticsPreset === "30d" ? "selected" : ""}>${t("diagnostics.days30")}</option><option value="90d" ${selectedDiagnosticsPreset === "90d" ? "selected" : ""}>${t("diagnostics.days90")}</option><option value="all" ${selectedDiagnosticsPreset === "all" ? "selected" : ""}>${t("diagnostics.allTime")}</option></select></label><button class="button secondary diagnostics-refresh" type="button" ${diagnosticsBusy ? "disabled" : ""}>${diagnosticsBusy === "diagnostics" ? t("common.refreshing") : t("common.refresh")}</button></div></header>
+      <header class="topbar"><div><span class="eyebrow">${t("diagnostics.measuredEvidence")}</span><h1>${t("diagnostics.title")}</h1><p>${t("diagnostics.intro")}</p></div><div class="topbar-actions"><label hidden><span class="sr-only">${t("diagnostics.period")}</span><select class="diagnostics-period" ${diagnosticsBusy ? "disabled" : ""}><option value="1d" ${selectedDiagnosticsPreset === "1d" ? "selected" : ""}>${t("diagnostics.day")}</option><option value="7d" ${selectedDiagnosticsPreset === "7d" ? "selected" : ""}>${t("diagnostics.days7")}</option><option value="30d" ${selectedDiagnosticsPreset === "30d" ? "selected" : ""}>${t("diagnostics.days30")}</option><option value="90d" ${selectedDiagnosticsPreset === "90d" ? "selected" : ""}>${t("diagnostics.days90")}</option><option value="all" ${selectedDiagnosticsPreset === "all" ? "selected" : ""}>${t("diagnostics.allTime")}</option></select></label><button class="button secondary diagnostics-export" type="button" ${diagnosticsBusy ? "disabled" : ""}>${diagnosticsBusy === "export" ? lang("Saving…", "Speichere…") : lang("Export", "Exportieren")}</button><button class="button secondary diagnostics-refresh" type="button" ${diagnosticsBusy ? "disabled" : ""}>${diagnosticsBusy === "diagnostics" ? t("common.refreshing") : t("common.refresh")}</button></div></header>
       <section class="diagnostics-range-bar"><div class="diagnostics-range-copy"><small>${t("diagnostics.timeRange")}</small><strong>${diagnosticsRangeLabel(selectedDiagnosticsPreset)}</strong></div><div class="diagnostics-range-options" role="group" aria-label="${t("diagnostics.period")}">${(["1d","7d","30d","90d","all"] as DiagnosticPreset[]).map((preset) => `<button class="diagnostics-range-option ${selectedDiagnosticsPreset === preset ? "active" : ""}" type="button" data-diagnostics-preset="${preset}" ${diagnosticsBusy ? "disabled" : ""}>${preset === "1d" ? "24h" : preset === "all" ? t("projectBrain.all") : preset}</button>`).join("")}</div></section>
       ${diagnosticsClassGrid()}
       <div class="diagnostics-section-head diagnostics-section-head-compact"><div><span class="eyebrow">${t("diagnostics.observedEvidence")}</span><h2>${t("diagnostics.measuredUsage")}</h2><p>${t("diagnostics.rawValues")}</p></div></div>
@@ -294,7 +297,7 @@ export function renderDiagnosticsView(): string {
         <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>${t("diagnostics.cachedInput")}</small><strong>${measured(observed?.cacheReadTokens ?? 0)}</strong></div></div>
         <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Reasoning</small><strong>${measured(observed?.reasoningTokens ?? 0)}</strong></div></div>
       </section>
-      <section class="progress-panel diagnostics-observed-status"><div><span class="eyebrow">Observed · ${presetLabel(selectedDiagnosticsPreset)}</span><h2>${observed?.eventCount ?? 0} ${lang("measured events", "gemessene Ereignisse")}</h2><p>${esc(error ?? (diagnostics?.hasObservedData ? lang("Stored locally from Codex App Server runtime evidence.", "Lokal aus Runtime-Evidence des Codex App Servers gespeichert.") : lang("No measured usage exists for this period.", "Für diesen Zeitraum liegt keine gemessene Nutzung vor.")))}</p></div><span class="state-pill">${diagnostics?.hasObservedData ? t("diagnostics.measured") : t("common.unknown")}</span></section>
+      <section class="progress-panel diagnostics-observed-status"><div><span class="eyebrow">Observed · ${presetLabel(selectedDiagnosticsPreset)}</span><h2>${observed?.eventCount ?? 0} ${lang("measured events", "gemessene Ereignisse")}</h2><p>${esc(diagnosticsNotice ?? error ?? (diagnostics?.hasObservedData ? lang("Stored locally from Codex App Server runtime evidence.", "Lokal aus Runtime-Evidence des Codex App Servers gespeichert.") : lang("No measured usage exists for this period.", "Für diesen Zeitraum liegt keine gemessene Nutzung vor.")))}</p></div><span class="state-pill">${diagnostics?.hasObservedData ? t("diagnostics.measured") : t("common.unknown")}</span></section>
       <section class="provider-primary-card" data-diagnostics-attribution><div><span class="provider-card-kicker">${lang("Evidence attribution", "Evidence-Zuordnung")}</span><h3>${lang("Where the measured events came from", "Woher die gemessenen Ereignisse stammen")}</h3></div><section class="provider-detail-grid">${["Provider","Model",lang("Project","Projekt"),lang("Session","Sitzung"),lang("Task","Aufgabe")].map((label, index) => `<div class="provider-detail"><small>${label}</small><strong>${esc(attributionValues[index] ?? t("common.unavailable"))}</strong></div>`).join("")}</section></section>
       <section class="diagnostics-action-card" data-diagnostics-calculation><div><span class="eyebrow">${lang("Calculation path", "Berechnungsweg")}</span><h3>${lang("How these totals are calculated", "Wie diese Summen berechnet werden")}</h3><p>${esc(calculation)}</p></div></section>
       <section class="diagnostics-action-card diagnostics-measure-compact"><div><span class="eyebrow">${t("diagnostics.connectionDiagnostics")}</span><h3>${t("diagnostics.measureTurn")}</h3><p>${lang("Run one fixed harmless turn and record provider/runtime-owned token evidence. The test prompt is fixed in Core and cannot be supplied by the renderer.", "Einen fest definierten harmlosen Turn ausführen und provider-/runtime-eigene Token-Evidence erfassen. Der Test-Prompt ist fest im Core hinterlegt und kann nicht vom Renderer geliefert werden.")}</p></div><button class="button primary diagnostics-measure" type="button" ${diagnosticsBusy || !connected ? "disabled" : ""}>${diagnosticsBusy === "measure" ? t("diagnostics.measuring") : t("diagnostics.measure")}</button></section>
@@ -326,9 +329,11 @@ const setDiagnosticsVisualBusyState = () => {
   if (!surface) return;
   const busy = diagnosticsBusy !== null;
   const period = surface.querySelector<HTMLSelectElement>(".diagnostics-period");
+  const exportButton = surface.querySelector<HTMLButtonElement>(".diagnostics-export");
   const refresh = surface.querySelector<HTMLButtonElement>(".diagnostics-refresh");
   const measure = surface.querySelector<HTMLButtonElement>(".diagnostics-measure");
   if (period) period.disabled = busy;
+  if (exportButton) { exportButton.disabled = busy; exportButton.textContent = diagnosticsBusy === "export" ? lang("Saving…", "Speichere…") : lang("Export", "Exportieren"); }
   if (refresh) { refresh.disabled = busy; refresh.textContent = diagnosticsBusy === "diagnostics" ? t("common.refreshing") : t("common.refresh"); }
   if (measure) { measure.disabled = busy || connector?.connected !== true; measure.textContent = diagnosticsBusy === "measure" ? t("diagnostics.measuring") : t("diagnostics.measure"); }
   surface.querySelectorAll<HTMLButtonElement>("[data-diagnostics-preset]").forEach((button) => { button.disabled = busy; });
@@ -402,6 +407,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     if (next !== "1d" && next !== "7d" && next !== "30d" && next !== "90d" && next !== "all") return;
     if (selectedDiagnosticsPreset === next && diagnostics?.preset === next) return;
     selectedDiagnosticsPreset = next;
+    diagnosticsNotice = null;
     const refresh = refreshDiagnostics();
     setDiagnosticsVisualBusyState();
     await refresh;
@@ -416,7 +422,20 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     button.addEventListener("click", () => void changePreset(button.dataset.diagnosticsPreset ?? ""));
   });
 
+  document.querySelector<HTMLButtonElement>(".diagnostics-export")?.addEventListener("click", async () => {
+    diagnosticsBusy = "export"; error = null; diagnosticsNotice = null; setDiagnosticsVisualBusyState();
+    try {
+      const result = await invoke<DiagnosticsExportSaveResult>("save_codex_diagnostics_export", { preset: selectedDiagnosticsPreset });
+      if (result.saved) {
+        const fileName = result.fileName ?? lang("JSON file", "JSON-Datei");
+        diagnosticsNotice = lang(`Export saved as ${fileName}.`, `Export als ${fileName} gespeichert.`);
+      }
+    } catch (cause) { error = String(cause); }
+    finally { diagnosticsBusy = null; syncDiagnosticsSurface(rerender); }
+  });
+
   document.querySelector<HTMLButtonElement>(".diagnostics-refresh")?.addEventListener("click", async () => {
+    diagnosticsNotice = null;
     const refresh = refreshDiagnostics();
     setDiagnosticsVisualBusyState();
     await refresh;
@@ -424,7 +443,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   });
 
   document.querySelector<HTMLButtonElement>(".diagnostics-measure")?.addEventListener("click", async () => {
-    diagnosticsBusy = "measure"; error = null; setDiagnosticsVisualBusyState();
+    diagnosticsBusy = "measure"; error = null; diagnosticsNotice = null; setDiagnosticsVisualBusyState();
     try {
       const result = await invoke<MeasureResult>("codex_diagnostics_measure", { preset: selectedDiagnosticsPreset });
       connector = result.connection;
