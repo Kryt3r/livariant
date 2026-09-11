@@ -4,10 +4,11 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 const STORE_SCHEMA_VERSION: u32 = 1;
 const STORE_RELATIVE_PATH: [&str; 2] = ["notifications", "center.json"];
+pub const NOTIFICATION_CENTER_CHANGED_EVENT: &str = "livariant://notification-center-changed";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -132,6 +133,45 @@ fn snapshot(mut store: NotificationStore) -> NotificationCenterSnapshot {
     }
 }
 
+fn upsert_preserving_read_state(store: &mut NotificationStore, mut notification: DurableNotification) {
+    if let Some(existing) = store.notifications.iter_mut().find(|item| item.id == notification.id) {
+        notification.created_at_ms = existing.created_at_ms;
+        notification.read_at_ms = existing.read_at_ms;
+        *existing = notification;
+    } else {
+        store.notifications.push(notification);
+    }
+}
+
+pub fn record_product_notification(
+    app: &tauri::AppHandle,
+    id: String,
+    category: String,
+    severity: String,
+    title: String,
+    body: String,
+    source_ref: Option<String>,
+) -> Result<NotificationCenterSnapshot, String> {
+    let path = store_path(app)?;
+    let mut store = read_store(&path)?;
+    let notification = DurableNotification {
+        id,
+        category,
+        severity,
+        title,
+        body,
+        created_at_ms: now_ms()?,
+        read_at_ms: None,
+        source_ref,
+    };
+    validate_notification(&notification)?;
+    upsert_preserving_read_state(&mut store, notification);
+    write_store(&path, &store)?;
+    let result = snapshot(store);
+    let _ = app.emit(NOTIFICATION_CENTER_CHANGED_EVENT, ());
+    Ok(result)
+}
+
 #[tauri::command]
 pub fn notification_center_list(app: tauri::AppHandle) -> Result<NotificationCenterSnapshot, String> {
     let path = store_path(&app)?;
@@ -220,11 +260,26 @@ mod tests {
     }
 
     #[test]
+    fn producer_upsert_preserves_existing_read_state_and_identity_time() {
+        let mut store = NotificationStore {
+            schema_version: 1,
+            notifications: vec![fixture("update:1.2.3", 10, Some(20))],
+        };
+        let mut replacement = fixture("update:1.2.3", 99, None);
+        replacement.body = "Updated presentation text.".to_owned();
+        upsert_preserving_read_state(&mut store, replacement);
+        assert_eq!(store.notifications.len(), 1);
+        assert_eq!(store.notifications[0].created_at_ms, 10);
+        assert_eq!(store.notifications[0].read_at_ms, Some(20));
+        assert_eq!(store.notifications[0].body, "Updated presentation text.");
+    }
+
+    #[test]
     fn malformed_or_duplicate_records_fail_closed() {
         let root = test_root("invalid");
         let path = root.join("center.json");
         fs::create_dir_all(&root).expect("create root");
-        fs::write(&path, br#"{"schemaVersion":2,"notifications":[]}"#).expect("write schema mismatch");
+        fs::write(&path, br#"{\"schemaVersion\":2,\"notifications\":[]}"#).expect("write schema mismatch");
         assert!(read_store(&path).is_err());
 
         let duplicate = NotificationStore {
