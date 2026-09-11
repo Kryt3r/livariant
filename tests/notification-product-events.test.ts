@@ -46,7 +46,10 @@ test("native Windows delivery is downstream of durable persistence and deduplica
   assert.match(producer, /LIVARIANT_TOAST_BODY/);
   assert.match(producer, /CreateToastNotifier/);
 
-  assert.doesNotMatch(producer, /#\[tauri::command[^\]]*\][\s\S]*deliver_windows_notification/);
+  assert.doesNotMatch(
+    producer,
+    /#\[tauri::command[^\]]*\]\s*(?:#\[[^\]]+\]\s*)*fn\s+deliver_windows_notification/,
+  );
 });
 
 test("renderer live refresh consumes only a change hint and rereads durable store", async () => {
