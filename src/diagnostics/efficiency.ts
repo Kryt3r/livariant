@@ -141,6 +141,16 @@ function inRange(timestamp: string, range: { start?: number; end?: number }): bo
   return (range.start === undefined || value >= range.start) && (range.end === undefined || value < range.end);
 }
 
+export function diagnosticEventsInRange(events: readonly DiagnosticEvent[], range: DiagnosticRange = {}): DiagnosticEvent[] {
+  const normalizedRange = normalizeRange(range);
+  const selected: DiagnosticEvent[] = [];
+  for (const event of events) {
+    validateDiagnosticEvent(event);
+    if (inRange(event.timestamp, normalizedRange)) selected.push(event);
+  }
+  return selected;
+}
+
 export function aggregateDiagnosticEvents(events: readonly DiagnosticEvent[], range: DiagnosticRange = {}): DiagnosticAggregate {
   const normalizedRange = normalizeRange(range);
   const result: DiagnosticAggregate = {
