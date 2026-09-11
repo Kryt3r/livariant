@@ -1,4 +1,5 @@
 mod connector_host;
+mod diagnostics_export_save;
 mod first_run_lifecycle;
 mod first_run_project_state;
 mod first_run_ux;
@@ -194,6 +195,7 @@ pub fn run() {
             connector_host::codex_connector_disconnect,
             connector_host::codex_diagnostics_summary,
             connector_host::codex_diagnostics_export,
+            diagnostics_export_save::save_codex_diagnostics_export,
             connector_host::codex_diagnostics_measure
         ])
         .run(tauri::generate_context!())
