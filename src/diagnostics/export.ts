@@ -34,7 +34,6 @@ export type DiagnosticEvidenceExportEvent =
       consideredTokens: number;
       usedTokens: number;
       avoidedTokens: number;
-      reason: string;
     }
   | {
       kind: "estimated";
@@ -43,7 +42,6 @@ export type DiagnosticEvidenceExportEvent =
       estimatedTokens: number;
       method: { id: string; version: string };
       confidence: "low" | "medium" | "high";
-      reason: string;
     };
 
 export type DiagnosticEvidenceExport = {
@@ -72,9 +70,10 @@ export type DiagnosticEvidenceExport = {
   events: DiagnosticEvidenceExportEvent[];
   privacy: {
     rawPromptsIncluded: false;
+    freeformReasonsIncluded: false;
     projectFileContentsIncluded: false;
     localPathsIncluded: false;
-    credentialsIncluded: false;
+    appCredentialStateIncluded: false;
   };
   boundaries: {
     modelAuthoredUsageAcceptedAsObserved: false;
@@ -115,7 +114,6 @@ function exportEvent(event: DiagnosticEvent): DiagnosticEvidenceExportEvent {
       consideredTokens: event.consideredTokens,
       usedTokens: event.usedTokens,
       avoidedTokens: event.consideredTokens - event.usedTokens,
-      reason: event.reason,
     };
   }
   return {
@@ -125,7 +123,6 @@ function exportEvent(event: DiagnosticEvent): DiagnosticEvidenceExportEvent {
     estimatedTokens: event.estimatedTokens,
     method: { ...event.method },
     confidence: event.confidence,
-    reason: event.reason,
   };
 }
 
@@ -145,6 +142,17 @@ function evidenceSources(events: readonly DiagnosticEvent[]): DiagnosticEvidence
       || left.version.localeCompare(right.version));
 }
 
+function eventWindow(events: readonly DiagnosticEvent[]): { first?: string; last?: string } {
+  if (events.length === 0) return {};
+  let first = events[0];
+  let last = events[0];
+  for (const event of events.slice(1)) {
+    if (Date.parse(event.timestamp) < Date.parse(first.timestamp)) first = event;
+    if (Date.parse(event.timestamp) > Date.parse(last.timestamp)) last = event;
+  }
+  return { first: first.timestamp, last: last.timestamp };
+}
+
 export function buildDiagnosticEvidenceExport(
   events: readonly DiagnosticEvent[],
   options: {
@@ -160,7 +168,6 @@ export function buildDiagnosticEvidenceExport(
   const aggregate = aggregateDiagnosticEvents(events, options.range);
   const attribution = aggregateObservedAttribution(events, options.range);
   const exported = selected.slice(0, DIAGNOSTIC_EXPORT_EVENT_LIMIT).map(exportEvent);
-  const timestamps = selected.map((event) => event.timestamp).sort();
 
   return {
     schemaVersion: 1,
@@ -178,10 +185,7 @@ export function buildDiagnosticEvidenceExport(
     aggregate,
     attribution,
     evidenceSources: evidenceSources(selected),
-    eventWindow: {
-      ...(timestamps[0] === undefined ? {} : { first: timestamps[0] }),
-      ...(timestamps.at(-1) === undefined ? {} : { last: timestamps.at(-1) }),
-    },
+    eventWindow: eventWindow(selected),
     eventExport: {
       totalMatchingEvents: selected.length,
       exportedEvents: exported.length,
@@ -191,9 +195,10 @@ export function buildDiagnosticEvidenceExport(
     events: exported,
     privacy: {
       rawPromptsIncluded: false,
+      freeformReasonsIncluded: false,
       projectFileContentsIncluded: false,
       localPathsIncluded: false,
-      credentialsIncluded: false,
+      appCredentialStateIncluded: false,
     },
     boundaries: {
       modelAuthoredUsageAcceptedAsObserved: false,
