@@ -193,7 +193,7 @@ pub fn run() {
             project_source_review_bridge::refresh_project_source_review_presentation,
             project_review_selection::inventory_project_source_review_paths,
             project_review_selection::start_project_source_review,
-            notification_product_events::check_for_update,
+            notification_product_events::check_for_update_with_notifications,
             updater::apply_update,
             connector_host::codex_connector_status,
             connector_host::codex_connector_connect,
