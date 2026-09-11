@@ -75,7 +75,7 @@ fn inspect_runtime_root(install_root: &Path) -> RuntimeHealth {
     };
     let manifest: BundledRuntimeManifest = match serde_json::from_slice(&manifest_bytes) {
         Ok(value) => value,
-        Err(error) => return runtime_health_result("invalid", None, format!("Bundled Livariant runtime manifest is invalid: {error}")),
+        Err(error) => return runtime_health_result("invalid", None, format!("Bundled runtime manifest is invalid: {error}")),
     };
 
     if manifest.schema_version != 1 {
