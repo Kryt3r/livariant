@@ -154,9 +154,10 @@ test("diagnostics export rejects missing provenance version", () => {
   }), /coreVersion must not be blank/);
 });
 
-test("desktop diagnostics export reuses the canonical Core contract through the existing connector host", async () => {
+test("desktop diagnostics export reuses the canonical Core contract through the existing connector host while raw export stays internal", async () => {
   const nodeHost = await readFile("src/connectors/desktop-connector-host.ts", "utf8");
   const rustHost = await readFile("apps/desktop/src-tauri/src/connector_host.rs", "utf8");
+  const nativeSave = await readFile("apps/desktop/src-tauri/src/diagnostics_export_save.rs", "utf8");
   const lib = await readFile("apps/desktop/src-tauri/src/lib.rs", "utf8");
 
   assert.match(nodeHost, /buildDiagnosticEvidenceExport/);
@@ -164,5 +165,7 @@ test("desktop diagnostics export reuses the canonical Core contract through the 
   assert.match(nodeHost, /request\.method === "export"/);
   assert.match(rustHost, /pub fn codex_diagnostics_export/);
   assert.match(rustHost, /request\(&app, &state, "export", None, preset\)/);
-  assert.match(lib, /connector_host::codex_diagnostics_export/);
+  assert.match(nativeSave, /codex_diagnostics_export\(app, state, preset\)\?/);
+  assert.doesNotMatch(lib, /connector_host::codex_diagnostics_export,/);
+  assert.match(lib, /diagnostics_export_save::save_codex_diagnostics_export/);
 });
