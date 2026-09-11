@@ -15,6 +15,7 @@ test("Desktop diagnostics export saving stays behind the native host boundary", 
   assert.match(nativeSave, /exportGrantsAuthority/);
 
   assert.match(nativeLib, /diagnostics_export_save::save_codex_diagnostics_export/);
+  assert.doesNotMatch(nativeLib, /connector_host::codex_diagnostics_export,/);
   assert.match(renderer, /invoke<DiagnosticsExportSaveResult>\("save_codex_diagnostics_export", \{ preset: selectedDiagnosticsPreset \}\)/);
   assert.doesNotMatch(renderer, /invoke<[^>]*>\("codex_diagnostics_export"/);
   assert.doesNotMatch(renderer, /save_codex_diagnostics_export", \{[^}]*path/i);
