@@ -233,6 +233,16 @@ pub fn codex_diagnostics_summary(
 }
 
 #[tauri::command]
+pub fn codex_diagnostics_export(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    preset: Option<String>,
+) -> Result<Value, String> {
+    let preset = validate_diagnostics_preset(preset.as_deref())?;
+    request(&app, &state, "export", None, preset)
+}
+
+#[tauri::command]
 pub fn codex_diagnostics_measure(
     app: AppHandle,
     state: State<'_, ConnectorHostState>,

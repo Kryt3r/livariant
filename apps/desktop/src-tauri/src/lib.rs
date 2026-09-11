@@ -193,6 +193,7 @@ pub fn run() {
             connector_host::codex_connector_connect,
             connector_host::codex_connector_disconnect,
             connector_host::codex_diagnostics_summary,
+            connector_host::codex_diagnostics_export,
             connector_host::codex_diagnostics_measure
         ])
         .run(tauri::generate_context!())
