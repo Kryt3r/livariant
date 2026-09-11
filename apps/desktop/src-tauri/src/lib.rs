@@ -5,6 +5,7 @@ mod first_run_project_state;
 mod first_run_ux;
 mod github_remote;
 mod github_telemetry;
+mod notification_center;
 mod project_review_selection;
 mod project_source_observation;
 mod project_source_review_bridge;
@@ -182,6 +183,9 @@ pub fn run() {
             github_remote::github_list_repositories,
             github_remote::github_clone_repository,
             github_telemetry::github_project_telemetry,
+            notification_center::notification_center_list,
+            notification_center::notification_center_set_read,
+            notification_center::notification_center_mark_all_read,
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
             project_source_review_bridge::project_source_review_presentation,
