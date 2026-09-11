@@ -1,7 +1,7 @@
 use tauri::AppHandle;
 
-#[tauri::command]
-pub async fn check_for_update(app: AppHandle) -> crate::updater::UpdateResult {
+#[tauri::command(rename = "check_for_update")]
+pub async fn check_for_update_with_notifications(app: AppHandle) -> crate::updater::UpdateResult {
     let outcome = crate::updater::check_for_update(app.clone()).await;
 
     let serialized = serde_json::to_value(&outcome).ok();
