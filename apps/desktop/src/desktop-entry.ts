@@ -16,6 +16,7 @@ async function loadMainSurface(): Promise<void> {
   await import("./main.js");
   await Promise.all([
     import("./project-source-review-navigation.js"),
+    import("./notification-center.js"),
     import("./first-steps-editor-state.js"),
     import("./runtime-health.js"),
     import("./updater-ui.js"),
