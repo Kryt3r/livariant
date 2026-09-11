@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   buildDiagnosticEvidenceExport,
@@ -117,4 +118,17 @@ test("diagnostics export rejects missing provenance version", () => {
     range: {},
     coreVersion: "   ",
   }), /coreVersion must not be blank/);
+});
+
+test("desktop diagnostics export reuses the canonical Core contract through the existing connector host", async () => {
+  const nodeHost = await readFile("src/connectors/desktop-connector-host.ts", "utf8");
+  const rustHost = await readFile("apps/desktop/src-tauri/src/connector_host.rs", "utf8");
+  const lib = await readFile("apps/desktop/src-tauri/src/lib.rs", "utf8");
+
+  assert.match(nodeHost, /buildDiagnosticEvidenceExport/);
+  assert.match(nodeHost, /method: "inspect" \| "connect" \| "disconnect" \| "diagnostics" \| "export" \| "measure"/);
+  assert.match(nodeHost, /request\.method === "export"/);
+  assert.match(rustHost, /pub fn codex_diagnostics_export/);
+  assert.match(rustHost, /request\(&app, &state, "export", None, preset\)/);
+  assert.match(lib, /connector_host::codex_diagnostics_export/);
 });
