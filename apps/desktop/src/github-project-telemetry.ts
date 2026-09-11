@@ -30,6 +30,14 @@ export type GitHubProjectTelemetry = {
   };
 };
 
+type GitHubConnectionStatus = {
+  state: string;
+  connected: boolean;
+  configured: boolean;
+  login: string | null;
+  detail: string;
+};
+
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 const esc = (value: unknown): string => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -100,5 +108,9 @@ export function renderGitHubTelemetry(telemetry: GitHubProjectTelemetry): string
 }
 
 export async function loadGitHubProjectTelemetry(repositoryId: string): Promise<GitHubProjectTelemetry> {
+  const status = await invoke<GitHubConnectionStatus>("github_connection_status");
+  if (!status.configured || !status.connected) {
+    throw new Error(status.detail || "GitHub connection is unavailable.");
+  }
   return invoke<GitHubProjectTelemetry>("github_project_telemetry", { repositoryId });
 }
