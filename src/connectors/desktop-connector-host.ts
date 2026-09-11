@@ -21,6 +21,7 @@ import {
   diagnosticRangeForPreset,
   type DiagnosticPreset,
 } from "../diagnostics/efficiency.js";
+import { buildDiagnosticEvidenceExport } from "../diagnostics/export.js";
 import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
 import { DiagnosticEventStore } from "../diagnostics/store.js";
 
@@ -49,7 +50,7 @@ const DIAGNOSTIC_PRESETS = ["1d", "7d", "30d", "90d", "all"] as const satisfies 
 
 type Request = {
   id: number;
-  method: "inspect" | "connect" | "disconnect" | "diagnostics" | "measure";
+  method: "inspect" | "connect" | "disconnect" | "diagnostics" | "export" | "measure";
   manualPath?: string;
   diagnosticsPreset?: DiagnosticPreset;
 };
@@ -68,7 +69,7 @@ function assertRequest(value: unknown): Request {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Desktop connector host request must be an object.");
   const record = value as Record<string, unknown>;
   if (!Number.isSafeInteger(record.id) || (record.id as number) < 0) throw new Error("Desktop connector host request id is invalid.");
-  if (!["inspect", "connect", "disconnect", "diagnostics", "measure"].includes(String(record.method))) throw new Error("Desktop connector host method is unsupported.");
+  if (!["inspect", "connect", "disconnect", "diagnostics", "export", "measure"].includes(String(record.method))) throw new Error("Desktop connector host method is unsupported.");
   if (record.manualPath !== undefined && typeof record.manualPath !== "string") throw new Error("Desktop connector host manualPath must be a string when supplied.");
   if (record.diagnosticsPreset !== undefined && !DIAGNOSTIC_PRESETS.includes(record.diagnosticsPreset as DiagnosticPreset)) {
     throw new Error("Desktop connector host diagnosticsPreset is invalid.");
@@ -255,6 +256,17 @@ async function diagnostics(preset: DiagnosticPreset = "all") {
   };
 }
 
+async function diagnosticsExport(preset: DiagnosticPreset = "all") {
+  await writeQueue;
+  const range = diagnosticRangeForPreset(preset);
+  const events = await store.readAll();
+  return buildDiagnosticEvidenceExport(events, {
+    preset,
+    range,
+    coreVersion: clientVersion,
+  });
+}
+
 async function measure(preset: DiagnosticPreset = "all") {
   assertDiagnosticsMeasurementSession(Boolean(session?.isOpen() && workflow));
   if (!workflow || !session?.isOpen()) throw new Error("Codex diagnostics measurement requires an already connected session.");
@@ -282,6 +294,7 @@ async function handle(request: Request): Promise<unknown> {
   if (request.method === "connect") return await connect(request.manualPath);
   if (request.method === "disconnect") return await disconnectByUser();
   if (request.method === "diagnostics") return await diagnostics(request.diagnosticsPreset);
+  if (request.method === "export") return await diagnosticsExport(request.diagnosticsPreset);
   return await measure(request.diagnosticsPreset);
 }
 
