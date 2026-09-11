@@ -29,6 +29,15 @@ test("GitHub top-level list transport preserves empty, singleton and multi-item 
   assert.match(host, /assert!\(list_items\(json!\(\{\"number\": 1\}\), None\)\.is_err\(\)\)/);
 });
 
+test("GitHub telemetry refreshes through the canonical connection path before loading remote data", async () => {
+  const ui = await text("apps/desktop/src/github-project-telemetry.ts");
+
+  assert.match(ui, /invoke<GitHubConnectionStatus>\("github_connection_status"\)/);
+  assert.match(ui, /if \(!status\.configured \|\| !status\.connected\)/);
+  assert.match(ui, /return invoke<GitHubProjectTelemetry>\("github_project_telemetry", \{ repositoryId \}\)/);
+  assert.ok(ui.indexOf('"github_connection_status"') < ui.indexOf('"github_project_telemetry"'));
+});
+
 test("GitHub telemetry keeps remote evidence and mutation Authority separate", async () => {
   const host = await text("apps/desktop/src-tauri/src/github_telemetry.rs");
   const ui = await text("apps/desktop/src/github-project-telemetry.ts");
