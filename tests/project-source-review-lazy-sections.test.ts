@@ -2,11 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const navigationPath = new URL("../apps/desktop/src/project-source-review-navigation.ts", import.meta.url);
-const lazyViewPath = new URL("../apps/desktop/src/project-source-review-lazy-view.ts", import.meta.url);
+const read = (path: string) => readFile(path, "utf8");
 
 test("Project Sources navigation stays lightweight until the user opens a detail section", async () => {
-  const navigation = await readFile(navigationPath, "utf8");
+  const navigation = await read("apps/desktop/src/project-source-review-navigation.ts");
   assert.match(navigation, /loadProjectSourceReviewPresentation\(\)/);
   assert.doesNotMatch(navigation, /refreshProjectSourceReviewPresentation/);
   assert.doesNotMatch(navigation, /loadGitHubProjectTelemetry/);
@@ -17,7 +16,7 @@ test("Project Sources navigation stays lightweight until the user opens a detail
 });
 
 test("heavy Project Sources material is explicit and bounded in the DOM", async () => {
-  const source = await readFile(lazyViewPath, "utf8");
+  const source = await read("apps/desktop/src/project-source-review-lazy-view.ts");
   assert.match(source, /const PAGE_SIZE = 24/);
   assert.match(source, /data-source-review-section="sources"/);
   assert.match(source, /data-source-review-section="material"/);
