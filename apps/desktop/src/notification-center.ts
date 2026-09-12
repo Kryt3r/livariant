@@ -54,7 +54,8 @@ const updateNavUnreadBadge = () => {
     badge.dataset.notificationNavBadge = "true";
     button.appendChild(badge);
   }
-  badge.textContent = unread > 99 ? "99+" : String(unread);
+  const desiredText = unread > 99 ? "99+" : String(unread);
+  if (badge.textContent !== desiredText) badge.textContent = desiredText;
 };
 
 const renderSurface = (content: HTMLElement) => {
@@ -181,8 +182,11 @@ const installNavigation = () => {
   }
 };
 
-const observer = new MutationObserver(() => installNavigation());
-observer.observe(document.body, { childList: true, subtree: true });
+const nav = document.querySelector<HTMLElement>("nav.nav");
+if (nav) {
+  const observer = new MutationObserver(() => installNavigation());
+  observer.observe(nav, { childList: true });
+}
 installNavigation();
 void refreshSnapshot();
 void listen(NOTIFICATION_CENTER_CHANGED_EVENT, () => { void refreshSnapshot(); });
