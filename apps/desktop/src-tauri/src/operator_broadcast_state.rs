@@ -1,4 +1,4 @@
-use crate::operator_broadcast::OperatorBroadcastDocument;
+use crate::operator_broadcast_verify::VerifiedOperatorBroadcast;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
@@ -42,21 +42,17 @@ impl OperatorBroadcastAcceptanceState {
     }
 }
 
-/// Accepts a document only after the caller has cryptographically verified the
-/// detached operator signature for the exact signed document bytes.
-///
-/// This function deliberately performs no signature verification itself. Until
-/// the dedicated crypto adapter exists, there is no production call path to it.
-/// Its responsibility is the independent freshness/replay boundary that remains
-/// required even for an otherwise valid signature.
-pub fn accept_verified_document(
+/// Advances replay/freshness state only for a value that already crossed the
+/// dedicated cryptographic verifier boundary. Raw/unverified documents cannot
+/// be passed to this function.
+pub fn accept_verified_broadcast(
     state: &mut OperatorBroadcastAcceptanceState,
-    key_id: &str,
-    document: &OperatorBroadcastDocument,
+    verified: &VerifiedOperatorBroadcast,
     now_ms: u64,
 ) -> Result<(), String> {
     state.validate()?;
-    validate_key_id(key_id)?;
+    validate_key_id(verified.key_id())?;
+    let document = verified.document();
     document.validate()?;
 
     if now_ms < document.issued_at_ms {
@@ -66,7 +62,7 @@ pub fn accept_verified_document(
         return Err("Operator broadcast document has expired.".to_owned());
     }
 
-    if let Some(previous) = state.highest_sequence_by_key.get(key_id) {
+    if let Some(previous) = state.highest_sequence_by_key.get(verified.key_id()) {
         if document.sequence <= *previous {
             return Err("Operator broadcast replay or sequence rollback was rejected.".to_owned());
         }
@@ -76,7 +72,7 @@ pub fn accept_verified_document(
 
     state
         .highest_sequence_by_key
-        .insert(key_id.to_owned(), document.sequence);
+        .insert(verified.key_id().to_owned(), document.sequence);
     Ok(())
 }
 
@@ -133,7 +129,8 @@ fn validate_key_id(key_id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::operator_broadcast::{OperatorDirective, OperatorNoticeSeverity, OperatorNoticeTarget};
+    use crate::operator_broadcast::{OperatorBroadcastDocument, OperatorDirective, OperatorNoticeSeverity, OperatorNoticeTarget};
+    use crate::operator_broadcast_verify::verified_for_test;
     use std::path::PathBuf;
 
     fn document(sequence: u64, issued_at_ms: u64, expires_at_ms: u64) -> OperatorBroadcastDocument {
@@ -154,6 +151,10 @@ mod tests {
         }
     }
 
+    fn verified(key_id: &str, sequence: u64, issued_at_ms: u64, expires_at_ms: u64) -> VerifiedOperatorBroadcast {
+        verified_for_test(key_id, document(sequence, issued_at_ms, expires_at_ms))
+    }
+
     fn test_path(name: &str) -> PathBuf {
         std::env::temp_dir()
             .join(format!("livariant-operator-broadcast-{name}-{}", std::process::id()))
@@ -163,36 +164,35 @@ mod tests {
     #[test]
     fn first_verified_sequence_is_accepted_and_replay_is_rejected() {
         let mut state = OperatorBroadcastAcceptanceState::default();
-        let first = document(7, 1_000, 3_000);
-        accept_verified_document(&mut state, "operator-broadcast-1", &first, 2_000)
-            .expect("first verified sequence");
-        assert!(accept_verified_document(&mut state, "operator-broadcast-1", &first, 2_100).is_err());
+        let first = verified("operator-broadcast-1", 7, 1_000, 3_000);
+        accept_verified_broadcast(&mut state, &first, 2_000).expect("first verified sequence");
+        assert!(accept_verified_broadcast(&mut state, &first, 2_100).is_err());
     }
 
     #[test]
     fn monotonic_sequence_advances_but_rollback_fails_closed() {
         let mut state = OperatorBroadcastAcceptanceState::default();
-        accept_verified_document(&mut state, "operator-broadcast-1", &document(7, 1_000, 4_000), 2_000)
+        accept_verified_broadcast(&mut state, &verified("operator-broadcast-1", 7, 1_000, 4_000), 2_000)
             .expect("first sequence");
-        accept_verified_document(&mut state, "operator-broadcast-1", &document(8, 1_100, 4_100), 2_100)
+        accept_verified_broadcast(&mut state, &verified("operator-broadcast-1", 8, 1_100, 4_100), 2_100)
             .expect("advanced sequence");
-        assert!(accept_verified_document(&mut state, "operator-broadcast-1", &document(7, 1_200, 4_200), 2_200).is_err());
+        assert!(accept_verified_broadcast(&mut state, &verified("operator-broadcast-1", 7, 1_200, 4_200), 2_200).is_err());
     }
 
     #[test]
     fn sequence_space_is_independent_per_signing_key() {
         let mut state = OperatorBroadcastAcceptanceState::default();
-        accept_verified_document(&mut state, "operator-broadcast-1", &document(9, 1_000, 4_000), 2_000)
+        accept_verified_broadcast(&mut state, &verified("operator-broadcast-1", 9, 1_000, 4_000), 2_000)
             .expect("key one");
-        accept_verified_document(&mut state, "operator-broadcast-2", &document(1, 1_000, 4_000), 2_000)
+        accept_verified_broadcast(&mut state, &verified("operator-broadcast-2", 1, 1_000, 4_000), 2_000)
             .expect("rotated key starts independent sequence");
     }
 
     #[test]
     fn future_and_expired_documents_fail_closed_without_advancing_state() {
         let mut state = OperatorBroadcastAcceptanceState::default();
-        assert!(accept_verified_document(&mut state, "operator-broadcast-1", &document(3, 2_000, 4_000), 1_999).is_err());
-        assert!(accept_verified_document(&mut state, "operator-broadcast-1", &document(3, 1_000, 2_000), 2_000).is_err());
+        assert!(accept_verified_broadcast(&mut state, &verified("operator-broadcast-1", 3, 2_000, 4_000), 1_999).is_err());
+        assert!(accept_verified_broadcast(&mut state, &verified("operator-broadcast-1", 3, 1_000, 2_000), 2_000).is_err());
         assert!(state.highest_sequence_by_key.is_empty());
     }
 
@@ -200,11 +200,11 @@ mod tests {
     fn persisted_state_survives_restart_and_keeps_replay_boundary() {
         let path = test_path("roundtrip");
         let mut state = read_acceptance_state(&path).expect("empty state");
-        accept_verified_document(&mut state, "operator-broadcast-1", &document(12, 1_000, 4_000), 2_000)
+        accept_verified_broadcast(&mut state, &verified("operator-broadcast-1", 12, 1_000, 4_000), 2_000)
             .expect("sequence twelve");
         write_acceptance_state(&path, &state).expect("persist state");
         let mut restored = read_acceptance_state(&path).expect("restore state");
-        assert!(accept_verified_document(&mut restored, "operator-broadcast-1", &document(12, 1_000, 4_000), 2_100).is_err());
+        assert!(accept_verified_broadcast(&mut restored, &verified("operator-broadcast-1", 12, 1_000, 4_000), 2_100).is_err());
         let _ = fs::remove_dir_all(path.parent().expect("parent"));
     }
 
