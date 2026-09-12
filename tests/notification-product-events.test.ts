@@ -15,7 +15,7 @@ test("update availability records durable notification without changing updater 
   assert.match(producer, /state == Some\("available"\)/);
   assert.match(producer, /updater:available:\{version\}/);
   assert.match(producer, /record_product_notification/);
-  assert.match(producer, /let _ = crate::notification_center::record_product_notification/);
+  assert.match(producer, /\.is_ok\(\)/);
 
   assert.match(host, /upsert_preserving_read_state/);
   assert.match(host, /notification\.read_at_ms = existing\.read_at_ms/);
@@ -24,6 +24,32 @@ test("update availability records durable notification without changing updater 
 
   assert.match(lib, /notification_product_events::check_for_update_with_notifications/);
   assert.doesNotMatch(lib, /\n\s*updater::check_for_update,/);
+});
+
+test("native Windows delivery is downstream of durable persistence and deduplicated by store identity", async () => {
+  const producer = await text("apps/desktop/src-tauri/src/notification_product_events.rs");
+
+  assert.match(producer, /notification_center_list\(app\.clone\(\)\)/);
+  assert.match(producer, /\.any\(\|item\| item\.id == id\)/);
+  assert.match(producer, /\.unwrap_or\(true\)/);
+  assert.match(producer, /if stored && !existed_before/);
+  assert.match(producer, /let _ = deliver_windows_notification\(&title, &body\)/);
+  assert.match(producer, /Windows toast is only a channel/);
+  assert.match(producer, /toast failure must never change/);
+
+  assert.match(producer, /WINDOWS_APP_USER_MODEL_ID: &str = "dev\.livariant\.desktop"/);
+  assert.match(producer, /System32.*WindowsPowerShell.*v1\.0/s);
+  assert.match(producer, /CREATE_NO_WINDOW/);
+  assert.match(producer, /-NoProfile/);
+  assert.match(producer, /-NonInteractive/);
+  assert.match(producer, /LIVARIANT_TOAST_TITLE/);
+  assert.match(producer, /LIVARIANT_TOAST_BODY/);
+  assert.match(producer, /CreateToastNotifier/);
+
+  assert.doesNotMatch(
+    producer,
+    /#\[tauri::command[^\]]*\]\s*(?:#\[[^\]]+\]\s*)*fn\s+deliver_windows_notification/,
+  );
 });
 
 test("renderer live refresh consumes only a change hint and rereads durable store", async () => {
