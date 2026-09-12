@@ -1,8 +1,10 @@
 import "./project-source-review-view.css";
+import "./project-source-review-performance.css";
 import "./github-project-telemetry.css";
 import { getLanguage } from "./i18n/runtime.js";
 import {
   getCurrentProjectSourceReviewPresentation,
+  loadProjectSourceReviewPresentation,
   refreshProjectSourceReviewPresentation,
   renderProjectSourceReviewBridgeView,
   startProjectSourceReview,
@@ -52,7 +54,10 @@ const bindReviewSelection = (content: HTMLElement, generation: number) => {
     if (startButton) startButton.disabled = selectedCount === 0;
   };
 
-  checkboxes.forEach((input) => input.addEventListener("change", updateSelectionState));
+  content.addEventListener("change", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.matches("[data-review-path]")) updateSelectionState();
+  });
   filter?.addEventListener("input", () => {
     const query = filter.value.trim().toLocaleLowerCase();
     content.querySelectorAll<HTMLElement>("[data-review-path-row]").forEach((row) => {
@@ -74,9 +79,7 @@ const bindReviewSelection = (content: HTMLElement, generation: number) => {
       if (!sourceReviewActive || generation !== refreshGeneration) return;
       const currentContent = document.querySelector<HTMLElement>("main.content");
       if (!currentContent) return;
-      currentContent.innerHTML = renderProjectSourceReviewBridgeView();
-      bindReviewSelection(currentContent, generation);
-      void renderTelemetry(currentContent, generation);
+      renderCurrentContent(currentContent, generation);
     } catch (cause) {
       if (!sourceReviewActive || generation !== refreshGeneration) return;
       checkboxes.forEach((input) => { input.disabled = false; });
@@ -89,20 +92,45 @@ const bindReviewSelection = (content: HTMLElement, generation: number) => {
   updateSelectionState();
 };
 
+const installRefreshControl = (content: HTMLElement, generation: number) => {
+  const wrapper = document.createElement("section");
+  wrapper.className = "source-review-selection source-review-refresh-panel";
+  wrapper.innerHTML = `<div class="source-review-section-head"><div><span class="eyebrow">${text("Snapshot", "Snapshot")}</span><h2>${text("Project source data", "Projektquellen-Daten")}</h2><p>${text("Opening this view uses the last safe local snapshot. Refresh only when you need current repository observations and review material.", "Beim Öffnen dieser Ansicht wird der letzte sichere lokale Snapshot verwendet. Aktualisiere nur, wenn du aktuelle Repository-Beobachtungen und Review-Material benötigst.")}</p></div></div><div class="source-review-selection-actions"><button type="button" data-refresh-source-review>${text("Refresh sources & review material", "Quellen & Review-Material aktualisieren")}</button><span data-refresh-source-review-status aria-live="polite"></span></div>`;
+  content.prepend(wrapper);
+
+  const button = wrapper.querySelector<HTMLButtonElement>("[data-refresh-source-review]");
+  const status = wrapper.querySelector<HTMLElement>("[data-refresh-source-review-status]");
+  button?.addEventListener("click", async () => {
+    button.disabled = true;
+    if (status) status.textContent = text("Refreshing…", "Wird aktualisiert…");
+    await refreshProjectSourceReviewPresentation();
+    if (!sourceReviewActive || generation !== refreshGeneration) return;
+    const currentContent = document.querySelector<HTMLElement>("main.content");
+    if (!currentContent) return;
+    renderCurrentContent(currentContent, generation);
+  });
+};
+
+const renderCurrentContent = (content: HTMLElement, generation: number) => {
+  content.innerHTML = renderProjectSourceReviewBridgeView();
+  installRefreshControl(content, generation);
+  bindReviewSelection(content, generation);
+  void renderTelemetry(content, generation);
+};
+
 const renderIntoContent = async () => {
   const generation = ++refreshGeneration;
   const content = document.querySelector<HTMLElement>("main.content");
   if (!content || !sourceReviewActive) return;
 
   content.innerHTML = renderProjectSourceReviewBridgeView();
-  await refreshProjectSourceReviewPresentation();
+  installRefreshControl(content, generation);
+  await loadProjectSourceReviewPresentation();
 
   if (!sourceReviewActive || generation !== refreshGeneration) return;
   const currentContent = document.querySelector<HTMLElement>("main.content");
   if (!currentContent) return;
-  currentContent.innerHTML = renderProjectSourceReviewBridgeView();
-  bindReviewSelection(currentContent, generation);
-  void renderTelemetry(currentContent, generation);
+  renderCurrentContent(currentContent, generation);
 };
 
 const installNavigation = () => {
