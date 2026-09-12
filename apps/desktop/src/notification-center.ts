@@ -182,10 +182,10 @@ const installNavigation = () => {
   }
 };
 
-const nav = document.querySelector<HTMLElement>("nav.nav");
-if (nav) {
+const appRoot = document.querySelector<HTMLElement>("#app");
+if (appRoot) {
   const observer = new MutationObserver(() => installNavigation());
-  observer.observe(nav, { childList: true });
+  observer.observe(appRoot, { childList: true });
 }
 installNavigation();
 void refreshSnapshot();
