@@ -30,13 +30,23 @@ export type GitHubProjectTelemetry = {
   };
 };
 
-type GitHubConnectionStatus = {
-  state: string;
-  connected: boolean;
-  configured: boolean;
-  login: string | null;
-  detail: string;
+export type GitHubTelemetryLoadSnapshot = {
+  telemetry: GitHubProjectTelemetry;
+  source: "cache" | "remote" | "memory";
+  cacheAgeSeconds: number;
+  freshUntilUnix: number;
+  fresh: boolean;
+  cachePersisted: boolean;
+  cacheDetail: string | null;
 };
+
+export type GitHubTelemetryLoadResult = {
+  snapshot: GitHubTelemetryLoadSnapshot;
+  refresh: Promise<GitHubTelemetryLoadSnapshot> | null;
+};
+
+const memorySnapshots = new Map<string, GitHubTelemetryLoadSnapshot>();
+const refreshes = new Map<string, Promise<GitHubTelemetryLoadSnapshot>>();
 
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 const esc = (value: unknown): string => String(value ?? "").replace(/[&<>"']/g, (character) => ({
@@ -84,6 +94,21 @@ const releaseCard = (surface: GitHubTelemetrySurface): string => {
   return `<div class="gh-telemetry-list">${surface.items.map((item) => `<article><div><strong>${esc(stringValue(item, "name") || stringValue(item, "tag_name") || text("Release", "Release"))}</strong><span>${esc(stringValue(item, "tag_name"))}</span></div><em>${boolValue(item, "draft") ? text("Draft", "Entwurf") : boolValue(item, "prerelease") ? text("Prerelease", "Vorabversion") : text("Published", "Veröffentlicht")}</em><small>${esc(stringValue(item, "published_at") || stringValue(item, "created_at"))}</small></article>`).join("")}</div>`;
 };
 
+const snapshotStatus = (snapshot?: GitHubTelemetryLoadSnapshot): string => {
+  if (!snapshot) return "";
+  const source = snapshot.source === "remote"
+    ? text("fresh from GitHub", "frisch von GitHub")
+    : snapshot.source === "memory"
+      ? text("memory cache", "Speicher-Cache")
+      : text("stored snapshot", "gespeicherter Snapshot");
+  const age = snapshot.cacheAgeSeconds < 60
+    ? text("less than a minute old", "unter einer Minute alt")
+    : text(`${Math.floor(snapshot.cacheAgeSeconds / 60)} min old`, `${Math.floor(snapshot.cacheAgeSeconds / 60)} Min. alt`);
+  const refresh = snapshot.fresh ? "" : ` · ${text("background refresh running", "Hintergrund-Aktualisierung läuft")}`;
+  const persistence = snapshot.cachePersisted ? "" : ` · ${text("not persisted", "nicht dauerhaft gespeichert")}`;
+  return `<small class="gh-telemetry-cache-state">${esc(source)} · ${esc(age)}${refresh}${persistence}</small>`;
+};
+
 export function renderGitHubTelemetryLoading(repositoryId: string): string {
   return `<section class="gh-telemetry" data-gh-project-telemetry><div class="source-review-section-head"><div><span class="eyebrow">GitHub</span><h2>${text("Remote project status", "Remote-Projektstatus")}</h2><p>${esc(repositoryId)}</p></div></div><div class="gh-telemetry-loading">${text("Loading read-only GitHub project data…", "Lese GitHub-Projektdaten schreibgeschützt…")}</div></section>`;
 }
@@ -92,10 +117,10 @@ export function renderGitHubTelemetryError(repositoryId: string, detail: string)
   return `<section class="gh-telemetry" data-gh-project-telemetry><div class="source-review-section-head"><div><span class="eyebrow">GitHub</span><h2>${text("Remote project status", "Remote-Projektstatus")}</h2><p>${esc(repositoryId)}</p></div></div><div class="gh-telemetry-unavailable"><strong>${text("GitHub telemetry unavailable", "GitHub-Telemetrie nicht verfügbar")}</strong><span>${esc(detail)}</span></div><p class="source-review-boundary">${text("No missing data is interpreted as healthy. GitHub read access grants no permission to change workflows, pull requests, issues or releases.", "Fehlende Daten werden nicht als gesund interpretiert. GitHub-Lesezugriff erteilt keine Berechtigung, Workflows, Pull Requests, Issues oder Releases zu verändern.")}</p></section>`;
 }
 
-export function renderGitHubTelemetry(telemetry: GitHubProjectTelemetry): string {
+export function renderGitHubTelemetry(telemetry: GitHubProjectTelemetry, snapshot?: GitHubTelemetryLoadSnapshot): string {
   const observed = new Date(telemetry.observedAtUnix * 1000).toLocaleString(getLanguage() === "de" ? "de-DE" : "en-US");
   return `<section class="gh-telemetry" data-gh-project-telemetry>
-    <div class="source-review-section-head"><div><span class="eyebrow">GitHub</span><h2>${text("Remote project status", "Remote-Projektstatus")}</h2><p>${esc(telemetry.repositoryId)} · ${text("Observed", "Beobachtet")}: ${esc(observed)}</p></div><span class="source-review-lifecycle">${text("Read only", "Nur Lesen")}</span></div>
+    <div class="source-review-section-head"><div><span class="eyebrow">GitHub</span><h2>${text("Remote project status", "Remote-Projektstatus")}</h2><p>${esc(telemetry.repositoryId)} · ${text("Observed", "Beobachtet")}: ${esc(observed)}</p>${snapshotStatus(snapshot)}</div><span class="source-review-lifecycle">${text("Read only", "Nur Lesen")}</span></div>
     <div class="gh-telemetry-grid">
       <section><h3>${text("Repository", "Repository")}</h3>${repositoryCard(telemetry.repository)}</section>
       <section><h3>${text("Actions · latest runs", "Actions · letzte Runs")}</h3>${actionsCard(telemetry.actions)}</section>
@@ -107,10 +132,39 @@ export function renderGitHubTelemetry(telemetry: GitHubProjectTelemetry): string
   </section>`;
 }
 
-export async function loadGitHubProjectTelemetry(repositoryId: string): Promise<GitHubProjectTelemetry> {
-  const status = await invoke<GitHubConnectionStatus>("github_connection_status");
-  if (!status.configured || !status.connected) {
-    throw new Error(status.detail || "GitHub connection is unavailable.");
+const withCurrentAge = (snapshot: GitHubTelemetryLoadSnapshot, source: GitHubTelemetryLoadSnapshot["source"]): GitHubTelemetryLoadSnapshot => {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    ...snapshot,
+    source,
+    cacheAgeSeconds: Math.max(0, now - snapshot.telemetry.observedAtUnix),
+    fresh: now <= snapshot.freshUntilUnix,
+  };
+};
+
+const invokeTelemetry = async (repositoryId: string, forceRefresh: boolean): Promise<GitHubTelemetryLoadSnapshot> => {
+  const snapshot = await invoke<GitHubTelemetryLoadSnapshot>("github_project_telemetry", { repositoryId, forceRefresh });
+  memorySnapshots.set(repositoryId, snapshot);
+  return snapshot;
+};
+
+const refreshTelemetry = (repositoryId: string): Promise<GitHubTelemetryLoadSnapshot> => {
+  const existing = refreshes.get(repositoryId);
+  if (existing) return existing;
+  const refresh = invokeTelemetry(repositoryId, true)
+    .finally(() => refreshes.delete(repositoryId));
+  refreshes.set(repositoryId, refresh);
+  return refresh;
+};
+
+export async function loadGitHubProjectTelemetry(repositoryId: string): Promise<GitHubTelemetryLoadResult> {
+  const memory = memorySnapshots.get(repositoryId);
+  if (memory) {
+    const snapshot = withCurrentAge(memory, "memory");
+    memorySnapshots.set(repositoryId, snapshot);
+    return { snapshot, refresh: snapshot.fresh ? null : refreshTelemetry(repositoryId) };
   }
-  return invoke<GitHubProjectTelemetry>("github_project_telemetry", { repositoryId });
+
+  const snapshot = await invokeTelemetry(repositoryId, false);
+  return { snapshot, refresh: snapshot.fresh ? null : refreshTelemetry(repositoryId) };
 }

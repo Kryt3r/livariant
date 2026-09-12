@@ -100,9 +100,22 @@ export function bindProjectSourceReviewHub(content: HTMLElement, presentation: D
       }
       heavyRoot.innerHTML = renderGitHubTelemetryLoading(primary.identity.repositoryId);
       try {
-        const telemetry = await loadGitHubProjectTelemetry(primary.identity.repositoryId);
+        const loaded = await loadGitHubProjectTelemetry(primary.identity.repositoryId);
         if (!isStillActive()) return;
-        heavyRoot.innerHTML = renderGitHubTelemetry(telemetry);
+        heavyRoot.innerHTML = renderGitHubTelemetry(loaded.snapshot.telemetry, loaded.snapshot);
+        if (loaded.refresh) {
+          try {
+            const refreshed = await loaded.refresh;
+            if (!isStillActive()) return;
+            heavyRoot.innerHTML = renderGitHubTelemetry(refreshed.telemetry, refreshed);
+          } catch (cause) {
+            if (!isStillActive()) return;
+            heavyRoot.insertAdjacentHTML(
+              "beforeend",
+              `<div class="gh-telemetry-unavailable"><strong>${text("Background refresh failed", "Hintergrund-Aktualisierung fehlgeschlagen")}</strong><span>${escapeHtml(String(cause))}</span></div>`,
+            );
+          }
+        }
       } catch (cause) {
         if (!isStillActive()) return;
         heavyRoot.innerHTML = renderGitHubTelemetryError(primary.identity.repositoryId, String(cause));
