@@ -4,15 +4,18 @@ use std::{
     env,
     fs,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+use tauri::Manager;
 
 const GITHUB_API: &str = "https://api.github.com";
 const API_VERSION: &str = "2022-11-28";
 const USER_AGENT: &str = "Livariant-Desktop";
 const SECRET_FILE: &str = "github-user-access-token.dpapi";
+const CACHE_SCHEMA_VERSION: u32 = 1;
+const CACHE_FRESH_SECONDS: u64 = 600;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,6 +44,26 @@ pub struct GitHubProjectTelemetry {
     issues: GitHubTelemetrySurface,
     releases: GitHubTelemetrySurface,
     boundaries: Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubProjectTelemetryLoad {
+    telemetry: Value,
+    source: &'static str,
+    cache_age_seconds: u64,
+    fresh_until_unix: u64,
+    fresh: bool,
+    cache_persisted: bool,
+    cache_detail: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GitHubTelemetryCacheStore {
+    schema_version: u32,
+    repository_id: String,
+    telemetry: Value,
 }
 
 fn now_seconds() -> u64 {
@@ -183,18 +206,31 @@ fn credential() -> Result<StoredCredential, String> {
     Ok(credential)
 }
 
-fn github_get_json(path: &str, token: &str) -> Result<Value, String> {
+fn github_get_bundle(repository_id: &str, token: &str) -> Result<Value, String> {
+    let encoded_repository = repository_id.replace(' ', "%20");
     run_powershell_json(
-        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); try{$r=Invoke-RestMethod -Method Get -Uri $p.url -Headers @{Accept='application/vnd.github+json';Authorization=('Bearer '+$p.token);'X-GitHub-Api-Version'=$p.apiVersion;'User-Agent'=$p.userAgent}; $r|ConvertTo-Json -Compress -Depth 30}catch{Write-Error $_; exit 1}",
-        &json!({"url": format!("{GITHUB_API}{path}"), "token": token, "apiVersion": API_VERSION, "userAgent": USER_AGENT}),
+        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); $h=@{Accept='application/vnd.github+json';Authorization=('Bearer '+$p.token);'X-GitHub-Api-Version'=$p.apiVersion;'User-Agent'=$p.userAgent}; function Get-Gh([string]$u){Invoke-RestMethod -Method Get -Uri $u -Headers $h}; try{$repo=Get-Gh $p.urls.repository; $actions=Get-Gh $p.urls.actions; $prs=Get-Gh $p.urls.pullRequests; $issues=Get-Gh $p.urls.issues; $releases=Get-Gh $p.urls.releases; @{repositoryJson=($repo|ConvertTo-Json -Compress -Depth 30);actionsJson=($actions|ConvertTo-Json -Compress -Depth 30);pullRequestsJson=(ConvertTo-Json -InputObject @($prs) -Compress -Depth 30);issuesJson=(ConvertTo-Json -InputObject @($issues) -Compress -Depth 30);releasesJson=(ConvertTo-Json -InputObject @($releases) -Compress -Depth 30)}|ConvertTo-Json -Compress -Depth 5}catch{Write-Error $_; exit 1}",
+        &json!({
+            "token": token,
+            "apiVersion": API_VERSION,
+            "userAgent": USER_AGENT,
+            "urls": {
+                "repository": format!("{GITHUB_API}/repos/{encoded_repository}"),
+                "actions": format!("{GITHUB_API}/repos/{encoded_repository}/actions/runs?per_page=10"),
+                "pullRequests": format!("{GITHUB_API}/repos/{encoded_repository}/pulls?state=open&per_page=20&sort=updated&direction=desc"),
+                "issues": format!("{GITHUB_API}/repos/{encoded_repository}/issues?state=open&per_page=20&sort=updated&direction=desc"),
+                "releases": format!("{GITHUB_API}/repos/{encoded_repository}/releases?per_page=10")
+            }
+        }),
     )
 }
 
-fn github_get_top_level_list_json(path: &str, token: &str) -> Result<Value, String> {
-    run_powershell_json(
-        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); try{$r=Invoke-RestMethod -Method Get -Uri $p.url -Headers @{Accept='application/vnd.github+json';Authorization=('Bearer '+$p.token);'X-GitHub-Api-Version'=$p.apiVersion;'User-Agent'=$p.userAgent}; ConvertTo-Json -InputObject @($r) -Compress -Depth 30}catch{Write-Error $_; exit 1}",
-        &json!({"url": format!("{GITHUB_API}{path}"), "token": token, "apiVersion": API_VERSION, "userAgent": USER_AGENT}),
-    )
+fn bundle_json(bundle: &Value, field: &str) -> Result<Value, String> {
+    let raw = bundle
+        .get(field)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("GitHub telemetry bundle did not include {field}."))?;
+    serde_json::from_str(raw).map_err(|error| format!("GitHub telemetry bundle field {field} was invalid JSON: {error}"))
 }
 
 fn list_items(value: Value, field: Option<&str>) -> Result<Value, String> {
@@ -230,59 +266,171 @@ fn map_array(value: Value, fields: &[&str], exclude_pull_requests: bool) -> Resu
     ))
 }
 
-fn surface_request(path: &str, token: &str, field: Option<&str>, fields: &[&str], exclude_pull_requests: bool) -> GitHubTelemetrySurface {
-    let response = if field.is_none() {
-        github_get_top_level_list_json(path, token)
-    } else {
-        github_get_json(path, token)
-    };
-    match response
-        .and_then(|value| list_items(value, field))
-        .and_then(|value| map_array(value, fields, exclude_pull_requests))
-    {
+fn surface_from_value(value: Value, field: Option<&str>, fields: &[&str], exclude_pull_requests: bool) -> GitHubTelemetrySurface {
+    match list_items(value, field).and_then(|value| map_array(value, fields, exclude_pull_requests)) {
         Ok(items) => available(items),
         Err(error) => unavailable(error),
     }
 }
 
-#[tauri::command]
-pub fn github_project_telemetry(repository_id: String) -> Result<GitHubProjectTelemetry, String> {
-    let repository_id = validate_repository_id(&repository_id)?;
-    let credential = credential()?;
-    let encoded_repository = repository_id.replace(' ', "%20");
+fn telemetry_cache_path(app: &tauri::AppHandle, repository_id: &str) -> Result<PathBuf, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?;
+    let encoded = repository_id
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    Ok(root.join("github").join("telemetry").join(format!("{encoded}.json")))
+}
 
-    let repository = match github_get_json(&format!("/repos/{encoded_repository}"), &credential.access_token) {
-        Ok(value) => available(Value::Array(vec![project(
-            &value,
+fn validate_surface(value: &Value, field: &str) -> Result<(), String> {
+    let surface = value
+        .get(field)
+        .and_then(Value::as_object)
+        .ok_or_else(|| format!("Cached GitHub telemetry is missing {field}."))?;
+    let state = surface.get("state").and_then(Value::as_str).unwrap_or_default();
+    if state != "available" && state != "unavailable" {
+        return Err(format!("Cached GitHub telemetry {field} has an unsupported state."));
+    }
+    if !surface.get("items").is_some_and(Value::is_array) {
+        return Err(format!("Cached GitHub telemetry {field} items are invalid."));
+    }
+    Ok(())
+}
+
+fn validate_cached_telemetry(value: &Value, repository_id: &str) -> Result<u64, String> {
+    if value.get("state").and_then(Value::as_str) != Some("ready") {
+        return Err("Cached GitHub telemetry is not in ready state.".to_owned());
+    }
+    if value.get("repositoryId").and_then(Value::as_str) != Some(repository_id) {
+        return Err("Cached GitHub telemetry repository identity does not match the requested repository.".to_owned());
+    }
+    let observed_at = value
+        .get("observedAtUnix")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "Cached GitHub telemetry has no valid observation time.".to_owned())?;
+    for field in ["repository", "actions", "pullRequests", "issues", "releases"] {
+        validate_surface(value, field)?;
+    }
+    let boundaries = value
+        .get("boundaries")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "Cached GitHub telemetry has no valid boundaries.".to_owned())?;
+    for field in [
+        "remoteEvidenceIsProjectTruth",
+        "telemetryGrantsAuthority",
+        "writeCapabilityEnabled",
+        "workflowDispatchEnabled",
+        "pullRequestMutationEnabled",
+        "issueMutationEnabled",
+        "releaseMutationEnabled",
+        "mergeEnabled",
+        "changesProjectOwnedFiles",
+        "performsSemanticApply",
+    ] {
+        if boundaries.get(field).and_then(Value::as_bool) != Some(false) {
+            return Err(format!("Cached GitHub telemetry boundary {field} is invalid."));
+        }
+    }
+    Ok(observed_at)
+}
+
+fn read_cache(path: &Path, repository_id: &str) -> Result<Option<Value>, String> {
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let bytes = fs::read(path).map_err(|error| format!("GitHub telemetry cache could not be read: {error}"))?;
+    let store: GitHubTelemetryCacheStore = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("GitHub telemetry cache is invalid JSON: {error}"))?;
+    if store.schema_version != CACHE_SCHEMA_VERSION {
+        return Err(format!("Unsupported GitHub telemetry cache schema {}.", store.schema_version));
+    }
+    if store.repository_id != repository_id {
+        return Err("GitHub telemetry cache repository identity does not match the requested repository.".to_owned());
+    }
+    validate_cached_telemetry(&store.telemetry, repository_id)?;
+    Ok(Some(store.telemetry))
+}
+
+fn write_cache(path: &Path, repository_id: &str, telemetry: &Value) -> Result<(), String> {
+    validate_cached_telemetry(telemetry, repository_id)?;
+    let parent = path.parent().ok_or_else(|| "GitHub telemetry cache path has no parent.".to_owned())?;
+    fs::create_dir_all(parent).map_err(|error| format!("GitHub telemetry cache directory could not be prepared: {error}"))?;
+    let store = GitHubTelemetryCacheStore {
+        schema_version: CACHE_SCHEMA_VERSION,
+        repository_id: repository_id.to_owned(),
+        telemetry: telemetry.clone(),
+    };
+    let temp = path.with_extension("json.tmp");
+    let mut encoded = serde_json::to_vec_pretty(&store)
+        .map_err(|error| format!("GitHub telemetry cache could not be serialized: {error}"))?;
+    encoded.push(b'\n');
+    fs::write(&temp, encoded).map_err(|error| format!("GitHub telemetry temporary cache could not be written: {error}"))?;
+    if path.exists() {
+        fs::remove_file(path).map_err(|error| format!("Previous GitHub telemetry cache could not be replaced: {error}"))?;
+    }
+    fs::rename(&temp, path).map_err(|error| format!("GitHub telemetry cache could not be committed: {error}"))
+}
+
+fn load_result(
+    telemetry: Value,
+    repository_id: &str,
+    source: &'static str,
+    cache_persisted: bool,
+    cache_detail: Option<String>,
+) -> Result<GitHubProjectTelemetryLoad, String> {
+    let observed_at = validate_cached_telemetry(&telemetry, repository_id)?;
+    let now = now_seconds();
+    let cache_age_seconds = now.saturating_sub(observed_at);
+    let fresh_until_unix = observed_at.saturating_add(CACHE_FRESH_SECONDS);
+    Ok(GitHubProjectTelemetryLoad {
+        telemetry,
+        source,
+        cache_age_seconds,
+        fresh_until_unix,
+        fresh: now <= fresh_until_unix,
+        cache_persisted,
+        cache_detail,
+    })
+}
+
+fn fetch_telemetry(repository_id: &str) -> Result<GitHubProjectTelemetry, String> {
+    let credential = credential()?;
+    let bundle = github_get_bundle(repository_id, &credential.access_token)?;
+
+    let repository_value = bundle_json(&bundle, "repositoryJson")?;
+    let repository = if repository_value.is_object() {
+        available(Value::Array(vec![project(
+            &repository_value,
             &["id", "full_name", "private", "archived", "default_branch", "pushed_at", "updated_at", "open_issues_count", "html_url"],
-        )])),
-        Err(error) => unavailable(error),
+        )]))
+    } else {
+        unavailable("GitHub repository response did not contain the expected object.")
     };
 
-    let actions = surface_request(
-        &format!("/repos/{encoded_repository}/actions/runs?per_page=10"),
-        &credential.access_token,
+    let actions = surface_from_value(
+        bundle_json(&bundle, "actionsJson")?,
         Some("workflow_runs"),
         &["id", "name", "event", "status", "conclusion", "head_branch", "head_sha", "run_number", "created_at", "updated_at", "html_url"],
         false,
     );
-    let pull_requests = surface_request(
-        &format!("/repos/{encoded_repository}/pulls?state=open&per_page=20&sort=updated&direction=desc"),
-        &credential.access_token,
+    let pull_requests = surface_from_value(
+        bundle_json(&bundle, "pullRequestsJson")?,
         None,
         &["number", "title", "state", "draft", "created_at", "updated_at", "html_url", "user", "head", "base"],
         false,
     );
-    let issues = surface_request(
-        &format!("/repos/{encoded_repository}/issues?state=open&per_page=20&sort=updated&direction=desc"),
-        &credential.access_token,
+    let issues = surface_from_value(
+        bundle_json(&bundle, "issuesJson")?,
         None,
         &["number", "title", "state", "created_at", "updated_at", "html_url", "user", "labels", "pull_request"],
         true,
     );
-    let releases = surface_request(
-        &format!("/repos/{encoded_repository}/releases?per_page=10"),
-        &credential.access_token,
+    let releases = surface_from_value(
+        bundle_json(&bundle, "releasesJson")?,
         None,
         &["id", "tag_name", "name", "draft", "prerelease", "created_at", "published_at", "html_url"],
         false,
@@ -290,7 +438,7 @@ pub fn github_project_telemetry(repository_id: String) -> Result<GitHubProjectTe
 
     Ok(GitHubProjectTelemetry {
         state: "ready",
-        repository_id,
+        repository_id: repository_id.to_owned(),
         observed_at_unix: now_seconds(),
         repository,
         actions,
@@ -301,9 +449,53 @@ pub fn github_project_telemetry(repository_id: String) -> Result<GitHubProjectTe
     })
 }
 
+fn github_project_telemetry_blocking(
+    app: tauri::AppHandle,
+    repository_id: String,
+    force_refresh: bool,
+) -> Result<GitHubProjectTelemetryLoad, String> {
+    let repository_id = validate_repository_id(&repository_id)?;
+    let cache_path = telemetry_cache_path(&app, &repository_id)?;
+    let mut ignored_cache_detail = None;
+
+    if !force_refresh {
+        match read_cache(&cache_path, &repository_id) {
+            Ok(Some(telemetry)) => return load_result(telemetry, &repository_id, "cache", true, None),
+            Ok(None) => {}
+            Err(error) => ignored_cache_detail = Some(format!("Previous cache was ignored: {error}")),
+        }
+    }
+
+    let telemetry = serde_json::to_value(fetch_telemetry(&repository_id)?)
+        .map_err(|error| format!("GitHub telemetry could not be serialized: {error}"))?;
+    let cache_write = write_cache(&cache_path, &repository_id, &telemetry);
+    let (cache_persisted, cache_detail) = match cache_write {
+        Ok(()) => (true, ignored_cache_detail),
+        Err(error) => {
+            let detail = match ignored_cache_detail {
+                Some(previous) => format!("{previous}; new cache could not be persisted: {error}"),
+                None => format!("GitHub telemetry cache could not be persisted: {error}"),
+            };
+            (false, Some(detail))
+        }
+    };
+    load_result(telemetry, &repository_id, "remote", cache_persisted, cache_detail)
+}
+
+#[tauri::command]
+pub async fn github_project_telemetry(
+    app: tauri::AppHandle,
+    repository_id: String,
+    force_refresh: bool,
+) -> Result<GitHubProjectTelemetryLoad, String> {
+    tauri::async_runtime::spawn_blocking(move || github_project_telemetry_blocking(app, repository_id, force_refresh))
+        .await
+        .map_err(|error| format!("GitHub telemetry worker failed: {error}"))?
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{boundaries, list_items, validate_repository_id};
+    use super::{boundaries, list_items, validate_cached_telemetry, validate_repository_id};
     use serde_json::json;
 
     #[test]
@@ -331,5 +523,25 @@ mod tests {
         assert_eq!(value["workflowDispatchEnabled"], false);
         assert_eq!(value["mergeEnabled"], false);
         assert_eq!(value["performsSemanticApply"], false);
+    }
+
+    #[test]
+    fn cached_telemetry_requires_exact_repository_and_non_authoritative_boundaries() {
+        let telemetry = json!({
+            "state": "ready",
+            "repositoryId": "Kryt3r/livariant",
+            "observedAtUnix": 42,
+            "repository": {"state":"available","items":[],"detail":null},
+            "actions": {"state":"available","items":[],"detail":null},
+            "pullRequests": {"state":"available","items":[],"detail":null},
+            "issues": {"state":"available","items":[],"detail":null},
+            "releases": {"state":"available","items":[],"detail":null},
+            "boundaries": boundaries()
+        });
+        assert_eq!(validate_cached_telemetry(&telemetry, "Kryt3r/livariant").unwrap(), 42);
+        assert!(validate_cached_telemetry(&telemetry, "Kryt3r/livariant-internal").is_err());
+        let mut forged = telemetry;
+        forged["boundaries"]["telemetryGrantsAuthority"] = json!(true);
+        assert!(validate_cached_telemetry(&forged, "Kryt3r/livariant").is_err());
     }
 }
