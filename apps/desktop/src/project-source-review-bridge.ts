@@ -161,7 +161,7 @@ export async function observeProjectSources(): Promise<ProjectSourceObservationR
 export async function refreshProjectSourceReviewPresentation(): Promise<void> {
   try {
     await observeProjectSources();
-    const result = await invoke<ProjectSourceReviewBridgeResult>("refresh_project_source_review_presentation");
+    const result = await invoke<ProjectSourceReviewBridgeResult>("refresh_project_source_review_presentation_nonblocking");
     if (result.state === "ready" && result.presentation && isPresentation(result.presentation)) {
       bridgeState = result;
       await refreshReviewPathInventory();
