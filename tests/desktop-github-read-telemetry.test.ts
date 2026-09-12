@@ -41,7 +41,7 @@ test("GitHub telemetry refreshes through the canonical connection path before lo
 test("GitHub telemetry keeps remote evidence and mutation Authority separate", async () => {
   const host = await text("apps/desktop/src-tauri/src/github_telemetry.rs");
   const ui = await text("apps/desktop/src/github-project-telemetry.ts");
-  const navigation = await text("apps/desktop/src/project-source-review-navigation.ts");
+  const lazyView = await text("apps/desktop/src/project-source-review-lazy-view.ts");
 
   for (const boundary of [
     '"remoteEvidenceIsProjectTruth": false',
@@ -57,8 +57,8 @@ test("GitHub telemetry keeps remote evidence and mutation Authority separate", a
 
   assert.match(ui, /GitHub data shown here is external evidence/);
   assert.match(ui, /GitHub-Lesezugriff erteilt keine Berechtigung/);
-  assert.match(navigation, /loadGitHubProjectTelemetry/);
-  assert.match(navigation, /identity\.provider !== "github"/);
+  assert.match(lazyView, /loadGitHubProjectTelemetry/);
+  assert.match(lazyView, /source\.kind === "primary" && source\.identity\.provider === "github"/);
 });
 
 test("GitHub telemetry surfaces unavailable permissions honestly instead of inventing healthy emptiness", async () => {
