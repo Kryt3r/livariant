@@ -47,8 +47,9 @@ test("GitHub telemetry is cache-first, persistent and nonblocking", async () => 
 
   assert.match(ui, /const memorySnapshots = new Map/);
   assert.match(ui, /const refreshes = new Map/);
-  assert.match(ui, /forceRefresh: false/);
-  assert.match(ui, /forceRefresh: true/);
+  assert.match(ui, /invokeTelemetry\(repositoryId, false\)/);
+  assert.match(ui, /invokeTelemetry\(repositoryId, true\)/);
+  assert.match(ui, /\{ repositoryId, forceRefresh \}/);
   assert.doesNotMatch(ui, /github_connection_status/);
   assert.match(lazyView, /loaded\.snapshot\.telemetry/);
   assert.match(lazyView, /if \(loaded\.refresh\)/);
