@@ -23,7 +23,7 @@ pub fn install(app: &mut App) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, TRAY_QUIT_ID, "Quit Livariant", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &quit])?;
 
-    TrayIconBuilder::with_id(TRAY_ID)
+    let mut tray = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip("Livariant")
@@ -41,8 +41,12 @@ pub fn install(app: &mut App) -> tauri::Result<()> {
             {
                 show_main_window(tray.app_handle());
             }
-        })
-        .build(app)?;
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
 
     Ok(())
 }
