@@ -18,24 +18,40 @@ test("GitHub project telemetry is bounded to read-only owner/name repository req
   assert.doesNotMatch(host, /Invoke-RestMethod -Method (Post|Patch|Put|Delete)/);
 });
 
-test("GitHub top-level list transport preserves empty, singleton and multi-item arrays", async () => {
+test("GitHub telemetry batches remote read surfaces through one bounded helper", async () => {
   const host = await text("apps/desktop/src-tauri/src/github_telemetry.rs");
 
-  assert.match(host, /fn github_get_top_level_list_json/);
-  assert.match(host, /ConvertTo-Json -InputObject @\(\$r\) -Compress -Depth 30/);
-  assert.match(host, /if field\.is_none\(\) \{\s*github_get_top_level_list_json\(path, token\)/s);
+  assert.match(host, /fn github_get_bundle/);
+  assert.match(host, /repositoryJson/);
+  assert.match(host, /actionsJson/);
+  assert.match(host, /ConvertTo-Json -InputObject @\(\$prs\) -Compress -Depth 30/);
+  assert.match(host, /ConvertTo-Json -InputObject @\(\$issues\) -Compress -Depth 30/);
+  assert.match(host, /ConvertTo-Json -InputObject @\(\$releases\) -Compress -Depth 30/);
   assert.match(host, /assert_eq!\(list_items\(json!\(\[\]\), None\)\.unwrap\(\), json!\(\[\]\)\)/);
   assert.match(host, /assert_eq!\(list_items\(json!\(\[\{\"number\": 1\}\]\), None\)\.unwrap\(\), json!\(\[\{\"number\": 1\}\]\)\)/);
   assert.match(host, /assert!\(list_items\(json!\(\{\"number\": 1\}\), None\)\.is_err\(\)\)/);
 });
 
-test("GitHub telemetry refreshes through the canonical connection path before loading remote data", async () => {
+test("GitHub telemetry is cache-first, persistent and nonblocking", async () => {
+  const host = await text("apps/desktop/src-tauri/src/github_telemetry.rs");
   const ui = await text("apps/desktop/src/github-project-telemetry.ts");
+  const lazyView = await text("apps/desktop/src/project-source-review-lazy-view.ts");
 
-  assert.match(ui, /invoke<GitHubConnectionStatus>\("github_connection_status"\)/);
-  assert.match(ui, /if \(!status\.configured \|\| !status\.connected\)/);
-  assert.match(ui, /return invoke<GitHubProjectTelemetry>\("github_project_telemetry", \{ repositoryId \}\)/);
-  assert.ok(ui.indexOf('"github_connection_status"') < ui.indexOf('"github_project_telemetry"'));
+  assert.match(host, /const CACHE_FRESH_SECONDS: u64 = 600/);
+  assert.match(host, /app_data_dir\(\)/);
+  assert.match(host, /GitHubTelemetryCacheStore/);
+  assert.match(host, /read_cache\(&cache_path/);
+  assert.match(host, /write_cache\(&cache_path/);
+  assert.match(host, /pub async fn github_project_telemetry/);
+  assert.match(host, /spawn_blocking\(move \|\| github_project_telemetry_blocking/);
+
+  assert.match(ui, /const memorySnapshots = new Map/);
+  assert.match(ui, /const refreshes = new Map/);
+  assert.match(ui, /forceRefresh: false/);
+  assert.match(ui, /forceRefresh: true/);
+  assert.doesNotMatch(ui, /github_connection_status/);
+  assert.match(lazyView, /loaded\.snapshot\.telemetry/);
+  assert.match(lazyView, /if \(loaded\.refresh\)/);
 });
 
 test("GitHub telemetry keeps remote evidence and mutation Authority separate", async () => {
@@ -55,6 +71,8 @@ test("GitHub telemetry keeps remote evidence and mutation Authority separate", a
     '"performsSemanticApply": false',
   ]) assert.match(host, new RegExp(boundary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
+  assert.match(host, /validate_cached_telemetry/);
+  assert.match(host, /telemetryGrantsAuthority/);
   assert.match(ui, /GitHub data shown here is external evidence/);
   assert.match(ui, /GitHub-Lesezugriff erteilt keine Berechtigung/);
   assert.match(lazyView, /loadGitHubProjectTelemetry/);
