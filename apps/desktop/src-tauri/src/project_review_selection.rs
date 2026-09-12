@@ -282,14 +282,12 @@ fn write_configuration(input: &Path, configuration: &Value) -> Result<(), String
     Ok(())
 }
 
-#[tauri::command]
-pub fn inventory_project_source_review_paths(app: tauri::AppHandle) -> Result<Value, String> {
+fn inventory_project_source_review_paths_blocking(app: tauri::AppHandle) -> Result<Value, String> {
     let (input, _, _) = read_configuration(&app)?;
     run_review_inventory(&app, &input)
 }
 
-#[tauri::command]
-pub fn start_project_source_review(
+fn start_project_source_review_blocking(
     app: tauri::AppHandle,
     selection: ReviewStartInput,
 ) -> Result<ReviewStartResult, String> {
@@ -327,6 +325,23 @@ pub fn start_project_source_review(
             "usesFreshBoundedInventory": true
         }),
     })
+}
+
+#[tauri::command]
+pub async fn inventory_project_source_review_paths(app: tauri::AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || inventory_project_source_review_paths_blocking(app))
+        .await
+        .map_err(|error| format!("Review-path inventory worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn start_project_source_review(
+    app: tauri::AppHandle,
+    selection: ReviewStartInput,
+) -> Result<ReviewStartResult, String> {
+    tauri::async_runtime::spawn_blocking(move || start_project_source_review_blocking(app, selection))
+        .await
+        .map_err(|error| format!("Project Source review-start worker failed: {error}"))?
 }
 
 #[cfg(test)]
