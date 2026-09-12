@@ -1,3 +1,4 @@
+mod background_runtime;
 mod connector_host;
 mod diagnostics_export_save;
 mod first_run_lifecycle;
@@ -161,6 +162,8 @@ pub fn run() {
             #[cfg(feature = "ci-updater-acceptance")]
             updater::start_ci_acceptance_if_requested(app.handle().clone());
 
+            background_runtime::install(app)?;
+
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let state = handle.state::<connector_host::ConnectorHostState>();
@@ -168,6 +171,7 @@ pub fn run() {
             });
             Ok(())
         })
+        .on_window_event(background_runtime::handle_window_event)
         .invoke_handler(tauri::generate_handler![
             runtime_health,
             installer_language,
