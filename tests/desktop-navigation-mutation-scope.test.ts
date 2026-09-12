@@ -4,12 +4,12 @@ import test from "node:test";
 
 const read = (path: string) => readFile(path, "utf8");
 
-test("dynamic navigation observers are scoped to nav rather than the whole document body", async () => {
+test("dynamic navigation observers avoid whole-document/content mutation loops", async () => {
   const notification = await read("apps/desktop/src/notification-center.ts");
   const sourceReview = await read("apps/desktop/src/project-source-review-navigation.ts");
 
   for (const source of [notification, sourceReview]) {
-    assert.match(source, /observer\.observe\(nav, \{ childList: true \}\)/);
+    assert.match(source, /observer\.observe\(appRoot, \{ childList: true \}\)/);
     assert.doesNotMatch(source, /observer\.observe\(document\.body/);
     assert.doesNotMatch(source, /subtree:\s*true/);
   }
