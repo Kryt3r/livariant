@@ -154,6 +154,9 @@ const installNavigation = () => {
   }
 };
 
-const observer = new MutationObserver(() => installNavigation());
-observer.observe(document.body, { childList: true, subtree: true });
+const nav = document.querySelector<HTMLElement>("nav.nav");
+if (nav) {
+  const observer = new MutationObserver(() => installNavigation());
+  observer.observe(nav, { childList: true });
+}
 installNavigation();
