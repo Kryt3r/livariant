@@ -126,6 +126,19 @@ const isReviewInventory = (value: unknown): value is ReviewPathInventoryResult =
   });
 };
 
+const applyPresentationResult = (result: ProjectSourceReviewBridgeResult) => {
+  if (result.state === "ready" && result.presentation && isPresentation(result.presentation)) {
+    bridgeState = result;
+    return true;
+  }
+  bridgeState = {
+    state: "unavailable",
+    presentation: null,
+    detail: result.detail || text("Project source presentation is unavailable.", "Die Darstellung der Projektquellen ist nicht verfügbar."),
+  };
+  return false;
+};
+
 async function refreshReviewPathInventory(): Promise<void> {
   try {
     const result = await invoke<ReviewPathInventoryResult>("inventory_project_source_review_paths");
@@ -158,20 +171,27 @@ export async function observeProjectSources(): Promise<ProjectSourceObservationR
   return invoke<ProjectSourceObservationResult>("observe_project_sources");
 }
 
+export async function loadProjectSourceReviewPresentation(): Promise<void> {
+  try {
+    const result = await invoke<ProjectSourceReviewBridgeResult>("project_source_review_presentation");
+    applyPresentationResult(result);
+  } catch (error: unknown) {
+    bridgeState = {
+      state: "unavailable",
+      presentation: null,
+      detail: `${text("Cached project source presentation could not be loaded safely", "Die zwischengespeicherte Projektquellen-Darstellung konnte nicht sicher geladen werden")}: ${String(error)}`,
+    };
+  }
+}
+
 export async function refreshProjectSourceReviewPresentation(): Promise<void> {
   try {
     await observeProjectSources();
     const result = await invoke<ProjectSourceReviewBridgeResult>("refresh_project_source_review_presentation_nonblocking");
-    if (result.state === "ready" && result.presentation && isPresentation(result.presentation)) {
-      bridgeState = result;
+    if (applyPresentationResult(result)) {
       await refreshReviewPathInventory();
       return;
     }
-    bridgeState = {
-      state: "unavailable",
-      presentation: null,
-      detail: result.detail || text("Project source presentation is unavailable.", "Die Darstellung der Projektquellen ist nicht verfügbar."),
-    };
     selectionState = {
       state: "unavailable",
       candidates: [],
