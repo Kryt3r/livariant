@@ -6,13 +6,12 @@ on:
       - feat/wp055-operator-broadcast-signature-verifier
     paths:
       - .github/workflows/tmp-wp055-generate-cargo-lock.yml
-      - apps/desktop/src-tauri/Cargo.toml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  generate-lock:
+  generate-lock-and-cleanup:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact branch source
@@ -30,10 +29,13 @@ jobs:
           grep -A3 'name = "minisign-verify"' Cargo.lock
           test "$(grep -A3 'name = "minisign-verify"' Cargo.lock | grep 'version = "0.2.5"' | wc -l)" -eq 1
 
-      - name: Upload Cargo-generated lockfile
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: wp055-generated-cargo-lock
-          path: apps/desktop/src-tauri/Cargo.lock
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit generated lockfile and remove temporary workflow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git rm .github/workflows/tmp-wp055-generate-cargo-lock.yml
+          git add apps/desktop/src-tauri/Cargo.lock
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Generate Cargo lockfile for operator broadcast verifier'
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"
