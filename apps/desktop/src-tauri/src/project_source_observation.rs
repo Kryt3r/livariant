@@ -36,8 +36,7 @@ fn hidden_command(program: &Path) -> Command {
     command
 }
 
-#[tauri::command]
-pub fn observe_project_sources(app: tauri::AppHandle) -> Result<ProjectSourceObservationResult, String> {
+fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSourceObservationResult, String> {
     let app_data = app.path().app_data_dir().map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?;
     let input = app_data.join(REFRESH_INPUT_FILE);
     if !input.is_file() {
@@ -87,4 +86,11 @@ pub fn observe_project_sources(app: tauri::AppHandle) -> Result<ProjectSourceObs
             "performsSemanticApply": false
         }),
     })
+}
+
+#[tauri::command]
+pub async fn observe_project_sources(app: tauri::AppHandle) -> Result<ProjectSourceObservationResult, String> {
+    tauri::async_runtime::spawn_blocking(move || observe_project_sources_blocking(app))
+        .await
+        .map_err(|error| format!("Project Source observation worker failed: {error}"))?
 }

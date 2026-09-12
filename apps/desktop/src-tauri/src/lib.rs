@@ -10,6 +10,7 @@ mod notification_center;
 mod notification_product_events;
 mod project_review_selection;
 mod project_source_observation;
+mod project_source_review_async;
 mod project_source_review_bridge;
 mod updater;
 
@@ -194,7 +195,7 @@ pub fn run() {
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
             project_source_review_bridge::project_source_review_presentation,
-            project_source_review_bridge::refresh_project_source_review_presentation,
+            project_source_review_async::refresh_project_source_review_presentation_nonblocking,
             project_review_selection::inventory_project_source_review_paths,
             project_review_selection::start_project_source_review,
             notification_product_events::check_for_update_with_notifications,
