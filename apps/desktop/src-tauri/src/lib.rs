@@ -9,6 +9,7 @@ mod github_telemetry;
 mod notification_center;
 mod notification_product_events;
 mod operator_broadcast;
+mod operator_broadcast_state;
 mod project_review_selection;
 mod project_source_observation;
 mod project_source_review_async;
