@@ -58,7 +58,7 @@ test("GitHub telemetry keeps remote evidence and mutation Authority separate", a
   assert.match(ui, /GitHub data shown here is external evidence/);
   assert.match(ui, /GitHub-Lesezugriff erteilt keine Berechtigung/);
   assert.match(lazyView, /loadGitHubProjectTelemetry/);
-  assert.match(lazyView, /identity\.provider !== "github"/);
+  assert.match(lazyView, /source\.kind === "primary" && source\.identity\.provider === "github"/);
 });
 
 test("GitHub telemetry surfaces unavailable permissions honestly instead of inventing healthy emptiness", async () => {
