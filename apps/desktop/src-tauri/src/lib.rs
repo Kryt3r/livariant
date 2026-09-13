@@ -10,6 +10,7 @@ mod notification_center;
 mod notification_product_events;
 mod operator_broadcast;
 mod operator_broadcast_state;
+mod operator_broadcast_transport;
 mod operator_broadcast_verify;
 mod project_review_selection;
 mod project_source_observation;
