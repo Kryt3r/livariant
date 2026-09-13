@@ -9,6 +9,7 @@ use crate::{
     },
     operator_broadcast_transport::{fetch_bounded, MAX_RESPONSE_BYTES},
     operator_broadcast_verify::{verify_operator_broadcast, VerifiedOperatorBroadcast},
+    operator_update_block::{record_operator_update_blocks, OperatorUpdateBlockInput},
 };
 use std::path::Path;
 use tauri::AppHandle;
@@ -128,20 +129,69 @@ fn collect_notice_inputs(
                     source_ref: Some(source_ref.clone()),
                 });
             }
-            OperatorDirective::UpdateBlock { .. } => {
-                return Err("Operator broadcast contains an update-block directive that this notice-only pipeline does not yet enforce; replay state was not advanced.".to_owned());
-            }
+            OperatorDirective::UpdateBlock { .. } => {}
         }
     }
 
     Ok(inputs)
 }
 
-/// Native-only durable notice path. The verified/replay-eligible document is
-/// first mapped into the local Notification Center. Only after that durable
-/// write succeeds is replay state committed. If the final replay-state write
-/// fails, retrying the same signed document is safe because Notification Center
-/// upsert is idempotent and preserves existing read state.
+fn collect_update_block_inputs(
+    verified: &VerifiedOperatorBroadcast,
+    now_ms: u64,
+) -> Result<Vec<OperatorUpdateBlockInput>, String> {
+    let document = verified.document();
+    let source_ref = format!(
+        "operator-broadcast:{}:sequence:{}",
+        verified.key_id(),
+        document.sequence
+    );
+    let mut inputs = Vec::new();
+
+    for directive in &document.directives {
+        let OperatorDirective::UpdateBlock {
+            id,
+            version,
+            reason,
+            valid_from_ms,
+            valid_until_ms,
+        } = directive
+        else {
+            continue;
+        };
+
+        if now_ms < *valid_from_ms {
+            return Err("Operator broadcast contains an update block that is not yet active; replay state was not advanced.".to_owned());
+        }
+        if valid_until_ms.is_some_and(|until| now_ms >= until) {
+            continue;
+        }
+
+        let effective_until_ms = valid_until_ms
+            .unwrap_or(document.expires_at_ms)
+            .min(document.expires_at_ms);
+        if effective_until_ms <= now_ms {
+            continue;
+        }
+
+        inputs.push(OperatorUpdateBlockInput {
+            id: id.clone(),
+            version: version.clone(),
+            reason: reason.clone(),
+            valid_from_ms: *valid_from_ms,
+            valid_until_ms: effective_until_ms,
+            source_ref: source_ref.clone(),
+        });
+    }
+
+    Ok(inputs)
+}
+
+/// Native-only durable operator-state path. The verified/replay-eligible
+/// document is fully mapped first. Exact-version update blocks and notices are
+/// then written idempotently; only after all durable consumers succeed is the
+/// replay sequence committed. Retrying after a final state-write failure is
+/// therefore safe and cannot create duplicate Notification Center records.
 pub fn accept_bounded_response_and_record_notices(
     app: &AppHandle,
     response_bytes: &[u8],
@@ -156,9 +206,15 @@ pub fn accept_bounded_response_and_record_notices(
     } else {
         std::env::consts::OS
     };
-    let inputs = collect_notice_inputs(&verified, now_ms, platform, env!("CARGO_PKG_VERSION"))?;
-    if !inputs.is_empty() {
-        record_product_notifications(app, inputs)?;
+    let notice_inputs =
+        collect_notice_inputs(&verified, now_ms, platform, env!("CARGO_PKG_VERSION"))?;
+    let update_block_inputs = collect_update_block_inputs(&verified, now_ms)?;
+
+    if !update_block_inputs.is_empty() {
+        record_operator_update_blocks(app, update_block_inputs)?;
+    }
+    if !notice_inputs.is_empty() {
+        record_product_notifications(app, notice_inputs)?;
     }
 
     write_acceptance_state(acceptance_state_path, &state)?;
@@ -208,6 +264,30 @@ mod tests {
                     valid_from_ms,
                     valid_until_ms,
                     target,
+                }],
+            },
+        )
+    }
+
+    fn verified_update_block(
+        version: &str,
+        valid_from_ms: u64,
+        valid_until_ms: Option<u64>,
+        document_expires_at_ms: u64,
+    ) -> VerifiedOperatorBroadcast {
+        verified_for_test(
+            "operator-broadcast-test",
+            OperatorBroadcastDocument {
+                schema_version: 1,
+                sequence: 8,
+                issued_at_ms: 1_000,
+                expires_at_ms: document_expires_at_ms,
+                directives: vec![OperatorDirective::UpdateBlock {
+                    id: format!("update-block:{version}"),
+                    version: version.to_owned(),
+                    reason: "Known bad patch.".to_owned(),
+                    valid_from_ms,
+                    valid_until_ms,
                 }],
             },
         )
@@ -295,23 +375,32 @@ mod tests {
     }
 
     #[test]
-    fn update_block_is_not_consumed_by_notice_only_pipeline() {
-        let verified = verified_for_test(
-            "operator-broadcast-test",
-            OperatorBroadcastDocument {
-                schema_version: 1,
-                sequence: 8,
-                issued_at_ms: 1_000,
-                expires_at_ms: 4_000,
-                directives: vec![OperatorDirective::UpdateBlock {
-                    id: "update-block:0.1.0-rc.29".to_owned(),
-                    version: "0.1.0-rc.29".to_owned(),
-                    reason: "Known bad patch.".to_owned(),
-                    valid_from_ms: 1_000,
-                    valid_until_ms: None,
-                }],
-            },
-        );
-        assert!(collect_notice_inputs(&verified, 1_500, "windows", "0.1.0-rc.28").is_err());
+    fn exact_update_block_maps_without_affecting_notice_mapping() {
+        let verified = verified_update_block("0.1.0-rc.29", 1_000, None, 4_000);
+        let notices = collect_notice_inputs(&verified, 1_500, "windows", "0.1.0-rc.28")
+            .expect("update block is not a notice error");
+        assert!(notices.is_empty());
+        let blocks = collect_update_block_inputs(&verified, 1_500).expect("active update block");
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].version, "0.1.0-rc.29");
+        assert_eq!(blocks[0].valid_until_ms, 4_000);
+    }
+
+    #[test]
+    fn update_block_never_outlives_signed_document() {
+        let verified = verified_update_block("0.1.0-rc.29", 1_000, Some(9_000), 4_000);
+        let blocks = collect_update_block_inputs(&verified, 1_500).expect("bounded update block");
+        assert_eq!(blocks[0].valid_until_ms, 4_000);
+    }
+
+    #[test]
+    fn future_update_block_fails_closed_and_expired_block_is_ignored() {
+        let future = verified_update_block("0.1.0-rc.29", 2_000, None, 4_000);
+        assert!(collect_update_block_inputs(&future, 1_500).is_err());
+
+        let expired = verified_update_block("0.1.0-rc.29", 1_000, Some(1_400), 4_000);
+        assert!(collect_update_block_inputs(&expired, 1_500)
+            .expect("expired block")
+            .is_empty());
     }
 }
