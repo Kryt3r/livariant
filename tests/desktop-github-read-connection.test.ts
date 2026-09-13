@@ -23,7 +23,8 @@ test("GitHub Desktop host keeps connection read-only and credentials outside pro
   assert.match(host, /https:\/\/api\.github\.com/);
   assert.doesNotMatch(host, /scope["']?\s*[:=]\s*["']repo["']/i);
   assert.doesNotMatch(host, /fs::write[^\n]*(access_token|refresh_token)/i);
-  assert.doesNotMatch(cargo, /keyring|ureq/);
+  assert.doesNotMatch(host, /keyring|ureq/);
+  assert.doesNotMatch(cargo, /keyring/);
   assert.match(lib, /manage\(github_remote::GitHubRemoteState::default\(\)\)/);
 });
 
