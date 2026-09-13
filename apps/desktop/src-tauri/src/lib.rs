@@ -13,6 +13,7 @@ mod operator_broadcast_pipeline;
 mod operator_broadcast_state;
 mod operator_broadcast_transport;
 mod operator_broadcast_verify;
+mod operator_update_block;
 mod project_review_selection;
 mod project_source_observation;
 mod project_source_review_async;
