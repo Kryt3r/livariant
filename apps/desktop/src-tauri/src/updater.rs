@@ -165,6 +165,12 @@ fn build_updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, Strin
         .map_err(|error| format!("Updater could not be initialized: {error}"))
 }
 
+fn update_block_decision(app: &AppHandle, version: &str) -> Result<Option<String>, String> {
+    let timestamp = crate::operator_update_block::now_ms()?;
+    crate::operator_update_block::blocked_version(app, version, timestamp)
+        .map(|blocked| blocked.map(|value| value.reason))
+}
+
 #[tauri::command]
 pub async fn check_for_update(app: AppHandle) -> UpdateResult {
     let current_version = app.package_info().version.to_string();
@@ -184,13 +190,36 @@ pub async fn check_for_update(app: AppHandle) -> UpdateResult {
     };
 
     match updater.check().await {
-        Ok(Some(update)) => result_with_notes(
-            "available",
-            current_version,
-            Some(update.version.clone()),
-            format!("A signed Livariant update to {} is available.", update.version),
-            parse_release_notes(update.body.as_deref()),
-        ),
+        Ok(Some(update)) => {
+            let release_notes = parse_release_notes(update.body.as_deref());
+            match update_block_decision(&app, &update.version) {
+                Ok(Some(reason)) => result(
+                    "error",
+                    current_version,
+                    Some(update.version.clone()),
+                    format!(
+                        "Installation of signed Livariant update {} is blocked by a verified operator safety directive: {reason}",
+                        update.version
+                    ),
+                ),
+                Ok(None) => result_with_notes(
+                    "available",
+                    current_version,
+                    Some(update.version.clone()),
+                    format!("A signed Livariant update to {} is available.", update.version),
+                    release_notes,
+                ),
+                Err(error) => result(
+                    "error",
+                    current_version,
+                    Some(update.version.clone()),
+                    format!(
+                        "Update safety state could not be verified, so {} is not being offered for installation: {error}",
+                        update.version
+                    ),
+                ),
+            }
+        }
         Ok(None) => result(
             "current",
             current_version,
@@ -255,6 +284,32 @@ pub async fn apply_update(app: AppHandle, expected_version: String) -> UpdateRes
             ),
             parse_release_notes(update.body.as_deref()),
         );
+    }
+
+    match update_block_decision(&app, &update.version) {
+        Ok(Some(reason)) => {
+            return result(
+                "error",
+                current_version,
+                Some(update.version.clone()),
+                format!(
+                    "Installation of signed Livariant update {} was blocked by a verified operator safety directive before download: {reason}",
+                    update.version
+                ),
+            )
+        }
+        Ok(None) => {}
+        Err(error) => {
+            return result(
+                "error",
+                current_version,
+                Some(update.version.clone()),
+                format!(
+                    "Update safety state could not be verified, so {} was not downloaded or installed: {error}",
+                    update.version
+                ),
+            )
+        }
     }
 
     let target_version = update.version.clone();
