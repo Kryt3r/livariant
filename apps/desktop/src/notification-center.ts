@@ -12,6 +12,9 @@ type DurableNotification = {
   createdAtMs: number;
   readAtMs: number | null;
   sourceRef: string | null;
+  activeUntilMs: number | null;
+  inactiveAtMs: number | null;
+  inactiveReason: "expired" | "withdrawn" | null;
 };
 
 type NotificationCenterSnapshot = {
@@ -24,6 +27,7 @@ const NOTIFICATION_CENTER_CHANGED_EVENT = "livariant://notification-center-chang
 let active = false;
 let snapshot: NotificationCenterSnapshot | null = null;
 let loadGeneration = 0;
+let lifecycleTimer: number | null = null;
 
 const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
 const bellIcon = () => '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>';
@@ -39,6 +43,26 @@ const formatTime = (value: number) => new Intl.DateTimeFormat(getLanguage() === 
   dateStyle: "medium",
   timeStyle: "short",
 }).format(new Date(value));
+
+const lifecycleLabel = (item: DurableNotification) => {
+  if (item.inactiveReason === "withdrawn") return text("Withdrawn", "Zurückgezogen");
+  if (item.inactiveReason === "expired") return text("Expired", "Abgelaufen");
+  return null;
+};
+
+const scheduleLifecycleRefresh = () => {
+  if (lifecycleTimer !== null) {
+    window.clearTimeout(lifecycleTimer);
+    lifecycleTimer = null;
+  }
+  const now = Date.now();
+  const next = snapshot?.notifications
+    .filter((item) => item.inactiveAtMs === null && item.activeUntilMs !== null && item.activeUntilMs > now)
+    .map((item) => item.activeUntilMs as number)
+    .sort((left, right) => left - right)[0];
+  if (next === undefined) return;
+  lifecycleTimer = window.setTimeout(() => { void refreshSnapshot(); }, Math.max(1, next - now + 50));
+};
 
 const updateNavUnreadBadge = () => {
   const button = document.querySelector<HTMLButtonElement>("nav.nav [data-view='notifications']");
@@ -67,21 +91,24 @@ const renderSurface = (content: HTMLElement) => {
 
   const items = data.notifications.length === 0
     ? `<div class="notification-center-empty"><h2>${text("No notifications yet", "Noch keine Benachrichtigungen")}</h2><p>${text("Durable product events will appear here when something needs your attention or should remain reviewable.", "Dauerhafte Produkt-Ereignisse erscheinen hier, wenn etwas deine Aufmerksamkeit braucht oder später nachvollziehbar bleiben soll.")}</p></div>`
-    : data.notifications.map((item) => `
-      <article class="notification-item ${item.readAtMs === null ? "is-unread" : ""}" data-notification-id="${escapeHtml(item.id)}">
-        <div class="notification-item-meta"><span class="notification-severity" data-severity="${escapeHtml(item.severity)}">${escapeHtml(item.severity)}</span><span>${escapeHtml(item.category)}</span><time>${escapeHtml(formatTime(item.createdAtMs))}</time></div>
+    : data.notifications.map((item) => {
+      const lifecycle = lifecycleLabel(item);
+      return `
+      <article class="notification-item ${item.readAtMs === null ? "is-unread" : ""} ${item.inactiveAtMs !== null ? "is-inactive" : ""}" data-notification-id="${escapeHtml(item.id)}">
+        <div class="notification-item-meta"><span class="notification-severity" data-severity="${escapeHtml(item.severity)}">${escapeHtml(item.severity)}</span><span>${escapeHtml(item.category)}</span>${lifecycle ? `<span>${escapeHtml(lifecycle)}</span>` : ""}<time>${escapeHtml(formatTime(item.createdAtMs))}</time></div>
         <h2>${escapeHtml(item.title)}</h2>
         <p>${escapeHtml(item.body)}</p>
         <div class="notification-item-actions">
           <button class="button secondary" type="button" data-notification-read-toggle data-read="${item.readAtMs === null ? "false" : "true"}">${item.readAtMs === null ? text("Mark as read", "Als gelesen markieren") : text("Mark as unread", "Als ungelesen markieren")}</button>
         </div>
-      </article>`).join("");
+      </article>`;
+    }).join("");
 
   content.innerHTML = `
     <section class="notification-center" data-notification-center>
       <div class="notification-center-head">
         <div><span class="eyebrow">${text("NOTIFICATIONS", "BENACHRICHTIGUNGEN")}</span><h1>${text("Notification Center", "Benachrichtigungszentrale")}</h1><p>${text("Durable product events remain here independently of popup delivery.", "Dauerhafte Produkt-Ereignisse bleiben hier unabhängig davon erhalten, ob ein Popup angezeigt wurde.")}</p></div>
-        <div class="notification-center-actions"><span class="notification-unread-count">${data.unreadCount} ${text("unread", "ungelesen")}</span><button class="button secondary" type="button" data-notification-mark-all ${data.unreadCount === 0 ? "disabled" : ""}>${text("Mark all as read", "Alle als gelesen")}</button></div>
+        <div class="notification-center-actions"><span class="notification-unread-count">${data.unreadCount} ${text("active unread", "aktiv ungelesen")}</span><button class="button secondary" type="button" data-notification-mark-all ${data.unreadCount === 0 ? "disabled" : ""}>${text("Mark all as read", "Alle als gelesen")}</button></div>
       </div>
       <div class="notification-list">${items}</div>
     </section>`;
@@ -89,6 +116,7 @@ const renderSurface = (content: HTMLElement) => {
   content.querySelector<HTMLButtonElement>("[data-notification-mark-all]")?.addEventListener("click", async () => {
     snapshot = await markAllRead();
     updateNavUnreadBadge();
+    scheduleLifecycleRefresh();
     if (active) renderSurface(content);
   });
   content.querySelectorAll<HTMLButtonElement>("[data-notification-read-toggle]").forEach((button) => {
@@ -98,6 +126,7 @@ const renderSurface = (content: HTMLElement) => {
       if (!id) return;
       snapshot = await setRead(id, button.dataset.read !== "true");
       updateNavUnreadBadge();
+      scheduleLifecycleRefresh();
       if (active) renderSurface(content);
     });
   });
@@ -107,6 +136,7 @@ const refreshSnapshot = async () => {
   try {
     snapshot = await loadSnapshot();
     updateNavUnreadBadge();
+    scheduleLifecycleRefresh();
     if (active) {
       const content = document.querySelector<HTMLElement>("main.content");
       if (content) renderSurface(content);
@@ -127,6 +157,7 @@ const renderIntoContent = async () => {
     if (!active || generation !== loadGeneration) return;
     snapshot = next;
     updateNavUnreadBadge();
+    scheduleLifecycleRefresh();
     const current = document.querySelector<HTMLElement>("main.content");
     if (current) renderSurface(current);
   } catch (cause) {

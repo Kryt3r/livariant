@@ -1,5 +1,7 @@
 use crate::{
-    notification_center::{record_product_notifications, ProductNotificationInput},
+    notification_center::{
+        record_product_notifications_and_reconcile_operator, ProductNotificationInput,
+    },
     operator_broadcast::{
         OperatorBroadcastEnvelope, OperatorDirective, OperatorNoticeSeverity, OperatorNoticeTarget,
     },
@@ -14,9 +16,6 @@ use crate::{
 use std::path::Path;
 use tauri::AppHandle;
 
-/// Parses, verifies and checks replay/freshness in memory without committing the
-/// durable replay state yet. This lets downstream durable consumers finish
-/// before the sequence is irreversibly advanced on disk.
 fn prepare_bounded_response_bytes(
     response_bytes: &[u8],
     acceptance_state_path: &Path,
@@ -35,12 +34,6 @@ fn prepare_bounded_response_bytes(
     Ok((verified, state))
 }
 
-/// Accepts only already-bounded transport material and preserves the trust
-/// ordering: bytes -> strict envelope parse -> signature verification ->
-/// replay/freshness acceptance -> durable state commit.
-///
-/// The caller-owned state path must be an application-controlled path. This
-/// function is native-only and is not exposed as renderer IPC.
 pub fn accept_bounded_response_bytes(
     response_bytes: &[u8],
     acceptance_state_path: &Path,
@@ -52,8 +45,6 @@ pub fn accept_bounded_response_bytes(
     Ok(verified)
 }
 
-/// Fetches one bounded HTTPS response and feeds it into the same native trust
-/// pipeline. Network success alone never makes remote material trusted.
 pub fn fetch_verify_and_accept(
     endpoint: &str,
     acceptance_state_path: &Path,
@@ -85,55 +76,78 @@ fn notice_severity(severity: &OperatorNoticeSeverity) -> &'static str {
     }
 }
 
-fn collect_notice_inputs(
+#[derive(Debug, Default, PartialEq, Eq)]
+struct NoticeLifecycleInputs {
+    active: Vec<ProductNotificationInput>,
+    withdrawn_ids: Vec<String>,
+}
+
+fn collect_notice_lifecycle_inputs(
     verified: &VerifiedOperatorBroadcast,
     now_ms: u64,
     platform: &str,
     desktop_version: &str,
-) -> Result<Vec<ProductNotificationInput>, String> {
+) -> Result<NoticeLifecycleInputs, String> {
     let document = verified.document();
     let source_ref = format!(
         "operator-broadcast:{}:sequence:{}",
         verified.key_id(),
         document.sequence
     );
-    let mut inputs = Vec::new();
+    let mut result = NoticeLifecycleInputs::default();
 
     for directive in &document.directives {
-        match directive {
-            OperatorDirective::Notice {
-                id,
-                severity,
-                title,
-                body,
-                valid_from_ms,
-                valid_until_ms,
-                target,
-            } => {
-                if now_ms < *valid_from_ms {
-                    return Err("Operator broadcast contains a notice that is not yet active; replay state was not advanced.".to_owned());
-                }
-                if valid_until_ms.is_some_and(|until| now_ms >= until) {
-                    continue;
-                }
-                if !notice_target_matches(target, platform, desktop_version) {
-                    return Err("Operator broadcast notice targets a different client identity; replay state was not advanced.".to_owned());
-                }
+        let OperatorDirective::Notice {
+            id,
+            severity,
+            title,
+            body,
+            valid_from_ms,
+            valid_until_ms,
+            target,
+        } = directive
+        else {
+            continue;
+        };
 
-                inputs.push(ProductNotificationInput {
-                    id: format!("operator:{id}"),
-                    category: "operator".to_owned(),
-                    severity: notice_severity(severity).to_owned(),
-                    title: title.clone(),
-                    body: body.clone(),
-                    source_ref: Some(source_ref.clone()),
-                });
-            }
-            OperatorDirective::UpdateBlock { .. } => {}
+        if now_ms < *valid_from_ms {
+            return Err("Operator broadcast contains a notice that is not yet active; replay state was not advanced.".to_owned());
         }
+
+        let expired = valid_until_ms.is_some_and(|until| now_ms >= until);
+        if !notice_target_matches(target, platform, desktop_version) {
+            if expired {
+                continue;
+            }
+            return Err("Operator broadcast notice targets a different client identity; replay state was not advanced.".to_owned());
+        }
+
+        let local_id = format!("operator:{id}");
+        if expired {
+            result.withdrawn_ids.push(local_id);
+            continue;
+        }
+
+        let effective_until_ms = valid_until_ms
+            .unwrap_or(document.expires_at_ms)
+            .min(document.expires_at_ms);
+        if effective_until_ms <= now_ms {
+            result.withdrawn_ids.push(local_id);
+            continue;
+        }
+
+        result.active.push(ProductNotificationInput {
+            id: local_id,
+            category: "operator".to_owned(),
+            severity: notice_severity(severity).to_owned(),
+            title: title.clone(),
+            body: body.clone(),
+            source_ref: Some(source_ref.clone()),
+            active_until_ms: Some(effective_until_ms),
+        });
     }
 
-    Ok(inputs)
+    Ok(result)
 }
 
 fn collect_update_block_inputs(
@@ -187,11 +201,6 @@ fn collect_update_block_inputs(
     Ok(inputs)
 }
 
-/// Native-only durable operator-state path. The verified/replay-eligible
-/// document is fully mapped first. Exact-version update blocks and notices are
-/// then written idempotently; only after all durable consumers succeed is the
-/// replay sequence committed. Retrying after a final state-write failure is
-/// therefore safe and cannot create duplicate Notification Center records.
 pub fn accept_bounded_response_and_record_notices(
     app: &AppHandle,
     response_bytes: &[u8],
@@ -206,16 +215,23 @@ pub fn accept_bounded_response_and_record_notices(
     } else {
         std::env::consts::OS
     };
-    let notice_inputs =
-        collect_notice_inputs(&verified, now_ms, platform, env!("CARGO_PKG_VERSION"))?;
+    let notice_lifecycle = collect_notice_lifecycle_inputs(
+        &verified,
+        now_ms,
+        platform,
+        env!("CARGO_PKG_VERSION"),
+    )?;
     let update_block_inputs = collect_update_block_inputs(&verified, now_ms)?;
 
     if !update_block_inputs.is_empty() {
         record_operator_update_blocks(app, update_block_inputs, now_ms)?;
     }
-    if !notice_inputs.is_empty() {
-        record_product_notifications(app, notice_inputs)?;
-    }
+    record_product_notifications_and_reconcile_operator(
+        app,
+        notice_lifecycle.active,
+        notice_lifecycle.withdrawn_ids,
+        now_ms,
+    )?;
 
     write_acceptance_state(acceptance_state_path, &state)?;
     Ok(verified)
@@ -248,6 +264,7 @@ mod tests {
         valid_from_ms: u64,
         valid_until_ms: Option<u64>,
         target: OperatorNoticeTarget,
+        document_expires_at_ms: u64,
     ) -> VerifiedOperatorBroadcast {
         verified_for_test(
             "operator-broadcast-test",
@@ -255,7 +272,7 @@ mod tests {
                 schema_version: 1,
                 sequence: 7,
                 issued_at_ms: 1_000,
-                expires_at_ms: 4_000,
+                expires_at_ms: document_expires_at_ms,
                 directives: vec![OperatorDirective::Notice {
                     id: "notice:service-status".to_owned(),
                     severity: OperatorNoticeSeverity::Warning,
@@ -335,51 +352,55 @@ mod tests {
     }
 
     #[test]
-    fn eligible_notice_maps_into_operator_namespace() {
-        let verified = verified_notice(1_000, None, OperatorNoticeTarget::default());
-        let inputs = collect_notice_inputs(&verified, 1_500, "windows", "0.1.0-rc.28")
+    fn eligible_notice_maps_into_operator_namespace_and_document_bound() {
+        let verified = verified_notice(1_000, None, OperatorNoticeTarget::default(), 4_000);
+        let lifecycle = collect_notice_lifecycle_inputs(&verified, 1_500, "windows", "0.1.0-rc.28")
             .expect("eligible notice");
-        assert_eq!(inputs.len(), 1);
-        assert_eq!(inputs[0].id, "operator:notice:service-status");
-        assert_eq!(inputs[0].category, "operator");
-        assert_eq!(inputs[0].severity, "warning");
-        assert_eq!(
-            inputs[0].source_ref.as_deref(),
-            Some("operator-broadcast:operator-broadcast-test:sequence:7")
-        );
+        assert_eq!(lifecycle.active.len(), 1);
+        assert!(lifecycle.withdrawn_ids.is_empty());
+        assert_eq!(lifecycle.active[0].id, "operator:notice:service-status");
+        assert_eq!(lifecycle.active[0].active_until_ms, Some(4_000));
     }
 
     #[test]
-    fn windows_version_target_is_enforced_before_state_commit() {
+    fn explicit_ended_notice_maps_to_withdrawal_identity() {
+        let verified = verified_notice(1_000, Some(1_400), OperatorNoticeTarget::default(), 4_000);
+        let lifecycle = collect_notice_lifecycle_inputs(&verified, 1_500, "windows", "0.1.0-rc.28")
+            .expect("ended notice is bounded reconciliation data");
+        assert!(lifecycle.active.is_empty());
+        assert_eq!(lifecycle.withdrawn_ids, vec!["operator:notice:service-status"]);
+    }
+
+    #[test]
+    fn future_notice_fails_closed() {
+        let verified = verified_notice(2_000, None, OperatorNoticeTarget::default(), 4_000);
+        assert!(collect_notice_lifecycle_inputs(&verified, 1_500, "windows", "0.1.0-rc.28").is_err());
+    }
+
+    #[test]
+    fn target_mismatch_does_not_withdraw_an_already_ended_notice() {
         let verified = verified_notice(
             1_000,
-            None,
+            Some(1_400),
             OperatorNoticeTarget {
                 platform: Some("windows".to_owned()),
                 desktop_version_prefix: Some("0.1.0-rc.29".to_owned()),
             },
+            4_000,
         );
-        assert!(collect_notice_inputs(&verified, 1_500, "windows", "0.1.0-rc.28").is_err());
-        assert!(collect_notice_inputs(&verified, 1_500, "windows", "0.1.0-rc.29").is_ok());
-    }
-
-    #[test]
-    fn future_notice_does_not_consume_document_but_expired_notice_is_ignored() {
-        let future = verified_notice(2_000, None, OperatorNoticeTarget::default());
-        assert!(collect_notice_inputs(&future, 1_500, "windows", "0.1.0-rc.28").is_err());
-
-        let expired = verified_notice(1_000, Some(1_400), OperatorNoticeTarget::default());
-        let inputs = collect_notice_inputs(&expired, 1_500, "windows", "0.1.0-rc.28")
-            .expect("expired notice can be consumed without presentation");
-        assert!(inputs.is_empty());
+        let lifecycle = collect_notice_lifecycle_inputs(&verified, 1_500, "windows", "0.1.0-rc.28")
+            .expect("ended mismatched target is ignored");
+        assert!(lifecycle.active.is_empty());
+        assert!(lifecycle.withdrawn_ids.is_empty());
     }
 
     #[test]
     fn exact_update_block_maps_without_affecting_notice_mapping() {
         let verified = verified_update_block("0.1.0-rc.29", 1_000, None, 4_000);
-        let notices = collect_notice_inputs(&verified, 1_500, "windows", "0.1.0-rc.28")
-            .expect("update block is not a notice error");
-        assert!(notices.is_empty());
+        let lifecycle = collect_notice_lifecycle_inputs(&verified, 1_500, "windows", "0.1.0-rc.28")
+            .expect("update block is not notice lifecycle data");
+        assert!(lifecycle.active.is_empty());
+        assert!(lifecycle.withdrawn_ids.is_empty());
         let blocks = collect_update_block_inputs(&verified, 1_500).expect("active update block");
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].version, "0.1.0-rc.29");
@@ -391,16 +412,5 @@ mod tests {
         let verified = verified_update_block("0.1.0-rc.29", 1_000, Some(9_000), 4_000);
         let blocks = collect_update_block_inputs(&verified, 1_500).expect("bounded update block");
         assert_eq!(blocks[0].valid_until_ms, 4_000);
-    }
-
-    #[test]
-    fn future_update_block_fails_closed_and_expired_block_is_ignored() {
-        let future = verified_update_block("0.1.0-rc.29", 2_000, None, 4_000);
-        assert!(collect_update_block_inputs(&future, 1_500).is_err());
-
-        let expired = verified_update_block("0.1.0-rc.29", 1_000, Some(1_400), 4_000);
-        assert!(collect_update_block_inputs(&expired, 1_500)
-            .expect("expired block")
-            .is_empty());
     }
 }
