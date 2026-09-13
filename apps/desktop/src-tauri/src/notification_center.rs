@@ -9,7 +9,7 @@ use tauri::{Emitter, Manager};
 
 const STORE_SCHEMA_VERSION: u32 = 1;
 const STORE_RELATIVE_PATH: [&str; 2] = ["notifications", "center.json"];
-const MAX_NOTIFICATION_ID_BYTES: usize = 220;
+const MAX_NOTIFICATION_ID_CHARS: usize = 220;
 pub const NOTIFICATION_CENTER_CHANGED_EVENT: &str = "livariant://notification-center-changed";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -80,10 +80,10 @@ fn validate_notification(notification: &DurableNotification) -> Result<(), Strin
             return Err(format!("Notification {label} must not be blank."));
         }
     }
-    if notification.id.len() > MAX_NOTIFICATION_ID_BYTES || notification.category.len() > 80 || notification.severity.len() > 40 {
+    if notification.id.chars().count() > MAX_NOTIFICATION_ID_CHARS || notification.category.len() > 80 || notification.severity.len() > 40 {
         return Err("Notification identity metadata exceeds the bounded store contract.".to_owned());
     }
-    if notification.title.len() > 240 || notification.body.len() > 4000 {
+    if notification.title.chars().count() > 240 || notification.body.chars().count() > 4000 {
         return Err("Notification presentation text exceeds the bounded store contract.".to_owned());
     }
     if notification.source_ref.as_ref().is_some_and(|value| value.len() > 500) {
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn operator_namespace_fits_bounded_store_identity() {
         let notification = DurableNotification {
-            id: format!("operator:{}", "x".repeat(200)),
+            id: format!("operator:{}", "ä".repeat(200)),
             category: "operator".to_owned(),
             severity: "warning".to_owned(),
             title: "Operator notice".to_owned(),
