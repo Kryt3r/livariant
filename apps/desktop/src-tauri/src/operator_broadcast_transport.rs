@@ -6,9 +6,10 @@ pub const READ_TIMEOUT: Duration = Duration::from_secs(5);
 pub const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 pub const MAX_REDIRECTS: u32 = 0;
 
-/// Production transport remains disabled until an explicitly reviewed HTTPS
-/// endpoint identity is pinned by a later bounded change.
-pub const PRODUCTION_ENDPOINT: Option<&str> = None;
+/// Reviewed stable production identity for bounded operator-broadcast retrieval.
+/// Automatic polling remains a separate capability and is not enabled here.
+pub const PRODUCTION_ENDPOINT: Option<&str> =
+    Some("https://broadcast.livariant.dev/v1/operator.json");
 
 pub fn validate_endpoint(endpoint: &str) -> Result<(), String> {
     if endpoint.trim() != endpoint || endpoint.is_empty() {
@@ -74,8 +75,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn production_transport_is_fail_closed_until_endpoint_is_pinned() {
-        assert!(PRODUCTION_ENDPOINT.is_none());
+    fn production_transport_pins_reviewed_endpoint_identity() {
+        assert_eq!(
+            PRODUCTION_ENDPOINT,
+            Some("https://broadcast.livariant.dev/v1/operator.json")
+        );
+        validate_endpoint(PRODUCTION_ENDPOINT.expect("production endpoint must be pinned"))
+            .expect("pinned production endpoint must satisfy transport policy");
     }
 
     #[test]
