@@ -38,7 +38,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:RUNNER_ARCH -ne "X64") {
-            throw "WP-052 runtime-health baseline currently measures the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
+            throw "Runtime-health baseline currently measures the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
           }
 
           $nodeVersion = "24.16.0"
