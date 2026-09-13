@@ -9,6 +9,7 @@ mod github_telemetry;
 mod notification_center;
 mod notification_product_events;
 mod operator_broadcast;
+mod operator_broadcast_pipeline;
 mod operator_broadcast_state;
 mod operator_broadcast_transport;
 mod operator_broadcast_verify;
