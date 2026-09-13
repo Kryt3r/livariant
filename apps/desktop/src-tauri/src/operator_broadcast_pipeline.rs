@@ -211,7 +211,7 @@ pub fn accept_bounded_response_and_record_notices(
     let update_block_inputs = collect_update_block_inputs(&verified, now_ms)?;
 
     if !update_block_inputs.is_empty() {
-        record_operator_update_blocks(app, update_block_inputs)?;
+        record_operator_update_blocks(app, update_block_inputs, now_ms)?;
     }
     if !notice_inputs.is_empty() {
         record_product_notifications(app, notice_inputs)?;
