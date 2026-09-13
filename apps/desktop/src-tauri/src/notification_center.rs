@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -8,6 +9,7 @@ use tauri::{Emitter, Manager};
 
 const STORE_SCHEMA_VERSION: u32 = 1;
 const STORE_RELATIVE_PATH: [&str; 2] = ["notifications", "center.json"];
+const MAX_NOTIFICATION_ID_CHARS: usize = 220;
 pub const NOTIFICATION_CENTER_CHANGED_EVENT: &str = "livariant://notification-center-changed";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -20,6 +22,16 @@ pub struct DurableNotification {
     pub body: String,
     pub created_at_ms: u64,
     pub read_at_ms: Option<u64>,
+    pub source_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProductNotificationInput {
+    pub id: String,
+    pub category: String,
+    pub severity: String,
+    pub title: String,
+    pub body: String,
     pub source_ref: Option<String>,
 }
 
@@ -68,10 +80,10 @@ fn validate_notification(notification: &DurableNotification) -> Result<(), Strin
             return Err(format!("Notification {label} must not be blank."));
         }
     }
-    if notification.id.len() > 200 || notification.category.len() > 80 || notification.severity.len() > 40 {
+    if notification.id.chars().count() > MAX_NOTIFICATION_ID_CHARS || notification.category.len() > 80 || notification.severity.len() > 40 {
         return Err("Notification identity metadata exceeds the bounded store contract.".to_owned());
     }
-    if notification.title.len() > 240 || notification.body.len() > 4000 {
+    if notification.title.chars().count() > 240 || notification.body.chars().count() > 4000 {
         return Err("Notification presentation text exceeds the bounded store contract.".to_owned());
     }
     if notification.source_ref.as_ref().is_some_and(|value| value.len() > 500) {
@@ -90,7 +102,7 @@ fn read_store(path: &Path) -> Result<NotificationStore, String> {
     if store.schema_version != STORE_SCHEMA_VERSION {
         return Err(format!("Unsupported Notification Center store schema {}.", store.schema_version));
     }
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     for notification in &store.notifications {
         validate_notification(notification)?;
         if !seen.insert(notification.id.as_str()) {
@@ -143,6 +155,42 @@ fn upsert_preserving_read_state(store: &mut NotificationStore, mut notification:
     }
 }
 
+pub fn record_product_notifications(
+    app: &tauri::AppHandle,
+    inputs: Vec<ProductNotificationInput>,
+) -> Result<NotificationCenterSnapshot, String> {
+    let path = store_path(app)?;
+    let mut store = read_store(&path)?;
+    if inputs.is_empty() {
+        return Ok(snapshot(store));
+    }
+
+    let timestamp = now_ms()?;
+    let mut batch_ids = HashSet::new();
+    for input in inputs {
+        if !batch_ids.insert(input.id.clone()) {
+            return Err("Notification producer batch contains duplicate notification ids.".to_owned());
+        }
+        let notification = DurableNotification {
+            id: input.id,
+            category: input.category,
+            severity: input.severity,
+            title: input.title,
+            body: input.body,
+            created_at_ms: timestamp,
+            read_at_ms: None,
+            source_ref: input.source_ref,
+        };
+        validate_notification(&notification)?;
+        upsert_preserving_read_state(&mut store, notification);
+    }
+
+    write_store(&path, &store)?;
+    let result = snapshot(store);
+    let _ = app.emit(NOTIFICATION_CENTER_CHANGED_EVENT, ());
+    Ok(result)
+}
+
 pub fn record_product_notification(
     app: &tauri::AppHandle,
     id: String,
@@ -152,24 +200,10 @@ pub fn record_product_notification(
     body: String,
     source_ref: Option<String>,
 ) -> Result<NotificationCenterSnapshot, String> {
-    let path = store_path(app)?;
-    let mut store = read_store(&path)?;
-    let notification = DurableNotification {
-        id,
-        category,
-        severity,
-        title,
-        body,
-        created_at_ms: now_ms()?,
-        read_at_ms: None,
-        source_ref,
-    };
-    validate_notification(&notification)?;
-    upsert_preserving_read_state(&mut store, notification);
-    write_store(&path, &store)?;
-    let result = snapshot(store);
-    let _ = app.emit(NOTIFICATION_CENTER_CHANGED_EVENT, ());
-    Ok(result)
+    record_product_notifications(
+        app,
+        vec![ProductNotificationInput { id, category, severity, title, body, source_ref }],
+    )
 }
 
 #[tauri::command]
@@ -272,6 +306,21 @@ mod tests {
         assert_eq!(store.notifications[0].created_at_ms, 10);
         assert_eq!(store.notifications[0].read_at_ms, Some(20));
         assert_eq!(store.notifications[0].body, "Updated presentation text.");
+    }
+
+    #[test]
+    fn operator_namespace_fits_bounded_store_identity() {
+        let notification = DurableNotification {
+            id: format!("operator:{}", "ä".repeat(200)),
+            category: "operator".to_owned(),
+            severity: "warning".to_owned(),
+            title: "Operator notice".to_owned(),
+            body: "Bounded operator message.".to_owned(),
+            created_at_ms: 1,
+            read_at_ms: None,
+            source_ref: None,
+        };
+        validate_notification(&notification).expect("operator namespace must fit store id bound");
     }
 
     #[test]
