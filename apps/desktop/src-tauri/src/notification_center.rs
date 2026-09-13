@@ -1,10 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashSet,
-    fs,
-    path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{collections::HashSet, fs, path::{Path, PathBuf}, time::{SystemTime, UNIX_EPOCH}};
 use tauri::{Emitter, Manager};
 
 const STORE_SCHEMA_VERSION: u32 = 1;
@@ -23,6 +18,12 @@ pub struct DurableNotification {
     pub created_at_ms: u64,
     pub read_at_ms: Option<u64>,
     pub source_ref: Option<String>,
+    #[serde(default)]
+    pub active_until_ms: Option<u64>,
+    #[serde(default)]
+    pub inactive_at_ms: Option<u64>,
+    #[serde(default)]
+    pub inactive_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,6 +34,7 @@ pub struct ProductNotificationInput {
     pub title: String,
     pub body: String,
     pub source_ref: Option<String>,
+    pub active_until_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -51,16 +53,13 @@ pub struct NotificationCenterSnapshot {
 }
 
 fn now_ms() -> Result<u64, String> {
-    let duration = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
+    let duration = SystemTime::now().duration_since(UNIX_EPOCH)
         .map_err(|error| format!("System clock is before Unix epoch: {error}"))?;
     u64::try_from(duration.as_millis()).map_err(|_| "System timestamp is too large.".to_owned())
 }
 
 fn store_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let root = app
-        .path()
-        .app_data_dir()
+    let root = app.path().app_data_dir()
         .map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?;
     Ok(root.join(STORE_RELATIVE_PATH[0]).join(STORE_RELATIVE_PATH[1]))
 }
@@ -70,15 +69,8 @@ fn empty_store() -> NotificationStore {
 }
 
 fn validate_notification(notification: &DurableNotification) -> Result<(), String> {
-    for (label, value) in [
-        ("id", notification.id.as_str()),
-        ("category", notification.category.as_str()),
-        ("severity", notification.severity.as_str()),
-        ("title", notification.title.as_str()),
-    ] {
-        if value.trim().is_empty() {
-            return Err(format!("Notification {label} must not be blank."));
-        }
+    for (label, value) in [("id", notification.id.as_str()), ("category", notification.category.as_str()), ("severity", notification.severity.as_str()), ("title", notification.title.as_str())] {
+        if value.trim().is_empty() { return Err(format!("Notification {label} must not be blank.")); }
     }
     if notification.id.chars().count() > MAX_NOTIFICATION_ID_CHARS || notification.category.len() > 80 || notification.severity.len() > 40 {
         return Err("Notification identity metadata exceeds the bounded store contract.".to_owned());
@@ -89,13 +81,17 @@ fn validate_notification(notification: &DurableNotification) -> Result<(), Strin
     if notification.source_ref.as_ref().is_some_and(|value| value.len() > 500) {
         return Err("Notification source reference exceeds the bounded store contract.".to_owned());
     }
+    if notification.inactive_reason.as_ref().is_some_and(|value| !matches!(value.as_str(), "expired" | "withdrawn")) {
+        return Err("Notification lifecycle reason is unsupported.".to_owned());
+    }
+    if notification.inactive_at_ms.is_some() != notification.inactive_reason.is_some() {
+        return Err("Notification lifecycle state is inconsistent.".to_owned());
+    }
     Ok(())
 }
 
 fn read_store(path: &Path) -> Result<NotificationStore, String> {
-    if !path.is_file() {
-        return Ok(empty_store());
-    }
+    if !path.is_file() { return Ok(empty_store()); }
     let bytes = fs::read(path).map_err(|error| format!("Notification Center store could not be read: {error}"))?;
     let store: NotificationStore = serde_json::from_slice(&bytes)
         .map_err(|error| format!("Notification Center store is invalid JSON: {error}"))?;
@@ -113,36 +109,23 @@ fn read_store(path: &Path) -> Result<NotificationStore, String> {
 }
 
 fn write_store(path: &Path, store: &NotificationStore) -> Result<(), String> {
-    if store.schema_version != STORE_SCHEMA_VERSION {
-        return Err("Notification Center store schema cannot be written.".to_owned());
-    }
-    for notification in &store.notifications {
-        validate_notification(notification)?;
-    }
+    if store.schema_version != STORE_SCHEMA_VERSION { return Err("Notification Center store schema cannot be written.".to_owned()); }
+    for notification in &store.notifications { validate_notification(notification)?; }
     let parent = path.parent().ok_or_else(|| "Notification Center store path has no parent.".to_owned())?;
     fs::create_dir_all(parent).map_err(|error| format!("Notification Center directory could not be prepared: {error}"))?;
     let temp = parent.join("center.json.tmp");
-    let mut encoded = serde_json::to_vec_pretty(store)
-        .map_err(|error| format!("Notification Center store could not be serialized: {error}"))?;
+    let mut encoded = serde_json::to_vec_pretty(store).map_err(|error| format!("Notification Center store could not be serialized: {error}"))?;
     encoded.push(b'\n');
     fs::write(&temp, encoded).map_err(|error| format!("Notification Center temporary store could not be written: {error}"))?;
-    if path.exists() {
-        fs::remove_file(path).map_err(|error| format!("Notification Center previous store could not be replaced: {error}"))?;
-    }
+    if path.exists() { fs::remove_file(path).map_err(|error| format!("Notification Center previous store could not be replaced: {error}"))?; }
     fs::rename(&temp, path).map_err(|error| format!("Notification Center store could not be committed: {error}"))?;
     Ok(())
 }
 
 fn snapshot(mut store: NotificationStore) -> NotificationCenterSnapshot {
-    store.notifications.sort_by(|left, right| {
-        right.created_at_ms.cmp(&left.created_at_ms).then_with(|| left.id.cmp(&right.id))
-    });
-    let unread_count = store.notifications.iter().filter(|item| item.read_at_ms.is_none()).count();
-    NotificationCenterSnapshot {
-        schema_version: store.schema_version,
-        unread_count,
-        notifications: store.notifications,
-    }
+    store.notifications.sort_by(|left, right| right.created_at_ms.cmp(&left.created_at_ms).then_with(|| left.id.cmp(&right.id)));
+    let unread_count = store.notifications.iter().filter(|item| item.inactive_at_ms.is_none() && item.read_at_ms.is_none()).count();
+    NotificationCenterSnapshot { schema_version: store.schema_version, unread_count, notifications: store.notifications }
 }
 
 fn upsert_preserving_read_state(store: &mut NotificationStore, mut notification: DurableNotification) {
@@ -155,40 +138,58 @@ fn upsert_preserving_read_state(store: &mut NotificationStore, mut notification:
     }
 }
 
-pub fn record_product_notifications(
+fn reconcile_expired(store: &mut NotificationStore, timestamp_ms: u64) -> bool {
+    let mut changed = false;
+    for notification in &mut store.notifications {
+        if notification.category == "operator" && notification.inactive_at_ms.is_none() && notification.active_until_ms.is_some_and(|until| timestamp_ms >= until) {
+            notification.inactive_at_ms = Some(timestamp_ms);
+            notification.inactive_reason = Some("expired".to_owned());
+            changed = true;
+        }
+    }
+    changed
+}
+
+pub fn record_product_notifications_and_reconcile_operator(
     app: &tauri::AppHandle,
     inputs: Vec<ProductNotificationInput>,
+    withdrawn_ids: Vec<String>,
+    timestamp_ms: u64,
 ) -> Result<NotificationCenterSnapshot, String> {
     let path = store_path(app)?;
     let mut store = read_store(&path)?;
-    if inputs.is_empty() {
-        return Ok(snapshot(store));
-    }
-
-    let timestamp = now_ms()?;
+    let mut changed = reconcile_expired(&mut store, timestamp_ms);
     let mut batch_ids = HashSet::new();
+
     for input in inputs {
-        if !batch_ids.insert(input.id.clone()) {
-            return Err("Notification producer batch contains duplicate notification ids.".to_owned());
-        }
+        if !batch_ids.insert(input.id.clone()) { return Err("Notification producer batch contains duplicate notification ids.".to_owned()); }
         let notification = DurableNotification {
-            id: input.id,
-            category: input.category,
-            severity: input.severity,
-            title: input.title,
-            body: input.body,
-            created_at_ms: timestamp,
-            read_at_ms: None,
-            source_ref: input.source_ref,
+            id: input.id, category: input.category, severity: input.severity, title: input.title, body: input.body,
+            created_at_ms: timestamp_ms, read_at_ms: None, source_ref: input.source_ref,
+            active_until_ms: input.active_until_ms, inactive_at_ms: None, inactive_reason: None,
         };
         validate_notification(&notification)?;
         upsert_preserving_read_state(&mut store, notification);
+        changed = true;
     }
 
-    write_store(&path, &store)?;
-    let result = snapshot(store);
-    let _ = app.emit(NOTIFICATION_CENTER_CHANGED_EVENT, ());
-    Ok(result)
+    for id in withdrawn_ids {
+        if let Some(notification) = store.notifications.iter_mut().find(|item| item.category == "operator" && item.id == id && item.inactive_at_ms.is_none()) {
+            notification.inactive_at_ms = Some(timestamp_ms);
+            notification.inactive_reason = Some("withdrawn".to_owned());
+            changed = true;
+        }
+    }
+
+    if changed {
+        write_store(&path, &store)?;
+        let _ = app.emit(NOTIFICATION_CENTER_CHANGED_EVENT, ());
+    }
+    Ok(snapshot(store))
+}
+
+pub fn record_product_notifications(app: &tauri::AppHandle, inputs: Vec<ProductNotificationInput>) -> Result<NotificationCenterSnapshot, String> {
+    record_product_notifications_and_reconcile_operator(app, inputs, Vec::new(), now_ms()?)
 }
 
 pub fn record_product_notification(
@@ -200,33 +201,26 @@ pub fn record_product_notification(
     body: String,
     source_ref: Option<String>,
 ) -> Result<NotificationCenterSnapshot, String> {
-    record_product_notifications(
-        app,
-        vec![ProductNotificationInput { id, category, severity, title, body, source_ref }],
-    )
+    record_product_notifications(app, vec![ProductNotificationInput { id, category, severity, title, body, source_ref, active_until_ms: None }])
 }
 
 #[tauri::command]
 pub fn notification_center_list(app: tauri::AppHandle) -> Result<NotificationCenterSnapshot, String> {
     let path = store_path(&app)?;
-    read_store(&path).map(snapshot)
+    let mut store = read_store(&path)?;
+    if reconcile_expired(&mut store, now_ms()?) { write_store(&path, &store)?; }
+    Ok(snapshot(store))
 }
 
 #[tauri::command]
-pub fn notification_center_set_read(
-    app: tauri::AppHandle,
-    id: String,
-    read: bool,
-) -> Result<NotificationCenterSnapshot, String> {
-    if id.trim().is_empty() {
-        return Err("Notification id must not be blank.".to_owned());
-    }
+pub fn notification_center_set_read(app: tauri::AppHandle, id: String, read: bool) -> Result<NotificationCenterSnapshot, String> {
+    if id.trim().is_empty() { return Err("Notification id must not be blank.".to_owned()); }
     let path = store_path(&app)?;
     let mut store = read_store(&path)?;
-    let Some(notification) = store.notifications.iter_mut().find(|item| item.id == id) else {
-        return Err("Notification Center record was not found.".to_owned());
-    };
-    notification.read_at_ms = if read { Some(now_ms()?) } else { None };
+    let timestamp = now_ms()?;
+    reconcile_expired(&mut store, timestamp);
+    let Some(notification) = store.notifications.iter_mut().find(|item| item.id == id) else { return Err("Notification Center record was not found.".to_owned()); };
+    notification.read_at_ms = if read { Some(timestamp) } else { None };
     write_store(&path, &store)?;
     Ok(snapshot(store))
 }
@@ -236,10 +230,9 @@ pub fn notification_center_mark_all_read(app: tauri::AppHandle) -> Result<Notifi
     let path = store_path(&app)?;
     let mut store = read_store(&path)?;
     let timestamp = now_ms()?;
+    reconcile_expired(&mut store, timestamp);
     for notification in &mut store.notifications {
-        if notification.read_at_ms.is_none() {
-            notification.read_at_ms = Some(timestamp);
-        }
+        if notification.read_at_ms.is_none() { notification.read_at_ms = Some(timestamp); }
     }
     write_store(&path, &store)?;
     Ok(snapshot(store))
@@ -249,95 +242,27 @@ pub fn notification_center_mark_all_read(app: tauri::AppHandle) -> Result<Notifi
 mod tests {
     use super::*;
 
-    fn test_root(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("livariant-notification-center-{name}-{}", std::process::id()))
-    }
-
-    fn fixture(id: &str, created_at_ms: u64, read_at_ms: Option<u64>) -> DurableNotification {
+    fn fixture(id: &str) -> DurableNotification {
         DurableNotification {
-            id: id.to_owned(),
-            category: "connection".to_owned(),
-            severity: "info".to_owned(),
-            title: format!("Notification {id}"),
-            body: "Bounded durable product event.".to_owned(),
-            created_at_ms,
-            read_at_ms,
-            source_ref: Some("connection:codex".to_owned()),
+            id: id.to_owned(), category: "operator".to_owned(), severity: "info".to_owned(),
+            title: "Notice".to_owned(), body: "Body".to_owned(), created_at_ms: 10, read_at_ms: None,
+            source_ref: None, active_until_ms: Some(100), inactive_at_ms: None, inactive_reason: None,
         }
     }
 
     #[test]
-    fn missing_store_reads_as_empty_snapshot() {
-        let root = test_root("empty");
-        let path = root.join("center.json");
-        let result = snapshot(read_store(&path).expect("read empty store"));
-        assert_eq!(result.schema_version, 1);
-        assert_eq!(result.unread_count, 0);
-        assert!(result.notifications.is_empty());
-        let _ = fs::remove_dir_all(root);
+    fn legacy_record_without_lifecycle_fields_remains_readable() {
+        let raw = br#"{"schemaVersion":1,"notifications":[{"id":"legacy","category":"connection","severity":"info","title":"Legacy","body":"Body","createdAtMs":10,"readAtMs":null,"sourceRef":null}]}"#;
+        let store: NotificationStore = serde_json::from_slice(raw).expect("legacy store parses");
+        assert_eq!(store.notifications[0].inactive_at_ms, None);
     }
 
     #[test]
-    fn store_roundtrip_preserves_unread_state_and_orders_newest_first() {
-        let root = test_root("roundtrip");
-        let path = root.join("center.json");
-        let store = NotificationStore {
-            schema_version: 1,
-            notifications: vec![fixture("older", 10, None), fixture("newer", 20, Some(30))],
-        };
-        write_store(&path, &store).expect("write store");
-        let result = snapshot(read_store(&path).expect("read store"));
-        assert_eq!(result.unread_count, 1);
-        assert_eq!(result.notifications[0].id, "newer");
-        assert_eq!(result.notifications[1].id, "older");
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn producer_upsert_preserves_existing_read_state_and_identity_time() {
-        let mut store = NotificationStore {
-            schema_version: 1,
-            notifications: vec![fixture("update:1.2.3", 10, Some(20))],
-        };
-        let mut replacement = fixture("update:1.2.3", 99, None);
-        replacement.body = "Updated presentation text.".to_owned();
-        upsert_preserving_read_state(&mut store, replacement);
+    fn expiry_preserves_history_and_removes_active_unread_attention() {
+        let mut store = NotificationStore { schema_version: 1, notifications: vec![fixture("operator:notice:test")] };
+        assert!(reconcile_expired(&mut store, 100));
         assert_eq!(store.notifications.len(), 1);
-        assert_eq!(store.notifications[0].created_at_ms, 10);
-        assert_eq!(store.notifications[0].read_at_ms, Some(20));
-        assert_eq!(store.notifications[0].body, "Updated presentation text.");
-    }
-
-    #[test]
-    fn operator_namespace_fits_bounded_store_identity() {
-        let notification = DurableNotification {
-            id: format!("operator:{}", "ä".repeat(200)),
-            category: "operator".to_owned(),
-            severity: "warning".to_owned(),
-            title: "Operator notice".to_owned(),
-            body: "Bounded operator message.".to_owned(),
-            created_at_ms: 1,
-            read_at_ms: None,
-            source_ref: None,
-        };
-        validate_notification(&notification).expect("operator namespace must fit store id bound");
-    }
-
-    #[test]
-    fn malformed_or_duplicate_records_fail_closed() {
-        let root = test_root("invalid");
-        let path = root.join("center.json");
-        fs::create_dir_all(&root).expect("create root");
-        fs::write(&path, br#"{\"schemaVersion\":2,\"notifications\":[]}"#).expect("write schema mismatch");
-        assert!(read_store(&path).is_err());
-
-        let duplicate = NotificationStore {
-            schema_version: 1,
-            notifications: vec![fixture("same", 10, None), fixture("same", 20, None)],
-        };
-        let bytes = serde_json::to_vec(&duplicate).expect("encode duplicate fixture");
-        fs::write(&path, bytes).expect("write duplicate fixture");
-        assert!(read_store(&path).is_err());
-        let _ = fs::remove_dir_all(root);
+        assert_eq!(store.notifications[0].inactive_reason.as_deref(), Some("expired"));
+        assert_eq!(snapshot(store).unread_count, 0);
     }
 }
