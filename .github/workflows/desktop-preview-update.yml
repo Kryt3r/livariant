@@ -82,7 +82,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:RUNNER_ARCH -ne "X64") {
-            throw "WP-046 preview updater currently supports the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
+            throw "Preview updater currently supports the x64 Windows runtime bundle only; runner architecture is $env:RUNNER_ARCH."
           }
 
           $nodeVersion = "24.16.0"
