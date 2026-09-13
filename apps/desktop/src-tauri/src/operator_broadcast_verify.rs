@@ -6,10 +6,12 @@ struct PinnedOperatorBroadcastKey {
     public_key_base64: &'static str,
 }
 
-// Production operator-broadcast key material is intentionally not populated yet.
-// A later bounded step must pin the dedicated public key here after the private-key
-// custody/rotation procedure and transport identity are established.
-const PINNED_OPERATOR_BROADCAST_KEYS: &[PinnedOperatorBroadcastKey] = &[];
+const PINNED_OPERATOR_BROADCAST_KEYS: &[PinnedOperatorBroadcastKey] = &[
+    PinnedOperatorBroadcastKey {
+        key_id: "operator-broadcast-prod-2026-01",
+        public_key_base64: "RWRckVBrYLN6NDmO55Kv6KsH0GMji3g9e4ISlSPOo7nUVd5c7c5UK5g1",
+    },
+];
 
 #[derive(Debug, Clone)]
 pub struct VerifiedOperatorBroadcast {
@@ -80,9 +82,23 @@ pub(crate) fn verified_for_test(
 mod tests {
     use super::*;
 
+    const PRODUCTION_KEY_ID: &str = "operator-broadcast-prod-2026-01";
+    const PRODUCTION_PUBLIC_KEY: &str =
+        "RWRckVBrYLN6NDmO55Kv6KsH0GMji3g9e4ISlSPOo7nUVd5c7c5UK5g1";
     const UPSTREAM_TEST_PUBLIC_KEY: &str =
         "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3";
     const UPSTREAM_TEST_SIGNATURE: &str = "untrusted comment: signature from minisign secret key\nRWQf6LRCGA9i59SLOFxz6NxvASXDJeRtuZykwQepbDEGt87ig1BNpWaVWuNrm73YiIiJbq71Wi+dP9eKL8OC351vwIasSSbXxwA=\ntrusted comment: timestamp:1555779966\t file:test\nQtKMXWyYcwdpZAlPF7tE2ENJkRd1ujvKjlj1m9RtHTBnZPa5WKU5uWRs5GoP5M/VqE81QFuMKI5k/SfNQUaOAA==";
+
+    #[test]
+    fn production_key_is_pinned_exactly_and_parses() {
+        let pinned = PINNED_OPERATOR_BROADCAST_KEYS
+            .iter()
+            .find(|candidate| candidate.key_id == PRODUCTION_KEY_ID)
+            .expect("production operator broadcast key must be pinned");
+        assert_eq!(pinned.public_key_base64, PRODUCTION_PUBLIC_KEY);
+        PublicKey::from_base64(pinned.public_key_base64)
+            .expect("pinned production operator broadcast public key must parse");
+    }
 
     #[test]
     fn upstream_minisign_vector_verifies_exact_bytes() {
