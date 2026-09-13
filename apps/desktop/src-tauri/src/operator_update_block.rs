@@ -134,11 +134,17 @@ fn write_store(path: &Path, store: &OperatorUpdateBlockStore) -> Result<(), Stri
     Ok(())
 }
 
-fn record_at_path(path: &Path, inputs: Vec<OperatorUpdateBlockInput>) -> Result<(), String> {
+fn record_at_path(
+    path: &Path,
+    inputs: Vec<OperatorUpdateBlockInput>,
+    timestamp_ms: u64,
+) -> Result<(), String> {
     if inputs.is_empty() {
         return Ok(());
     }
     let mut store = read_store(path)?;
+    store.blocks.retain(|block| block.valid_until_ms > timestamp_ms);
+
     for input in inputs {
         let block = OperatorUpdateBlock {
             id: input.id,
@@ -164,9 +170,10 @@ fn record_at_path(path: &Path, inputs: Vec<OperatorUpdateBlockInput>) -> Result<
 pub fn record_operator_update_blocks(
     app: &tauri::AppHandle,
     inputs: Vec<OperatorUpdateBlockInput>,
+    timestamp_ms: u64,
 ) -> Result<(), String> {
     let path = store_path(app)?;
-    record_at_path(&path, inputs)
+    record_at_path(&path, inputs, timestamp_ms)
 }
 
 fn blocked_at_path(path: &Path, version: &str, timestamp_ms: u64) -> Result<Option<OperatorUpdateBlock>, String> {
@@ -219,7 +226,7 @@ mod tests {
     #[test]
     fn exact_version_only_is_blocked_inside_validity_window() {
         let path = test_path("exact");
-        record_at_path(&path, vec![input("block:29", "0.1.0-rc.29", 1_000, 3_000)])
+        record_at_path(&path, vec![input("block:29", "0.1.0-rc.29", 1_000, 3_000)], 1_500)
             .expect("record block");
         assert!(blocked_at_path(&path, "0.1.0-rc.29", 2_000).expect("query").is_some());
         assert!(blocked_at_path(&path, "0.1.0-rc.290", 2_000).expect("query").is_none());
@@ -230,14 +237,27 @@ mod tests {
     #[test]
     fn idempotent_same_id_replaces_bounded_record() {
         let path = test_path("replace");
-        record_at_path(&path, vec![input("block:29", "0.1.0-rc.29", 1_000, 3_000)])
+        record_at_path(&path, vec![input("block:29", "0.1.0-rc.29", 1_000, 3_000)], 1_500)
             .expect("first block");
         let mut replacement = input("block:29", "0.1.0-rc.29", 1_000, 4_000);
         replacement.reason = "Updated known-bad reason.".to_owned();
-        record_at_path(&path, vec![replacement]).expect("replace block");
+        record_at_path(&path, vec![replacement], 1_600).expect("replace block");
         let store = read_store(&path).expect("read store");
         assert_eq!(store.blocks.len(), 1);
         assert_eq!(store.blocks[0].valid_until_ms, 4_000);
+        let _ = fs::remove_dir_all(path.parent().expect("parent"));
+    }
+
+    #[test]
+    fn expired_records_are_pruned_before_capacity_is_reused() {
+        let path = test_path("prune");
+        record_at_path(&path, vec![input("block:old", "0.1.0-rc.28", 1_000, 2_000)], 1_500)
+            .expect("old block");
+        record_at_path(&path, vec![input("block:new", "0.1.0-rc.29", 2_000, 4_000)], 2_500)
+            .expect("new block");
+        let store = read_store(&path).expect("read store");
+        assert_eq!(store.blocks.len(), 1);
+        assert_eq!(store.blocks[0].id, "block:new");
         let _ = fs::remove_dir_all(path.parent().expect("parent"));
     }
 
