@@ -41,7 +41,12 @@ pub struct OperatorBroadcastDocument {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum OperatorDirective {
     Notice {
         id: String,
@@ -277,6 +282,35 @@ mod tests {
         valid_document().validate().expect("valid operator document");
     }
 
+    #[test]
+    fn production_camel_case_notice_fields_deserialize() {
+        let raw = r#"{
+            "schemaVersion":1,
+            "sequence":3,
+            "issuedAtMs":1789322427000,
+            "expiresAtMs":1789408827000,
+            "directives":[{
+                "type":"notice",
+                "id":"notice:windows-live-acceptance-2026-09-13",
+                "severity":"info",
+                "title":"Livariant live broadcast acceptance",
+                "body":"Harmless Windows live acceptance fixture for WP-055.",
+                "validFromMs":1789322427000,
+                "validUntilMs":1789329627000,
+                "target":{
+                    "platform":"windows",
+                    "desktopVersionPrefix":"0.1.0-rc."
+                }
+            }]
+        }"#;
+
+        let document: OperatorBroadcastDocument =
+            serde_json::from_str(raw).expect("production camelCase directive fields must parse");
+
+        document
+            .validate()
+            .expect("production-shaped notice document must validate");
+    }
     #[test]
     fn narrow_update_block_is_accepted_without_generic_command_surface() {
         let mut document = valid_document();
