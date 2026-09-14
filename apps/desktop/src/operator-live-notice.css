@@ -2,6 +2,10 @@
   grid-template-rows: 38px auto minmax(0, 1fr);
 }
 
+.desktop-frame.has-operator-live-notices .app-shell {
+  height: auto;
+}
+
 .operator-live-notices {
   display: grid;
   gap: 1px;

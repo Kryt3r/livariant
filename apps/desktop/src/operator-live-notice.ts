@@ -2,29 +2,24 @@ import "./operator-live-notice.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-const NOTIFICATION_CENTER_CHANGED_EVENT = "livariant://notification-center-changed";
+const OPERATOR_LIVE_NOTICES_CHANGED_EVENT = "livariant://operator-live-notices-changed";
 
-type DurableNotification = {
+type OperatorLiveNotice = {
   id: string;
-  category: string;
   severity: string;
   title: string;
   body: string;
   createdAtMs: number;
-  readAtMs: number | null;
   sourceRef: string | null;
-  activeUntilMs: number | null;
-  inactiveAtMs: number | null;
-  inactiveReason: "expired" | "withdrawn" | null;
+  activeUntilMs: number;
 };
 
-type NotificationCenterSnapshot = {
+type OperatorLiveNoticeSnapshot = {
   schemaVersion: number;
-  unreadCount: number;
-  notifications: DurableNotification[];
+  notices: OperatorLiveNotice[];
 };
 
-let snapshot: NotificationCenterSnapshot | null = null;
+let snapshot: OperatorLiveNoticeSnapshot | null = null;
 let expiryTimer: number | null = null;
 let refreshGeneration = 0;
 
@@ -34,12 +29,7 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => (
 
 const activeOperatorNotices = () => {
   const now = Date.now();
-  return (snapshot?.notifications ?? []).filter((item) =>
-    item.category === "operator"
-    && item.inactiveAtMs === null
-    && item.activeUntilMs !== null
-    && item.activeUntilMs > now,
-  );
+  return (snapshot?.notices ?? []).filter((item) => item.activeUntilMs > now);
 };
 
 const severityRank = (severity: string) => {
@@ -105,7 +95,7 @@ const scheduleExpiryRefresh = () => {
 const refresh = async () => {
   const generation = ++refreshGeneration;
   try {
-    const next = await invoke<NotificationCenterSnapshot>("notification_center_list");
+    const next = await invoke<OperatorLiveNoticeSnapshot>("operator_live_notice_list");
     if (generation !== refreshGeneration) return;
     snapshot = next;
     render();
@@ -124,4 +114,4 @@ if (appRoot) {
 }
 
 void refresh();
-void listen(NOTIFICATION_CENTER_CHANGED_EVENT, () => { void refresh(); });
+void listen(OPERATOR_LIVE_NOTICES_CHANGED_EVENT, () => { void refresh(); });

@@ -16,6 +16,7 @@ mod operator_broadcast_status_store;
 mod operator_broadcast_state;
 mod operator_broadcast_transport;
 mod operator_broadcast_verify;
+mod operator_live_notice;
 mod operator_update_block;
 mod project_review_selection;
 mod project_source_observation;
@@ -202,6 +203,7 @@ pub fn run() {
             notification_center::notification_center_list,
             notification_center::notification_center_set_read,
             notification_center::notification_center_mark_all_read,
+            operator_live_notice::operator_live_notice_list,
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
             project_source_review_bridge::project_source_review_presentation,

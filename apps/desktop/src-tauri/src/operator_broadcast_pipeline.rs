@@ -1,7 +1,4 @@
 use crate::{
-    notification_center::{
-        record_product_notifications_and_reconcile_operator, ProductNotificationInput,
-    },
     operator_broadcast::{
         OperatorBroadcastEnvelope, OperatorDirective, OperatorNoticeSeverity, OperatorNoticeTarget,
     },
@@ -11,6 +8,7 @@ use crate::{
     },
     operator_broadcast_transport::{fetch_bounded, MAX_RESPONSE_BYTES},
     operator_broadcast_verify::{verify_operator_broadcast, VerifiedOperatorBroadcast},
+    operator_live_notice::{record_operator_live_notices, OperatorLiveNoticeInput},
     operator_update_block::{record_operator_update_blocks, OperatorUpdateBlockInput},
 };
 use std::path::Path;
@@ -78,7 +76,7 @@ fn notice_severity(severity: &OperatorNoticeSeverity) -> &'static str {
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct NoticeLifecycleInputs {
-    active: Vec<ProductNotificationInput>,
+    active: Vec<OperatorLiveNoticeInput>,
     withdrawn_ids: Vec<String>,
 }
 
@@ -136,14 +134,13 @@ fn collect_notice_lifecycle_inputs(
             continue;
         }
 
-        result.active.push(ProductNotificationInput {
+        result.active.push(OperatorLiveNoticeInput {
             id: local_id,
-            category: "operator".to_owned(),
             severity: notice_severity(severity).to_owned(),
             title: title.clone(),
             body: body.clone(),
             source_ref: Some(source_ref.clone()),
-            active_until_ms: Some(effective_until_ms),
+            active_until_ms: effective_until_ms,
         });
     }
 
@@ -201,6 +198,18 @@ fn collect_update_block_inputs(
     Ok(inputs)
 }
 
+fn commit_acceptance_after_downstream<F>(
+    acceptance_state_path: &Path,
+    state: &OperatorBroadcastAcceptanceState,
+    downstream_write: F,
+) -> Result<(), String>
+where
+    F: FnOnce() -> Result<(), String>,
+{
+    downstream_write()?;
+    write_acceptance_state(acceptance_state_path, state)
+}
+
 pub fn accept_bounded_response_and_record_notices(
     app: &AppHandle,
     response_bytes: &[u8],
@@ -223,17 +232,18 @@ pub fn accept_bounded_response_and_record_notices(
     )?;
     let update_block_inputs = collect_update_block_inputs(&verified, now_ms)?;
 
-    if !update_block_inputs.is_empty() {
-        record_operator_update_blocks(app, update_block_inputs, now_ms)?;
-    }
-    record_product_notifications_and_reconcile_operator(
-        app,
-        notice_lifecycle.active,
-        notice_lifecycle.withdrawn_ids,
-        now_ms,
-    )?;
-
-    write_acceptance_state(acceptance_state_path, &state)?;
+    commit_acceptance_after_downstream(acceptance_state_path, &state, || {
+        if !update_block_inputs.is_empty() {
+            record_operator_update_blocks(app, update_block_inputs, now_ms)?;
+        }
+        record_operator_live_notices(
+            app,
+            notice_lifecycle.active,
+            notice_lifecycle.withdrawn_ids,
+            now_ms,
+        )?;
+        Ok(())
+    })?;
     Ok(verified)
 }
 
@@ -412,5 +422,14 @@ mod tests {
         let verified = verified_update_block("0.1.0-rc.29", 1_000, Some(9_000), 4_000);
         let blocks = collect_update_block_inputs(&verified, 1_500).expect("bounded update block");
         assert_eq!(blocks[0].valid_until_ms, 4_000);
+    }
+
+    #[test]
+    fn downstream_failure_does_not_commit_acceptance_state() {
+        let path = test_path("downstream-failure");
+        let state = OperatorBroadcastAcceptanceState::default();
+        assert!(commit_acceptance_after_downstream(&path, &state, || Err("durable write failed".to_owned())).is_err());
+        assert!(!path.exists());
+        let _ = fs::remove_dir_all(path.parent().expect("parent"));
     }
 }
