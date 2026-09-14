@@ -30,8 +30,12 @@ pub fn classify_error(error: &str) -> &'static str {
         "endpoint"
     } else if error.contains("transport") || error.contains("HTTPS") {
         "transport"
-    } else if error.contains("envelope") || error.contains("invalid JSON") {
-        "envelope"
+    } else if error.contains("envelope is invalid JSON") {
+        "outer-envelope-json"
+    } else if error.contains("document is invalid JSON") {
+        "inner-document-json"
+    } else if error.contains("envelope") {
+        "envelope-shape"
     } else if error.contains("signature") || error.contains("key id") || error.contains("public key") {
         "signature"
     } else if error.contains("replay") || error.contains("rollback") || error.contains("expired") || error.contains("not yet valid") {
@@ -58,6 +62,9 @@ mod tests {
     #[test]
     fn errors_are_reduced_to_fixed_classes() {
         assert_eq!(classify_error("Operator broadcast transport request failed."), "transport");
+        assert_eq!(classify_error("Operator broadcast envelope is invalid JSON: expected value"), "outer-envelope-json");
+        assert_eq!(classify_error("Operator broadcast document is invalid JSON: expected value"), "inner-document-json");
+        assert_eq!(classify_error("Unsupported operator broadcast envelope schema 2."), "envelope-shape");
         assert_eq!(classify_error("Operator broadcast replay or sequence rollback was rejected."), "freshness-replay");
         assert_eq!(classify_error("Operator broadcast signature verification failed."), "signature");
         assert_eq!(classify_error("Notification Center store could not be written"), "notification-persistence");
