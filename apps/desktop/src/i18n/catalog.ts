@@ -20,15 +20,15 @@ export const messages = {
   "common.maximize": { segment: "common", en: "Maximize", de: "Maximieren" },
   "common.close": { segment: "common", en: "Close", de: "Schließen" },
 
-  "navigation.desktopFoundation": { segment: "navigation", en: "Desktop Foundation", de: "Desktop-Basis" },
+  "navigation.desktopFoundation": { segment: "navigation", en: "Livariant Desktop", de: "Livariant Desktop" },
   "navigation.primary": { segment: "navigation", en: "Primary navigation", de: "Hauptnavigation" },
   "navigation.overview": { segment: "navigation", en: "Overview", de: "Übersicht" },
   "navigation.projectTruth": { segment: "navigation", en: "Project Truth", de: "Projektwissen" },
   "navigation.diagnostics": { segment: "navigation", en: "Diagnostics", de: "Diagnose" },
   "navigation.updates": { segment: "navigation", en: "Updates", de: "Updates" },
   "navigation.settings": { segment: "navigation", en: "Settings", de: "Einstellungen" },
-  "navigation.foundationPreview": { segment: "navigation", en: "Foundation preview", de: "Foundation-Vorschau" },
-  "navigation.connectorDiagnostics": { segment: "navigation", en: "Connector + diagnostics integration", de: "Connector- und Diagnoseintegration" },
+  "navigation.foundationPreview": { segment: "navigation", en: "Desktop workspace", de: "Desktop-Arbeitsbereich" },
+  "navigation.connectorDiagnostics": { segment: "navigation", en: "Connections & diagnostics", de: "Verbindungen & Diagnose" },
 
   "updates.desktopLifecycle": { segment: "updates", en: "Desktop lifecycle", de: "Desktop-Lebenszyklus" },
   "updates.evidenceBoundary": { segment: "updates", en: "Update availability is evidence. Livariant will not replace installed code until artifact and update authority are explicitly verified.", de: "Update-Verfügbarkeit ist Evidence. Livariant ersetzt installierten Code erst, wenn Artefakt und Update-Authority ausdrücklich verifiziert wurden." },
@@ -42,13 +42,13 @@ export const messages = {
   "updates.askBoundary": { segment: "updates", en: "Livariant is asking the fixed host-side updater boundary for update state.", de: "Livariant fragt die feste hostseitige Updater-Grenze nach dem Update-Status." },
   "updates.available": { segment: "updates", en: "Update available", de: "Update verfügbar" },
   "updates.current": { segment: "updates", en: "Up to date", de: "Aktuell" },
-  "updates.foundation": { segment: "updates", en: "Updater foundation", de: "Updater-Basis" },
+  "updates.foundation": { segment: "updates", en: "Updater status", de: "Updater-Status" },
   "updates.notConfigured": { segment: "updates", en: "Update channel not configured yet", de: "Update-Kanal noch nicht konfiguriert" },
   "updates.needsAttention": { segment: "updates", en: "Update check needs attention", de: "Update-Prüfung benötigt Aufmerksamkeit" },
   "updates.didNotComplete": { segment: "updates", en: "Update check did not complete", de: "Update-Prüfung wurde nicht abgeschlossen" },
   "updates.signedIdentity": { segment: "updates", en: "Signed update identity", de: "Signierte Update-Identität" },
   "updates.verifiedBoundary": { segment: "updates", en: "Verified boundary", de: "Verifizierte Grenze" },
-  "updates.rendererCannotSupply": { segment: "updates", en: "The renderer cannot supply arbitrary update URLs or executable paths.", de: "Der Renderer kann keine beliebigen Update-URLs oder ausführbaren Pfade liefern." },
+  "updates.rendererCannotSupply": { segment: "updates", en: "Update sources and executable paths are fixed by Livariant and cannot be changed from this screen.", de: "Update-Quellen und ausführbare Pfade sind durch Livariant festgelegt und können auf dieser Seite nicht geändert werden." },
   "updates.installAuthority": { segment: "updates", en: "Install authority", de: "Installations-Authority" },
   "updates.userTriggered": { segment: "updates", en: "User triggered", de: "Vom Nutzer ausgelöst" },
   "updates.availabilityDoesNotAuthorize": { segment: "updates", en: "A successful availability check alone never authorizes installation or restart.", de: "Eine erfolgreiche Verfügbarkeitsprüfung allein autorisiert niemals Installation oder Neustart." },
@@ -109,10 +109,10 @@ export const messages = {
   "settings.general": { segment: "settings", en: "General", de: "Allgemein" },
   "settings.connections": { segment: "settings", en: "Connections", de: "Verbindungen" },
   "settings.system": { segment: "settings", en: "System", de: "System" },
-  "settings.globalBehavior": { segment: "settings", en: "Global behavior and low-frequency configuration will be collected here as the Desktop surface grows.", de: "Globales Verhalten und selten benötigte Konfiguration werden hier gebündelt, während die Desktop-Oberfläche wächst." },
-  "settings.foundation": { segment: "settings", en: "Settings foundation", de: "Einstellungs-Basis" },
-  "settings.foundationDetail": { segment: "settings", en: "This modal establishes the permanent home for configuration without crowding the main workspace.", de: "Dieser Dialog schafft einen dauerhaften Ort für Konfiguration, ohne den Hauptarbeitsbereich zu überladen." },
-  "settings.systemDetail": { segment: "settings", en: "Technical version and runtime information will live here instead of occupying normal work pages.", de: "Technische Versions- und Runtime-Informationen werden hier gebündelt, statt normale Arbeitsseiten zu belegen." },
+  "settings.globalBehavior": { segment: "settings", en: "General app behavior and less frequently used settings are managed here.", de: "Allgemeines App-Verhalten und seltener benötigte Einstellungen werden hier verwaltet." },
+  "settings.foundation": { segment: "settings", en: "Application settings", de: "App-Einstellungen" },
+  "settings.foundationDetail": { segment: "settings", en: "Manage application preferences here without cluttering the main workspace.", de: "Verwalte hier App-Einstellungen, ohne den Hauptarbeitsbereich zu überladen." },
+  "settings.systemDetail": { segment: "settings", en: "Technical version and runtime information is grouped here instead of occupying normal work pages.", de: "Technische Versions- und Runtime-Informationen werden hier gebündelt, statt normale Arbeitsseiten zu belegen." },
   "settings.systemConsolidated": { segment: "settings", en: "System information is intentionally consolidated in Settings.", de: "Systeminformationen werden bewusst in den Einstellungen gebündelt." },
   "settings.language": { segment: "settings", en: "Language", de: "Sprache" },
   "settings.appLanguage": { segment: "settings", en: "App language", de: "App-Sprache" },
@@ -152,16 +152,37 @@ export const messages = {
   "projectBrain.confirmed": { segment: "projectBrain", en: "Confirmed", de: "Bestätigt" },
   "projectBrain.viewSource": { segment: "projectBrain", en: "View source", de: "Quelle anzeigen" },
   "projectBrain.analyze": { segment: "projectBrain", en: "Analyze", de: "Analysieren" },
-  "projectBrain.reviewProposal": { segment: "projectBrain", en: "Review proposal", de: "Vorschlag prüfen" }
+  "projectBrain.reviewProposal": { segment: "projectBrain", en: "Review proposal", de: "Vorschlag prüfen" },
+  "projectBrain.noCanonicalContent": { segment: "projectBrain", en: "No canonical Project Brain content is available for this area yet. When a Project Brain source is connected, the relevant existing knowledge will appear here.", de: "Für diesen Bereich ist noch kein kanonischer Project-Brain-Inhalt verfügbar. Sobald eine Project-Brain-Quelle verbunden ist, erscheint hier das relevante bestehende Wissen." },
+  "projectBrain.semanticCompatibility": { segment: "projectBrain", en: "Livariant cannot yet prove semantic compatibility automatically, so confirmed project knowledge remains unchanged until you explicitly resolve the proposal.", de: "Livariant kann semantische Kompatibilität noch nicht automatisch nachweisen. Bestätigtes Projektwissen bleibt deshalb unverändert, bis du den Vorschlag ausdrücklich auflöst." },
+  "projectBrain.changePreview": { segment: "projectBrain", en: "What this change would update", de: "Was diese Änderung aktualisieren würde" },
+  "projectBrain.previewLabel": { segment: "projectBrain", en: "Preview:", de: "Vorschau:" }
 } as const satisfies Record<string, MessageDefinition>;
 
 export type MessageKey = keyof typeof messages;
 
+const legacySourceAliases: ReadonlyArray<readonly [string, MessageKey]> = [
+  ["Desktop Foundation", "navigation.desktopFoundation"],
+  ["Foundation preview", "navigation.foundationPreview"],
+  ["Connector + diagnostics integration", "navigation.connectorDiagnostics"],
+  ["Updater foundation", "updates.foundation"],
+  ["The renderer cannot supply arbitrary update URLs or executable paths.", "updates.rendererCannotSupply"],
+  ["Global behavior and low-frequency configuration will be collected here as the Desktop surface grows.", "settings.globalBehavior"],
+  ["Settings foundation", "settings.foundation"],
+  ["This modal establishes the permanent home for configuration without crowding the main workspace.", "settings.foundationDetail"],
+  ["Technical version and runtime information will live here instead of occupying normal work pages.", "settings.systemDetail"],
+  ["This renderer preview does not create a separate Project Truth store. Once the Project Brain bridge is connected, this area will display the relevant existing canonical knowledge here.", "projectBrain.noCanonicalContent"],
+  ["The renderer cannot prove semantic compatibility yet, so Livariant keeps the current truth untouched until you explicitly resolve the proposal.", "projectBrain.semanticCompatibility"],
+  ["What this renderer preview would change", "projectBrain.changePreview"],
+  ["Renderer preview:", "projectBrain.previewLabel"]
+];
+
 export const messageFor = (language: DesktopLanguage, key: MessageKey): string => messages[key][language];
 
-export const sourceToKey = new Map<string, MessageKey>(
-  (Object.entries(messages) as [MessageKey, MessageDefinition][]).map(([key, definition]) => [definition.en, key]),
-);
+export const sourceToKey = new Map<string, MessageKey>([
+  ...(Object.entries(messages) as [MessageKey, MessageDefinition][]).map(([key, definition]) => [definition.en, key] as const),
+  ...legacySourceAliases,
+]);
 
 export const germanToKey = new Map<string, MessageKey>(
   (Object.entries(messages) as [MessageKey, MessageDefinition][]).map(([key, definition]) => [definition.de, key]),
