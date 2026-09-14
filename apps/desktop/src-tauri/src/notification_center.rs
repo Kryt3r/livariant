@@ -151,6 +151,7 @@ fn write_store(path: &Path, store: &NotificationStore) -> Result<(), String> {
 }
 
 fn snapshot(mut store: NotificationStore) -> NotificationCenterSnapshot {
+    store.notifications.retain(|notification| notification.category != "operator");
     store.notifications.sort_by(|left, right| {
         right.created_at_ms.cmp(&left.created_at_ms).then_with(|| left.id.cmp(&right.id))
     });
@@ -189,6 +190,30 @@ fn reconcile_expired_operator_notifications(store: &mut NotificationStore, times
         }
     }
     changed
+}
+
+fn set_read_in_store(
+    store: &mut NotificationStore,
+    id: &str,
+    read: bool,
+    timestamp_ms: u64,
+) -> Result<(), String> {
+    let Some(notification) = store.notifications.iter_mut().find(|item| item.id == id) else {
+        return Err("Notification Center record was not found.".to_owned());
+    };
+    if notification.category == "operator" {
+        return Err("Operator live notices are not user-addressable Notification Center records.".to_owned());
+    }
+    notification.read_at_ms = if read { Some(timestamp_ms) } else { None };
+    Ok(())
+}
+
+fn mark_all_product_notifications_read(store: &mut NotificationStore, timestamp_ms: u64) {
+    for notification in &mut store.notifications {
+        if notification.category != "operator" && notification.read_at_ms.is_none() {
+            notification.read_at_ms = Some(timestamp_ms);
+        }
+    }
 }
 
 pub fn record_product_notifications_and_reconcile_operator(
@@ -295,11 +320,7 @@ pub fn notification_center_set_read(
     let path = store_path(&app)?;
     let mut store = read_store(&path)?;
     let timestamp = now_ms()?;
-    reconcile_expired_operator_notifications(&mut store, timestamp);
-    let Some(notification) = store.notifications.iter_mut().find(|item| item.id == id) else {
-        return Err("Notification Center record was not found.".to_owned());
-    };
-    notification.read_at_ms = if read { Some(timestamp) } else { None };
+    set_read_in_store(&mut store, &id, read, timestamp)?;
     write_store(&path, &store)?;
     Ok(snapshot(store))
 }
@@ -309,12 +330,7 @@ pub fn notification_center_mark_all_read(app: tauri::AppHandle) -> Result<Notifi
     let path = store_path(&app)?;
     let mut store = read_store(&path)?;
     let timestamp = now_ms()?;
-    reconcile_expired_operator_notifications(&mut store, timestamp);
-    for notification in &mut store.notifications {
-        if notification.read_at_ms.is_none() {
-            notification.read_at_ms = Some(timestamp);
-        }
-    }
+    mark_all_product_notifications_read(&mut store, timestamp);
     write_store(&path, &store)?;
     Ok(snapshot(store))
 }
@@ -418,6 +434,33 @@ mod tests {
         assert_eq!(store.notifications.len(), 1);
         assert_eq!(store.notifications[0].inactive_reason.as_deref(), Some("expired"));
         assert_eq!(snapshot(store).unread_count, 0);
+    }
+
+    #[test]
+    fn legacy_operator_records_are_hidden_and_do_not_count_as_unread() {
+        let mut operator = fixture("operator:legacy", 20, None);
+        operator.category = "operator".to_owned();
+        let result = snapshot(NotificationStore {
+            schema_version: 1,
+            notifications: vec![fixture("product:visible", 10, None), operator],
+        });
+        assert_eq!(result.unread_count, 1);
+        assert_eq!(result.notifications.len(), 1);
+        assert_eq!(result.notifications[0].id, "product:visible");
+    }
+
+    #[test]
+    fn normal_read_operations_leave_legacy_operator_records_untouched() {
+        let mut operator = fixture("operator:legacy", 20, None);
+        operator.category = "operator".to_owned();
+        let mut store = NotificationStore {
+            schema_version: 1,
+            notifications: vec![fixture("product:visible", 10, None), operator],
+        };
+        mark_all_product_notifications_read(&mut store, 30);
+        assert_eq!(store.notifications[0].read_at_ms, Some(30));
+        assert_eq!(store.notifications[1].read_at_ms, None);
+        assert!(set_read_in_store(&mut store, "operator:legacy", true, 40).is_err());
     }
 
     #[test]
