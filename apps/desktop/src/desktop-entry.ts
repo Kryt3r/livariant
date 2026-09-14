@@ -2,6 +2,7 @@ import "./glass.css";
 import "./styles.css";
 import "./github-first-run-integration.js";
 import { mountFirstRunOnboarding } from "./first-run-ui.js";
+import { getLanguage } from "./i18n/runtime.js";
 
 const rootElement = document.querySelector<HTMLDivElement>("#app");
 if (!rootElement) throw new Error("Livariant desktop root not found");
@@ -9,6 +10,8 @@ const root: HTMLDivElement = rootElement;
 
 const logoUrl = new URL("./assets/livariant-logo.png", import.meta.url).href;
 let mainLoaded = false;
+
+const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
 
 async function loadMainSurface(): Promise<void> {
   if (mainLoaded) return;
@@ -34,7 +37,8 @@ async function start(): Promise<void> {
     });
     if (!handled) await loadMainSurface();
   } catch (error) {
-    root.innerHTML = `<main style="padding:32px;font-family:system-ui;color:#eef1ff;background:#0b0d12;min-height:100vh"><h1>Livariant setup could not start</h1><p>${String(error).replace(/[&<>"']/g, "")}</p><p>No project-owned files were changed. Restart Livariant after resolving the runtime issue.</p></main>`;
+    console.error("Livariant first-run startup failed", error);
+    root.innerHTML = `<main style="padding:32px;font-family:system-ui;color:#eef1ff;background:#0b0d12;min-height:100vh"><h1>${text("Livariant setup could not start", "Livariant-Einrichtung konnte nicht gestartet werden")}</h1><p>${text("Livariant could not open the setup flow. Restart Livariant. If the problem continues, review Diagnostics after the app opens or collect the diagnostic information for support.", "Livariant konnte die Einrichtung nicht öffnen. Starte Livariant neu. Wenn das Problem bestehen bleibt, prüfe nach dem Öffnen der App die Diagnose oder sammle die Diagnoseinformationen für den Support.")}</p><p>${text("No project-owned files were changed.", "Es wurden keine projekt-eigenen Dateien verändert.")}</p></main>`;
   }
 }
 

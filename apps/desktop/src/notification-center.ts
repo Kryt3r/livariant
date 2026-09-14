@@ -35,6 +35,28 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => (
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character] ?? character);
 
+const severityLabel = (severity: string) => {
+  if (severity === "info") return text("Information", "Information");
+  if (severity === "success") return text("Success", "Erfolg");
+  if (severity === "warning") return text("Warning", "Warnung");
+  if (severity === "error") return text("Error", "Fehler");
+  if (severity === "critical") return text("Critical", "Kritisch");
+  return severity;
+};
+
+const categoryLabel = (category: string) => {
+  if (category === "update") return text("Update", "Update");
+  return category;
+};
+
+const unavailableCopy = () => ({
+  title: text("Notification Center unavailable", "Benachrichtigungszentrale nicht verfügbar"),
+  detail: text(
+    "Livariant could not load your durable notifications. Try opening Notifications again. If the problem continues, review Diagnostics for more detail.",
+    "Livariant konnte deine dauerhaften Benachrichtigungen nicht laden. Öffne Benachrichtigungen erneut. Wenn das Problem bestehen bleibt, prüfe die Diagnose für weitere Details.",
+  ),
+});
+
 const loadSnapshot = () => invoke<NotificationCenterSnapshot>("notification_center_list");
 const setRead = (id: string, read: boolean) => invoke<NotificationCenterSnapshot>("notification_center_set_read", { id, read });
 const markAllRead = () => invoke<NotificationCenterSnapshot>("notification_center_mark_all_read");
@@ -95,7 +117,7 @@ const renderSurface = (content: HTMLElement) => {
       const lifecycle = lifecycleLabel(item);
       return `
       <article class="notification-item ${item.readAtMs === null ? "is-unread" : ""} ${item.inactiveAtMs !== null ? "is-inactive" : ""}" data-notification-id="${escapeHtml(item.id)}">
-        <div class="notification-item-meta"><span class="notification-severity" data-severity="${escapeHtml(item.severity)}">${escapeHtml(item.severity)}</span><span>${escapeHtml(item.category)}</span>${lifecycle ? `<span>${escapeHtml(lifecycle)}</span>` : ""}<time>${escapeHtml(formatTime(item.createdAtMs))}</time></div>
+        <div class="notification-item-meta"><span class="notification-severity" data-severity="${escapeHtml(item.severity)}">${escapeHtml(severityLabel(item.severity))}</span><span>${escapeHtml(categoryLabel(item.category))}</span>${lifecycle ? `<span>${escapeHtml(lifecycle)}</span>` : ""}<time>${escapeHtml(formatTime(item.createdAtMs))}</time></div>
         <h2>${escapeHtml(item.title)}</h2>
         <p>${escapeHtml(item.body)}</p>
         <div class="notification-item-actions">
@@ -141,7 +163,8 @@ const refreshSnapshot = async () => {
       const content = document.querySelector<HTMLElement>("main.content");
       if (content) renderSurface(content);
     }
-  } catch {
+  } catch (cause) {
+    console.error("Notification Center refresh failed", cause);
     // A live refresh hint is best-effort presentation. The durable store remains authoritative.
   }
 };
@@ -162,7 +185,9 @@ const renderIntoContent = async () => {
     if (current) renderSurface(current);
   } catch (cause) {
     if (!active || generation !== loadGeneration) return;
-    content.innerHTML = `<section class="notification-center"><span class="eyebrow">${text("NOTIFICATIONS", "BENACHRICHTIGUNGEN")}</span><h1>${text("Notification Center unavailable", "Benachrichtigungszentrale nicht verfügbar")}</h1><p>${escapeHtml(String(cause))}</p></section>`;
+    console.error("Notification Center load failed", cause);
+    const copy = unavailableCopy();
+    content.innerHTML = `<section class="notification-center"><span class="eyebrow">${text("NOTIFICATIONS", "BENACHRICHTIGUNGEN")}</span><h1>${copy.title}</h1><p>${copy.detail}</p></section>`;
   }
 };
 
