@@ -49,9 +49,27 @@ test("supported locale catalog entries are explicit and bilingual", async () => 
     "projectBrain.projectPurpose",
     "projectBrain.currentDirection",
     "projectBrain.rulesConstraints",
+    "projectBrain.noCanonicalContent",
+    "projectBrain.semanticCompatibility",
+    "projectBrain.changePreview",
+    "projectBrain.previewLabel",
   ]) {
     assert.ok(keys.has(required), `missing required controlled key ${required}`);
   }
+});
+
+test("public Desktop copy can replace development-stage source strings through bounded aliases", async () => {
+  const catalog = await read("apps/desktop/src/i18n/catalog.ts");
+
+  assert.match(catalog, /legacySourceAliases/);
+  assert.match(catalog, /\["Desktop Foundation", "navigation\.desktopFoundation"\]/);
+  assert.match(catalog, /\["Foundation preview", "navigation\.foundationPreview"\]/);
+  assert.match(catalog, /\["Updater foundation", "updates\.foundation"\]/);
+  assert.match(catalog, /\["This renderer preview does not create a separate Project Truth store\.[^"]*", "projectBrain\.noCanonicalContent"\]/);
+  assert.match(catalog, /\["The renderer cannot prove semantic compatibility yet,[^"]*", "projectBrain\.semanticCompatibility"\]/);
+  assert.match(catalog, /en: "Livariant Desktop", de: "Livariant Desktop"/);
+  assert.match(catalog, /en: "Desktop workspace", de: "Desktop-Arbeitsbereich"/);
+  assert.match(catalog, /en: "Updater status", de: "Updater-Status"/);
 });
 
 test("Diagnostics behavior is structural and cannot depend on localized heading copy", async () => {
