@@ -1,6 +1,7 @@
 import "./operator-live-notice.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getLanguage } from "./i18n/runtime.js";
 
 const OPERATOR_LIVE_NOTICES_CHANGED_EVENT = "livariant://operator-live-notices-changed";
 
@@ -23,6 +24,7 @@ let snapshot: OperatorLiveNoticeSnapshot | null = null;
 let expiryTimer: number | null = null;
 let refreshGeneration = 0;
 
+const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character] ?? character);
@@ -59,11 +61,11 @@ const render = () => {
     host.dataset.operatorLiveNotices = "true";
     host.className = "operator-live-notices";
     host.setAttribute("aria-live", "polite");
-    host.setAttribute("aria-label", "Livariant service status");
     const shell = frame.querySelector(":scope > .app-shell");
     frame.insertBefore(host, shell ?? null);
   }
 
+  host.setAttribute("aria-label", text("Livariant service status", "Livariant-Servicestatus"));
   frame.classList.add("has-operator-live-notices");
   host.innerHTML = notices.map((item) => `
     <article class="operator-live-notice" data-severity="${escapeHtml(item.severity)}" data-operator-notice-id="${escapeHtml(item.id)}">
@@ -72,7 +74,7 @@ const render = () => {
         <strong>${escapeHtml(item.title)}</strong>
         <span>${escapeHtml(item.body)}</span>
       </div>
-      <span class="operator-live-notice-state">Live</span>
+      <span class="operator-live-notice-state">${text("Live", "Aktiv")}</span>
     </article>
   `).join("");
 };
