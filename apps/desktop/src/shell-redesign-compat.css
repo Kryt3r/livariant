@@ -1,0 +1,7 @@
+.desktop-frame.shell-redesign-active.has-operator-live-notices {
+  grid-template-rows: var(--shell-header-height) minmax(0, 1fr) !important;
+}
+
+.desktop-frame.shell-redesign-active.has-operator-live-notices .app-shell {
+  height: auto !important;
+}
