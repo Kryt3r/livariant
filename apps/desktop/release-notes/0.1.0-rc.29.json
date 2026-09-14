@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 29",
+    "items": [
+      "Operator-Meldungen laufen jetzt über einen eigenen, begrenzten Live-Service-Pfad und erscheinen als globale, nicht wegklickbare Service-Banner statt als normale Einträge im Notification Center.",
+      "Der sichere Operator-Broadcast-Pfad ist produktionsnah angebunden: signierte Meldungen werden kryptografisch geprüft, gegen Replay geschützt und nur innerhalb klar begrenzter Notice-/UpdateBlock-Semantik verarbeitet.",
+      "GitHub-Projektquellen und Review-Oberflächen wurden deutlich reaktionsschneller gemacht: teure Abfragen laufen nicht mehr automatisch bei jeder Navigation, Ergebnisse werden begrenzt und sinnvoll zwischengespeichert.",
+      "Livariant kann nun im Tray weiterlaufen, während das Hauptfenster geschlossen ist; bestehende persistierte LLM-Verbindungen bleiben dabei erhalten.",
+      "Mehrere Desktop-, Diagnose-, Onboarding- und Projektquellen-Abläufe wurden seit Preview 28 stabilisiert und für den bevorstehenden Public-Release-Polish vorbereitet."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 29",
+    "items": [
+      "Operator notices now use a dedicated bounded live-service path and appear as global non-dismissible service banners instead of normal Notification Center entries.",
+      "The operator-broadcast path is now wired for production-style use: signed notices are cryptographically verified, replay-protected, and limited to the explicitly bounded Notice / UpdateBlock semantics.",
+      "GitHub project sources and review surfaces are substantially more responsive: expensive refreshes no longer run on every navigation, results are bounded, and safe telemetry is cached where appropriate.",
+      "Livariant can now keep running in the system tray while the main window is closed, preserving existing persistent LLM connections.",
+      "Multiple Desktop, diagnostics, onboarding, and project-source flows have been stabilized since Preview 28 and prepared for the upcoming public-release polish phase."
+    ]
+  }
+}
