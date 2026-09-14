@@ -1,0 +1,127 @@
+import "./operator-live-notice.css";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+
+const NOTIFICATION_CENTER_CHANGED_EVENT = "livariant://notification-center-changed";
+
+type DurableNotification = {
+  id: string;
+  category: string;
+  severity: string;
+  title: string;
+  body: string;
+  createdAtMs: number;
+  readAtMs: number | null;
+  sourceRef: string | null;
+  activeUntilMs: number | null;
+  inactiveAtMs: number | null;
+  inactiveReason: "expired" | "withdrawn" | null;
+};
+
+type NotificationCenterSnapshot = {
+  schemaVersion: number;
+  unreadCount: number;
+  notifications: DurableNotification[];
+};
+
+let snapshot: NotificationCenterSnapshot | null = null;
+let expiryTimer: number | null = null;
+let refreshGeneration = 0;
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+})[character] ?? character);
+
+const activeOperatorNotices = () => {
+  const now = Date.now();
+  return (snapshot?.notifications ?? []).filter((item) =>
+    item.category === "operator"
+    && item.inactiveAtMs === null
+    && item.activeUntilMs !== null
+    && item.activeUntilMs > now,
+  );
+};
+
+const severityRank = (severity: string) => {
+  if (severity === "critical") return 0;
+  if (severity === "warning") return 1;
+  return 2;
+};
+
+const render = () => {
+  const frame = document.querySelector<HTMLElement>(".desktop-frame");
+  if (!frame) return;
+
+  const notices = activeOperatorNotices().sort((left, right) =>
+    severityRank(left.severity) - severityRank(right.severity)
+    || left.createdAtMs - right.createdAtMs,
+  );
+
+  let host = frame.querySelector<HTMLElement>("[data-operator-live-notices]");
+  if (notices.length === 0) {
+    host?.remove();
+    frame.classList.remove("has-operator-live-notices");
+    return;
+  }
+
+  if (!host) {
+    host = document.createElement("section");
+    host.dataset.operatorLiveNotices = "true";
+    host.className = "operator-live-notices";
+    host.setAttribute("aria-live", "polite");
+    host.setAttribute("aria-label", "Livariant service status");
+    const shell = frame.querySelector(":scope > .app-shell");
+    frame.insertBefore(host, shell ?? null);
+  }
+
+  frame.classList.add("has-operator-live-notices");
+  host.innerHTML = notices.map((item) => `
+    <article class="operator-live-notice" data-severity="${escapeHtml(item.severity)}" data-operator-notice-id="${escapeHtml(item.id)}">
+      <div class="operator-live-notice-icon" aria-hidden="true">${item.severity === "critical" ? "!" : item.severity === "warning" ? "!" : "i"}</div>
+      <div class="operator-live-notice-copy">
+        <strong>${escapeHtml(item.title)}</strong>
+        <span>${escapeHtml(item.body)}</span>
+      </div>
+      <span class="operator-live-notice-state">Live</span>
+    </article>
+  `).join("");
+};
+
+const scheduleExpiryRefresh = () => {
+  if (expiryTimer !== null) {
+    window.clearTimeout(expiryTimer);
+    expiryTimer = null;
+  }
+
+  const now = Date.now();
+  const nextExpiry = activeOperatorNotices()
+    .map((item) => item.activeUntilMs as number)
+    .sort((left, right) => left - right)[0];
+
+  if (nextExpiry === undefined) return;
+  expiryTimer = window.setTimeout(() => { void refresh(); }, Math.max(1, nextExpiry - now + 50));
+};
+
+const refresh = async () => {
+  const generation = ++refreshGeneration;
+  try {
+    const next = await invoke<NotificationCenterSnapshot>("notification_center_list");
+    if (generation !== refreshGeneration) return;
+    snapshot = next;
+    render();
+    scheduleExpiryRefresh();
+  } catch {
+    // Keep the last verified local state on a presentation read failure.
+    render();
+    scheduleExpiryRefresh();
+  }
+};
+
+const appRoot = document.querySelector<HTMLElement>("#app");
+if (appRoot) {
+  const observer = new MutationObserver(() => render());
+  observer.observe(appRoot, { childList: true });
+}
+
+void refresh();
+void listen(NOTIFICATION_CENTER_CHANGED_EVENT, () => { void refresh(); });
