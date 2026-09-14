@@ -11,6 +11,8 @@ mod notification_product_events;
 mod operator_broadcast;
 mod operator_broadcast_pipeline;
 mod operator_broadcast_runtime;
+mod operator_broadcast_status;
+mod operator_broadcast_status_store;
 mod operator_broadcast_state;
 mod operator_broadcast_transport;
 mod operator_broadcast_verify;
