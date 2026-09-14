@@ -1,0 +1,37 @@
+name: Temporary rc.29 Cargo lock refresh
+
+on:
+  push:
+    branches:
+      - release/desktop-0.1.0-rc.29
+    paths:
+      - .github/workflows/rc29-lock-refresh.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: release/desktop-0.1.0-rc.29
+          fetch-depth: 0
+
+      - name: Refresh vulnerable rustls and release package identity
+        working-directory: apps/desktop/src-tauri
+        run: |
+          cargo update -p rustls@0.23.43 --precise 0.23.45
+          cargo metadata --locked --format-version 1 --no-deps >/dev/null
+
+      - name: Commit generated lockfile and remove temporary generator
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/rc29-lock-refresh.yml
+          git add apps/desktop/src-tauri/Cargo.lock
+          git diff --cached --check
+          git commit -m "Desktop: refresh rc.29 Cargo lock and patched rustls"
+          git push origin HEAD:release/desktop-0.1.0-rc.29
