@@ -1,5 +1,6 @@
 import "./glass.css";
 import "./styles.css";
+import "./shell-redesign-compat.css";
 import "./github-first-run-integration.js";
 import { mountFirstRunOnboarding } from "./first-run-ui.js";
 import { getLanguage } from "./i18n/runtime.js";
@@ -18,6 +19,7 @@ async function loadMainSurface(): Promise<void> {
   mainLoaded = true;
   await import("./main.js");
   await Promise.all([
+    import("./shell-redesign.js"),
     import("./project-source-review-navigation.js"),
     import("./notification-center.js"),
     import("./operator-live-notice.js"),
