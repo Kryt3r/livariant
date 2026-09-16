@@ -1,0 +1,15 @@
+.dc-hero.empty {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(28, 25, 58, 0.82));
+  box-shadow: none;
+}
+
+.dc-hero.empty .dc-hero-icon {
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.dc-hero.empty .dc-hero-copy > span {
+  color: #cbd5e1;
+}
