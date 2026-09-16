@@ -22,6 +22,7 @@ async function loadMainSurface(): Promise<void> {
     import("./shell-redesign.js"),
     import("./project-source-review-navigation.js"),
     import("./notification-center.js"),
+    import("./notification-center-drawer.js"),
     import("./operator-live-notice.js"),
     import("./first-steps-editor-state.js"),
     import("./runtime-health.js"),
