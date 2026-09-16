@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 1420 --strictPort",
+    "visual:dev": "vite --port 1420 --strictPort --open /visual-preview.html",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
