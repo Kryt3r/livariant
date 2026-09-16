@@ -1,0 +1,67 @@
+name: WP-056 Notification Center Visual QA
+
+on:
+  push:
+    branches:
+      - wp-056-notification-center-drawer
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notification-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+
+      - name: Install Desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Type-check and build Desktop
+        working-directory: apps/desktop
+        run: npm run build
+
+      - name: Install Chromium for visual QA
+        working-directory: apps/desktop
+        run: npx --yes playwright@1.55.0 install --with-deps chromium
+
+      - name: Start Visual-QA renderer
+        working-directory: apps/desktop
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/livariant-notification-visual-qa.log 2>&1 &
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:1420/notification-visual-preview.html >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/livariant-notification-visual-qa.log
+          exit 1
+
+      - name: Capture Notification Center states
+        working-directory: apps/desktop
+        run: |
+          mkdir -p notification-visual-qa-output
+          npx --yes playwright@1.55.0 screenshot --browser=chromium --full-page --viewport-size="1600,1000" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-1600x1000.png
+          npx --yes playwright@1.55.0 screenshot --browser=chromium --full-page --viewport-size="1180,820" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-1180x820.png
+          npx --yes playwright@1.55.0 screenshot --browser=chromium --full-page --viewport-size="900,900" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-900x900.png
+          npx --yes playwright@1.55.0 screenshot --browser=chromium --full-page --viewport-size="1180,820" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html?scenario=empty" notification-visual-qa-output/notification-drawer-empty.png
+
+      - name: Upload visual QA artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wp056-notification-center-visual-qa
+          path: apps/desktop/notification-visual-qa-output/*.png
+          if-no-files-found: error
+          retention-days: 7
