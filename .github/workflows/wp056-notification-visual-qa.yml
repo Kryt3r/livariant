@@ -53,10 +53,10 @@ jobs:
         working-directory: apps/desktop
         run: |
           mkdir -p notification-visual-qa-output
-          npx --yes playwright@1.55.0 screenshot --browser=chromium --full-page --viewport-size="1600,1000" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-1600x1000.png
-          npx --yes playwright@1.55.0 screenshot --browser=chromium --full-page --viewport-size="1180,820" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-1180x820.png
-          npx --yes playwright@1.55.0 screenshot --browser=chromium --full-page --viewport-size="900,900" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-900x900.png
-          npx --yes playwright@1.55.0 screenshot --browser=chromium --full-page --viewport-size="1180,820" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html?scenario=empty" notification-visual-qa-output/notification-drawer-empty.png
+          timeout 30s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-1600x1000.png
+          timeout 30s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1180,820" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-1180x820.png
+          timeout 30s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="900,900" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html" notification-visual-qa-output/notification-drawer-900x900.png
+          timeout 30s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1180,820" --wait-for-timeout=1500 "http://127.0.0.1:1420/notification-visual-preview.html?scenario=empty" notification-visual-qa-output/notification-drawer-empty.png
 
       - name: Upload visual QA artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
