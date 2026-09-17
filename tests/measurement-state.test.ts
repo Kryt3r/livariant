@@ -22,7 +22,7 @@ test("newly discovered models are immediately measurable while existing targets 
   const existingAt = new Date(now - 60 * 60 * 1000).toISOString();
   const targets = buildDiagnosticMeasurementTargets(
     [target("gpt-default"), target("gpt-new")],
-    [{ ...target("gpt-default"), lastSuccessfulAt: existingAt }],
+    [{ provider: "openai-codex", connectionFingerprint: "connection-a", model: "gpt-default", lastSuccessfulAt: existingAt }],
     now,
   );
   assert.equal(targets[0]?.ready, false);
@@ -33,16 +33,14 @@ test("newly discovered models are immediately measurable while existing targets 
 
 test("successful targets become measurable again after the six hour cooldown", () => {
   const measuredAt = Date.parse("2026-09-17T06:00:00.000Z");
-  const before = buildDiagnosticMeasurementTargets(
-    [target("gpt-default")],
-    [{ ...target("gpt-default"), lastSuccessfulAt: new Date(measuredAt).toISOString() }],
-    measuredAt + DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS - 1,
-  );
-  const after = buildDiagnosticMeasurementTargets(
-    [target("gpt-default")],
-    [{ ...target("gpt-default"), lastSuccessfulAt: new Date(measuredAt).toISOString() }],
-    measuredAt + DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS,
-  );
+  const record = {
+    provider: "openai-codex",
+    connectionFingerprint: "connection-a",
+    model: "gpt-default",
+    lastSuccessfulAt: new Date(measuredAt).toISOString(),
+  };
+  const before = buildDiagnosticMeasurementTargets([target("gpt-default")], [record], measuredAt + DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS - 1);
+  const after = buildDiagnosticMeasurementTargets([target("gpt-default")], [record], measuredAt + DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS);
   assert.equal(before[0]?.ready, false);
   assert.equal(after[0]?.ready, true);
   assert.equal(after[0]?.readiness, "cooldown-complete");
@@ -50,28 +48,46 @@ test("successful targets become measurable again after the six hour cooldown", (
 
 test("measurement state is isolated by connection fingerprint", () => {
   const now = Date.parse("2026-09-17T12:00:00.000Z");
-  const old = target("gpt-default");
-  const replacement = { ...old, connectionFingerprint: "connection-b" };
+  const replacement = { ...target("gpt-default"), connectionFingerprint: "connection-b" };
   const targets = buildDiagnosticMeasurementTargets(
     [replacement],
-    [{ ...old, lastSuccessfulAt: new Date(now).toISOString() }],
+    [{ provider: "openai-codex", connectionFingerprint: "connection-a", model: "gpt-default", lastSuccessfulAt: new Date(now).toISOString() }],
     now,
   );
   assert.equal(targets[0]?.ready, true);
   assert.equal(targets[0]?.readiness, "unmeasured");
 });
 
-test("state store replaces only the matching target record", async () => {
+test("first catalog observation establishes a baseline without marking every model as newly added", async () => {
+  const root = await mkdtemp(join(tmpdir(), "livariant-measurement-catalog-"));
+  try {
+    const store = new DiagnosticMeasurementStateStore(join(root, "state.json"));
+    const first = await store.ensureCatalog("openai-codex", "connection-a", ["gpt-default", "gpt-other"]);
+    assert.equal(first.initialized, false);
+    assert.deepEqual(first.knownModels, ["gpt-default", "gpt-other"]);
+
+    const second = await store.ensureCatalog("openai-codex", "connection-a", ["gpt-default", "gpt-other", "gpt-new"]);
+    assert.equal(second.initialized, true);
+    assert.deepEqual(second.knownModels, ["gpt-default", "gpt-other"]);
+    assert.deepEqual(["gpt-default", "gpt-other", "gpt-new"].filter((model) => !second.knownModels.includes(model)), ["gpt-new"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("state store replaces matching records and marks successfully measured new models as known", async () => {
   const root = await mkdtemp(join(tmpdir(), "livariant-measurement-state-"));
   try {
     const store = new DiagnosticMeasurementStateStore(join(root, "state.json"));
+    await store.ensureCatalog("openai-codex", "connection-a", ["gpt-default"]);
     await store.recordSuccess(target("gpt-default"), new Date("2026-09-17T10:00:00.000Z"));
     await store.recordSuccess(target("gpt-new"), new Date("2026-09-17T11:00:00.000Z"));
     await store.recordSuccess(target("gpt-default"), new Date("2026-09-17T12:00:00.000Z"));
-    const records = await store.read();
-    assert.equal(records.length, 2);
-    assert.equal(records.find((record) => record.model === "gpt-default")?.lastSuccessfulAt, "2026-09-17T12:00:00.000Z");
-    assert.equal(records.find((record) => record.model === "gpt-new")?.lastSuccessfulAt, "2026-09-17T11:00:00.000Z");
+    const state = await store.read();
+    assert.equal(state.records.length, 2);
+    assert.equal(state.records.find((record) => record.model === "gpt-default")?.lastSuccessfulAt, "2026-09-17T12:00:00.000Z");
+    assert.equal(state.records.find((record) => record.model === "gpt-new")?.lastSuccessfulAt, "2026-09-17T11:00:00.000Z");
+    assert.deepEqual(state.catalogs[0]?.models, ["gpt-default", "gpt-new"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
