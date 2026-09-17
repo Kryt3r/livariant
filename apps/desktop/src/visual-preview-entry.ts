@@ -140,6 +140,56 @@ const currentFixture = () => previewScenario === "empty"
     ? partialDiagnosticFixture
     : diagnosticFixture;
 
+const measurementFixture = () => {
+  const now = Date.now();
+  const measuredAt = new Date(now - 60 * 60 * 1000).toISOString();
+  const retryAt = new Date(now + 5 * 60 * 60 * 1000).toISOString();
+  const baseTarget = {
+    provider: "openai-codex",
+    isDefault: true,
+    lastSuccessfulAt: measuredAt,
+    retryAt,
+    ready: false,
+    readiness: "cooldown" as const,
+  };
+  if (previewScenario === "cooldown") {
+    return {
+      provider: "openai-codex",
+      scope: "model",
+      available: true,
+      cooldownMs: 21_600_000,
+      readyTargetCount: 0,
+      unmeasuredTargetCount: 0,
+      nextRetryAt: retryAt,
+      detail: null,
+      targets: [{ ...baseTarget, model: "gpt-5.6-sol", displayName: "GPT-5.6 Sol" }],
+    };
+  }
+  return {
+    provider: "openai-codex",
+    scope: "model",
+    available: true,
+    cooldownMs: 21_600_000,
+    readyTargetCount: 1,
+    unmeasuredTargetCount: 1,
+    nextRetryAt: retryAt,
+    detail: null,
+    targets: [
+      { ...baseTarget, model: "gpt-5.6-sol", displayName: "GPT-5.6 Sol" },
+      {
+        provider: "openai-codex",
+        model: "gpt-5.6-pro",
+        displayName: "GPT-5.6 Pro",
+        isDefault: false,
+        lastSuccessfulAt: null,
+        retryAt: null,
+        ready: true,
+        readiness: "unmeasured",
+      },
+    ],
+  };
+};
+
 const invoke: VisualInvoke = async (command, args) => {
   if (command === "codex_connector_status") {
     return {
@@ -154,10 +204,14 @@ const invoke: VisualInvoke = async (command, args) => {
     };
   }
   if (command === "codex_diagnostics_summary") {
-    return { ...currentFixture(), preset: (args?.preset as string | undefined) ?? "30d" };
+    return { ...currentFixture(), measurement: measurementFixture(), preset: (args?.preset as string | undefined) ?? "30d" };
   }
   if (command === "codex_diagnostics_measure") {
-    return { connection: { connected: true }, diagnostics: currentFixture() };
+    return {
+      connection: { connected: true },
+      measuredTarget: { provider: "openai-codex", model: "gpt-5.6-pro", displayName: "GPT-5.6 Pro", scope: "model" },
+      diagnostics: { ...currentFixture(), measurement: measurementFixture() },
+    };
   }
   if (command === "save_codex_diagnostics_export") {
     return { saved: true, fileName: "livariant-diagnostics-visual-qa.json" };
@@ -203,7 +257,7 @@ window.requestAnimationFrame(() => {
       if (action === "export") {
         window.setTimeout(() => document.querySelector<HTMLButtonElement>(".dc-export")?.click(), 250);
       } else if (action === "measure") {
-        window.setTimeout(() => document.querySelector<HTMLButtonElement>(".dc-measure-polish")?.click(), 250);
+        window.setTimeout(() => document.querySelector<HTMLButtonElement>(".dc-measure-polish")?.click(), 500);
       }
     }, 250);
     return;
