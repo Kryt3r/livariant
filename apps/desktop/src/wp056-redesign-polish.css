@@ -17,6 +17,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 8px;
+  align-content: start;
+  grid-auto-rows: max-content;
 }
 .shell-redesign-active .sidebar-lower {
   flex: 0 0 auto;
