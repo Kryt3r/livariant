@@ -29,6 +29,7 @@ async function loadMainSurface(): Promise<void> {
     import("./updater-ui.js"),
     import("./diagnostics-range-guard.js"),
     import("./first-run-revisit.js"),
+    import("./wp056-redesign-polish.js"),
   ]);
 }
 
