@@ -7,6 +7,10 @@ type VisualInvoke = (command: string, args?: Record<string, unknown>) => Promise
 
 const previewParams = new URLSearchParams(window.location.search);
 const previewScenario = previewParams.get("scenario") ?? "normal";
+const previewLanguage = previewParams.get("lang");
+if (previewLanguage === "de" || previewLanguage === "en") {
+  localStorage.setItem("livariant.desktop.language.v1", previewLanguage);
+}
 
 const diagnosticFixture = {
   preset: "30d",
@@ -152,6 +156,9 @@ const invoke: VisualInvoke = async (command, args) => {
   if (command === "codex_diagnostics_summary") {
     return { ...currentFixture(), preset: (args?.preset as string | undefined) ?? "30d" };
   }
+  if (command === "codex_diagnostics_measure") {
+    return { connection: { connected: true }, diagnostics: currentFixture() };
+  }
   if (command === "save_codex_diagnostics_export") {
     return { saved: true, fileName: "livariant-diagnostics-visual-qa.json" };
   }
@@ -174,6 +181,8 @@ await import("./project-source-review-navigation.js");
 await import("./shell-redesign.js");
 await import("./diagnostics-cockpit.js");
 await import("./diagnostics-empty-state-polish.js");
+await import("./first-run-revisit.js");
+await import("./wp056-redesign-polish.js");
 
 window.requestAnimationFrame(() => {
   const view = previewParams.get("view") ?? "overview";
@@ -190,10 +199,22 @@ window.requestAnimationFrame(() => {
         presetSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
-      if (previewParams.get("action") === "export") {
+      const action = previewParams.get("action");
+      if (action === "export") {
         window.setTimeout(() => document.querySelector<HTMLButtonElement>(".dc-export")?.click(), 250);
+      } else if (action === "measure") {
+        window.setTimeout(() => document.querySelector<HTMLButtonElement>(".dc-measure-polish")?.click(), 250);
       }
     }, 250);
+    return;
+  }
+  if (view === "settings") {
+    document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
+    window.setTimeout(() => document.querySelector<HTMLButtonElement>("[data-open-settings]")?.click(), 250);
+    return;
+  }
+  if (view === "steps") {
+    document.querySelector<HTMLButtonElement>("nav.nav [data-view='steps']")?.click();
     return;
   }
   document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
