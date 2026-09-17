@@ -205,6 +205,67 @@
   font-size: 13px;
   line-height: 1.55;
 }
+
+/* Language selector is part of Settings, not an old embedded control. */
+.shell-redesign-active .language-setting-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 22px 0 14px;
+  padding: 17px 18px;
+  border: 1px solid rgba(126,111,199,.24);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(17,24,48,.88), rgba(10,17,35,.9));
+}
+.shell-redesign-active .language-setting-copy small,
+.shell-redesign-active .language-setting-copy strong,
+.shell-redesign-active .language-setting-copy span { display: block; }
+.shell-redesign-active .language-setting-copy small {
+  color: #b596ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.shell-redesign-active .language-setting-copy strong {
+  margin-top: 4px;
+  color: #f2efff;
+  font-size: 15px;
+}
+.shell-redesign-active .language-setting-copy span {
+  margin-top: 4px;
+  color: #aaa6b8;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.shell-redesign-active .language-setting-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  border: 1px solid rgba(137,121,205,.18);
+  border-radius: 10px;
+  background: rgba(5,10,24,.62);
+}
+.shell-redesign-active .language-setting-option {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #aaa6bb;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.shell-redesign-active .language-setting-option.active {
+  color: #fff;
+  border-color: rgba(172,111,255,.36);
+  background: linear-gradient(100deg, rgba(111,83,255,.28), rgba(193,63,255,.14));
+  box-shadow: 0 0 18px rgba(150,69,255,.1), inset 0 1px 0 rgba(255,255,255,.05);
+}
 .shell-redesign-active .modal-close {
   top: 18px;
   right: 20px;
@@ -228,4 +289,6 @@
   }
   .shell-redesign-active .settings-nav { padding: 18px 8px; }
   .shell-redesign-active .settings-content { padding: 30px 20px 36px; }
+  .shell-redesign-active .language-setting-card { align-items: stretch; flex-direction: column; }
+  .shell-redesign-active .language-setting-options { align-self: flex-start; }
 }
