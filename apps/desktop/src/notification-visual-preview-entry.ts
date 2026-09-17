@@ -23,14 +23,6 @@ const params = new URLSearchParams(window.location.search);
 const scenario = params.get("scenario") ?? "normal";
 const now = Date.parse("2026-09-16T21:00:00Z");
 
-// Chromium headless can deadlock while rasterizing a viewport-sized backdrop-filter.
-// Disable only the drawer scrim blur in this non-shipping screenshot harness; the
-// production drawer CSS and all layout, spacing, color and content remain unchanged.
-const rasterGuardStyle = document.createElement("style");
-rasterGuardStyle.dataset.notificationVisualQa = "raster-guard";
-rasterGuardStyle.textContent = ".notification-drawer-scrim{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}";
-document.head.append(rasterGuardStyle);
-
 let notifications: VisualNotification[] = scenario === "empty" ? [] : [
   {
     id: "operator:maintenance-2026-09-18",
@@ -141,7 +133,16 @@ await import("./notification-center-drawer.js");
 
 window.requestAnimationFrame(() => {
   document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
-  window.setTimeout(() => {
-    document.querySelector<HTMLButtonElement>("[data-shell-notifications]")?.click();
-  }, 300);
+
+  let attempts = 0;
+  const openWhenReady = () => {
+    const bell = document.querySelector<HTMLButtonElement>("[data-shell-notifications]");
+    if (bell) {
+      bell.click();
+      return;
+    }
+    attempts += 1;
+    if (attempts < 40) window.setTimeout(openWhenReady, 50);
+  };
+  openWhenReady();
 });
