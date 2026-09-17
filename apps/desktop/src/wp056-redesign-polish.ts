@@ -83,7 +83,10 @@ const localizeProjectKnowledge = () => {
 
   workspace.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((field) => {
     if (field.placeholder === "Search Project Brain areas..." || field.placeholder === "Search Project Brain areas…") field.placeholder = "Project-Brain-Bereiche durchsuchen…";
-    if (field.placeholder === "Tell Livariant what changed...") field.placeholder = "Teile Livariant mit, was sich geändert hat…";
+    if (field.placeholder === "Tell Livariant what changed..." || field.placeholder === "Tell Livariant what changed…") field.placeholder = "Teile Livariant mit, was sich geändert hat…";
+    if (field instanceof HTMLTextAreaElement && field.getAttribute("aria-label")?.startsWith("Tell Livariant about ")) {
+      field.setAttribute("aria-label", "Livariant über diesen Projektbereich informieren");
+    }
   });
 
   const boundary = workspace.querySelector<HTMLElement>(".truth-boundary-card p");
