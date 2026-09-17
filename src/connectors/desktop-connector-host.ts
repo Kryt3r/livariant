@@ -268,11 +268,26 @@ async function resolveMeasurementTargets(): Promise<ResolvedMeasurementTargets> 
   assertDiagnosticsMeasurementSession(Boolean(session?.isOpen() && workflow));
   if (!session?.isOpen() || !workflow) throw new Error("Codex diagnostics measurement requires an already connected session.");
   const fingerprint = connectionFingerprint();
-  const records = await measurementStore.read();
+  const state = await measurementStore.read();
   try {
     const models = await listCodexModels(session);
     if (models.length === 0) throw new Error("Codex model/list returned no visible models.");
-    const inputs: DiagnosticMeasurementTargetInput[] = models.map((model) => ({
+
+    const catalog = await measurementStore.ensureCatalog(
+      MEASUREMENT_PROVIDER,
+      fingerprint,
+      models.map((model) => model.model),
+    );
+    const defaultModel = models.find((model) => model.isDefault) ?? models[0];
+    if (!defaultModel) throw new Error("Codex model/list did not provide a default measurement target.");
+
+    const newlyAddedModels = catalog.initialized
+      ? models.filter((model) => !catalog.knownModels.includes(model.model))
+      : [];
+    const candidates = [defaultModel, ...newlyAddedModels]
+      .filter((model, index, all) => all.findIndex((candidate) => candidate.model === model.model) === index);
+
+    const inputs: DiagnosticMeasurementTargetInput[] = candidates.map((model) => ({
       provider: MEASUREMENT_PROVIDER,
       connectionFingerprint: fingerprint,
       model: model.model,
@@ -282,7 +297,7 @@ async function resolveMeasurementTargets(): Promise<ResolvedMeasurementTargets> 
     return {
       scope: "model",
       detail: null,
-      targets: buildDiagnosticMeasurementTargets(inputs, records),
+      targets: buildDiagnosticMeasurementTargets(inputs, state.records),
     };
   } catch (error) {
     const fallback: DiagnosticMeasurementTargetInput = {
@@ -295,7 +310,7 @@ async function resolveMeasurementTargets(): Promise<ResolvedMeasurementTargets> 
     return {
       scope: "connection",
       detail: `Model-scoped measurement is unavailable for this Codex App Server: ${error instanceof Error ? error.message : String(error)}`,
-      targets: buildDiagnosticMeasurementTargets([fallback], records),
+      targets: buildDiagnosticMeasurementTargets([fallback], state.records),
     };
   }
 }
