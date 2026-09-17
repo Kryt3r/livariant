@@ -67,8 +67,16 @@ const loadSnapshot = () => invoke<NotificationCenterSnapshot>("notification_cent
 const setRead = (id: string, read: boolean) => invoke<NotificationCenterSnapshot>("notification_center_set_read", { id, read });
 const markAllRead = () => invoke<NotificationCenterSnapshot>("notification_center_mark_all_read");
 
+const setBadgeText = (badge: HTMLElement, value: string) => {
+  // This function is called from a subtree MutationObserver. Replacing an already
+  // identical text node would itself create another childList mutation and can
+  // otherwise form an unbounded observer feedback loop.
+  if (badge.textContent !== value) badge.textContent = value;
+};
+
 const updateUnreadBadges = () => {
   const unread = snapshot?.unreadCount ?? 0;
+  const label = unread > 99 ? "99+" : String(unread);
   const navButton = document.querySelector<HTMLButtonElement>("nav.nav [data-view='notifications']");
   if (navButton) {
     let badge = navButton.querySelector<HTMLElement>("[data-notification-nav-badge]");
@@ -79,7 +87,7 @@ const updateUnreadBadges = () => {
         badge.dataset.notificationNavBadge = "true";
         navButton.appendChild(badge);
       }
-      badge.textContent = unread > 99 ? "99+" : String(unread);
+      setBadgeText(badge, label);
     }
   }
 
@@ -93,7 +101,7 @@ const updateUnreadBadges = () => {
         badge.className = "global-notification-badge";
         button.appendChild(badge);
       }
-      badge.textContent = unread > 99 ? "99+" : String(unread);
+      setBadgeText(badge, label);
     }
   });
 };
