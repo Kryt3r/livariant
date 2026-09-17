@@ -45,7 +45,7 @@ const localizeProjectKnowledge = () => {
 
     const boundary = workspace.querySelector<HTMLElement>(".truth-boundary-card p");
     const desired = "Ein kanonisches Brain, mehrere Eingabeoberflächen.|Desktop, Codex, Claude und andere Provider können Evidence einreichen, aber Project Brain bleibt die dauerhafte Quelle der Wahrheit. Der zukünftige lokale Mutationskoordinator wird akzeptierte Schreibvorgänge serialisieren und veraltete Revisionen vor der Mutation zurückweisen.";
-    if (boundary?.dataset.wp056Copy !== desired) {
+    if (boundary && boundary.dataset.wp056Copy !== desired) {
       boundary.innerHTML = "<strong>Ein kanonisches Brain, mehrere Eingabeoberflächen.</strong> Desktop, Codex, Claude und andere Provider können Evidence einreichen, aber Project Brain bleibt die dauerhafte Quelle der Wahrheit. Der zukünftige lokale Mutationskoordinator wird akzeptierte Schreibvorgänge serialisieren und veraltete Revisionen vor der Mutation zurückweisen.";
       boundary.dataset.wp056Copy = desired;
     }
