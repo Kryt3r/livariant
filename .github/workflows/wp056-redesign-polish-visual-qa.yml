@@ -24,6 +24,14 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install Core dependencies
+        run: npm ci
+
+      - name: Type-check Core and run scoped measurement tests
+        run: |
+          npm run build
+          node --test dist/tests/measurement-state.test.js
+
       - name: Install Desktop dependencies
         working-directory: apps/desktop
         run: npm ci
