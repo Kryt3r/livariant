@@ -10,9 +10,16 @@ export interface DiagnosticMeasurementRecord {
   lastSuccessfulAt: string;
 }
 
+export interface DiagnosticMeasurementCatalog {
+  provider: string;
+  connectionFingerprint: string;
+  models: string[];
+}
+
 interface DiagnosticMeasurementState {
   schemaVersion: 1;
   records: DiagnosticMeasurementRecord[];
+  catalogs: DiagnosticMeasurementCatalog[];
 }
 
 export interface DiagnosticMeasurementTargetInput {
@@ -30,7 +37,7 @@ export interface DiagnosticMeasurementTarget extends DiagnosticMeasurementTarget
   readiness: "unmeasured" | "cooldown" | "cooldown-complete";
 }
 
-const emptyState = (): DiagnosticMeasurementState => ({ schemaVersion: 1, records: [] });
+const emptyState = (): DiagnosticMeasurementState => ({ schemaVersion: 1, records: [], catalogs: [] });
 
 function requireText(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${field} must be a non-blank string.`);
@@ -55,13 +62,29 @@ function parseState(raw: unknown): DiagnosticMeasurementState {
       lastSuccessfulAt,
     };
   });
-  return { schemaVersion: 1, records };
+  const rawCatalogs = record.catalogs ?? [];
+  if (!Array.isArray(rawCatalogs)) throw new Error("Diagnostics measurement state catalogs must be an array.");
+  const catalogs = rawCatalogs.map((entry, index): DiagnosticMeasurementCatalog => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) throw new Error(`Diagnostics measurement catalog ${index} must be an object.`);
+    const value = entry as Record<string, unknown>;
+    if (!Array.isArray(value.models)) throw new Error(`Diagnostics measurement catalog ${index}.models must be an array.`);
+    return {
+      provider: requireText(value.provider, `Diagnostics measurement catalog ${index}.provider`),
+      connectionFingerprint: requireText(value.connectionFingerprint, `Diagnostics measurement catalog ${index}.connectionFingerprint`),
+      models: value.models.map((model, modelIndex) => requireText(model, `Diagnostics measurement catalog ${index}.models[${modelIndex}]`)),
+    };
+  });
+  return { schemaVersion: 1, records, catalogs };
 }
 
 function sameTarget(record: DiagnosticMeasurementRecord, target: DiagnosticMeasurementTargetInput): boolean {
   return record.provider === target.provider
     && record.connectionFingerprint === target.connectionFingerprint
     && record.model === target.model;
+}
+
+function sameCatalog(catalog: DiagnosticMeasurementCatalog, provider: string, connectionFingerprint: string): boolean {
+  return catalog.provider === provider && catalog.connectionFingerprint === connectionFingerprint;
 }
 
 export function buildDiagnosticMeasurementTargets(
@@ -94,27 +117,48 @@ export class DiagnosticMeasurementStateStore {
     this.#path = path;
   }
 
-  async read(): Promise<DiagnosticMeasurementRecord[]> {
+  async read(): Promise<DiagnosticMeasurementState> {
     try {
-      return parseState(JSON.parse(await readFile(this.#path, "utf8"))).records;
+      return parseState(JSON.parse(await readFile(this.#path, "utf8")));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyState();
       throw error;
     }
   }
 
+  async ensureCatalog(provider: string, connectionFingerprint: string, models: string[]): Promise<{ initialized: boolean; knownModels: string[] }> {
+    const state = await this.read();
+    const existing = state.catalogs.find((catalog) => sameCatalog(catalog, provider, connectionFingerprint));
+    if (existing) return { initialized: true, knownModels: [...existing.models] };
+    const catalog: DiagnosticMeasurementCatalog = {
+      provider,
+      connectionFingerprint,
+      models: [...new Set(models)],
+    };
+    await this.#write({ ...state, catalogs: [...state.catalogs, catalog] });
+    return { initialized: false, knownModels: [...catalog.models] };
+  }
+
   async recordSuccess(target: DiagnosticMeasurementTargetInput, at = new Date()): Promise<void> {
-    const records = await this.read();
+    const state = await this.read();
     const next: DiagnosticMeasurementRecord = {
       provider: target.provider,
       connectionFingerprint: target.connectionFingerprint,
       model: target.model,
       lastSuccessfulAt: at.toISOString(),
     };
-    const state: DiagnosticMeasurementState = {
-      ...emptyState(),
-      records: [...records.filter((record) => !sameTarget(record, target)), next],
-    };
+    const catalogs = state.catalogs.map((catalog) => {
+      if (!sameCatalog(catalog, target.provider, target.connectionFingerprint) || !target.model || catalog.models.includes(target.model)) return catalog;
+      return { ...catalog, models: [...catalog.models, target.model] };
+    });
+    await this.#write({
+      ...state,
+      records: [...state.records.filter((record) => !sameTarget(record, target)), next],
+      catalogs,
+    });
+  }
+
+  async #write(state: DiagnosticMeasurementState): Promise<void> {
     await mkdir(dirname(this.#path), { recursive: true });
     await writeFile(this.#path, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   }
