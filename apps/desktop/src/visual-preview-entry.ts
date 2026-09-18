@@ -286,7 +286,11 @@ window.requestAnimationFrame(() => {
   }
   if (view === "settings") {
     document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
-    window.setTimeout(() => document.querySelector<HTMLButtonElement>("[data-open-settings]")?.click(), 250);
+    window.setTimeout(() => {
+      document.querySelector<HTMLButtonElement>("[data-open-settings]")?.click();
+      const section = previewParams.get("section");
+      if (section) window.setTimeout(() => document.querySelector<HTMLButtonElement>(`[data-settings-section='${section}']`)?.click(), 120);
+    }, 250);
     return;
   }
   if (view === "steps") {

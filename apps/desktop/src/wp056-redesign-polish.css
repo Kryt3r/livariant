@@ -295,3 +295,67 @@
   .shell-redesign-active .language-setting-card { align-items: stretch; flex-direction: column; }
   .shell-redesign-active .language-setting-options { align-self: flex-start; }
 }
+
+
+/* WP-056 Settings information architecture */
+.shell-redesign-active .settings-heading p {
+  margin: 7px 0 0;
+  color: #827d91;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.shell-redesign-active .settings-nav-group {
+  display: grid;
+  gap: 5px;
+  margin-top: 17px;
+}
+.shell-redesign-active .settings-nav-group > small {
+  padding: 0 9px 3px;
+  color: #696477;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.shell-redesign-active .settings-status-hero {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  gap: 22px;
+  padding: 20px;
+  margin-top: 18px;
+  border: 1px solid rgba(147, 112, 232, .20);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(27,22,52,.84), rgba(13,15,31,.82));
+}
+.shell-redesign-active .settings-status-hero small,
+.shell-redesign-active .settings-status-hero strong,
+.shell-redesign-active .settings-status-hero span { display:block; }
+.shell-redesign-active .settings-status-hero small { color:#a68ad8; font-size:9px; text-transform:uppercase; letter-spacing:.09em; }
+.shell-redesign-active .settings-status-hero strong { margin-top:5px; color:#f0ebf7; font-size:17px; }
+.shell-redesign-active .settings-status-hero span { margin-top:6px; color:#9e98aa; font-size:11.5px; line-height:1.5; }
+.shell-redesign-active .settings-safety-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin-top:12px;
+}
+.shell-redesign-active .settings-safety-grid article {
+  display:grid;
+  grid-template-columns:30px minmax(0,1fr);
+  gap:11px;
+  padding:15px;
+  border:1px solid rgba(137,124,188,.13);
+  border-radius:12px;
+  background:rgba(255,255,255,.018);
+}
+.shell-redesign-active .settings-safety-grid article > span {
+  width:28px;height:28px;display:grid;place-items:center;border-radius:8px;
+  color:#cba9ff;background:rgba(126,68,225,.10);font-size:9px;font-weight:800;
+}
+.shell-redesign-active .settings-safety-grid strong { color:#ded8e7;font-size:11.5px; }
+.shell-redesign-active .settings-safety-grid p { margin:5px 0 0;color:#8f899c;font-size:10.5px;line-height:1.5; }
+@media (max-width: 840px) {
+  .shell-redesign-active .settings-status-hero { grid-template-columns:1fr; }
+  .shell-redesign-active .settings-safety-grid { grid-template-columns:1fr; }
+}
