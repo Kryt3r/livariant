@@ -7,6 +7,10 @@ type VisualInvoke = (command: string, args?: Record<string, unknown>) => Promise
 
 const previewParams = new URLSearchParams(window.location.search);
 const previewScenario = previewParams.get("scenario") ?? "normal";
+const previewLanguage = previewParams.get("lang");
+if (previewLanguage === "de" || previewLanguage === "en") {
+  localStorage.setItem("livariant.desktop.language.v1", previewLanguage);
+}
 
 const diagnosticFixture = {
   preset: "30d",
@@ -136,6 +140,56 @@ const currentFixture = () => previewScenario === "empty"
     ? partialDiagnosticFixture
     : diagnosticFixture;
 
+const measurementFixture = () => {
+  const now = Date.now();
+  const measuredAt = new Date(now - 60 * 60 * 1000).toISOString();
+  const retryAt = new Date(now + 5 * 60 * 60 * 1000).toISOString();
+  const baseTarget = {
+    provider: "openai-codex",
+    isDefault: true,
+    lastSuccessfulAt: measuredAt,
+    retryAt,
+    ready: false,
+    readiness: "cooldown" as const,
+  };
+  if (previewScenario === "cooldown") {
+    return {
+      provider: "openai-codex",
+      scope: "model",
+      available: true,
+      cooldownMs: 21_600_000,
+      readyTargetCount: 0,
+      unmeasuredTargetCount: 0,
+      nextRetryAt: retryAt,
+      detail: null,
+      targets: [{ ...baseTarget, model: "gpt-5.6-sol", displayName: "GPT-5.6 Sol" }],
+    };
+  }
+  return {
+    provider: "openai-codex",
+    scope: "model",
+    available: true,
+    cooldownMs: 21_600_000,
+    readyTargetCount: 1,
+    unmeasuredTargetCount: 1,
+    nextRetryAt: retryAt,
+    detail: null,
+    targets: [
+      { ...baseTarget, model: "gpt-5.6-sol", displayName: "GPT-5.6 Sol" },
+      {
+        provider: "openai-codex",
+        model: "gpt-5.6-pro",
+        displayName: "GPT-5.6 Pro",
+        isDefault: false,
+        lastSuccessfulAt: null,
+        retryAt: null,
+        ready: true,
+        readiness: "unmeasured",
+      },
+    ],
+  };
+};
+
 const invoke: VisualInvoke = async (command, args) => {
   if (command === "codex_connector_status") {
     return {
@@ -150,7 +204,14 @@ const invoke: VisualInvoke = async (command, args) => {
     };
   }
   if (command === "codex_diagnostics_summary") {
-    return { ...currentFixture(), preset: (args?.preset as string | undefined) ?? "30d" };
+    return { ...currentFixture(), measurement: measurementFixture(), preset: (args?.preset as string | undefined) ?? "30d" };
+  }
+  if (command === "codex_diagnostics_measure") {
+    return {
+      connection: { connected: true },
+      measuredTarget: { provider: "openai-codex", model: "gpt-5.6-pro", displayName: "GPT-5.6 Pro", scope: "model" },
+      diagnostics: { ...currentFixture(), measurement: measurementFixture() },
+    };
   }
   if (command === "save_codex_diagnostics_export") {
     return { saved: true, fileName: "livariant-diagnostics-visual-qa.json" };
@@ -174,6 +235,8 @@ await import("./project-source-review-navigation.js");
 await import("./shell-redesign.js");
 await import("./diagnostics-cockpit.js");
 await import("./diagnostics-empty-state-polish.js");
+await import("./first-run-revisit.js");
+await import("./wp056-redesign-polish.js");
 
 window.requestAnimationFrame(() => {
   const view = previewParams.get("view") ?? "overview";
@@ -190,10 +253,22 @@ window.requestAnimationFrame(() => {
         presetSelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
-      if (previewParams.get("action") === "export") {
+      const action = previewParams.get("action");
+      if (action === "export") {
         window.setTimeout(() => document.querySelector<HTMLButtonElement>(".dc-export")?.click(), 250);
+      } else if (action === "measure") {
+        window.setTimeout(() => document.querySelector<HTMLButtonElement>(".dc-measure-polish")?.click(), 500);
       }
     }, 250);
+    return;
+  }
+  if (view === "settings") {
+    document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
+    window.setTimeout(() => document.querySelector<HTMLButtonElement>("[data-open-settings]")?.click(), 250);
+    return;
+  }
+  if (view === "steps") {
+    document.querySelector<HTMLButtonElement>("nav.nav [data-view='steps']")?.click();
     return;
   }
   document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();

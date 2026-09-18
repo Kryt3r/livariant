@@ -1,0 +1,297 @@
+@import "./wp056-measurement-dialog.css";
+
+/* WP-056 maintainer feedback polish.
+   Presentation only: no Trust/Authority, persistence or Project Brain semantics. */
+
+/* Keep the bottom settings launcher inside the real viewport.
+   The legacy shell is still defined as calc(100vh - 38px). Once H3 raises the header to
+   --shell-header-height that legacy height can extend below the viewport. Pin the post-header
+   grid track to its exact viewport height so the settings launcher can never be clipped. */
+.desktop-frame.shell-redesign-active > .app-shell {
+  height: calc(100vh - var(--shell-header-height)) !important;
+  max-height: calc(100vh - var(--shell-header-height)) !important;
+  min-height: 0 !important;
+  align-self: stretch;
+}
+.desktop-frame.shell-redesign-active > .app-shell > .sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  align-self: stretch;
+  overflow: hidden;
+}
+.shell-redesign-active .nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 8px;
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+.shell-redesign-active .sidebar-lower {
+  flex: 0 0 auto;
+  margin-top: 10px;
+  padding-top: 10px;
+  padding-bottom: 2px;
+  background: linear-gradient(180deg, rgba(7,7,18,.12), rgba(7,7,18,.96) 22%);
+}
+.shell-redesign-active .settings-launcher {
+  min-height: 44px;
+}
+
+/* Navigation should be readable without losing the compact B2 rhythm. */
+.shell-redesign-active .nav-item span,
+.shell-redesign-active .settings-launcher span {
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 650;
+  color: #b9b4c8;
+}
+.shell-redesign-active .nav-item.active span { color: #fff; }
+.shell-redesign-active .nav-item { min-height: 46px; }
+
+/* Route changes must not animate or dim the whole content viewport.
+   The former transition layer caused a visible flash on every Project Knowledge
+   and Diagnostics navigation click, including repeated clicks on the active route. */
+/* General readability floor for the redesigned work area. */
+.shell-redesign-active main.content {
+  color: #f6f3ff;
+}
+.shell-redesign-active main.content p,
+.shell-redesign-active main.content dd,
+.shell-redesign-active main.content .truth-boundary-card p {
+  color: #b8b3c7;
+}
+.shell-redesign-active main.content .truth-boundary-card p {
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* Diagnostics: remove the duplicated composition from Overview; Usage owns it. */
+.dc-overview .dc-grid-main:has(.dc-evidence-summary) {
+  grid-template-columns: 1fr;
+}
+.dc-overview .dc-evidence-summary {
+  width: 100%;
+}
+
+/* Diagnostics readability. */
+.dc-header p,
+.dc-panel p,
+.dc-section-intro p {
+  color: #b3aec3;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.dc-tab {
+  font-size: 14px;
+}
+.dc-hero-copy span { font-size: 13px; }
+.dc-hero-copy h2 { font-size: 22px; }
+.dc-hero-copy p { font-size: 14px; color: #c7c2d1; }
+.dc-hero-facts small,
+.dc-metrics small,
+.dc-composition-list strong,
+.dc-composition-list b,
+.dc-panel dt,
+.dc-panel dd,
+.dc-definitions strong,
+.dc-definitions span,
+.dc-evidence p,
+.dc-rank-copy strong,
+.dc-rank-copy span,
+.dc-quality-legend span,
+.dc-compact-groups strong,
+.dc-compact-groups span,
+.dc-compact-groups b,
+.dc-empty,
+.dc-footer {
+  font-size: 12.5px;
+}
+.dc-hero-facts small,
+.dc-metrics small,
+.dc-rank-copy span,
+.dc-quality-legend span,
+.dc-panel dt,
+.dc-definitions span,
+.dc-empty,
+.dc-footer {
+  color: #aaa5ba;
+}
+.dc-panel-head h3,
+.dc-panel h3 { font-size: 16px; }
+.dc-findings-list p { font-size: 13.5px; color: #d0ccda; }
+.dc-evidence span { font-size: 12px; }
+.dc-measure-polish { white-space: nowrap; }
+.wp056-measure-notice {
+  margin: 10px 0 12px;
+  padding: 11px 13px;
+  border: 1px solid rgba(79, 209, 161, .28);
+  border-radius: 10px;
+  background: rgba(47, 158, 119, .09);
+  color: #a8ead0;
+  font-size: 13px;
+}
+.wp056-measure-notice[data-tone='error'] {
+  border-color: rgba(255, 100, 131, .3);
+  background: rgba(138,36,63,.1);
+  color: #ffb0c0;
+}
+
+/* Settings modal: bring the legacy modal into the B2/H3 visual family. */
+.shell-redesign-active .modal-backdrop {
+  inset: var(--shell-header-height) 0 0;
+  padding: clamp(18px, 3vw, 36px);
+  background: rgba(3, 4, 13, .72);
+  backdrop-filter: blur(12px) saturate(120%);
+}
+.shell-redesign-active .settings-modal {
+  width: min(1120px, calc(100vw - 72px));
+  height: min(740px, calc(100vh - var(--shell-header-height) - 48px));
+  min-height: 470px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  border-radius: 20px;
+  border-color: rgba(151, 96, 255, .34);
+  background:
+    radial-gradient(circle at 86% 2%, rgba(94, 84, 255, .15), transparent 36%),
+    radial-gradient(circle at 28% 110%, rgba(159, 63, 255, .09), transparent 40%),
+    linear-gradient(145deg, rgba(11, 17, 35, .99), rgba(8, 10, 25, .99));
+  box-shadow: 0 36px 110px rgba(0,0,0,.58), 0 0 54px rgba(108,61,235,.12), inset 0 1px 0 rgba(255,255,255,.045);
+}
+.shell-redesign-active .settings-nav {
+  padding: 28px 18px;
+  border-right-color: rgba(137, 112, 214, .18);
+  background:
+    radial-gradient(circle at 0 12%, rgba(139,63,255,.12), transparent 38%),
+    rgba(7, 10, 24, .8);
+}
+.shell-redesign-active .settings-heading { padding: 0 10px 22px; }
+.shell-redesign-active .settings-heading h2 { font-size: 24px; color: #f5f2ff; }
+.shell-redesign-active .settings-nav-item {
+  min-height: 46px;
+  gap: 12px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  color: #aaa6bb;
+  font-size: 14px;
+}
+.shell-redesign-active .settings-nav-item.active {
+  border-color: rgba(166, 93, 255, .4);
+  background: linear-gradient(90deg, rgba(126, 54, 226, .28), rgba(89, 64, 186, .12));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 0 24px rgba(133,55,255,.1);
+}
+.shell-redesign-active .settings-content {
+  padding: 42px 44px 48px;
+  background: radial-gradient(circle at 78% 0, rgba(88, 92, 255, .09), transparent 34%);
+}
+.shell-redesign-active .settings-panel { max-width: 760px; }
+.shell-redesign-active .settings-panel h2 { font-size: 31px; color: #f6f2ff; }
+.shell-redesign-active .settings-panel > p {
+  color: #b4afc0;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.shell-redesign-active .settings-card {
+  padding: 19px 20px;
+  border-radius: 14px;
+  border-color: rgba(126, 111, 199, .24);
+  background: linear-gradient(180deg, rgba(18, 24, 48, .9), rgba(11, 17, 35, .9));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+}
+.shell-redesign-active .settings-card + .settings-card { margin-top: 12px; }
+.shell-redesign-active .settings-card strong { font-size: 15px; }
+.shell-redesign-active .settings-card div > span {
+  color: #aaa6b8;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Language selector is part of Settings, not an old embedded control. */
+.shell-redesign-active .language-setting-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 22px 0 14px;
+  padding: 17px 18px;
+  border: 1px solid rgba(126,111,199,.24);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(17,24,48,.88), rgba(10,17,35,.9));
+}
+.shell-redesign-active .language-setting-copy small,
+.shell-redesign-active .language-setting-copy strong,
+.shell-redesign-active .language-setting-copy span { display: block; }
+.shell-redesign-active .language-setting-copy small {
+  color: #b596ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.shell-redesign-active .language-setting-copy strong {
+  margin-top: 4px;
+  color: #f2efff;
+  font-size: 15px;
+}
+.shell-redesign-active .language-setting-copy span {
+  margin-top: 4px;
+  color: #aaa6b8;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.shell-redesign-active .language-setting-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  border: 1px solid rgba(137,121,205,.18);
+  border-radius: 10px;
+  background: rgba(5,10,24,.62);
+}
+.shell-redesign-active .language-setting-option {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #aaa6bb;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.shell-redesign-active .language-setting-option.active {
+  color: #fff;
+  border-color: rgba(172,111,255,.36);
+  background: linear-gradient(100deg, rgba(111,83,255,.28), rgba(193,63,255,.14));
+  box-shadow: 0 0 18px rgba(150,69,255,.1), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.shell-redesign-active .modal-close {
+  top: 18px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 10px;
+  background: rgba(255,255,255,.018);
+}
+
+@media (max-width: 900px) {
+  .shell-redesign-active .settings-modal { grid-template-columns: 210px minmax(0,1fr); }
+  .shell-redesign-active .settings-content { padding: 36px 30px 42px; }
+}
+
+@media (max-width: 680px) {
+  .shell-redesign-active .settings-modal {
+    width: 100%;
+    height: calc(100vh - var(--shell-header-height) - 16px);
+    grid-template-columns: 68px minmax(0,1fr);
+  }
+  .shell-redesign-active .settings-nav { padding: 18px 8px; }
+  .shell-redesign-active .settings-content { padding: 30px 20px 36px; }
+  .shell-redesign-active .language-setting-card { align-items: stretch; flex-direction: column; }
+  .shell-redesign-active .language-setting-options { align-self: flex-start; }
+}

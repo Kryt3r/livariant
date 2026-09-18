@@ -1,0 +1,79 @@
+name: WP-056 Redesign Polish Visual QA
+
+on:
+  push:
+    branches:
+      - wp-056-redesign-polish-pass
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  polish-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+
+      - name: Install Core dependencies
+        run: npm ci
+
+      - name: Type-check Core and run scoped measurement tests
+        run: |
+          npm run build
+          node --test dist/tests/measurement-state.test.js
+
+      - name: Install Desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Type-check and build Desktop
+        working-directory: apps/desktop
+        run: npm run build
+
+      - name: Install Chromium for visual QA
+        working-directory: apps/desktop
+        run: npx --yes playwright@1.55.0 install --with-deps chromium
+
+      - name: Start Visual-QA renderer
+        working-directory: apps/desktop
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/livariant-polish-visual-qa.log 2>&1 &
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:1420/visual-preview.html >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/livariant-polish-visual-qa.log
+          exit 1
+
+      - name: Capture maintainer feedback states
+        working-directory: apps/desktop
+        run: |
+          mkdir -p polish-visual-qa-output
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=diagnostics&tab=overview" polish-visual-qa-output/diagnostics-overview-de.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=diagnostics&tab=usage" polish-visual-qa-output/diagnostics-usage-de.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=2300 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=diagnostics&tab=overview&action=measure" polish-visual-qa-output/diagnostics-measurement-dialog-de.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1900 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=diagnostics&tab=overview&scenario=cooldown" polish-visual-qa-output/diagnostics-measurement-cooldown-de.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=settings" polish-visual-qa-output/settings-de.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=steps" polish-visual-qa-output/project-knowledge-de.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1180,820" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=settings" polish-visual-qa-output/settings-de-1180x820.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1920,1032" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=steps" polish-visual-qa-output/project-knowledge-de-1920x1032.png
+
+      - name: Upload visual QA artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wp056-redesign-polish-visual-qa
+          path: apps/desktop/polish-visual-qa-output/*.png
+          if-no-files-found: error
+          retention-days: 7

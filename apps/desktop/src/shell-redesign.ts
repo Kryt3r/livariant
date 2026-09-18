@@ -59,6 +59,14 @@ const healthLabel = () => {
   return text("Checking connections", "Verbindungen werden geprüft");
 };
 
+const healthCompactLabel = () => {
+  const state = healthState();
+  if (state === "healthy") return text("Stable", "Stabil");
+  if (state === "degraded") return text("Check", "Prüfen");
+  if (state === "failed") return text("Unavailable", "Ausgefallen");
+  return text("Checking…", "Prüfe…");
+};
+
 const connectorDetail = () => {
   if (!connectorStatusLoaded) return text("Checking…", "Wird geprüft…");
   if (!connectorStatus) return text("Unavailable", "Nicht verfügbar");
@@ -163,11 +171,18 @@ const syncNavObserver = () => {
 const bindConnectionPopover = (button: HTMLButtonElement) => {
   if (button.dataset.shellHealthBound === "true") return;
   button.dataset.shellHealthBound = "true";
-  button.addEventListener("click", () => {
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const wrap = button.closest<HTMLElement>(".global-health-wrap");
-    const open = wrap?.dataset.open === "true";
-    document.querySelectorAll<HTMLElement>(".global-health-wrap[data-open='true']").forEach((item) => { item.dataset.open = "false"; });
-    if (wrap) wrap.dataset.open = open ? "false" : "true";
+    if (!wrap) return;
+    const nextOpen = wrap.dataset.open !== "true";
+    document.querySelectorAll<HTMLElement>(".global-health-wrap[data-open='true']").forEach((item) => {
+      item.dataset.open = "false";
+      item.querySelector<HTMLButtonElement>("[data-shell-health]")?.setAttribute("aria-expanded", "false");
+    });
+    wrap.dataset.open = nextOpen ? "true" : "false";
+    button.setAttribute("aria-expanded", nextOpen ? "true" : "false");
   });
 };
 
@@ -217,8 +232,8 @@ const ensureHeader = (frame: HTMLElement) => {
       <div class="global-notice-slot" data-operator-notice-slot data-tauri-drag-region></div>
       <div class="global-header-right">
         <div class="global-health-wrap" data-health-state="${healthState()}" data-open="false">
-          <button class="global-health" type="button" data-shell-health aria-haspopup="true" aria-label="${esc(healthLabel())}">
-            <span class="global-health-indicator">${svg("health")}</span><span class="global-health-label">${esc(healthLabel())}</span><span class="global-health-chevron">⌄</span>
+          <button class="global-health" type="button" data-shell-health aria-haspopup="true" aria-expanded="false" aria-label="${esc(healthLabel())}">
+            <span class="global-health-indicator">${svg("health")}</span><span class="global-health-label">${esc(healthCompactLabel())}</span><span class="global-health-chevron">⌄</span>
           </button>
           <div class="global-health-popover" role="dialog" aria-label="${text("Connection status", "Verbindungsstatus")}">
             <div class="global-health-popover-head"><strong>${text("Connections", "Verbindungen")}</strong><span data-health-tone="${healthState()}">${esc(healthLabel())}</span></div>
@@ -243,7 +258,7 @@ const ensureHeader = (frame: HTMLElement) => {
   if (healthButton) {
     healthButton.setAttribute("aria-label", healthLabel());
     const label = healthButton.querySelector<HTMLElement>(".global-health-label");
-    if (label) label.textContent = healthLabel();
+    if (label) label.textContent = healthCompactLabel();
     bindConnectionPopover(healthButton);
   }
   header.querySelectorAll<HTMLElement>("[data-health-tone]").forEach((element) => {
@@ -374,10 +389,15 @@ if (appRoot) {
   observer.observe(appRoot, { childList: true, subtree: true });
 }
 
+document.addEventListener("livariant:shell-rendered", () => enhance());
+
 document.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
   if (!target.closest(".global-health-wrap")) {
-    document.querySelectorAll<HTMLElement>(".global-health-wrap[data-open='true']").forEach((item) => { item.dataset.open = "false"; });
+    document.querySelectorAll<HTMLElement>(".global-health-wrap[data-open='true']").forEach((item) => {
+      item.dataset.open = "false";
+      item.querySelector<HTMLButtonElement>("[data-shell-health]")?.setAttribute("aria-expanded", "false");
+    });
   }
 });
 

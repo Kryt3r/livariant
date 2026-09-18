@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { resolveCodexCommand, type CodexCommandResolution } from "./codex-command.js";
@@ -8,6 +10,7 @@ import {
   type CodexInstallationInspection,
 } from "./codex-runtime.js";
 import { CodexWorkflowClient } from "./codex-workflow.js";
+import { listCodexModels } from "./codex-model-catalog.js";
 import {
   disconnectedConnectionIntent,
   readConnectionIntent,
@@ -23,6 +26,13 @@ import {
 } from "../diagnostics/efficiency.js";
 import { buildDiagnosticEvidenceExport } from "../diagnostics/export.js";
 import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
+import {
+  DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS,
+  DiagnosticMeasurementStateStore,
+  buildDiagnosticMeasurementTargets,
+  type DiagnosticMeasurementTarget,
+  type DiagnosticMeasurementTargetInput,
+} from "../diagnostics/measurement-state.js";
 import { DiagnosticEventStore } from "../diagnostics/store.js";
 
 function requiredEnv(name: "LIVARIANT_DIAGNOSTICS_ROOT" | "LIVARIANT_CORE_VERSION" | "LIVARIANT_CONNECTION_INTENT_PATH"): string {
@@ -35,6 +45,7 @@ const diagnosticsRoot = requiredEnv("LIVARIANT_DIAGNOSTICS_ROOT");
 const clientVersion = requiredEnv("LIVARIANT_CORE_VERSION");
 const connectionIntentPath = requiredEnv("LIVARIANT_CONNECTION_INTENT_PATH");
 const store = new DiagnosticEventStore(diagnosticsRoot);
+const measurementStore = new DiagnosticMeasurementStateStore(join(diagnosticsRoot, "measurement-state.json"));
 const sequencer = new CodexUsageSequencer();
 let session: CodexAppServerSession | undefined;
 let workflow: CodexWorkflowClient | undefined;
@@ -47,6 +58,7 @@ let selectedMode: "auto" | "manual" = "auto";
 let lastRestoreError: string | undefined;
 
 const DIAGNOSTIC_PRESETS = ["1d", "7d", "30d", "90d", "all"] as const satisfies readonly DiagnosticPreset[];
+const MEASUREMENT_PROVIDER = "openai-codex";
 
 type Request = {
   id: number;
@@ -61,6 +73,11 @@ type ResolvedCodexInspection = {
 type ConnectSessionOptions = {
   manualPath?: string;
   resolvedAutoCommand?: string;
+};
+type ResolvedMeasurementTargets = {
+  scope: "model" | "connection";
+  detail: string | null;
+  targets: DiagnosticMeasurementTarget[];
 };
 
 function emit(value: unknown): void { stdout.write(`${JSON.stringify(value)}\n`); }
@@ -125,6 +142,14 @@ function connectionStatus() {
     configuredCommand: selectedResolution?.command ?? null,
     detail: lastRestoreError ? `Codex remains configured to reconnect, but automatic reconnection failed: ${lastRestoreError}` : baseDetail,
   };
+}
+
+function connectionFingerprint(): string {
+  const { resolution, inspection } = activeInspection();
+  if (!resolution || !inspection.version) throw new Error("Codex connection identity is incomplete; diagnostics measurement cannot be scoped safely.");
+  return createHash("sha256")
+    .update(`${MEASUREMENT_PROVIDER}\u0000${resolution.command}\u0000${inspection.version}`)
+    .digest("hex");
 }
 
 async function disconnectSession(): Promise<void> {
@@ -239,6 +264,108 @@ async function restoreDesiredConnection(): Promise<void> {
   }
 }
 
+async function resolveMeasurementTargets(): Promise<ResolvedMeasurementTargets> {
+  assertDiagnosticsMeasurementSession(Boolean(session?.isOpen() && workflow));
+  if (!session?.isOpen() || !workflow) throw new Error("Codex diagnostics measurement requires an already connected session.");
+  const fingerprint = connectionFingerprint();
+  const state = await measurementStore.read();
+  try {
+    const models = await listCodexModels(session);
+    if (models.length === 0) throw new Error("Codex model/list returned no visible models.");
+
+    const catalog = await measurementStore.ensureCatalog(
+      MEASUREMENT_PROVIDER,
+      fingerprint,
+      models.map((model) => model.model),
+    );
+    const defaultModel = models.find((model) => model.isDefault) ?? models[0];
+    if (!defaultModel) throw new Error("Codex model/list did not provide a default measurement target.");
+
+    const newlyAddedModels = catalog.initialized
+      ? models.filter((model) => !catalog.knownModels.includes(model.model))
+      : [];
+    const candidates = [defaultModel, ...newlyAddedModels]
+      .filter((model, index, all) => all.findIndex((candidate) => candidate.model === model.model) === index);
+
+    const inputs: DiagnosticMeasurementTargetInput[] = candidates.map((model) => ({
+      provider: MEASUREMENT_PROVIDER,
+      connectionFingerprint: fingerprint,
+      model: model.model,
+      displayName: model.displayName,
+      isDefault: model.isDefault,
+    }));
+    return {
+      scope: "model",
+      detail: null,
+      targets: buildDiagnosticMeasurementTargets(inputs, state.records),
+    };
+  } catch (error) {
+    const fallback: DiagnosticMeasurementTargetInput = {
+      provider: MEASUREMENT_PROVIDER,
+      connectionFingerprint: fingerprint,
+      model: null,
+      displayName: "Codex default model",
+      isDefault: true,
+    };
+    return {
+      scope: "connection",
+      detail: `Model-scoped measurement is unavailable for this Codex App Server: ${error instanceof Error ? error.message : String(error)}`,
+      targets: buildDiagnosticMeasurementTargets([fallback], state.records),
+    };
+  }
+}
+
+function publicMeasurementStatus(resolved: ResolvedMeasurementTargets) {
+  const targets = resolved.targets.map(({ connectionFingerprint: _fingerprint, ...target }) => target);
+  const readyTargets = targets.filter((target) => target.ready);
+  const cooldownTargets = targets.filter((target) => !target.ready && target.retryAt);
+  const nextRetryAt = cooldownTargets
+    .map((target) => target.retryAt as string)
+    .sort()[0] ?? null;
+  return {
+    provider: MEASUREMENT_PROVIDER,
+    scope: resolved.scope,
+    available: true,
+    cooldownMs: DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS,
+    readyTargetCount: readyTargets.length,
+    unmeasuredTargetCount: targets.filter((target) => target.readiness === "unmeasured").length,
+    nextRetryAt,
+    detail: resolved.detail,
+    targets,
+  };
+}
+
+async function measurementStatus() {
+  if (!session?.isOpen() || !workflow) {
+    return {
+      provider: MEASUREMENT_PROVIDER,
+      scope: "unavailable",
+      available: false,
+      cooldownMs: DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS,
+      readyTargetCount: 0,
+      unmeasuredTargetCount: 0,
+      nextRetryAt: null,
+      detail: "Codex is not connected. Connect it before starting a diagnostics measurement.",
+      targets: [],
+    };
+  }
+  try {
+    return publicMeasurementStatus(await resolveMeasurementTargets());
+  } catch (error) {
+    return {
+      provider: MEASUREMENT_PROVIDER,
+      scope: "unavailable",
+      available: false,
+      cooldownMs: DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS,
+      readyTargetCount: 0,
+      unmeasuredTargetCount: 0,
+      nextRetryAt: null,
+      detail: error instanceof Error ? error.message : String(error),
+      targets: [],
+    };
+  }
+}
+
 async function diagnostics(preset: DiagnosticPreset = "all") {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
@@ -253,6 +380,7 @@ async function diagnostics(preset: DiagnosticPreset = "all") {
     attribution: aggregateObservedAttribution(events, range),
     hasObservedData: aggregate.observed.eventCount > 0,
     storage: "local-jsonl",
+    measurement: await measurementStatus(),
   };
 }
 
@@ -270,7 +398,28 @@ async function diagnosticsExport(preset: DiagnosticPreset = "all") {
 async function measure(preset: DiagnosticPreset = "all") {
   assertDiagnosticsMeasurementSession(Boolean(session?.isOpen() && workflow));
   if (!workflow || !session?.isOpen()) throw new Error("Codex diagnostics measurement requires an already connected session.");
-  const thread = await workflow.startThread({ ephemeral: true });
+
+  const resolved = await resolveMeasurementTargets();
+  const ready = resolved.targets.filter((target) => target.ready);
+  const unmeasured = ready.filter((target) => target.readiness === "unmeasured");
+  const target = unmeasured.find((candidate) => candidate.isDefault)
+    ?? unmeasured[0]
+    ?? ready.find((candidate) => candidate.isDefault)
+    ?? ready[0];
+  if (!target) {
+    const nextRetryAt = resolved.targets
+      .filter((candidate) => !candidate.ready && candidate.retryAt)
+      .map((candidate) => candidate.retryAt as string)
+      .sort()[0] ?? null;
+    throw new Error(nextRetryAt
+      ? `Diagnostics measurement is in cooldown until ${nextRetryAt}.`
+      : "No diagnostics measurement target is currently available.");
+  }
+
+  const thread = await workflow.startThread({
+    ephemeral: true,
+    ...(target.model ? { model: target.model } : {}),
+  });
   sequencer.markNewThread(thread.threadId);
   const turn = await workflow.startTurn(thread.threadId, "Reply with exactly: Livariant diagnostics connection verified.");
   const key = completionKey(turn.threadId, turn.turnId);
@@ -283,7 +432,17 @@ async function measure(preset: DiagnosticPreset = "all") {
   completedTurns.delete(key);
   await new Promise((resolve) => setTimeout(resolve, 250));
   await writeQueue;
-  return { connection: connectionStatus(), diagnostics: await diagnostics(preset) };
+  await measurementStore.recordSuccess(target);
+  return {
+    connection: connectionStatus(),
+    measuredTarget: {
+      provider: target.provider,
+      model: target.model,
+      displayName: target.displayName,
+      scope: resolved.scope,
+    },
+    diagnostics: await diagnostics(preset),
+  };
 }
 
 async function handle(request: Request): Promise<unknown> {
