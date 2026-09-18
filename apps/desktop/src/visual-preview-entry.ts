@@ -216,6 +216,24 @@ const invoke: VisualInvoke = async (command, args) => {
   if (command === "save_codex_diagnostics_export") {
     return { saved: true, fileName: "livariant-diagnostics-visual-qa.json" };
   }
+  if (command === "operator_live_notice_list") {
+    const severity = previewScenario === "operator-critical" ? "critical" : "warning";
+    const hasNotice = previewScenario === "operator-warning" || previewScenario === "operator-critical";
+    return {
+      schemaVersion: 1,
+      notices: hasNotice ? [{
+        id: `visual-${severity}`,
+        severity,
+        title: severity === "critical" ? "Dienst vorübergehend eingeschränkt" : "Geplantes Wartungsfenster",
+        body: severity === "critical"
+          ? "Ein Teil des Livariant-Dienstes ist aktuell nicht erreichbar. Lokale Projektarbeit bleibt davon unberührt."
+          : "Am 18. September kann der Livariant-Dienst zwischen 14:00 und 14:20 Uhr kurzzeitig nicht erreichbar sein.",
+        createdAtMs: Date.now() - 15 * 60 * 1000,
+        sourceRef: "operator:visual-qa",
+        activeUntilMs: Date.now() + 2 * 60 * 60 * 1000,
+      }] : [],
+    };
+  }
   throw new Error(`Native command '${command}' is unavailable in the visual QA preview.`);
 };
 
@@ -237,6 +255,7 @@ await import("./diagnostics-cockpit.js");
 await import("./diagnostics-empty-state-polish.js");
 await import("./first-run-revisit.js");
 await import("./wp056-redesign-polish.js");
+await import("./operator-live-notice.js");
 
 window.requestAnimationFrame(() => {
   const view = previewParams.get("view") ?? "overview";
