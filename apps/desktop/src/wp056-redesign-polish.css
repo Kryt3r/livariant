@@ -5,13 +5,16 @@
 
 /* Keep the bottom settings launcher inside the real viewport. */
 .shell-redesign-active .app-shell {
-  height: 100%;
+  height: auto;
   min-height: 0;
+  align-self: stretch;
 }
 .shell-redesign-active .sidebar {
   display: flex;
   flex-direction: column;
+  height: auto;
   min-height: 0;
+  align-self: stretch;
 }
 .shell-redesign-active .nav {
   flex: 1 1 auto;
@@ -44,19 +47,9 @@
 .shell-redesign-active .nav-item.active span { color: #fff; }
 .shell-redesign-active .nav-item { min-height: 46px; }
 
-/* Prevent the legacy intermediate renderer from visibly flashing during enhanced routes. */
-.shell-redesign-active main.content[data-wp056-route-transition] {
-  opacity: .12;
-  transform: translateY(2px);
-  pointer-events: none;
-  transition: opacity .07s ease, transform .07s ease;
-}
-.shell-redesign-active main.content:not([data-wp056-route-transition]) {
-  opacity: 1;
-  transform: none;
-  transition: opacity .11s ease, transform .11s ease;
-}
-
+/* Route changes must not animate or dim the whole content viewport.
+   The former transition layer caused a visible flash on every Project Knowledge
+   and Diagnostics navigation click, including repeated clicks on the active route. */
 /* General readability floor for the redesigned work area. */
 .shell-redesign-active main.content {
   color: #f6f3ff;
