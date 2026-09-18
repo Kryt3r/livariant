@@ -791,3 +791,32 @@
   .truth-control-status>div{min-width:0}
   .truth-area-body-grid{padding:9px 10px 10px}
 }
+
+
+/* WP-056 compact-width acceptance. */
+.truth-control-band > *,
+.truth-area-body-grid > *,
+.truth-area-identity > div,
+.truth-review-modal > *,
+.truth-source-modal > * {
+  min-width: 0;
+}
+.truth-area-card-redesign,
+.truth-main-card,
+.truth-review-modal,
+.truth-source-modal {
+  overflow-wrap: anywhere;
+}
+@media (max-height: 720px) {
+  .truth-review-backdrop,
+  .truth-source-backdrop {
+    align-items: start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .truth-review-modal,
+  .truth-source-modal {
+    max-height: none;
+    margin: 10px 0 22px;
+  }
+}
