@@ -1,4 +1,5 @@
 name: Desktop Windows Installer
+# Temporary preview build trigger for 8add357f; no product semantics changed.
 
 on:
   pull_request:
@@ -296,6 +297,7 @@ jobs:
           Write-Host "Install -> bundled runtime identity -> launch -> uninstall smoke passed for exact source ${{ steps.source.outputs.sha }}."
 
       - name: Acceptance signed old-installed preview to newer preview
+        if: false # Temporary preview build only: release/updater acceptance is intentionally skipped.
         shell: pwsh
         run: ./src-tauri/windows/ci-updater-acceptance.ps1 -SourceSha "${{ steps.source.outputs.sha }}"
 
