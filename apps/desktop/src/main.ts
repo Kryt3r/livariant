@@ -10,7 +10,6 @@ import {
   refreshConnector,
   renderConnectionsSettingsView,
   renderConnectionsView,
-  renderDiagnosticsView,
 } from "./connections-diagnostics.js";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
@@ -394,7 +393,7 @@ const renderUpdatesView = () => {
 const renderContent = () => {
   if (currentView === "updates") return renderUpdatesView();
   if (currentView === "connections") return renderConnectionsView();
-  if (currentView === "diagnostics") return renderDiagnosticsView();
+  if (currentView === "diagnostics") return `<div class="diagnostics-surface" data-surface="diagnostics" data-diagnostics-preset="30d"></div>`;
   return renderProjectTruthView();
 };
 
