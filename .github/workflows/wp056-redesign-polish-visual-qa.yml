@@ -68,6 +68,7 @@ jobs:
           timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=settings" polish-visual-qa-output/settings-de.png
           timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=steps" polish-visual-qa-output/project-knowledge-de.png
           timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1180,820" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=settings" polish-visual-qa-output/settings-de-1180x820.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1920,1032" --wait-for-timeout=1700 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=steps" polish-visual-qa-output/project-knowledge-de-1920x1032.png
 
       - name: Upload visual QA artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
