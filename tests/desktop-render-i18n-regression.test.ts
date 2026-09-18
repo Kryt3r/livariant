@@ -126,3 +126,20 @@ test("Updater has one active install CTA owner and keeps the available action st
   assert.match(css, /pointer-events: auto !important/);
   assert.match(css, /animation: none !important/);
 });
+
+test("redesigned Diagnostics is the sole visible renderer", async () => {
+  const main = await read("apps/desktop/src/main.ts");
+  const legacy = await read("apps/desktop/src/connections-diagnostics.ts");
+
+  assert.doesNotMatch(main, /renderDiagnosticsView/);
+  assert.match(main, /data-surface="diagnostics"/);
+  assert.match(legacy, /if \(surface\.dataset\.diagnosticsCockpit === "mounted"\) return;/);
+});
+
+test("Diagnostics refresh keeps the redesigned cockpit visible", async () => {
+  const cockpit = await read("apps/desktop/src/diagnostics-cockpit.ts");
+
+  assert.match(cockpit, /if \(state\.data\) renderCockpit\(surface\);/);
+  assert.match(cockpit, /else surface\.innerHTML = .*dc-loading/);
+  assert.match(cockpit, /if \(!state\.data\) \{/);
+});
