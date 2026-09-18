@@ -18,6 +18,11 @@ on:
       - ".github/workflows/ci-verification-mode.yml"
       - "scripts/classify-ci-risk.mjs"
       - "scripts/classify-ci-risk.test.mjs"
+  push:
+    branches:
+      - preview/wp056-health-toggle-3ff6bdf
+    paths:
+      - ".github/workflows/desktop-windows-installer.yml"
   workflow_dispatch:
 
 permissions:
