@@ -480,6 +480,10 @@ const applyTruthFilters = () => {
   if (empty) empty.hidden = visibleCount > 0;
 };
 
+const bindUpdateCheckEvent = () => {
+  bindUpdateCheckEvent();
+};
+
 const renderSettingsSectionOnly = () => {
   const body = document.querySelector<HTMLElement>(".settings-content-body");
   if (!body) { render(); return; }
@@ -487,6 +491,7 @@ const renderSettingsSectionOnly = () => {
   document.querySelectorAll<HTMLButtonElement>("[data-settings-section]").forEach((button) => {
     button.classList.toggle("active", button.dataset.settingsSection === settingsSection);
   });
+  bindUpdateCheckEvent();
   bindConnectionDiagnosticsEvents(renderSettingsSectionOnly);
 };
 
