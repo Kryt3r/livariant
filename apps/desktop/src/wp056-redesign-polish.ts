@@ -356,35 +356,6 @@ const addMeasureAction = () => {
   });
 };
 
-const revealWhenReady = (content: HTMLElement, view: string) => {
-  const selector = view === "steps" ? ".truth-workspace" : view === "diagnostics" ? ".dc-shell" : null;
-  if (!selector) {
-    delete content.dataset.wp056RouteTransition;
-    return;
-  }
-  let frames = 0;
-  const check = () => {
-    frames += 1;
-    if (content.querySelector(selector) || frames > 40) {
-      requestAnimationFrame(() => delete content.dataset.wp056RouteTransition);
-      return;
-    }
-    requestAnimationFrame(check);
-  };
-  requestAnimationFrame(check);
-};
-
-document.addEventListener("click", (event) => {
-  if (!(event.target instanceof Element)) return;
-  const nav = event.target.closest<HTMLButtonElement>("nav.nav [data-view]");
-  const view = nav?.dataset.view;
-  if (view !== "steps" && view !== "diagnostics") return;
-  const content = document.querySelector<HTMLElement>("main.content");
-  if (!content) return;
-  content.dataset.wp056RouteTransition = view;
-  revealWhenReady(content, view);
-}, { capture: true });
-
 const polish = () => {
   localizeRevisitCard();
   localizeProjectKnowledge();
