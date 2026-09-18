@@ -200,12 +200,19 @@ const load = async (surface: HTMLElement) => {
   state.busy = true;
   state.error = null;
   state.notice = null;
-  surface.innerHTML = `<div class="dc-loading"><span></span><strong>${lang("Loading diagnostic evidence…", "Lade Diagnose-Evidence…")}</strong></div>`;
+
+  // Initial mount may show a bounded loading state. Subsequent refreshes keep the
+  // existing cockpit visible so refreshing data never blanks or swaps the UI.
+  if (state.data) renderCockpit(surface);
+  else surface.innerHTML = `<div class="dc-loading"><span></span><strong>${lang("Loading diagnostic evidence…", "Lade Diagnose-Evidence…")}</strong></div>`;
+
   try {
     state.data = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: state.preset });
   } catch (cause) {
     state.error = String(cause);
-    surface.innerHTML = `<div class="dc-error dc-error-standalone"><strong>${lang("Diagnostics could not be loaded.", "Diagnose konnte nicht geladen werden.")}</strong><p>${esc(state.error)}</p></div>`;
+    if (!state.data) {
+      surface.innerHTML = `<div class="dc-error dc-error-standalone"><strong>${lang("Diagnostics could not be loaded.", "Diagnose konnte nicht geladen werden.")}</strong><p>${esc(state.error)}</p></div>`;
+    }
   } finally {
     state.busy = false;
     if (state.data) renderCockpit(surface);

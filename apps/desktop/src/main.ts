@@ -10,7 +10,6 @@ import {
   refreshConnector,
   renderConnectionsSettingsView,
   renderConnectionsView,
-  renderDiagnosticsView,
 } from "./connections-diagnostics.js";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
@@ -394,7 +393,7 @@ const renderUpdatesView = () => {
 const renderContent = () => {
   if (currentView === "updates") return renderUpdatesView();
   if (currentView === "connections") return renderConnectionsView();
-  if (currentView === "diagnostics") return renderDiagnosticsView();
+  if (currentView === "diagnostics") return `<div class="diagnostics-surface" data-surface="diagnostics" data-diagnostics-preset="30d"></div>`;
   return renderProjectTruthView();
 };
 
@@ -480,6 +479,27 @@ const applyTruthFilters = () => {
   if (empty) empty.hidden = visibleCount > 0;
 };
 
+const bindUpdateCheckEvent = () => {
+  document.querySelector<HTMLButtonElement>(".check-updates")?.addEventListener("click", async () => {
+    updateState = "checking";
+    notice = { kind: "info", title: "Checking for updates", detail: "Livariant is contacting the verified update boundary." };
+    render();
+    try {
+      updateResult = await invoke<UpdateCheckResult>("check_for_update");
+      updateState = updateResult.state;
+      if (updateResult.state === "available") notice = { kind: "success", title: "Update available", detail: updateResult.detail };
+      else if (updateResult.state === "current") notice = { kind: "success", title: "Livariant is up to date", detail: updateResult.detail };
+      else if (updateResult.state === "not-configured") notice = { kind: "warning", title: "Update channel not configured", detail: updateResult.detail };
+      else notice = { kind: "error", title: "Update check needs attention", detail: updateResult.detail };
+    } catch (error: unknown) {
+      updateResult = { state: "error", currentVersion: "unknown", availableVersion: null, detail: `Update host bridge failed without changing the installation: ${String(error)}` };
+      updateState = "error";
+      notice = { kind: "error", title: "Update check failed", detail: updateResult.detail };
+    }
+    render();
+  });
+};
+
 const renderSettingsSectionOnly = () => {
   const body = document.querySelector<HTMLElement>(".settings-content-body");
   if (!body) { render(); return; }
@@ -487,6 +507,7 @@ const renderSettingsSectionOnly = () => {
   document.querySelectorAll<HTMLButtonElement>("[data-settings-section]").forEach((button) => {
     button.classList.toggle("active", button.dataset.settingsSection === settingsSection);
   });
+  bindUpdateCheckEvent();
   bindConnectionDiagnosticsEvents(renderSettingsSectionOnly);
 };
 
@@ -676,24 +697,7 @@ const bindEvents = () => {
 
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });
 
-  document.querySelector<HTMLButtonElement>(".check-updates")?.addEventListener("click", async () => {
-    updateState = "checking";
-    notice = { kind: "info", title: "Checking for updates", detail: "Livariant is contacting the verified update boundary." };
-    render();
-    try {
-      updateResult = await invoke<UpdateCheckResult>("check_for_update");
-      updateState = updateResult.state;
-      if (updateResult.state === "available") notice = { kind: "success", title: "Update available", detail: updateResult.detail };
-      else if (updateResult.state === "current") notice = { kind: "success", title: "Livariant is up to date", detail: updateResult.detail };
-      else if (updateResult.state === "not-configured") notice = { kind: "warning", title: "Update channel not configured", detail: updateResult.detail };
-      else notice = { kind: "error", title: "Update check needs attention", detail: updateResult.detail };
-    } catch (error: unknown) {
-      updateResult = { state: "error", currentVersion: "unknown", availableVersion: null, detail: `Update host bridge failed without changing the installation: ${String(error)}` };
-      updateState = "error";
-      notice = { kind: "error", title: "Update check failed", detail: updateResult.detail };
-    }
-    render();
-  });
+  bindUpdateCheckEvent();
 
   bindConnectionDiagnosticsEvents(settingsOpen && settingsSection === "connections" ? renderSettingsSectionOnly : render);
 
