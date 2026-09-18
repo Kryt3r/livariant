@@ -343,13 +343,16 @@ const syncDiagnosticsSurface = (fallback: () => void) => {
   const surface = diagnosticsSurface();
   if (!surface) { fallback(); return; }
 
+  // Once the redesigned diagnostics cockpit has claimed this root, legacy diagnostics
+  // rendering must never replace its children. The cockpit owns all visible refresh,
+  // range, export and measurement presentation from that point onward.
+  if (surface.dataset.diagnosticsCockpit === "mounted") return;
+
   const fresh = document.createElement("div");
   fresh.innerHTML = renderDiagnosticsView();
   const next = fresh.firstElementChild as HTMLElement | null;
   if (!next) { fallback(); return; }
 
-  // Keep the diagnostics root node mounted. Only its children change, so titlebar/sidebar/content shell
-  // identity cannot flicker or be rebound by a full application render.
   surface.dataset.diagnosticsPreset = selectedDiagnosticsPreset;
   surface.replaceChildren(...Array.from(next.childNodes));
   bindConnectionDiagnosticsEvents(fallback);
