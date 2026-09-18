@@ -357,6 +357,18 @@ window.requestAnimationFrame(() => {
   }
   if (view === "steps") {
     document.querySelector<HTMLButtonElement>("nav.nav [data-view='steps']")?.click();
+    const truthScenario = previewParams.get("truth");
+    if (truthScenario === "review") {
+      window.setTimeout(() => {
+        const card = document.querySelector<HTMLElement>("[data-area='direction']");
+        const input = card?.querySelector<HTMLTextAreaElement>(".truth-composer-input");
+        if (input) {
+          input.value = "Livariant soll als kontrollierte Reliability- und Governance-Schicht für KI-gestützte Entwicklung positioniert werden.";
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          card?.querySelector<HTMLButtonElement>(".analyze-truth-input")?.click();
+        }
+      }, 300);
+    }
     return;
   }
   if (view === "source-review") {
