@@ -4,28 +4,28 @@
    updater authority, connector authority or diagnostic semantics. */
 
 :root {
-  --shell-bg-0: #05040b;
+  --shell-bg-0: var(--lv-bg);
   --shell-bg-1: #080713;
   --shell-bg-2: #0c0c1a;
-  --shell-panel: rgba(13, 14, 31, 0.86);
-  --shell-panel-strong: rgba(16, 17, 38, 0.94);
+  --shell-panel: var(--lv-surface-1);
+  --shell-panel-strong: var(--lv-surface-2);
   --shell-panel-soft: rgba(15, 18, 39, 0.68);
-  --shell-line: rgba(141, 122, 255, 0.2);
-  --shell-line-strong: rgba(166, 116, 255, 0.58);
-  --shell-purple: #9b4dff;
-  --shell-violet: #7447ff;
+  --shell-line: var(--lv-border);
+  --shell-line-strong: var(--lv-border-strong);
+  --shell-purple: var(--lv-accent);
+  --shell-violet: var(--lv-accent-2);
   --shell-blue: #5476ff;
   --shell-magenta: #d552ff;
-  --shell-text: #f5f2ff;
-  --shell-muted: #aaa6c2;
-  --shell-muted-2: #73718b;
-  --shell-green: #4ee7a8;
-  --shell-orange: #ffb454;
-  --shell-red: #ff6483;
+  --shell-text: var(--lv-text);
+  --shell-muted: var(--lv-muted);
+  --shell-muted-2: var(--lv-muted-2);
+  --shell-green: var(--lv-success);
+  --shell-orange: var(--lv-warning);
+  --shell-red: var(--lv-danger);
   --shell-header-height: 76px;
   --shell-sidebar-width: 232px;
   --shell-sidebar-collapsed: 76px;
-  --shell-radius: 14px;
+  --shell-radius: var(--lv-radius-lg);
   --shell-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
 }
 
