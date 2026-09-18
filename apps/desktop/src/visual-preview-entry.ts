@@ -297,5 +297,13 @@ window.requestAnimationFrame(() => {
     document.querySelector<HTMLButtonElement>("nav.nav [data-view='steps']")?.click();
     return;
   }
+  if (view === "source-review") {
+    document.querySelector<HTMLButtonElement>("nav.nav [data-view='source-review']")?.click();
+    window.setTimeout(() => {
+      const section = previewParams.get("section");
+      if (section) document.querySelector<HTMLButtonElement>(`[data-source-review-section='${section}']`)?.click();
+    }, 350);
+    return;
+  }
   document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
 });
