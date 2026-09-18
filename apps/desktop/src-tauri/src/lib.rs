@@ -29,6 +29,48 @@ use serde_json::Value;
 use std::{env, fs, path::{Path, PathBuf}, process::Command};
 use tauri::Manager;
 
+#[cfg(target_os = "windows")]
+mod single_instance {
+    use std::{ffi::c_void, ffi::OsStr, os::windows::ffi::OsStrExt, ptr};
+
+    type Handle = *mut c_void;
+    const ERROR_ALREADY_EXISTS: u32 = 183;
+
+    #[link(name = "Kernel32")]
+    extern "system" {
+        fn CreateMutexW(attributes: *mut c_void, initial_owner: i32, name: *const u16) -> Handle;
+        fn GetLastError() -> u32;
+        fn CloseHandle(handle: Handle) -> i32;
+    }
+
+    pub struct Guard(Handle);
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                unsafe { CloseHandle(self.0); }
+            }
+        }
+    }
+
+    pub fn acquire() -> Result<Option<Guard>, u32> {
+        let name: Vec<u16> = OsStr::new("Local\\Livariant.Desktop.Singleton")
+            .encode_wide()
+            .chain(Some(0))
+            .collect();
+        let handle = unsafe { CreateMutexW(ptr::null_mut(), 0, name.as_ptr()) };
+        let error = unsafe { GetLastError() };
+        if handle.is_null() {
+            return Err(error);
+        }
+        if error == ERROR_ALREADY_EXISTS {
+            unsafe { CloseHandle(handle); }
+            return Ok(None);
+        }
+        Ok(Some(Guard(handle)))
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BundledRuntimeManifest {
@@ -165,6 +207,13 @@ fn installer_language() -> Option<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    let _single_instance_guard = match single_instance::acquire() {
+        Ok(Some(guard)) => guard,
+        Ok(None) => return,
+        Err(code) => panic!("Livariant Desktop single-instance guard could not be created (Windows error {code})."),
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(connector_host::ConnectorHostState::default())
