@@ -7,7 +7,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   bindConnectionDiagnosticsEvents,
   refreshConnector,
-  refreshDiagnostics,
   renderConnectionsSettingsView,
   renderConnectionsView,
   renderDiagnosticsView,
@@ -424,22 +423,28 @@ const render = () => {
       ${renderNotice()}
       ${renderSettingsModal()}
     </div>`;
+  // The redesign enhancer normally also observes #app mutations. Dispatching this event here
+  // lets an already-loaded enhancer recompose the shell synchronously in the same render task,
+  // so navigation never paints an intermediate legacy header/sidebar frame.
+  document.dispatchEvent(new Event("livariant:shell-rendered"));
   bindEvents();
   applyTruthFilters();
 };
 
 const activateView = async (view: View) => {
+  // Re-clicking the current route must not tear down and rebuild the whole Desktop tree.
+  if (view === currentView && !settingsOpen && selectedReviewAreaId === null && selectedSourceAreaId === null) return;
+
   currentView = view;
   settingsOpen = false;
   selectedReviewAreaId = null;
   selectedSourceAreaId = null;
-  render();
+
+  // Diagnostics is enhanced by diagnostics-cockpit.ts, which owns its own qualified summary load.
+  // A second connector/diagnostics refresh here used to trigger another full app render and remount
+  // the cockpit, producing the visible double reload/twitch reported by the maintainer.
   if (view === "connections") await refreshConnector();
-  if (view === "diagnostics") {
-    await refreshConnector();
-    await refreshDiagnostics();
-  }
-  if (view === "connections" || view === "diagnostics") render();
+  render();
 };
 
 const bindEvents = () => {
