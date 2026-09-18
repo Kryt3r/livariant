@@ -28,7 +28,11 @@
   display: flex;
   flex-direction: column;
   padding: 24px 16px 14px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(153, 132, 255, .22) transparent;
   border-right: 1px solid rgba(157, 178, 222, 0.12);
   background:
     radial-gradient(circle at 75% 85%, rgba(123, 80, 255, 0.07), transparent 34%),
@@ -99,6 +103,7 @@
 .fr-rail li.done span { color: var(--success); background: rgba(99, 210, 165, 0.07); border-color: rgba(99, 210, 165, 0.22); }
 
 .fr-rail-note {
+  flex: 0 0 auto;
   margin-top: auto;
   padding: 13px 10px;
   border-top: 1px solid var(--line);
@@ -107,7 +112,11 @@
 .fr-rail-note span { display: block; }
 .fr-rail-note strong { font-size: 11px; color: #b7c2d4; font-weight: 650; }
 .fr-rail-note span { margin-top: 3px; color: var(--muted-2); font-size: 10px; line-height: 1.45; }
-.fr-return { width: 100%; }
+.fr-return {
+  flex: 0 0 auto;
+  width: 100%;
+  margin-top: 8px;
+}
 
 .fr-main {
   min-width: 0;
@@ -298,4 +307,50 @@
   .fr-repo-card em { display: block; max-width: none; margin-top: 8px; text-align: left; }
   .fr-question-head { display: block; }
   .fr-question-head > span { display: inline-block; margin-top: 8px; }
+}
+
+
+/* Keep the resumable onboarding footer reachable at compact CSS heights.
+   Windows display scaling can reduce the effective viewport even when the
+   physical screenshot is tall, so compress the rail before clipping controls. */
+@media (max-height: 760px) and (min-width: 881px) {
+  .fr-rail {
+    padding: 16px 12px 10px;
+  }
+
+  .fr-brand {
+    padding: 0 6px 14px;
+  }
+
+  .fr-brand img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .fr-rail ol {
+    gap: 3px;
+  }
+
+  .fr-rail li {
+    min-height: 38px;
+    padding: 5px 9px;
+  }
+
+  .fr-rail li span {
+    width: 25px;
+    height: 25px;
+  }
+
+  .fr-rail-note {
+    padding: 9px 8px 7px;
+  }
+
+  .fr-rail-note span {
+    line-height: 1.35;
+  }
+
+  .fr-return {
+    min-height: 36px;
+    margin-top: 6px;
+  }
 }
