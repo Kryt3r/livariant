@@ -347,7 +347,7 @@ const renderUpdatesSettingsView = () => {
       </div>
       <div class="settings-safety-grid">
         <article><span>01</span><div><strong>${uiText("Signed update identity", "Signierte Update-Identität")}</strong><p>${uiText("The renderer cannot provide arbitrary update URLs or executable paths.", "Der Renderer kann keine beliebigen Update-URLs oder ausführbaren Pfade vorgeben.")}</p></div></article>
-        <article><span>02</span><div><strong>${uiText("Install authority", "Installations-Authority")}</strong><p>${uiText("An available update remains evidence only until the user explicitly starts the qualified install path.", "Ein verfügbares Update bleibt zunächst nur Evidence, bis der Nutzer den qualifizierten Installationspfad ausdrücklich startet.")}</p></div></article>
+        <article><span>02</span><div><strong>${uiText("Install authority", "Installationsfreigabe")}</strong><p>${uiText("An available update remains evidence only until the user explicitly starts the qualified install path.", "Ein verfügbares Update bleibt zunächst nur Evidence, bis der Nutzer den qualifizierten Installationspfad ausdrücklich startet.")}</p></div></article>
       </div>
     </section>`;
 };
@@ -359,7 +359,7 @@ const renderSettingsContent = () => {
     <section class="settings-panel">
       <span class="eyebrow">Desktop</span><h2>System</h2>
       <p>${uiText("Technical version and runtime information lives here instead of occupying normal work pages.", "Technische Versions- und Runtime-Informationen liegen hier, statt normale Arbeitsbereiche zu belegen.")}</p>
-      <div class="settings-card"><div><strong>${uiText("Desktop preview", "Desktop-Vorschau")}</strong><span>${uiText("Runtime and version information stays consolidated in Settings.", "Runtime- und Versionsinformationen bleiben zentral in den Einstellungen gebündelt.")}</span></div><span class="settings-badge">Preview</span></div>
+      <div class="settings-card"><div><strong>${uiText("Desktop preview", "Desktop-Vorschau")}</strong><span>${uiText("Runtime and version information stays consolidated in Settings.", "Runtime- und Versionsinformationen bleiben zentral in den Einstellungen gebündelt.")}</span></div><span class="settings-badge">${uiText("Preview", "Vorschau")}</span></div>
     </section>`;
   return `
     <section class="settings-panel">
@@ -374,7 +374,7 @@ const renderSettingsModal = () => settingsOpen ? `
     <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" data-settings-modal>
       <aside class="settings-nav">
         <div class="settings-heading"><span class="eyebrow">${uiText("Settings", "Einstellungen")}</span><h2 id="settings-title">${uiText("Settings", "Einstellungen")}</h2><p>${uiText("Livariant, connections and desktop lifecycle.", "Livariant, Verbindungen und Desktop-Lebenszyklus.")}</p></div>
-        <div class="settings-nav-group"><small>Workspace</small>
+        <div class="settings-nav-group"><small>${uiText("Workspace", "Arbeitsbereich")}</small>
           <button class="settings-nav-item ${settingsSection === "general" ? "active" : ""}" data-settings-section="general" type="button">${icon("settings")}<span>${uiText("General", "Allgemein")}</span></button>
         </div>
         <div class="settings-nav-group"><small>${uiText("Integrations", "Integrationen")}</small>
