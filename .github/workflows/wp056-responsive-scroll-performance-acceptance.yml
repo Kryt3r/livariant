@@ -34,13 +34,17 @@ jobs:
         working-directory: apps/desktop
         run: npm ci
 
+      - name: Install Playwright test runner
+        working-directory: apps/desktop
+        run: npm install --no-save --ignore-scripts @playwright/test@1.55.0
+
       - name: Type-check and build Desktop
         working-directory: apps/desktop
         run: npm run build
 
       - name: Install Playwright Chromium
         working-directory: apps/desktop
-        run: npx --yes @playwright/test@1.55.0 install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Start Visual-QA renderer
         working-directory: apps/desktop
@@ -57,17 +61,17 @@ jobs:
 
       - name: Run responsive, scroll and remount acceptance
         working-directory: apps/desktop
-        run: npx --yes @playwright/test@1.55.0 test tests/wp056-responsive-acceptance.spec.ts --reporter=line --workers=1
+        run: npx playwright test tests/wp056-responsive-acceptance.spec.ts --reporter=line --workers=1
 
       - name: Capture acceptance screenshots
         working-directory: apps/desktop
         run: |
           mkdir -p responsive-acceptance-output
-          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1366,768" --wait-for-timeout=1600 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=overview" responsive-acceptance-output/overview-1366x768.png
-          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1024,720" --wait-for-timeout=1800 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=steps" responsive-acceptance-output/project-brain-1024x720.png
-          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1024,720" --wait-for-timeout=2200 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=diagnostics" responsive-acceptance-output/diagnostics-1024x720.png
-          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="900,700" --wait-for-timeout=1800 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=settings&section=updates" responsive-acceptance-output/settings-900x700.png
-          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1024,720" --wait-for-timeout=2200 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=source-review&section=sources" responsive-acceptance-output/source-review-1024x720.png
+          timeout 45s npx playwright screenshot --browser=chromium --viewport-size="1366,768" --wait-for-timeout=1600 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=overview" responsive-acceptance-output/overview-1366x768.png
+          timeout 45s npx playwright screenshot --browser=chromium --viewport-size="1024,720" --wait-for-timeout=1800 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=steps" responsive-acceptance-output/project-brain-1024x720.png
+          timeout 45s npx playwright screenshot --browser=chromium --viewport-size="1024,720" --wait-for-timeout=2200 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=diagnostics" responsive-acceptance-output/diagnostics-1024x720.png
+          timeout 45s npx playwright screenshot --browser=chromium --viewport-size="900,700" --wait-for-timeout=1800 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=settings&section=updates" responsive-acceptance-output/settings-900x700.png
+          timeout 45s npx playwright screenshot --browser=chromium --viewport-size="1024,720" --wait-for-timeout=2200 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=source-review&section=sources" responsive-acceptance-output/source-review-1024x720.png
 
       - name: Upload acceptance screenshots
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
