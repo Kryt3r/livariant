@@ -137,14 +137,40 @@ const classifyTruthProposal = (area: TruthArea, proposedValue = area.pendingValu
   return { impact: "replaces", label: "Replaces", explanation: "The proposal is materially different from the currently confirmed statement and may replace it.", conflict: true };
 };
 
+const areaDisplay = (area: TruthArea) => ({
+  purpose: {
+    kind: uiText("Purpose", "Zweck"),
+    title: uiText("Project purpose", "Projektzweck"),
+    description: uiText("Why this project exists and which outcome it is meant to create.", "Warum dieses Projekt existiert und welches Ergebnis es erreichen soll."),
+    question: uiText("What is this project for? Describe the outcome or problem it exists to address.", "Wofür ist dieses Projekt da? Beschreibe das gewünschte Ergebnis oder Problem, das es lösen soll."),
+  },
+  direction: {
+    kind: uiText("Direction", "Richtung"),
+    title: uiText("Current direction", "Aktuelle Richtung"),
+    description: uiText("The active product direction and the next meaningful outcome.", "Die aktuelle Produktrichtung und das nächste sinnvolle Ergebnis."),
+    question: uiText("What is the current product direction or the next useful outcome?", "Was ist die aktuelle Produktrichtung oder das nächste sinnvolle Ergebnis?"),
+  },
+  rules: {
+    kind: uiText("Rules", "Regeln"),
+    title: uiText("Rules & constraints", "Regeln & Grenzen"),
+    description: uiText("Protected properties, boundaries and constraints that current work must preserve.", "Geschützte Eigenschaften, Grenzen und Vorgaben, die aktuelle Arbeit bewahren muss."),
+    question: uiText("Which project rules or constraints must Livariant never violate?", "Welche Projektregeln oder Grenzen darf Livariant niemals verletzen?"),
+  },
+}[area.id] ?? {
+  kind: area.kind,
+  title: area.title,
+  description: area.description,
+  question: area.question,
+});
+
 const areaState = (area: TruthArea) => {
-  if (area.state === "confirmed") return { label: "Confirmed", css: "confirmed" };
+  if (area.state === "confirmed") return { label: uiText("Confirmed", "Bestätigt"), css: "confirmed" };
   if (area.state === "review") {
     const proposal = classifyTruthProposal(area);
-    return { label: proposal.conflict ? "Conflict to review" : "Needs review", css: proposal.conflict ? "conflict" : "review" };
+    return { label: proposal.conflict ? uiText("Conflict to review", "Konflikt prüfen") : uiText("Needs review", "Prüfung nötig"), css: proposal.conflict ? "conflict" : "review" };
   }
-  if (area.state === "deferred") return { label: "Deferred", css: "open" };
-  return { label: "Knowledge gap", css: "open" };
+  if (area.state === "deferred") return { label: uiText("Deferred", "Zurückgestellt"), css: "open" };
+  return { label: uiText("Knowledge gap", "Wissenslücke"), css: "open" };
 };
 
 const areaTypeCode = (kind: string) => kind === "Purpose" ? "P" : kind === "Direction" ? "D" : "R";
@@ -156,32 +182,38 @@ const sourceMarkdown = (area: TruthArea) => {
 
 const renderAreaCard = (area: TruthArea) => {
   const state = areaState(area);
+  const display = areaDisplay(area);
   const proposal = area.state === "review" ? classifyTruthProposal(area) : null;
-  const searchText = `${area.kind} ${area.title} ${area.description} ${area.question} ${area.pendingValue} ${area.confirmedValue}`.toLowerCase();
+  const searchText = `${area.kind} ${area.title} ${area.description} ${area.question} ${area.pendingValue} ${area.confirmedValue} ${display.kind} ${display.title} ${display.description}`.toLowerCase();
   const composerValue = area.pendingValue;
+  const prompt = area.state === "open" || area.state === "deferred"
+    ? display.question
+    : uiText("Tell Livariant what changed, what is missing or what should be reconsidered in this area.", "Sag Livariant, was sich geändert hat, fehlt oder in diesem Bereich neu bewertet werden sollte.");
   return `
-    <article class="truth-area-card" data-truth-item data-state="${area.state}" data-conflict="${proposal?.conflict === true ? "true" : "false"}" data-search="${escapeHtml(searchText)}" data-area="${area.id}">
+    <article class="truth-area-card truth-area-card-redesign" data-truth-item data-state="${area.state}" data-conflict="${proposal?.conflict === true ? "true" : "false"}" data-search="${escapeHtml(searchText)}" data-area="${area.id}">
       <div class="truth-area-head">
-        <div class="truth-area-identity"><span class="truth-item-type" title="${escapeHtml(area.kind)}">${areaTypeCode(area.kind)}</span><div><span class="eyebrow">${escapeHtml(area.kind)}</span><h3>${escapeHtml(area.title)}</h3><p>${escapeHtml(area.description)}</p></div></div>
-        <div class="truth-area-head-actions"><span class="truth-state truth-state-${state.css}">${state.label}</span><button class="button secondary view-truth-source" type="button">View source</button></div>
+        <div class="truth-area-identity"><span class="truth-item-type" title="${escapeHtml(display.kind)}">${areaTypeCode(area.kind)}</span><div><span class="eyebrow">${escapeHtml(display.kind)}</span><h3>${escapeHtml(display.title)}</h3><p>${escapeHtml(display.description)}</p></div></div>
+        <div class="truth-area-head-actions"><span class="truth-state truth-state-${state.css}">${state.label}</span><button class="text-button view-truth-source" type="button">${uiText("View source", "Quelle ansehen")}</button></div>
       </div>
 
-      <div class="truth-area-current ${area.confirmedValue ? "has-value" : "empty"}">
-        <div class="truth-area-current-head"><div><small>Project Brain snapshot</small><strong>${area.confirmedValue ? "Current canonical knowledge" : "No canonical knowledge loaded yet"}</strong></div><span class="truth-source-origin">Project Brain</span></div>
-        ${area.confirmedValue
-          ? `<div class="truth-formatted-value">${renderTruthText(area.confirmedValue)}</div>`
-          : `<p class="truth-area-empty-copy">This renderer preview does not create a separate Project Truth store. Once the Project Brain bridge is connected, this area will display the relevant existing canonical knowledge here.</p>`}
+      <div class="truth-area-body-grid">
+        <section class="truth-area-current ${area.confirmedValue ? "has-value" : "empty"}">
+          <div class="truth-area-current-head"><div><small>${uiText("Canonical Project Brain", "Kanonischer Project Brain")}</small><strong>${area.confirmedValue ? uiText("Current knowledge", "Aktuelles Wissen") : uiText("No canonical knowledge loaded", "Noch kein kanonisches Wissen geladen")}</strong></div><span class="truth-source-origin">Project Brain</span></div>
+          ${area.confirmedValue
+            ? `<div class="truth-formatted-value">${renderTruthText(area.confirmedValue)}</div>`
+            : `<p class="truth-area-empty-copy">${uiText("No canonical content is available for this area yet. Livariant keeps that absence explicit instead of inventing project truth.", "Für diesen Bereich ist noch kein kanonischer Inhalt verfügbar. Livariant hält diese Lücke ausdrücklich fest, statt Projektwissen zu erfinden.")}</p>`}
+        </section>
+
+        <section class="truth-conversation truth-conversation-redesign">
+          <div class="truth-conversation-prompt"><span class="truth-source-badge livariant">L</span><div><small>Livariant</small><p>${escapeHtml(prompt)}</p></div></div>
+          <div class="truth-composer">
+            <textarea class="truth-composer-input" aria-label="${uiText("Tell Livariant about", "Livariant informieren über")} ${escapeHtml(display.title)}" placeholder="${uiText("Tell Livariant what changed…", "Sag Livariant, was sich geändert hat…")}">${escapeHtml(composerValue)}</textarea>
+            <div class="truth-composer-footer"><span>${uiText("Input remains evidence until review.", "Eingaben bleiben bis zur Prüfung Evidence.")}</span><button class="button primary analyze-truth-input" type="button">${uiText("Analyze", "Analysieren")}</button></div>
+          </div>
+        </section>
       </div>
 
-      ${area.state === "review" && area.pendingValue ? `<div class="truth-area-review-callout ${proposal?.conflict ? "conflict" : ""}"><div><small>${proposal?.conflict ? "Potential conflict" : "Proposal waiting"}</small><strong>${escapeHtml(proposal?.label ?? "Needs review")}</strong><p>${escapeHtml(area.pendingValue)}</p></div><button class="button primary review-truth" type="button">Review proposal</button></div>` : ""}
-
-      <div class="truth-conversation">
-        <div class="truth-conversation-prompt"><span class="truth-source-badge livariant">L</span><div><small>Livariant</small><p>${escapeHtml(area.state === "open" || area.state === "deferred" ? area.question : "Tell Livariant what changed, what is missing or what should be reconsidered in this area.")}</p></div></div>
-        <div class="truth-composer">
-          <textarea class="truth-composer-input" aria-label="Tell Livariant about ${escapeHtml(area.title)}" placeholder="Tell Livariant what changed…">${escapeHtml(composerValue)}</textarea>
-          <div class="truth-composer-footer"><span>Input stays evidence until review.</span><button class="button primary analyze-truth-input" type="button">Analyze</button></div>
-        </div>
-      </div>
+      ${area.state === "review" && area.pendingValue ? `<div class="truth-area-review-callout ${proposal?.conflict ? "conflict" : ""}"><div><small>${proposal?.conflict ? uiText("Potential conflict", "Möglicher Konflikt") : uiText("Proposal waiting", "Vorschlag wartet")}</small><strong>${escapeHtml(proposal?.label ?? uiText("Needs review", "Prüfung nötig"))}</strong><p>${escapeHtml(area.pendingValue)}</p></div><button class="button primary review-truth" type="button">${uiText("Review proposal", "Vorschlag prüfen")}</button></div>` : ""}
     </article>`;
 };
 
@@ -271,31 +303,33 @@ const renderProjectTruthView = () => {
   const confirmed = areas.filter((area) => area.state === "confirmed").length;
   const conflicts = areas.filter((area) => area.state === "review" && classifyTruthProposal(area).conflict).length;
   return `
-    <div class="truth-workspace truth-workspace-areas">
-      <header class="topbar"><div><span class="eyebrow">Project Brain workspace</span><h1>Project Truth</h1><p>A clear view over Livariant's existing Project Brain: inspect current knowledge, tell Livariant what changed and review every canonical update before it is accepted.</p></div></header>
+    <div class="truth-workspace truth-workspace-areas truth-workspace-redesign">
+      <header class="topbar truth-topbar-redesign"><div><span class="eyebrow">Project Brain</span><h1>${uiText("Project knowledge", "Projektwissen")}</h1><p>${uiText("See what Livariant currently knows, where knowledge is missing and which proposed changes still need your decision.", "Sieh, was Livariant aktuell weiß, wo Wissen fehlt und welche vorgeschlagenen Änderungen noch deine Entscheidung brauchen.")}</p></div></header>
 
-      <div class="truth-toolbar">
-        <label class="truth-search" aria-label="Search Project Truth"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><input type="search" value="${escapeHtml(truthSearch)}" placeholder="Search Project Brain areas…" data-truth-search /></label>
-      </div>
-
-      <section class="truth-summary-grid" aria-label="Project Truth status">
-        <div class="truth-summary-card"><div class="truth-summary-icon">✓</div><div><small>Confirmed areas</small><strong>${confirmed}</strong></div></div>
-        <div class="truth-summary-card"><div class="truth-summary-icon">R</div><div><small>Needs review</small><strong>${needsReview}</strong></div></div>
-        <div class="truth-summary-card"><div class="truth-summary-icon">?</div><div><small>Knowledge gaps</small><strong>${openQuestions}</strong></div></div>
-        <div class="truth-summary-card"><div class="truth-summary-icon">!</div><div><small>Potential conflicts</small><strong>${conflicts}</strong></div></div>
+      <section class="truth-control-band">
+        <div class="truth-control-status">
+          <div><small>${uiText("Confirmed", "Bestätigt")}</small><strong>${confirmed}</strong></div>
+          <div><small>${uiText("Review", "Prüfung")}</small><strong>${needsReview}</strong></div>
+          <div><small>${uiText("Gaps", "Lücken")}</small><strong>${openQuestions}</strong></div>
+          <div class="${conflicts > 0 ? "has-conflict" : ""}"><small>${uiText("Conflicts", "Konflikte")}</small><strong>${conflicts}</strong></div>
+        </div>
+        <label class="truth-search" aria-label="${uiText("Search Project Brain", "Project Brain durchsuchen")}"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><input type="search" value="${escapeHtml(truthSearch)}" placeholder="${uiText("Search project knowledge…", "Projektwissen durchsuchen…")}" data-truth-search /></label>
       </section>
 
       <section class="truth-main-card truth-area-workspace">
-        <div class="truth-main-head"><div><span class="eyebrow">Curated areas</span><h2>Work with Project Brain without growing an endless list</h2></div><div class="truth-filters" role="group" aria-label="Filter Project Truth">
-          <button class="truth-filter ${truthFilter === "all" ? "active" : ""}" type="button" data-truth-filter="all">All</button>
-          <button class="truth-filter ${truthFilter === "review" ? "active" : ""}" type="button" data-truth-filter="review">Needs review</button>
-          <button class="truth-filter ${truthFilter === "open" ? "active" : ""}" type="button" data-truth-filter="open">Knowledge gaps</button>
-          <button class="truth-filter ${truthFilter === "conflicts" ? "active" : ""}" type="button" data-truth-filter="conflicts">Conflicts</button>
-        </div></div>
-        <div class="truth-area-list">${areas.map(renderAreaCard).join("")}<div class="truth-empty" data-truth-empty hidden><strong>Nothing matches this view</strong><p>Try another search or filter.</p></div></div>
+        <div class="truth-main-head truth-main-head-redesign">
+          <div><span class="eyebrow">${uiText("Curated knowledge areas", "Kuratierte Wissensbereiche")}</span><h2>${uiText("The small set Livariant must understand correctly", "Die wenigen Bereiche, die Livariant korrekt verstehen muss")}</h2></div>
+          <div class="truth-filters" role="group" aria-label="${uiText("Filter project knowledge", "Projektwissen filtern")}">
+            <button class="truth-filter ${truthFilter === "all" ? "active" : ""}" type="button" data-truth-filter="all">${uiText("All", "Alle")}</button>
+            <button class="truth-filter ${truthFilter === "review" ? "active" : ""}" type="button" data-truth-filter="review">${uiText("Review", "Prüfung")}</button>
+            <button class="truth-filter ${truthFilter === "open" ? "active" : ""}" type="button" data-truth-filter="open">${uiText("Gaps", "Lücken")}</button>
+            <button class="truth-filter ${truthFilter === "conflicts" ? "active" : ""}" type="button" data-truth-filter="conflicts">${uiText("Conflicts", "Konflikte")}</button>
+          </div>
+        </div>
+        <div class="truth-area-list">${areas.map(renderAreaCard).join("")}<div class="truth-empty" data-truth-empty hidden><strong>${uiText("Nothing matches this view", "Keine Treffer in dieser Ansicht")}</strong><p>${uiText("Try another search or filter.", "Versuche eine andere Suche oder einen anderen Filter.")}</p></div></div>
       </section>
 
-      <div class="truth-boundary-card"><span>i</span><p><strong>One canonical brain, multiple input surfaces.</strong> Desktop, Codex, Claude and other providers may submit evidence, but Project Brain remains the durable source of truth. The future local mutation coordinator will serialize accepted writes and reject stale revisions before mutation.</p></div>
+      <div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("One canonical Project Brain.", "Ein kanonischer Project Brain.")}</strong> ${uiText("Desktop and connected providers may submit evidence and proposals, but nothing becomes durable project knowledge without the qualified review path.", "Desktop und verbundene Provider dürfen Evidence und Vorschläge liefern, aber nichts wird ohne den qualifizierten Prüfpfad zu dauerhaftem Projektwissen.")}</p></div>
       ${renderTruthReviewModal()}
       ${renderTruthSourceModal()}
     </div>`;
