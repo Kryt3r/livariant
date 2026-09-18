@@ -126,15 +126,49 @@ const icon = (name: "home" | "steps" | "updates" | "settings" | "diagnostics") =
 const classifyTruthProposal = (area: TruthArea, proposedValue = area.pendingValue): TruthProposal => {
   const existing = normalizeTruth(area.confirmedValue);
   const proposed = normalizeTruth(proposedValue);
-  if (!existing) return { impact: "new", label: "New", explanation: "Adds new durable knowledge to this Project Brain area.", conflict: false };
-  if (existing === proposed) return { impact: "unchanged", label: "No material change", explanation: "The proposed statement matches the currently confirmed Project Brain knowledge.", conflict: false };
+  if (!existing) return {
+    impact: "new",
+    label: uiText("New", "Neu"),
+    explanation: uiText("Adds new durable knowledge to this Project Brain area.", "Fügt diesem Project-Brain-Bereich neues dauerhaftes Wissen hinzu."),
+    conflict: false,
+  };
+  if (existing === proposed) return {
+    impact: "unchanged",
+    label: uiText("No material change", "Keine wesentliche Änderung"),
+    explanation: uiText("The proposed statement matches the currently confirmed Project Brain knowledge.", "Die vorgeschlagene Aussage entspricht dem aktuell bestätigten Project-Brain-Wissen."),
+    conflict: false,
+  };
   if (proposed.includes(existing) && proposed.length > existing.length) {
-    return { impact: "extends", label: "Extends", explanation: "The proposal contains the existing statement and adds more context. Until semantic Project Brain analysis is connected, Livariant treats any material change to confirmed knowledge as potentially conflicting and requires review.", conflict: true };
+    return {
+      impact: "extends",
+      label: uiText("Extends", "Erweitert"),
+      explanation: uiText(
+        "The proposal contains the existing statement and adds more context. Until semantic Project Brain analysis is connected, Livariant treats any material change to confirmed knowledge as potentially conflicting and requires review.",
+        "Der Vorschlag enthält die bestehende Aussage und ergänzt Kontext. Solange die semantische Project-Brain-Analyse noch nicht verbunden ist, behandelt Livariant jede wesentliche Änderung an bestätigtem Wissen als potenziellen Konflikt und verlangt eine Prüfung.",
+      ),
+      conflict: true,
+    };
   }
   if (existing.includes(proposed) && existing.length > proposed.length) {
-    return { impact: "refines", label: "Refines", explanation: "The proposal narrows the existing statement. Until semantic Project Brain analysis is connected, this remains a potential conflict that requires review.", conflict: true };
+    return {
+      impact: "refines",
+      label: uiText("Refines", "Präzisiert"),
+      explanation: uiText(
+        "The proposal narrows the existing statement. Until semantic Project Brain analysis is connected, this remains a potential conflict that requires review.",
+        "Der Vorschlag präzisiert die bestehende Aussage. Solange die semantische Project-Brain-Analyse noch nicht verbunden ist, bleibt dies ein potenzieller Konflikt, der geprüft werden muss.",
+      ),
+      conflict: true,
+    };
   }
-  return { impact: "replaces", label: "Replaces", explanation: "The proposal is materially different from the currently confirmed statement and may replace it.", conflict: true };
+  return {
+    impact: "replaces",
+    label: uiText("Replaces", "Ersetzt"),
+    explanation: uiText(
+      "The proposal is materially different from the currently confirmed statement and may replace it.",
+      "Der Vorschlag unterscheidet sich wesentlich von der aktuell bestätigten Aussage und könnte sie ersetzen.",
+    ),
+    conflict: true,
+  };
 };
 
 const areaDisplay = (area: TruthArea) => ({
@@ -251,7 +285,7 @@ const renderTruthReviewModal = () => {
         <section class="truth-review-compare">
           <div class="truth-review-source-card source-confirmed">
             <div class="truth-source-heading"><span class="truth-source-badge confirmed">✓</span><div><small>Project Brain</small><h3>${uiText("Current canonical statement", "Aktuelle kanonische Aussage")}</h3></div></div>
-            ${existing ? `<div class="truth-review-source-text">${renderTruthText(existing)}</div>` : '<div class="truth-review-source-empty">${uiText("No confirmed Project Brain statement is loaded for this area yet.", "Für diesen Bereich ist noch keine bestätigte Project-Brain-Aussage geladen.")}</div>'}
+            ${existing ? `<div class="truth-review-source-text">${renderTruthText(existing)}</div>` : `<div class="truth-review-source-empty">${uiText("No confirmed Project Brain statement is loaded for this area yet.", "Für diesen Bereich ist noch keine bestätigte Project-Brain-Aussage geladen.")}</div>`}
           </div>
           <div class="truth-review-source-card source-user">
             <div class="truth-source-heading"><span class="truth-source-badge user">U</span><div><small>${uiText("User input", "Nutzereingabe")}</small><h3>${uiText("Evidence submitted from Desktop", "Vom Desktop eingereichte Evidence")}</h3></div></div>
