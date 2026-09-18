@@ -432,8 +432,12 @@ const render = () => {
 };
 
 const activateView = async (view: View) => {
-  // Re-clicking the current route must not tear down and rebuild the whole Desktop tree.
-  if (view === currentView && !settingsOpen && selectedReviewAreaId === null && selectedSourceAreaId === null) return;
+  // Re-clicking the visibly active route must not tear down and rebuild the whole Desktop tree.
+  // Do not rely on currentView alone: extension surfaces such as Sources & Review manage their
+  // own active navigation state and can leave currentView intentionally unchanged.
+  const routeButton = document.querySelector<HTMLButtonElement>(`nav.nav [data-view="${view}"]`);
+  const routeIsVisiblyActive = routeButton?.classList.contains("active") === true;
+  if (routeIsVisiblyActive && !settingsOpen && selectedReviewAreaId === null && selectedSourceAreaId === null) return;
 
   currentView = view;
   settingsOpen = false;
