@@ -270,7 +270,7 @@ const renderProjectTruthView = () => {
   const conflicts = areas.filter((area) => area.state === "review" && classifyTruthProposal(area).conflict).length;
   return `
     <div class="truth-workspace truth-workspace-areas">
-      <header class="topbar"><div><span class="eyebrow">Project Brain workspace</span><h1>Project Truth</h1><p>A clear view over Livariant's existing Project Brain: inspect current knowledge, tell Livariant what changed and review every canonical update before it is accepted.</p></div><button class="project-chip" type="button"><span class="project-icon">L</span><span><small>Current project</small><strong>No project selected</strong></span><span class="chevron">⌄</span></button></header>
+      <header class="topbar"><div><span class="eyebrow">Project Brain workspace</span><h1>Project Truth</h1><p>A clear view over Livariant's existing Project Brain: inspect current knowledge, tell Livariant what changed and review every canonical update before it is accepted.</p></div></header>
 
       <div class="truth-toolbar">
         <label class="truth-search" aria-label="Search Project Truth"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><input type="search" value="${escapeHtml(truthSearch)}" placeholder="Search Project Brain areas…" data-truth-search /></label>
