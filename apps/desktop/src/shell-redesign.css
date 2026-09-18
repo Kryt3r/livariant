@@ -251,8 +251,7 @@ body {
   transition: opacity .16s ease, transform .16s ease;
   z-index: 200;
 }
-.global-health-wrap[data-open="true"] .global-health-popover,
-.global-health-wrap:focus-within .global-health-popover { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.global-health-wrap[data-open="true"] .global-health-popover { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
 .global-health-popover-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 11px; border-bottom: 1px solid rgba(143, 126, 207, .12); }
 .global-health-popover-head strong { font-size: 14px; }
 .global-health-popover-head span { font-size: 10px; color: var(--shell-muted); }
