@@ -11,6 +11,18 @@ import {
 
 const PAGE_SIZE = 24;
 const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
+const reachabilityLabel = (value: string) => value === "reachable"
+  ? text("Reachable", "Erreichbar")
+  : value === "unreachable"
+    ? text("Unreachable", "Nicht erreichbar")
+    : text("Unknown", "Unbekannt");
+const decisionLabel = (value: string) => {
+  if (value === "accept-as-candidate") return text("Accepted as candidate", "Als Kandidat angenommen");
+  if (value === "reject") return text("Rejected", "Abgelehnt");
+  if (value === "review-again") return text("Review again", "Erneut prüfen");
+  return text("Undecided", "Unentschieden");
+};
+const evidenceOnlyLabel = () => text("evidence-only", "nur Evidence");
 const escapeHtml = (value: string): string => value.replace(/[&<>'\"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;",
 })[character] ?? character);
@@ -51,7 +63,7 @@ export function renderProjectSourceReviewHub(presentation: DesktopSourceReviewPr
 }
 
 function renderSources(presentation: DesktopSourceReviewPresentation): string {
-  const cards = presentation.sources.map((source) => `<article class="source-review-card"><div class="source-review-card-head"><div><span class="eyebrow">${source.kind === "primary" ? text("Primary repository", "Hauptrepository") : text("Additional repository", "Zusätzliches Repository")}</span><h3>${escapeHtml(source.identity.displayName)}</h3><p>${escapeHtml(source.identity.repositoryId)}</p></div><span class="source-review-state">${escapeHtml(source.reachability)}</span></div><dl class="source-review-meta"><div><dt>${text("Local checkout", "Lokaler Checkout")}</dt><dd>${source.localPath ? escapeHtml(source.localPath) : text("Not linked", "Nicht verknüpft")}</dd></div><div><dt>${text("Branch", "Branch")}</dt><dd>${source.branch ? escapeHtml(source.branch) : text("Unknown", "Unbekannt")}</dd></div><div><dt>${text("Revision", "Revision")}</dt><dd>${source.revision ? escapeHtml(source.revision) : text("Unknown", "Unbekannt")}</dd></div><div><dt>${text("Observed", "Beobachtet")}</dt><dd>${source.observedAt ? escapeHtml(source.observedAt) : text("Not yet", "Noch nicht")}</dd></div></dl></article>`).join("");
+  const cards = presentation.sources.map((source) => `<article class="source-review-card"><div class="source-review-card-head"><div><span class="eyebrow">${source.kind === "primary" ? text("Primary repository", "Hauptrepository") : text("Additional repository", "Zusätzliches Repository")}</span><h3>${escapeHtml(source.identity.displayName)}</h3><p>${escapeHtml(source.identity.repositoryId)}</p></div><span class="source-review-state">${escapeHtml(reachabilityLabel(source.reachability))}</span></div><dl class="source-review-meta"><div><dt>${text("Local checkout", "Lokaler Checkout")}</dt><dd>${source.localPath ? escapeHtml(source.localPath) : text("Not linked", "Nicht verknüpft")}</dd></div><div><dt>${text("Branch", "Branch")}</dt><dd>${source.branch ? escapeHtml(source.branch) : text("Unknown", "Unbekannt")}</dd></div><div><dt>${text("Revision", "Revision")}</dt><dd>${source.revision ? escapeHtml(source.revision) : text("Unknown", "Unbekannt")}</dd></div><div><dt>${text("Observed", "Beobachtet")}</dt><dd>${source.observedAt ? escapeHtml(source.observedAt) : text("Not yet", "Noch nicht")}</dd></div></dl></article>`).join("");
   return `<div class="source-review-source-grid">${cards || `<p class="source-review-muted">${text("No sources recorded.", "Keine Quellen hinterlegt.")}</p>`}</div>`;
 }
 
@@ -59,7 +71,7 @@ function renderFindingsPage(presentation: DesktopSourceReviewPresentation, offse
   const review = presentation.review;
   if (!review) return `<p class="source-review-muted">${text("No current review loaded.", "Keine aktuelle Prüfung geladen.")}</p>`;
   const rows = [
-    ...review.evidence.map((item) => ({ type: "evidence", title: item.path, body: `${item.scope} · evidence-only`, extra: item.decision })),
+    ...review.evidence.map((item) => ({ type: "evidence", title: item.path, body: `${item.scope} · ${evidenceOnlyLabel()}`, extra: decisionLabel(item.decision) })),
     ...review.attention.map((item) => ({ type: "attention", title: item.code, body: item.message, extra: item.provenance.join(" · ") })),
     ...review.blockers.map((item) => ({ type: "blocker", title: item.code, body: item.message, extra: item.provenance.join(" · ") })),
   ];
@@ -71,7 +83,7 @@ function renderFindingsPage(presentation: DesktopSourceReviewPresentation, offse
 
 function renderMaterialPage(inventory: ReviewPathInventoryResult, selected: Set<string>, offset: number): string {
   const visible = inventory.candidates.slice(0, offset + PAGE_SIZE);
-  const rows = visible.map((candidate) => `<label class="source-review-candidate"><input type="checkbox" data-review-path value="${escapeHtml(candidate.path)}" ${selected.has(candidate.path) ? "checked" : ""}/><span><strong>${escapeHtml(candidate.path)}</strong><small>${escapeHtml(candidate.kind)} · ${text("Scope", "Geltungsbereich")}: ${escapeHtml(candidate.scope)} · evidence-only</small></span></label>`).join("");
+  const rows = visible.map((candidate) => `<label class="source-review-candidate"><input type="checkbox" data-review-path value="${escapeHtml(candidate.path)}" ${selected.has(candidate.path) ? "checked" : ""}/><span><strong>${escapeHtml(candidate.path)}</strong><small>${escapeHtml(candidate.kind)} · ${text("Scope", "Geltungsbereich")}: ${escapeHtml(candidate.scope)} · ${evidenceOnlyLabel()}</small></span></label>`).join("");
   const more = visible.length < inventory.candidates.length ? `<button type="button" data-source-review-more="material" data-offset="${visible.length}">${text("Show more", "Mehr anzeigen")}</button>` : "";
   return `<div class="source-review-selection-toolbar"><span data-review-selection-count>${selected.size} ${text("selected", "ausgewählt")}</span></div><div class="source-review-candidate-list">${rows}</div><div class="source-review-selection-actions">${more}<button type="button" data-start-project-review ${selected.size === 0 ? "disabled" : ""}>${text("Start review", "Review starten")}</button><span data-review-start-status aria-live="polite"></span></div>`;
 }
