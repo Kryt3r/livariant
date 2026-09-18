@@ -231,9 +231,16 @@ Livariant currently has **independently versioned product surfaces**. The root/C
 
 ### Current published Desktop Preview
 
-The canonical published Desktop Preview is `0.1.0-rc.17`, built from exact source `6214bfe2318dc5c0dc4ae0b949146451ad4d20f6` and accepted through the updater-first Windows path.
+The canonical published Desktop Preview is `0.1.0-rc.29`, published as the immutable prerelease tag `desktop-preview-0.1.0-rc.29-bbfd076f0710` from exact source `bbfd076f07103026688611f4e5438c8a58687e83`.
 
-The Desktop identity on current canonical `main` is `0.1.0-rc.18`. **rc.18 is not published yet.** It exists to perform the final installed-Windows dogfood acceptance for the active Diagnostics & Efficiency Measurement Foundation work before that work package can close.
+That release is a Desktop Preview, not Stable release authority. Its publication does not authorize a Stable release, package publication, or unrelated updater publication.
+
+### Current repository `main`
+
+The Desktop identity on current canonical `main` is `0.1.0-rc.29`.
+The root/Core package identity remains independently versioned at `0.1.0-rc.12`.
+
+Canonical `main` contains development work that is newer than the immutable published rc.29 source above. Sharing the same Desktop version identity does **not** make later repository state part of that published artifact. Repository presence, merges, and CI results do not publish a release automatically.
 
 ### Historical CLI Public Preview
 
@@ -249,23 +256,6 @@ Later repository work does not retroactively change RC4.
 ### Historical RC3 Foundation Preview
 
 `v0.1.0-rc.3` remains immutable historical Foundation Preview evidence. Later capabilities were not retroactively added to the RC3 artifact.
-
-### Current repository `main`
-
-Canonical product `main` is `e121edfe84061208ac5d1e3568a2c0c6c4ec3749` at this documentation reconciliation.
-
-On that source state:
-
-- Desktop identity is `0.1.0-rc.18`;
-- root/Core package identity remains independently versioned at `0.1.0-rc.12`;
-- rc.18 has not been tagged, published, or made discoverable through the updater;
-- repository presence alone must never be treated as release publication.
-
-### Current active development
-
-The active product Work Package is **WP-047 - Diagnostics & Efficiency Measurement Foundation**. Its bounded implementation is merged; final completion still requires installed-Windows dogfood evidence for real observed usage, period behavior, durable counters, truthful missing values, attribution, and the calculation/explanation path.
-
-The immediate release-sensitive path remains gated: CI trigger hardening must qualify and merge through its own explicit authorization boundary before an unpublished rc.18 candidate is built and verified. Publication remains a separate explicit authorization.
 
 ### Future qualified releases
 

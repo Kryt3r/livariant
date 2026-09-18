@@ -231,9 +231,16 @@ Livariant besitzt aktuell **unabhängig versionierte Produktoberflächen**. Root
 
 ### Aktuelles veröffentlichtes Desktop Preview
 
-Das kanonisch veröffentlichte Desktop Preview ist `0.1.0-rc.17`, gebaut aus dem exakten Quellstand `6214bfe2318dc5c0dc4ae0b949146451ad4d20f6` und über den updater-first Windows-Pfad akzeptiert.
+Das kanonisch veröffentlichte Desktop Preview ist `0.1.0-rc.29`. Es wurde als unveränderliches Prerelease mit dem Tag `desktop-preview-0.1.0-rc.29-bbfd076f0710` aus dem exakten Quellstand `bbfd076f07103026688611f4e5438c8a58687e83` veröffentlicht.
 
-Die Desktop-Identität auf dem aktuellen kanonischen `main` ist `0.1.0-rc.18`. **rc.18 ist noch nicht veröffentlicht.** Es dient der finalen Installed-Windows-Dogfood-Abnahme der aktiven Diagnostics-&-Efficiency-Measurement-Foundation-Arbeit, bevor dieses Work Package geschlossen werden kann.
+Dieses Release ist ein Desktop Preview und keine Stable-Release-Autorisierung. Seine Veröffentlichung autorisiert weder ein Stable Release noch Paketveröffentlichungen oder andere Updater-Veröffentlichungen.
+
+### Aktueller Repository-`main`
+
+Die Desktop-Identität auf dem aktuellen kanonischen `main` ist `0.1.0-rc.29`.
+Die Root-/Core-Paketidentität bleibt bewusst unabhängig versioniert bei `0.1.0-rc.12`.
+
+Der kanonische `main` enthält Entwicklungsarbeit, die neuer ist als der oben genannte unveränderliche veröffentlichte rc.29-Quellstand. Dieselbe Desktop-Versionsidentität macht späteren Repository-Zustand **nicht** zum Bestandteil dieses veröffentlichten Artefakts. Repository-Existenz, Merges und CI-Ergebnisse veröffentlichen nicht automatisch ein Release.
 
 ### Historisches CLI Public Preview
 
@@ -250,28 +257,11 @@ Spätere Repository-Arbeit verändert RC4 nicht rückwirkend.
 
 `v0.1.0-rc.3` bleibt unveränderliche historische Foundation-Preview-Evidenz. Spätere Fähigkeiten wurden dem RC3-Artefakt nicht rückwirkend hinzugefügt.
 
-### Aktueller Repository-`main`
-
-Der kanonische Produkt-`main` ist zum Zeitpunkt dieser Dokumentationsabstimmung `e121edfe84061208ac5d1e3568a2c0c6c4ec3749`.
-
-Auf diesem Quellstand gilt:
-
-- Desktop-Identität ist `0.1.0-rc.18`;
-- Root-/Core-Paketidentität bleibt bewusst unabhängig versioniert bei `0.1.0-rc.12`;
-- rc.18 wurde weder getaggt noch veröffentlicht oder über den Updater sichtbar gemacht;
-- bloße Repository-Existenz darf niemals als Release-Veröffentlichung behandelt werden.
-
-### Aktive Entwicklung
-
-Das aktive Produkt-Work-Package ist **WP-047 - Diagnostics & Efficiency Measurement Foundation**. Die begrenzte Implementierung ist gemergt; zum Abschluss fehlt weiterhin Installed-Windows-Dogfood-Evidence für reale beobachtete Nutzung, Periodenverhalten, dauerhafte Zähler, wahrheitsgemäße fehlende Werte, Attribution und den Berechnungs-/Erklärungspfad.
-
-Der unmittelbar release-sensitive Pfad bleibt gegated: Die CI-Trigger-Härtung muss über ihre eigene ausdrückliche Autorisierungsgrenze qualifiziert und gemergt werden, bevor ein unveröffentlichtes rc.18-Kandidaten-Build erstellt und verifiziert wird. Veröffentlichung bleibt eine separate ausdrückliche Autorisierung.
-
 ### Künftige qualifizierte Releases
 
 Ein künftiges Release benötigt weiterhin seine eigene Exact-Candidate-CI-/Security-/Self-Integrity-Qualifikation, bei Bedarf reale Installed-/Fresh-Machine-Evidenz, eine Release-Entscheidung und ausdrückliche Publication Authority.
 
-Keine README-Aussage, kein Merge und kein CI-Ergebnis veröffentlicht automatisch einen Release.
+Keine README-Aussage, kein Merge und kein CI-Ergebnis veröffentlicht automatisch ein Release.
 
 ## Local-first als Standard
 
