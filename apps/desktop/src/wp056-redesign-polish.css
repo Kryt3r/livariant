@@ -387,7 +387,7 @@
 @media (max-height: 720px) {
   .shell-redesign-active .settings-modal {
     min-height: 0;
-    height: calc(100vh - var(--shell-header-height) - 24px);
+    height: calc(100vh - var(--shell-header-height) - clamp(36px, 6vw, 72px));
   }
   .shell-redesign-active .settings-nav { padding-top: 18px; padding-bottom: 18px; }
   .shell-redesign-active .settings-content { padding-top: 30px; padding-bottom: 34px; }
