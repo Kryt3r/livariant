@@ -374,6 +374,8 @@ if (appRoot) {
   observer.observe(appRoot, { childList: true, subtree: true });
 }
 
+document.addEventListener("livariant:shell-rendered", () => enhance());
+
 document.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
   if (!target.closest(".global-health-wrap")) {
