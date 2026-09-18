@@ -26,7 +26,14 @@ interface ReviewPathInventoryResult {
 
 export function renderProjectSourceReviewHub(presentation: DesktopSourceReviewPresentation | null): string {
   const summary = presentation?.summary;
-  return `<header class="topbar"><div><span class="eyebrow">${text("Project operations", "Projektbetrieb")}</span><h1>${text("Project sources & review", "Projektquellen & Prüfung")}</h1><p>${text("Open only the area you need. Heavy repository material is loaded on demand.", "Öffne nur den Bereich, den du gerade brauchst. Umfangreiches Repository-Material wird erst auf Anforderung geladen.")}</p></div></header>
+  return `<header class="topbar source-review-topbar"><div><span class="eyebrow">${text("Project operations", "Projektbetrieb")}</span><h1>${text("Project sources & review", "Projektquellen & Prüfung")}</h1><p>${text("Inspect repository sources, bounded review material, findings and GitHub evidence without silently loading the heavy sections.", "Prüfe Repository-Quellen, begrenztes Review-Material, Befunde und GitHub-Evidence, ohne umfangreiche Bereiche stillschweigend zu laden.")}</p></div></header>
+  <nav class="source-review-subnav" aria-label="${text("Sources and review sections", "Bereiche für Quellen und Prüfung")}">
+    <button class="source-review-subnav-item active" type="button" data-source-review-section="overview" aria-current="page"><span>${text("Overview", "Übersicht")}</span></button>
+    <button class="source-review-subnav-item" type="button" data-source-review-section="sources"><span>${text("Sources", "Quellen")}</span><b>${summary?.sourceCount ?? "–"}</b></button>
+    <button class="source-review-subnav-item" type="button" data-source-review-section="material"><span>${text("Review material", "Review-Material")}</span></button>
+    <button class="source-review-subnav-item" type="button" data-source-review-section="findings"><span>${text("Findings & evidence", "Befunde & Nachweise")}</span><b>${summary?.reviewAttentionCount ?? "–"}</b></button>
+    <button class="source-review-subnav-item" type="button" data-source-review-section="github"><span>GitHub</span></button>
+  </nav>
   <section class="source-review-summary">
     <div><small>${text("Project", "Projekt")}</small><strong>${presentation ? escapeHtml(presentation.projectId) : text("Unavailable", "Nicht verfügbar")}</strong></div>
     <div><small>${text("Sources", "Quellen")}</small><strong>${summary?.sourceCount ?? "–"}</strong></div>
@@ -35,12 +42,9 @@ export function renderProjectSourceReviewHub(presentation: DesktopSourceReviewPr
     <div><small>${text("Blockers", "Blocker")}</small><strong>${summary?.reviewBlockerCount ?? "–"}</strong></div>
   </section>
   <section class="source-review-selection source-review-lazy-hub">
-    <div class="source-review-section-head"><div><span class="eyebrow">${text("Details", "Details")}</span><h2>${text("Load a section", "Bereich öffnen")}</h2><p>${text("Nothing below is scanned or expanded automatically just because you opened this page.", "Nur weil du diese Seite öffnest, wird darunter nichts automatisch gescannt oder vollständig aufgebaut.")}</p></div></div>
-    <div class="source-review-lazy-actions">
-      <button type="button" data-source-review-section="sources">${text("Show sources", "Quellen anzeigen")}</button>
-      <button type="button" data-source-review-section="material">${text("Read review material", "Review-Material auslesen")}</button>
-      <button type="button" data-source-review-section="findings">${text("Show findings & evidence", "Befunde & Nachweise anzeigen")}</button>
-      <button type="button" data-source-review-section="github">${text("Show GitHub status", "GitHub-Status anzeigen")}</button>
+    <div class="source-review-overview" data-source-review-overview>
+      <div><span class="eyebrow">${text("Safe by default", "Standardmäßig sicher")}</span><h2>${text("Open only what you need", "Öffne nur, was du brauchst")}</h2><p>${text("The overview uses the current safe snapshot. Repository material, findings and GitHub telemetry stay lazy until you select a section above.", "Die Übersicht verwendet nur den aktuellen sicheren Snapshot. Repository-Material, Befunde und GitHub-Telemetrie bleiben lazy, bis du oben einen Bereich auswählst.")}</p></div>
+      <span class="source-review-overview-state">${text("No automatic deep scan", "Kein automatischer Deep-Scan")}</span>
     </div>
     <div data-source-review-heavy-root></div>
   </section>`;
@@ -142,7 +146,20 @@ export function bindProjectSourceReviewHub(content: HTMLElement, presentation: D
     if (!(target instanceof HTMLElement)) return;
     const sectionButton = target.closest<HTMLButtonElement>("[data-source-review-section]");
     if (sectionButton) {
-      await renderSection(sectionButton.dataset.sourceReviewSection ?? "");
+      const section = sectionButton.dataset.sourceReviewSection ?? "";
+      content.querySelectorAll<HTMLButtonElement>("[data-source-review-section]").forEach((candidate) => {
+        const active = candidate === sectionButton;
+        candidate.classList.toggle("active", active);
+        if (active) candidate.setAttribute("aria-current", "page");
+        else candidate.removeAttribute("aria-current");
+      });
+      const overview = content.querySelector<HTMLElement>("[data-source-review-overview]");
+      if (overview) overview.hidden = section !== "overview";
+      if (section === "overview") {
+        heavyRoot.replaceChildren();
+        return;
+      }
+      await renderSection(section);
       return;
     }
     const moreButton = target.closest<HTMLButtonElement>("[data-source-review-more]");
