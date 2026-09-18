@@ -1,4 +1,5 @@
 name: Desktop Windows Installer
+# Temporary preview build trigger for 70e2b851; no product semantics changed.
 
 on:
   pull_request:
