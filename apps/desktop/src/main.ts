@@ -224,54 +224,54 @@ const renderTruthReviewModal = () => {
   const existing = area.confirmedValue;
   const proposed = area.pendingValue;
   const diff = existing
-    ? `<div class="truth-review-diff-line removed"><span>−</span><div><small>Current Project Brain</small><p>${escapeHtml(existing)}</p></div></div><div class="truth-review-diff-line added"><span>+</span><div><small>Proposed Project Brain</small><p>${escapeHtml(proposed)}</p></div></div>`
-    : `<div class="truth-review-diff-line added"><span>+</span><div><small>Proposed addition</small><p>${escapeHtml(proposed)}</p></div></div>`;
+    ? `<div class="truth-review-diff-line removed"><span>−</span><div><small>${uiText("Current Project Brain", "Aktueller Project Brain")}</small><p>${escapeHtml(existing)}</p></div></div><div class="truth-review-diff-line added"><span>+</span><div><small>${uiText("Proposed Project Brain", "Vorgeschlagener Project Brain")}</small><p>${escapeHtml(proposed)}</p></div></div>`
+    : `<div class="truth-review-diff-line added"><span>+</span><div><small>${uiText("Proposed addition", "Vorgeschlagene Ergänzung")}</small><p>${escapeHtml(proposed)}</p></div></div>`;
   return `
     <div class="truth-review-backdrop" data-close-truth-review>
       <section class="truth-review-modal ${proposal.conflict ? "truth-review-modal-conflict" : ""}" role="dialog" aria-modal="true" aria-labelledby="truth-review-title" data-truth-review-modal>
-        <button class="truth-review-close" type="button" data-close-truth-review aria-label="Close Project Truth review">×</button>
+        <button class="truth-review-close" type="button" data-close-truth-review aria-label="${uiText("Close Project Brain review", "Project-Brain-Prüfung schließen")}">×</button>
         <header class="truth-review-header">
-          <div><span class="eyebrow">Manual review required</span><h2 id="truth-review-title">Review Project Brain change</h2><p>Livariant may analyze and propose. Canonical project knowledge changes only after your decision.</p></div>
+          <div><span class="eyebrow">${uiText("Manual review required", "Manuelle Prüfung erforderlich")}</span><h2 id="truth-review-title">${uiText("Review Project Brain change", "Project-Brain-Änderung prüfen")}</h2><p>${uiText("Livariant may analyze and propose. Canonical project knowledge changes only after your decision.", "Livariant darf analysieren und vorschlagen. Kanonisches Projektwissen ändert sich erst nach deiner Entscheidung.")}</p></div>
           <span class="truth-impact truth-impact-${proposal.impact}">${escapeHtml(proposal.label)}</span>
         </header>
 
-        ${proposal.conflict ? `<section class="truth-review-alert"><span class="truth-review-alert-icon">!</span><div><small>Potential conflict</small><h3>Confirmed Project Brain knowledge would change.</h3><p>The renderer cannot prove semantic compatibility yet, so Livariant keeps the current truth untouched until you explicitly resolve the proposal.</p></div></section>` : ""}
+        ${proposal.conflict ? `<section class="truth-review-alert"><span class="truth-review-alert-icon">!</span><div><small>${uiText("Potential conflict", "Möglicher Konflikt")}</small><h3>${uiText("Confirmed Project Brain knowledge would change.", "Bestätigtes Project-Brain-Wissen würde verändert.")}</h3><p>${uiText("The renderer cannot prove semantic compatibility yet, so Livariant keeps the current truth untouched until you explicitly resolve the proposal.", "Der Renderer kann semantische Kompatibilität noch nicht beweisen. Deshalb bleibt das aktuelle Wissen unverändert, bis du den Vorschlag ausdrücklich entscheidest.")}</p></div></section>` : ""}
 
         <section class="truth-review-summary">
-          <div><small>Area</small><strong>${escapeHtml(area.kind)} · ${escapeHtml(area.title)}</strong></div>
-          <div><small>Conflict state</small><strong>${proposal.conflict ? "Review required" : "None detected"}</strong></div>
-          <div><small>Proposed effect</small><strong>${escapeHtml(proposal.label)}</strong></div>
+          <div><small>${uiText("Area", "Bereich")}</small><strong>${escapeHtml(areaDisplay(area).kind)} · ${escapeHtml(areaDisplay(area).title)}</strong></div>
+          <div><small>${uiText("Conflict state", "Konfliktstatus")}</small><strong>${proposal.conflict ? uiText("Review required", "Prüfung erforderlich") : uiText("None detected", "Keiner erkannt")}</strong></div>
+          <div><small>${uiText("Proposed effect", "Vorgeschlagene Wirkung")}</small><strong>${escapeHtml(proposal.label)}</strong></div>
         </section>
 
         <section class="truth-review-analysis truth-source-livariant">
-          <div class="truth-source-heading"><span class="truth-source-badge livariant">L</span><div><small>Livariant analysis</small><h3>${escapeHtml(proposal.explanation)}</h3></div></div>
-          <p>This slice still compares renderer-session evidence with the current area snapshot. Persistent cross-entry semantic analysis and the local mutation coordinator are the next Core layer, not something this UI pretends is already active.</p>
+          <div class="truth-source-heading"><span class="truth-source-badge livariant">L</span><div><small>${uiText("Livariant analysis", "Livariant-Analyse")}</small><h3>${escapeHtml(proposal.explanation)}</h3></div></div>
+          <p>${uiText("This slice still compares renderer-session evidence with the current area snapshot. Persistent cross-entry semantic analysis and the local mutation coordinator are the next Core layer, not something this UI pretends is already active.", "Diese Oberfläche vergleicht weiterhin Renderer-Session-Evidence mit dem aktuellen Bereichs-Snapshot. Persistente semantische Analyse über Einträge hinweg und der lokale Mutation Coordinator gehören zur nächsten Core-Schicht und werden hier nicht als bereits aktiv dargestellt.")}</p>
         </section>
 
         <section class="truth-review-compare">
           <div class="truth-review-source-card source-confirmed">
-            <div class="truth-source-heading"><span class="truth-source-badge confirmed">✓</span><div><small>Project Brain</small><h3>Current canonical statement</h3></div></div>
-            ${existing ? `<div class="truth-review-source-text">${renderTruthText(existing)}</div>` : '<div class="truth-review-source-empty">No confirmed Project Brain statement is loaded for this area yet.</div>'}
+            <div class="truth-source-heading"><span class="truth-source-badge confirmed">✓</span><div><small>Project Brain</small><h3>${uiText("Current canonical statement", "Aktuelle kanonische Aussage")}</h3></div></div>
+            ${existing ? `<div class="truth-review-source-text">${renderTruthText(existing)}</div>` : '<div class="truth-review-source-empty">${uiText("No confirmed Project Brain statement is loaded for this area yet.", "Für diesen Bereich ist noch keine bestätigte Project-Brain-Aussage geladen.")}</div>'}
           </div>
           <div class="truth-review-source-card source-user">
-            <div class="truth-source-heading"><span class="truth-source-badge user">U</span><div><small>User input</small><h3>Evidence submitted from Desktop</h3></div></div>
+            <div class="truth-source-heading"><span class="truth-source-badge user">U</span><div><small>${uiText("User input", "Nutzereingabe")}</small><h3>${uiText("Evidence submitted from Desktop", "Vom Desktop eingereichte Evidence")}</h3></div></div>
             <textarea class="truth-review-proposal" data-review-proposal aria-label="Proposed Project Brain text">${escapeHtml(proposed)}</textarea>
-            <button class="text-button edit-review-proposal" type="button">Edit proposal</button>
+            <button class="text-button edit-review-proposal" type="button">${uiText("Edit proposal", "Vorschlag bearbeiten")}</button>
           </div>
         </section>
 
         <section class="truth-review-section truth-change-preview">
-          <div class="truth-review-section-head"><div><span class="eyebrow">Change preview</span><h3>What this renderer preview would change</h3></div></div>
+          <div class="truth-review-section-head"><div><span class="eyebrow">${uiText("Change preview", "Änderungsvorschau")}</span><h3>${uiText("What this renderer preview would change", "Was diese Änderung aktualisieren würde")}</h3></div></div>
           <div class="truth-review-diff">${diff}</div>
         </section>
 
         <section class="truth-review-sources">
-          <span>i</span><p><strong>Boundary:</strong> Project Truth Desktop is a view and controlled mutation surface over the existing Project Brain. This renderer slice creates no new canonical file or competing knowledge store.</p>
+          <span>i</span><p><strong>${uiText("Boundary:", "Grenze:")}</strong> ${uiText("Project Truth Desktop is a view and controlled mutation surface over the existing Project Brain. This renderer slice creates no new canonical file or competing knowledge store.", "Project Truth Desktop ist eine Ansicht und kontrollierte Änderungsoberfläche über dem bestehenden Project Brain. Diese Renderer-Oberfläche erzeugt weder eine neue kanonische Datei noch einen konkurrierenden Wissensspeicher.")}</p>
         </section>
 
         <footer class="truth-review-actions">
-          <div class="truth-decision-copy"><span class="eyebrow">Decision</span><strong>Choose what should become canonical knowledge.</strong></div>
-          <div class="truth-decision-buttons"><button class="text-button reject-truth-review" type="button">Reject evidence</button>${existing ? '<button class="button secondary keep-truth-review" type="button">Keep existing</button>' : ""}<button class="button primary accept-truth-review" type="button">Accept into Project Truth</button></div>
+          <div class="truth-decision-copy"><span class="eyebrow">${uiText("Decision", "Entscheidung")}</span><strong>${uiText("Choose what should become canonical knowledge.", "Entscheide, was kanonisches Wissen werden soll.")}</strong></div>
+          <div class="truth-decision-buttons"><button class="text-button reject-truth-review" type="button">${uiText("Reject evidence", "Evidence ablehnen")}</button>${existing ? `<button class="button secondary keep-truth-review" type="button">${uiText("Keep existing", "Bestehendes behalten")}</button>` : ""}<button class="button primary accept-truth-review" type="button">${uiText("Accept into Project Truth", "In Project Brain übernehmen")}</button></div>
         </footer>
       </section>
     </div>`;
