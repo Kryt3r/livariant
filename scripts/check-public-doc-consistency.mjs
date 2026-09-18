@@ -144,9 +144,27 @@ for (const [requiredText, label] of namingRequirements) {
   }
 }
 
-const packageJson = await readFile(join(root, 'package.json'), 'utf8');
-if (/Public Preview preparation/i.test(packageJson)) {
+const packageJsonText = await readFile(join(root, 'package.json'), 'utf8');
+if (/Public Preview preparation/i.test(packageJsonText)) {
   failures.push('package.json: preparation-state: package metadata must not describe the product as still being in Public Preview preparation');
+}
+
+const packageJson = JSON.parse(packageJsonText);
+const desktopPackageJson = JSON.parse(await readFile(join(root, 'apps', 'desktop', 'package.json'), 'utf8'));
+const readmeEn = await readFile(join(root, 'README.md'), 'utf8');
+const readmeDe = await readFile(join(root, 'README.de.md'), 'utf8');
+
+const versionTruth = [
+  [readmeEn, `The Desktop identity on current canonical \`main\` is \`${desktopPackageJson.version}\`.`, 'README.md', 'Desktop'],
+  [readmeDe, `Die Desktop-Identität auf dem aktuellen kanonischen \`main\` ist \`${desktopPackageJson.version}\`.`, 'README.de.md', 'Desktop'],
+  [readmeEn, `The root/Core package identity remains independently versioned at \`${packageJson.version}\`.`, 'README.md', 'root/Core'],
+  [readmeDe, `Die Root-/Core-Paketidentität bleibt bewusst unabhängig versioniert bei \`${packageJson.version}\`.`, 'README.de.md', 'root/Core'],
+];
+
+for (const [content, requiredText, file, surface] of versionTruth) {
+  if (!content.includes(requiredText)) {
+    failures.push(`${file}: stale-${surface.toLowerCase().replaceAll('/', '-')}-version: expected package metadata truth: ${requiredText}`);
+  }
 }
 
 if (failures.length > 0) {
