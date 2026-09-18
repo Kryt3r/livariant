@@ -620,3 +620,25 @@ body {
   .sidebar-collapse,
   .shell-overview-card { animation: none !important; transition-duration: .01ms !important; }
 }
+
+
+/* WP-056 responsive acceptance: viewport-contained overlays and local scroll. */
+.shell-redesign-active main.content {
+  overscroll-behavior: contain;
+}
+.shell-redesign-active .global-health-popover {
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - var(--shell-header-height) - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@media (max-width: 560px) {
+  .shell-redesign-active .global-health-popover {
+    position: fixed;
+    top: calc(var(--shell-header-height) + 8px);
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+  }
+}
