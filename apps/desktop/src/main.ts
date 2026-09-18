@@ -16,7 +16,7 @@ const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).hr
 const appWindow = getCurrentWindow();
 
 type View = "steps" | "updates" | "connections" | "diagnostics";
-type SettingsSection = "general" | "connections" | "system";
+type SettingsSection = "general" | "connections" | "updates" | "system";
 type NoticeKind = "info" | "success" | "warning" | "error";
 type AreaState = "open" | "deferred" | "review" | "confirmed";
 type TruthFilter = "all" | "review" | "open" | "conflicts";
@@ -328,19 +328,39 @@ const renderContent = () => {
   return renderProjectTruthView();
 };
 
+const renderUpdatesSettingsView = () => {
+  const copy = updateCopy();
+  const checking = updateState === "checking";
+  const showCheckButton = updateResult?.state !== "available";
+  return `
+    <section class="settings-panel settings-updates" data-settings-surface="updates">
+      <span class="eyebrow">Desktop lifecycle</span><h2>Updates</h2>
+      <p>Update checks stay inside Livariant's fixed host-side boundary. Availability never authorizes installation or restart.</p>
+      <div class="settings-status-hero">
+        <div><small>${escapeHtml(copy.eyebrow)}</small><strong>${escapeHtml(copy.title)}</strong><span>${escapeHtml(copy.detail)}</span></div>
+        ${showCheckButton ? `<button class="button primary check-updates" type="button" ${checking ? "disabled" : ""}>${checking ? "Checking…" : "Check for updates"}</button>` : ""}
+      </div>
+      <div class="settings-safety-grid">
+        <article><span>01</span><div><strong>Signed update identity</strong><p>The renderer cannot provide arbitrary update URLs or executable paths.</p></div></article>
+        <article><span>02</span><div><strong>Install authority</strong><p>An available update remains evidence only until the user explicitly starts the qualified install path.</p></div></article>
+      </div>
+    </section>`;
+};
+
 const renderSettingsContent = () => {
   if (settingsSection === "connections") return renderConnectionsSettingsView();
+  if (settingsSection === "updates") return renderUpdatesSettingsView();
   if (settingsSection === "system") return `
     <section class="settings-panel">
       <span class="eyebrow">Desktop</span><h2>System</h2>
-      <p>Technical version and runtime information will live here instead of occupying normal work pages.</p>
-      <div class="settings-card"><div><strong>Foundation preview</strong><span>System information is intentionally consolidated in Settings.</span></div><span class="settings-badge">Preview</span></div>
+      <p>Technical version and runtime information lives here instead of occupying normal work pages.</p>
+      <div class="settings-card"><div><strong>Desktop preview</strong><span>Runtime and version information stays consolidated in Settings.</span></div><span class="settings-badge">Preview</span></div>
     </section>`;
   return `
     <section class="settings-panel">
       <span class="eyebrow">Livariant</span><h2>General</h2>
-      <p>Global behavior and low-frequency configuration will be collected here as the Desktop surface grows.</p>
-      <div class="settings-card"><div><strong>Settings foundation</strong><span>This modal establishes the permanent home for configuration without crowding the main workspace.</span></div><span class="settings-badge">Ready</span></div>
+      <p>Global behavior and low-frequency configuration belongs here instead of competing with project work.</p>
+      <div class="settings-card"><div><strong>Settings foundation</strong><span>General preferences remain intentionally small while product behavior becomes configurable.</span></div><span class="settings-badge">Ready</span></div>
     </section>`;
 };
 
@@ -348,10 +368,17 @@ const renderSettingsModal = () => settingsOpen ? `
   <div class="modal-backdrop" data-settings-backdrop>
     <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" data-settings-modal>
       <aside class="settings-nav">
-        <div class="settings-heading"><span class="eyebrow">Preferences</span><h2 id="settings-title">Settings</h2></div>
-        <button class="settings-nav-item ${settingsSection === "general" ? "active" : ""}" data-settings-section="general" type="button">${icon("settings")}<span>General</span></button>
-        <button class="settings-nav-item ${settingsSection === "connections" ? "active" : ""}" data-settings-section="connections" type="button">${icon("diagnostics")}<span>Connections</span></button>
-        <button class="settings-nav-item ${settingsSection === "system" ? "active" : ""}" data-settings-section="system" type="button">${icon("updates")}<span>System</span></button>
+        <div class="settings-heading"><span class="eyebrow">Preferences</span><h2 id="settings-title">Settings</h2><p>Livariant, connections and desktop lifecycle.</p></div>
+        <div class="settings-nav-group"><small>Workspace</small>
+          <button class="settings-nav-item ${settingsSection === "general" ? "active" : ""}" data-settings-section="general" type="button">${icon("settings")}<span>General</span></button>
+        </div>
+        <div class="settings-nav-group"><small>Integrations</small>
+          <button class="settings-nav-item ${settingsSection === "connections" ? "active" : ""}" data-settings-section="connections" type="button">${icon("diagnostics")}<span>Connections</span></button>
+        </div>
+        <div class="settings-nav-group"><small>Desktop</small>
+          <button class="settings-nav-item ${settingsSection === "updates" ? "active" : ""}" data-settings-section="updates" type="button">${icon("updates")}<span>Updates</span></button>
+          <button class="settings-nav-item ${settingsSection === "system" ? "active" : ""}" data-settings-section="system" type="button">${icon("settings")}<span>System</span></button>
+        </div>
       </aside>
       <div class="settings-content"><button class="modal-close" data-close-settings type="button" aria-label="Close settings">×</button><div class="settings-content-body">${renderSettingsContent()}</div></div>
     </section>
@@ -470,7 +497,7 @@ const bindEvents = () => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
       const section = button.dataset.settingsSection;
-      if (section !== "general" && section !== "connections" && section !== "system") return;
+      if (section !== "general" && section !== "connections" && section !== "updates" && section !== "system") return;
       settingsSection = section;
       renderSettingsSectionOnly();
       if (section === "connections") {
