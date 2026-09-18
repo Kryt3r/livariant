@@ -4,6 +4,7 @@ import "./project-truth.css";
 import "./project-truth-workspace.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getLanguage } from "./i18n/runtime.js";
 import {
   bindConnectionDiagnosticsEvents,
   refreshConnector,
@@ -14,6 +15,7 @@ import {
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
 const appWindow = getCurrentWindow();
+const uiText = (en: string, de: string) => getLanguage() === "de" ? de : en;
 
 type View = "steps" | "updates" | "connections" | "diagnostics";
 type SettingsSection = "general" | "connections" | "updates" | "system";
@@ -334,15 +336,18 @@ const renderUpdatesSettingsView = () => {
   const showCheckButton = updateResult?.state !== "available";
   return `
     <section class="settings-panel settings-updates" data-settings-surface="updates">
-      <span class="eyebrow">Desktop lifecycle</span><h2>Updates</h2>
-      <p>Update checks stay inside Livariant's fixed host-side boundary. Availability never authorizes installation or restart.</p>
+      <span class="eyebrow">${uiText("Desktop lifecycle", "Desktop-Lebenszyklus")}</span><h2>Updates</h2>
+      <p>${uiText(
+        "Update checks stay inside Livariant's fixed host-side boundary. Availability never authorizes installation or restart.",
+        "Update-Prüfungen bleiben innerhalb der festen hostseitigen Livariant-Grenze. Verfügbarkeit autorisiert niemals Installation oder Neustart.",
+      )}</p>
       <div class="settings-status-hero">
         <div><small>${escapeHtml(copy.eyebrow)}</small><strong>${escapeHtml(copy.title)}</strong><span>${escapeHtml(copy.detail)}</span></div>
-        ${showCheckButton ? `<button class="button primary check-updates" type="button" ${checking ? "disabled" : ""}>${checking ? "Checking…" : "Check for updates"}</button>` : ""}
+        ${showCheckButton ? `<button class="button primary check-updates" type="button" ${checking ? "disabled" : ""}>${checking ? uiText("Checking…", "Prüfe…") : uiText("Check for updates", "Nach Updates suchen")}</button>` : ""}
       </div>
       <div class="settings-safety-grid">
-        <article><span>01</span><div><strong>Signed update identity</strong><p>The renderer cannot provide arbitrary update URLs or executable paths.</p></div></article>
-        <article><span>02</span><div><strong>Install authority</strong><p>An available update remains evidence only until the user explicitly starts the qualified install path.</p></div></article>
+        <article><span>01</span><div><strong>${uiText("Signed update identity", "Signierte Update-Identität")}</strong><p>${uiText("The renderer cannot provide arbitrary update URLs or executable paths.", "Der Renderer kann keine beliebigen Update-URLs oder ausführbaren Pfade vorgeben.")}</p></div></article>
+        <article><span>02</span><div><strong>${uiText("Install authority", "Installations-Authority")}</strong><p>${uiText("An available update remains evidence only until the user explicitly starts the qualified install path.", "Ein verfügbares Update bleibt zunächst nur Evidence, bis der Nutzer den qualifizierten Installationspfad ausdrücklich startet.")}</p></div></article>
       </div>
     </section>`;
 };
@@ -353,14 +358,14 @@ const renderSettingsContent = () => {
   if (settingsSection === "system") return `
     <section class="settings-panel">
       <span class="eyebrow">Desktop</span><h2>System</h2>
-      <p>Technical version and runtime information lives here instead of occupying normal work pages.</p>
-      <div class="settings-card"><div><strong>Desktop preview</strong><span>Runtime and version information stays consolidated in Settings.</span></div><span class="settings-badge">Preview</span></div>
+      <p>${uiText("Technical version and runtime information lives here instead of occupying normal work pages.", "Technische Versions- und Runtime-Informationen liegen hier, statt normale Arbeitsbereiche zu belegen.")}</p>
+      <div class="settings-card"><div><strong>${uiText("Desktop preview", "Desktop-Vorschau")}</strong><span>${uiText("Runtime and version information stays consolidated in Settings.", "Runtime- und Versionsinformationen bleiben zentral in den Einstellungen gebündelt.")}</span></div><span class="settings-badge">Preview</span></div>
     </section>`;
   return `
     <section class="settings-panel">
-      <span class="eyebrow">Livariant</span><h2>General</h2>
-      <p>Global behavior and low-frequency configuration belongs here instead of competing with project work.</p>
-      <div class="settings-card"><div><strong>Settings foundation</strong><span>General preferences remain intentionally small while product behavior becomes configurable.</span></div><span class="settings-badge">Ready</span></div>
+      <span class="eyebrow">Livariant</span><h2>${uiText("General", "Allgemein")}</h2>
+      <p>${uiText("Global behavior and low-frequency configuration belongs here instead of competing with project work.", "Globales Verhalten und selten benötigte Konfigurationen gehören hierher, statt mit der Projektarbeit zu konkurrieren.")}</p>
+      <div class="settings-card"><div><strong>${uiText("App settings", "App-Einstellungen")}</strong><span>${uiText("General preferences remain intentionally small while product behavior becomes configurable.", "Allgemeine Einstellungen bleiben bewusst kompakt, während weitere Produktfunktionen konfigurierbar werden.")}</span></div><span class="settings-badge">${uiText("Ready", "Bereit")}</span></div>
     </section>`;
 };
 
@@ -368,19 +373,19 @@ const renderSettingsModal = () => settingsOpen ? `
   <div class="modal-backdrop" data-settings-backdrop>
     <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" data-settings-modal>
       <aside class="settings-nav">
-        <div class="settings-heading"><span class="eyebrow">Preferences</span><h2 id="settings-title">Settings</h2><p>Livariant, connections and desktop lifecycle.</p></div>
+        <div class="settings-heading"><span class="eyebrow">${uiText("Settings", "Einstellungen")}</span><h2 id="settings-title">${uiText("Settings", "Einstellungen")}</h2><p>${uiText("Livariant, connections and desktop lifecycle.", "Livariant, Verbindungen und Desktop-Lebenszyklus.")}</p></div>
         <div class="settings-nav-group"><small>Workspace</small>
-          <button class="settings-nav-item ${settingsSection === "general" ? "active" : ""}" data-settings-section="general" type="button">${icon("settings")}<span>General</span></button>
+          <button class="settings-nav-item ${settingsSection === "general" ? "active" : ""}" data-settings-section="general" type="button">${icon("settings")}<span>${uiText("General", "Allgemein")}</span></button>
         </div>
-        <div class="settings-nav-group"><small>Integrations</small>
-          <button class="settings-nav-item ${settingsSection === "connections" ? "active" : ""}" data-settings-section="connections" type="button">${icon("diagnostics")}<span>Connections</span></button>
+        <div class="settings-nav-group"><small>${uiText("Integrations", "Integrationen")}</small>
+          <button class="settings-nav-item ${settingsSection === "connections" ? "active" : ""}" data-settings-section="connections" type="button">${icon("diagnostics")}<span>${uiText("Connections", "Verbindungen")}</span></button>
         </div>
         <div class="settings-nav-group"><small>Desktop</small>
           <button class="settings-nav-item ${settingsSection === "updates" ? "active" : ""}" data-settings-section="updates" type="button">${icon("updates")}<span>Updates</span></button>
           <button class="settings-nav-item ${settingsSection === "system" ? "active" : ""}" data-settings-section="system" type="button">${icon("settings")}<span>System</span></button>
         </div>
       </aside>
-      <div class="settings-content"><button class="modal-close" data-close-settings type="button" aria-label="Close settings">×</button><div class="settings-content-body">${renderSettingsContent()}</div></div>
+      <div class="settings-content"><button class="modal-close" data-close-settings type="button" aria-label="${uiText("Close settings", "Einstellungen schließen")}">×</button><div class="settings-content-body">${renderSettingsContent()}</div></div>
     </section>
   </div>` : "";
 
