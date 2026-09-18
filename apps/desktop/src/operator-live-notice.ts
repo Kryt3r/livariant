@@ -71,10 +71,11 @@ const render = () => {
     <article class="operator-live-notice" data-severity="${escapeHtml(item.severity)}" data-operator-notice-id="${escapeHtml(item.id)}">
       <div class="operator-live-notice-icon" aria-hidden="true">${item.severity === "critical" ? "!" : item.severity === "warning" ? "!" : "i"}</div>
       <div class="operator-live-notice-copy">
+        <span class="operator-live-notice-source">${text("Livariant Service", "Livariant-Service")}</span>
         <strong>${escapeHtml(item.title)}</strong>
-        <span>${escapeHtml(item.body)}</span>
+        <span class="operator-live-notice-body" title="${escapeHtml(item.body)}">${escapeHtml(item.body)}</span>
       </div>
-      <span class="operator-live-notice-state">${text("Live", "Aktiv")}</span>
+      <span class="operator-live-notice-state"><i aria-hidden="true"></i>${text("Live", "Aktiv")}</span>
     </article>
   `).join("");
 };

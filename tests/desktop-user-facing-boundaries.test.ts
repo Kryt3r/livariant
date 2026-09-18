@@ -22,6 +22,8 @@ test("Operator Live Notice localizes normal-user status and accessibility copy",
   assert.match(renderer, /Livariant service status/);
   assert.match(renderer, /Livariant-Servicestatus/);
   assert.match(renderer, /text\("Live", "Aktiv"\)/);
+  assert.match(renderer, /text\("Livariant Service", "Livariant-Service"\)/);
+  assert.match(renderer, /operator-live-notice-source/);
   assert.match(renderer, /operator_live_notice_list/);
   assert.doesNotMatch(renderer, /operator_live_notice_(record|write|apply)/);
 });
