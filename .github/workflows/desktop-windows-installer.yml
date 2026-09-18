@@ -258,6 +258,20 @@ jobs:
           if ($process.HasExited) {
             throw "Installed Livariant Desktop exited during launch smoke with code $($process.ExitCode)."
           }
+
+          $secondProcess = Start-Process -FilePath $app -PassThru
+          Start-Sleep -Seconds 3
+          $secondProcess.Refresh()
+          if (-not $secondProcess.HasExited) {
+            Stop-Process -Id $secondProcess.Id -Force -ErrorAction SilentlyContinue
+            throw "A second Livariant Desktop instance remained running; single-instance enforcement failed."
+          }
+          $process.Refresh()
+          if ($process.HasExited) {
+            throw "Primary Livariant Desktop instance exited while rejecting a second launch."
+          }
+          Write-Host "Single-instance smoke passed: second launch exited while the primary instance remained running."
+
           Stop-Process -Id $process.Id -Force
           $process.WaitForExit()
 
