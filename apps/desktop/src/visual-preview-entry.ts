@@ -191,6 +191,8 @@ const measurementFixture = () => {
 };
 
 const invoke: VisualInvoke = async (command, args) => {
+  if (command === "plugin:event|listen") return 1;
+  if (command === "plugin:event|unlisten") return null;
   if (command === "codex_connector_status") {
     return {
       installationState: "available",
@@ -241,6 +243,7 @@ Object.defineProperty(window, "__TAURI_INTERNALS__", {
   configurable: true,
   value: {
     invoke,
+    transformCallback: () => 1,
     metadata: {
       currentWindow: { label: "main" },
       currentWebview: { label: "main" },
