@@ -236,6 +236,68 @@ const invoke: VisualInvoke = async (command, args) => {
       }] : [],
     };
   }
+  if (command === "project_source_review_presentation") {
+    return {
+      state: "ready",
+      detail: "Visual QA source snapshot",
+      presentation: {
+        projectId: "livariant",
+        sources: [
+          {
+            kind: "primary",
+            identity: { provider: "github", repositoryId: "Kryt3r/livariant", displayName: "livariant", remoteUrl: "https://github.com/Kryt3r/livariant" },
+            description: "Canonical product repository",
+            localPath: "C:/Projects/livariant",
+            remoteState: "recorded",
+            localState: "linked",
+            reachability: "reachable",
+            branch: "main",
+            revision: "b48ff592",
+            observedAt: "2026-09-18T14:00:00Z",
+            stale: false,
+            attention: [],
+          },
+          {
+            kind: "additional",
+            identity: { provider: "github", repositoryId: "Kryt3r/livariant-internal", displayName: "livariant-internal", remoteUrl: "https://github.com/Kryt3r/livariant-internal" },
+            description: "Internal development control plane",
+            localPath: null,
+            remoteState: "recorded",
+            localState: "not-linked",
+            reachability: "reachable",
+            branch: "main",
+            revision: "cf878128",
+            observedAt: "2026-09-18T13:45:00Z",
+            stale: false,
+            attention: [],
+          },
+        ],
+        review: {
+          state: "ready-for-authorization-review",
+          proposalId: "visual-review",
+          evidence: [
+            { evidenceId: "e1", materialDigest: "sha256:visual1", path: "CURRENT-STATE.md", kind: "document", scope: "internal", trust: "evidence-only", truncated: false, decision: "undecided", attentionCodes: [], requiresReview: true },
+            { evidenceId: "e2", materialDigest: "sha256:visual2", path: "NEXT.md", kind: "document", scope: "internal", trust: "evidence-only", truncated: false, decision: "accept-as-candidate", attentionCodes: [], requiresReview: false },
+          ],
+          attention: [{ code: "SOURCE_REVIEW_REQUIRED", severity: "warning", message: "One evidence item still requires review.", provenance: ["CURRENT-STATE.md"] }],
+          blockers: [],
+          authorizationState: "not-authorized",
+          applyState: "not-applied",
+          requiresReviewAgain: false,
+        },
+        summary: {
+          sourceCount: 2,
+          additionalSourceCount: 1,
+          remoteOnlyCount: 1,
+          localCheckoutCount: 1,
+          unavailableCount: 0,
+          staleCount: 0,
+          reviewAttentionCount: 1,
+          reviewBlockerCount: 0,
+        },
+      },
+    };
+  }
   throw new Error(`Native command '${command}' is unavailable in the visual QA preview.`);
 };
 
@@ -295,6 +357,14 @@ window.requestAnimationFrame(() => {
   }
   if (view === "steps") {
     document.querySelector<HTMLButtonElement>("nav.nav [data-view='steps']")?.click();
+    return;
+  }
+  if (view === "source-review") {
+    document.querySelector<HTMLButtonElement>("nav.nav [data-view='source-review']")?.click();
+    window.setTimeout(() => {
+      const section = previewParams.get("section");
+      if (section) document.querySelector<HTMLButtonElement>(`[data-source-review-section='${section}']`)?.click();
+    }, 350);
     return;
   }
   document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
