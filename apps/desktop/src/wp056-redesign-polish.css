@@ -392,3 +392,89 @@
   .shell-redesign-active .settings-nav { padding-top: 18px; padding-bottom: 18px; }
   .shell-redesign-active .settings-content { padding-top: 30px; padding-bottom: 34px; }
 }
+
+
+/* WP-056 maintainer visual hierarchy pass.
+   Stronger contour and restrained surface variation improve scanability without
+   changing information architecture or product semantics. */
+.shell-redesign-active .nav-item:not(.active) {
+  border-color: rgba(132, 117, 183, .11);
+  background: linear-gradient(180deg, rgba(255,255,255,.016), rgba(255,255,255,.006));
+}
+.shell-redesign-active .nav-item:not(.active):hover {
+  border-color: rgba(155, 121, 235, .24);
+  background: linear-gradient(180deg, rgba(120,75,210,.08), rgba(255,255,255,.018));
+}
+.shell-redesign-active .settings-nav-item:not(.active) {
+  border: 1px solid rgba(132, 117, 183, .10);
+  background: rgba(255,255,255,.012);
+}
+.shell-redesign-active .settings-nav-item:not(.active):hover {
+  border-color: rgba(160, 121, 235, .22);
+  background: rgba(111, 72, 198, .06);
+}
+
+.shell-redesign-active .source-review-subnav {
+  width: min(100%, 1500px);
+  margin: 0 auto 14px;
+  border-color: rgba(145, 111, 222, .26);
+  background:
+    linear-gradient(180deg, rgba(19, 18, 40, .9), rgba(12, 13, 29, .86));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025), 0 10px 34px rgba(0,0,0,.12);
+}
+.shell-redesign-active .source-review-subnav-item:not(.active) {
+  border-color: rgba(129, 116, 181, .08);
+  background: rgba(255,255,255,.008);
+}
+.shell-redesign-active .source-review-subnav-item:not(.active):hover {
+  border-color: rgba(159, 118, 238, .19);
+  background: rgba(118, 71, 210, .055);
+}
+
+.shell-redesign-active .source-review-summary > div,
+.shell-redesign-active .source-review-summary-grid > div {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(137, 122, 190, .18);
+  background: linear-gradient(180deg, rgba(18,19,39,.78), rgba(10,12,27,.72));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.022);
+}
+.shell-redesign-active .source-review-summary > div::before,
+.shell-redesign-active .source-review-summary-grid > div::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: rgba(157, 91, 255, .62);
+}
+.shell-redesign-active .source-review-summary > div:nth-child(2)::before,
+.shell-redesign-active .source-review-summary-grid > div:nth-child(2)::before { background: rgba(84, 118, 255, .64); }
+.shell-redesign-active .source-review-summary > div:nth-child(3)::before,
+.shell-redesign-active .source-review-summary-grid > div:nth-child(3)::before { background: rgba(79, 199, 158, .58); }
+.shell-redesign-active .source-review-summary > div:nth-child(4)::before,
+.shell-redesign-active .source-review-summary-grid > div:nth-child(4)::before { background: rgba(226, 160, 73, .58); }
+.shell-redesign-active .source-review-summary > div:nth-child(5)::before,
+.shell-redesign-active .source-review-summary-grid > div:nth-child(5)::before { background: rgba(212, 82, 255, .58); }
+
+.shell-redesign-active .settings-panel > .settings-card,
+.shell-redesign-active .settings-content-body > .settings-card {
+  width: 100%;
+  max-width: 760px;
+  min-height: 104px;
+}
+.shell-redesign-active .settings-panel > .settings-card {
+  border-color: rgba(151, 111, 225, .25);
+  background:
+    radial-gradient(circle at 100% 0, rgba(130, 75, 229, .08), transparent 34%),
+    linear-gradient(180deg, var(--lv-surface-2), var(--lv-surface-1));
+}
+.shell-redesign-active .settings-content-body > .settings-card {
+  margin-top: 18px;
+  border-color: rgba(84, 137, 224, .24);
+  background:
+    radial-gradient(circle at 100% 0, rgba(71, 127, 224, .08), transparent 34%),
+    linear-gradient(180deg, rgba(17, 22, 43, .88), rgba(10, 14, 30, .88));
+}
+.shell-redesign-active .settings-content-body > .settings-card [data-reopen-first-run] {
+  min-width: 134px;
+}
