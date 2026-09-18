@@ -4,23 +4,50 @@
   background: #050d18;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --bg: #050d18;
-  --surface: rgba(8, 22, 40, 0.82);
-  --surface-2: rgba(12, 28, 49, 0.88);
-  --surface-3: rgba(17, 35, 60, 0.92);
+
+  /* Shared WP-056 surface primitives. These are intentionally presentation-only:
+     they consolidate visual depth without changing product/runtime semantics. */
+  --lv-bg: #05040b;
+  --lv-surface-0: rgba(7, 8, 18, .72);
+  --lv-surface-1: rgba(11, 14, 29, .82);
+  --lv-surface-2: rgba(16, 18, 38, .90);
+  --lv-surface-3: rgba(20, 23, 47, .95);
+  --lv-border-subtle: rgba(139, 126, 202, .13);
+  --lv-border: rgba(147, 132, 214, .20);
+  --lv-border-strong: rgba(166, 105, 255, .34);
+  --lv-text: #f5f2ff;
+  --lv-muted: #aaa6b8;
+  --lv-muted-2: #777184;
+  --lv-accent: #9b4dff;
+  --lv-accent-2: #7447ff;
+  --lv-accent-soft: rgba(126, 68, 225, .10);
+  --lv-success: #4ee7a8;
+  --lv-warning: #ffb454;
+  --lv-danger: #ff6483;
+  --lv-radius-sm: 9px;
+  --lv-radius-md: 12px;
+  --lv-radius-lg: 14px;
+  --lv-radius-xl: 18px;
+  --lv-shadow-soft: inset 0 1px 0 rgba(255,255,255,.025), 0 10px 28px rgba(0,0,0,.18);
+  --lv-shadow-panel: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 44px rgba(0,0,0,.26);
+  --lv-shadow-modal: inset 0 1px 0 rgba(255,255,255,.05), 0 34px 100px rgba(0,0,0,.52);
+  --bg: var(--lv-bg);
+  --surface: var(--lv-surface-1);
+  --surface-2: var(--lv-surface-2);
+  --surface-3: var(--lv-surface-3);
   --line: rgba(153, 180, 224, 0.16);
   --line-strong: rgba(164, 156, 255, 0.34);
-  --text: #f2f5ff;
-  --muted: #a9b7cc;
-  --muted-2: #74839a;
+  --text: var(--lv-text);
+  --muted: var(--lv-muted);
+  --muted-2: var(--lv-muted-2);
   --brand: #765cff;
   --brand-2: #b79cff;
   --brand-pink: #d957ff;
   --brand-soft: rgba(118, 92, 255, 0.12);
-  --success: #63d2a5;
-  --warning: #f0c46e;
-  --danger: #ff7f9f;
-  --radius: 16px;
+  --success: var(--lv-success);
+  --warning: var(--lv-warning);
+  --danger: var(--lv-danger);
+  --radius: var(--lv-radius-lg);
   --shadow: 0 22px 60px rgba(0, 0, 0, 0.26), 0 0 28px rgba(118, 92, 255, 0.035);
 }
 
