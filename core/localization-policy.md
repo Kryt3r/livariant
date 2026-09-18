@@ -10,7 +10,7 @@ updated: 2026-08-11
 
 ## Principle
 
-Livariant is internationally usable by design.
+The Project Brain Framework is internationally usable by design.
 
 Machine-facing framework truth remains language-stable and canonical. Human-facing communication is localized.
 
@@ -38,8 +38,8 @@ Recommended convention:
 
 - `README.md` — English default
 - `README.de.md` — German translation
-- `docs/*.md` — canonical English public documentation
-- `docs/de/*.md` — German translations paired by filename
+- `docs/en/...` — canonical public documentation
+- `docs/de/...` — German translation
 
 Translated documents should identify their canonical source and translation status where practical.
 
