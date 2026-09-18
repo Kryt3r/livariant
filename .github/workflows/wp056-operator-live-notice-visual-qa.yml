@@ -1,0 +1,75 @@
+name: WP-056 Operator Live Notice Visual QA
+
+on:
+  push:
+    branches:
+      - wp-056-operator-live-notice-presentation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  operator-notice-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+
+      - name: Install Core dependencies
+        run: npm ci
+
+      - name: Build Core and run user-facing boundary tests
+        run: |
+          npm run build
+          node --test dist/tests/desktop-user-facing-boundaries.test.js
+
+      - name: Install Desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Type-check and build Desktop
+        working-directory: apps/desktop
+        run: npm run build
+
+      - name: Install Chromium for visual QA
+        working-directory: apps/desktop
+        run: npx --yes playwright@1.55.0 install --with-deps chromium
+
+      - name: Start Visual-QA renderer
+        working-directory: apps/desktop
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/livariant-operator-visual-qa.log 2>&1 &
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:1420/visual-preview.html >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/livariant-operator-visual-qa.log
+          exit 1
+
+      - name: Capture official service notice states
+        working-directory: apps/desktop
+        run: |
+          mkdir -p operator-visual-qa-output
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1800 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=overview&scenario=operator-warning" operator-visual-qa-output/operator-warning-de-1600x1000.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="1600,1000" --wait-for-timeout=1800 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=overview&scenario=operator-critical" operator-visual-qa-output/operator-critical-de-1600x1000.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="980,820" --wait-for-timeout=1800 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=overview&scenario=operator-warning" operator-visual-qa-output/operator-warning-de-980x820.png
+          timeout 45s npx --yes playwright@1.55.0 screenshot --browser=chromium --viewport-size="720,820" --wait-for-timeout=1800 "http://127.0.0.1:1420/visual-preview.html?lang=de&view=overview&scenario=operator-warning" operator-visual-qa-output/operator-warning-de-720x820.png
+
+      - name: Upload visual QA artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wp056-operator-live-notice-visual-qa
+          path: apps/desktop/operator-visual-qa-output/*.png
+          if-no-files-found: error
+          retention-days: 7
