@@ -18,6 +18,11 @@ on:
       - ".github/workflows/ci-verification-mode.yml"
       - "scripts/classify-ci-risk.mjs"
       - "scripts/classify-ci-risk.test.mjs"
+  push:
+    branches:
+      - preview/wp056-project-knowledge-route-7cd535d
+    paths:
+      - ".github/workflows/desktop-windows-installer.yml"
   workflow_dispatch:
 
 permissions:
