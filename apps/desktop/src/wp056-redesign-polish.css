@@ -3,18 +3,24 @@
 /* WP-056 maintainer feedback polish.
    Presentation only: no Trust/Authority, persistence or Project Brain semantics. */
 
-/* Keep the bottom settings launcher inside the real viewport. */
-.shell-redesign-active .app-shell {
-  height: auto;
-  min-height: 0;
+/* Keep the bottom settings launcher inside the real viewport.
+   The legacy shell is still defined as calc(100vh - 38px). Once H3 raises the header to
+   --shell-header-height that legacy height can extend below the viewport. Pin the post-header
+   grid track to its exact viewport height so the settings launcher can never be clipped. */
+.desktop-frame.shell-redesign-active > .app-shell {
+  height: calc(100vh - var(--shell-header-height)) !important;
+  max-height: calc(100vh - var(--shell-header-height)) !important;
+  min-height: 0 !important;
   align-self: stretch;
 }
-.shell-redesign-active .sidebar {
+.desktop-frame.shell-redesign-active > .app-shell > .sidebar {
   display: flex;
   flex-direction: column;
-  height: auto;
-  min-height: 0;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
   align-self: stretch;
+  overflow: hidden;
 }
 .shell-redesign-active .nav {
   flex: 1 1 auto;
