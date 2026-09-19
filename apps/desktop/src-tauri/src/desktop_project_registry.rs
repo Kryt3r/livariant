@@ -20,7 +20,7 @@ enum DesktopProjectRegistrationState {
     Detached,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum LegacyMigrationState {
     #[default]
