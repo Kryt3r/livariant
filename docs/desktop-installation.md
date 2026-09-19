@@ -1,4 +1,4 @@
-# Livariant Desktop — Windows Installation & First Use
+# Livariant Desktop - Windows Installation & First Use
 
 This guide is for the **Windows Desktop** product surface. The Core/CLI and protected Guardian installation path are separate and remain documented in [Installation & First Project](installation.md).
 
@@ -144,8 +144,8 @@ Application-data retention/removal must be treated separately from project repos
 
 Livariant currently has distinct product surfaces:
 
-- **Desktop** — Windows-first normal-user surface described on this page;
-- **Core/CLI** — command-line and protected Guardian/runtime workflows documented in [Installation & First Project](installation.md).
+- **Desktop** - Windows-first normal-user surface described on this page;
+- **Core/CLI** - command-line and protected Guardian/runtime workflows documented in [Installation & First Project](installation.md).
 
 The two surfaces share Livariant's Trust/Authority semantics but do not have the same installation or First Run UX.
 
