@@ -45,3 +45,27 @@ test("duplicate onboarding source errors point users to Connections management",
   assert.match(firstRun, /Einstellungen → Verbindungen/);
   assert.match(firstRun, /Additional repository identity is already associated with this project/);
 });
+
+
+test("Connections settings present Windows checkout paths without verbatim prefixes", async () => {
+  const management = await read("apps/desktop/src/project-connections-settings.ts");
+
+  assert.match(management, /function displayLocalPath/);
+  assert.match(management, /startsWith\("\\\\\\\\?\\\\UNC\\\\"\)/);
+  assert.match(management, /startsWith\("\\\\\\\\?\\\\"\)/);
+  assert.match(management, /esc\(displayLocalPath\(localPath\)\)/);
+});
+
+test("destructive-looking source actions use Livariant confirmation UI instead of native browser confirms", async () => {
+  const management = await read("apps/desktop/src/project-connections-settings.ts");
+  const css = await read("apps/desktop/src/project-connections-settings.css");
+
+  assert.doesNotMatch(management, /window\.confirm/);
+  assert.match(management, /project-confirm-backdrop/);
+  assert.match(management, /role="alertdialog"/);
+  assert.match(management, /Auf „Nur Remote“ umstellen\?/);
+  assert.match(management, /Repository aus diesem Projekt entfernen\?/);
+  assert.match(management, /Kein Repository und keine lokale Datei wird gelöscht/);
+  assert.match(css, /\.project-confirm-dialog/);
+  assert.match(css, /\.project-confirm-action\.danger/);
+});
