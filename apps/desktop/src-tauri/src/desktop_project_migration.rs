@@ -773,7 +773,6 @@ pub(crate) fn initialize(
         }
 
         migrate_candidate(app, state, &projects_root, &candidate)?;
-        restore_last_active_project(app, state)?;
         return Ok(());
     }
 
@@ -795,7 +794,6 @@ pub(crate) fn initialize(
         return Err("Desktop project recovery is required before legacy migration can continue.".to_owned());
     }
     migrate_candidate(app, state, &projects_root, &candidate)?;
-    restore_last_active_project(app, state)?;
     Ok(())
 }
 
