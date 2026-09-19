@@ -312,6 +312,24 @@ fn validate_registry(registry: &DesktopProjectRegistry) -> Result<(), String> {
     Ok(())
 }
 
+fn has_orphan_project_namespace(projects_root: &Path) -> Result<bool, String> {
+    for entry in fs::read_dir(projects_root)
+        .map_err(|error| format!("Desktop project registry directory could not be enumerated: {error}"))?
+    {
+        let entry = entry.map_err(|error| format!("Desktop project registry entry could not be inspected: {error}"))?;
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue; };
+        if canonical_uuid(&name, "project namespace").is_err() {
+            continue;
+        }
+        let metadata = fs::symlink_metadata(entry.path())
+            .map_err(|error| format!("Desktop project namespace could not be inspected: {error}"))?;
+        if metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn load_registry(projects_root: &Path) -> Result<DesktopProjectRegistry, String> {
     if !ensure_projects_root(projects_root, false)? {
         return Ok(DesktopProjectRegistry::default());
@@ -321,6 +339,9 @@ fn load_registry(projects_root: &Path) -> Result<DesktopProjectRegistry, String>
     if !regular_file_exists(&path, "Desktop project registry")? {
         if regular_file_exists(&backup, "Desktop project registry backup")? {
             return Err("Desktop project registry recovery is required; a backup exists without a canonical registry.".to_owned());
+        }
+        if has_orphan_project_namespace(projects_root)? {
+            return Err("Desktop project registry recovery is required; project state exists without a canonical registry.".to_owned());
         }
         return Ok(DesktopProjectRegistry::default());
     }
@@ -492,7 +513,7 @@ fn register_at(
 
     let desktop_project_id = Uuid::new_v4().hyphenated().to_string();
     let display_name = normalized_display_name(input.display_name.as_deref(), &canonical_root)?;
-    real_state_directory(projects_root, &desktop_project_id, true)?;
+    let state_root = real_state_directory(projects_root, &desktop_project_id, true)?;
 
     registry.projects.push(DesktopProjectRecord {
         desktop_project_id,
@@ -502,7 +523,13 @@ fn register_at(
         stable_project_identity: None,
         state: DesktopProjectRegistrationState::Registered,
     });
-    write_registry(projects_root, &registry)?;
+    if let Err(error) = write_registry(projects_root, &registry) {
+        // This directory belongs to the just-created machine-local registration.
+        // Remove it only while it is still empty. If cleanup itself cannot be
+        // proven safe, the orphan namespace remains visible to recovery checks.
+        let _ = fs::remove_dir(&state_root);
+        return Err(error);
+    }
 
     Ok(DesktopProjectMutationResult {
         state: "registered",
@@ -981,6 +1008,32 @@ mod tests {
 
         let error = load_registry(&projects).expect_err("symlink root rejected");
         assert!(error.contains("non-symbolic-link"));
+        fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn missing_registry_with_existing_project_namespace_requires_recovery() {
+        let root = test_root("orphan-namespace");
+        let projects = root.join("app-data").join("projects");
+        fs::create_dir_all(&projects).expect("projects root");
+        let orphan = projects.join(Uuid::new_v4().hyphenated().to_string());
+        fs::create_dir(&orphan).expect("orphan namespace");
+
+        let error = load_registry(&projects).expect_err("orphan namespace rejected");
+        assert!(error.contains("recovery is required"));
+        assert!(error.contains("without a canonical registry"));
+        fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn empty_projects_root_without_registry_is_a_clean_empty_registry() {
+        let root = test_root("clean-empty");
+        let projects = root.join("app-data").join("projects");
+        fs::create_dir_all(&projects).expect("projects root");
+
+        let registry = load_registry(&projects).expect("clean empty registry");
+        assert!(registry.projects.is_empty());
+        assert!(registry.last_active_desktop_project_id.is_none());
         fs::remove_dir_all(&root).expect("cleanup");
     }
 
