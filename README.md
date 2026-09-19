@@ -233,7 +233,7 @@ Livariant currently has **independently versioned product surfaces**. The root/C
 
 The canonical published Desktop Preview is `0.1.0-rc.29`, published as the immutable prerelease tag `desktop-preview-0.1.0-rc.29-bbfd076f0710` from exact source `bbfd076f07103026688611f4e5438c8a58687e83`.
 
-Windows users can follow [Desktop — Windows Installation & First Use](docs/desktop-installation.md) for the exact installer identity, digest verification, First Run, GitHub/provider setup, update and uninstall boundaries.
+Windows users can follow [Desktop - Windows Installation & First Use](docs/desktop-installation.md) for the exact installer identity, digest verification, First Run, GitHub/provider setup, update and uninstall boundaries.
 
 That release is a Desktop Preview, not Stable release authority. Its publication does not authorize a Stable release, package publication, or unrelated updater publication.
 
@@ -284,7 +284,7 @@ Livariant currently has separate Desktop and Core/CLI setup paths.
 
 ### Windows Desktop
 
-1. [Desktop — Windows Installation & First Use](docs/desktop-installation.md)
+1. [Desktop - Windows Installation & First Use](docs/desktop-installation.md)
 2. [Desktop GitHub connection](docs/desktop-github-connection.md)
 3. [Privacy & Network Behavior](docs/privacy-and-network.md)
 
