@@ -359,3 +359,26 @@
     margin-top: 6px;
   }
 }
+
+
+/* Revisit onboarding must stay visibly above desktop chrome such as the Windows
+   taskbar even when the native webview reports a viewport extending behind it. */
+.first-run-frame {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.first-run-frame .fr-shell {
+  height: auto;
+  min-height: 0;
+}
+
+.first-run-revisit .fr-rail {
+  padding-bottom: 64px;
+}
+
+@media (max-height: 760px) and (min-width: 881px) {
+  .first-run-revisit .fr-rail {
+    padding-bottom: 56px;
+  }
+}
