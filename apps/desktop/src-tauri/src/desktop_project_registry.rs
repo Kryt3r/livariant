@@ -1275,6 +1275,17 @@ mod tests {
     }
 
     #[test]
+    fn registry_without_legacy_migration_field_defaults_to_pending() {
+        let value = serde_json::json!({
+            "schemaVersion": 1,
+            "projects": []
+        });
+        let registry: DesktopProjectRegistry = serde_json::from_value(value).expect("old registry");
+        assert_eq!(registry.legacy_migration.state, LegacyMigrationState::Pending);
+        validate_registry(&registry).expect("old registry remains valid");
+    }
+
+    #[test]
     fn legacy_finalize_loader_allows_only_the_expected_orphan_namespace() {
         let root = test_root("legacy-finalize-loader");
         let projects = root.join("app-data").join("projects");
