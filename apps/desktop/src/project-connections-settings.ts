@@ -60,6 +60,11 @@ type RepositoryInspection = {
   repositoryId: string | null;
 };
 
+type PendingConfirmation =
+  | { kind: "disconnect-github" }
+  | { kind: "remote-only"; identity: RepositoryIdentity }
+  | { kind: "remove-source"; identity: RepositoryIdentity };
+
 let githubStatus: GitHubConnectionStatus | null = null;
 let sourceRegistry: ProjectSourceRegistry | null = null;
 let loading = false;
@@ -69,11 +74,19 @@ let notice: string | null = null;
 let authorization: GitHubDeviceAuthorization | null = null;
 let pollTimer: number | null = null;
 let activeRerender: (() => void) | null = null;
+let pendingConfirmation: PendingConfirmation | null = null;
 
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 const esc = (value: string) => value.replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character] ?? character);
+
+function displayLocalPath(localPath: string): string {
+  const value = localPath.trim();
+  if (value.startsWith("\\\\?\\UNC\\")) return `\\\\${value.slice(8)}`;
+  if (value.startsWith("\\\\?\\")) return value.slice(4);
+  return value;
+}
 
 function registryFrom(snapshot: FirstRunLifecycleSnapshot): ProjectSourceRegistry | null {
   const state = snapshot.onboardingState as {
@@ -141,7 +154,7 @@ const githubConnectionMarkup = () => {
 
 function sourceLocalMarkup(localPath: string | undefined): string {
   return localPath?.trim()
-    ? `<span class="project-source-local linked">${esc(localPath)}</span>`
+    ? `<span class="project-source-local linked" title="${esc(localPath)}">${esc(displayLocalPath(localPath))}</span>`
     : `<span class="project-source-local remote">${text("Remote only", "Nur Remote")}</span>`;
 }
 
@@ -187,6 +200,84 @@ const repositoriesMarkup = () => {
   return `<div class="project-source-manage-list">${primarySourceMarkup()}${sourceRegistry.additional.map(additionalSourceMarkup).join("")}</div>`;
 };
 
+function confirmationMarkup(): string {
+  if (!pendingConfirmation) return "";
+
+  if (pendingConfirmation.kind === "disconnect-github") {
+    return `<div class="project-confirm-backdrop" data-project-confirm-backdrop>
+      <section class="project-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="project-confirm-title">
+        <div class="project-confirm-icon">GH</div>
+        <div class="project-confirm-copy">
+          <span class="eyebrow">GitHub</span>
+          <h3 id="project-confirm-title">${text("Disconnect GitHub?", "GitHub trennen?")}</h3>
+          <p>${text(
+            "Livariant removes only the account connection. Project repository associations and every local checkout remain unchanged.",
+            "Livariant entfernt nur die Account-Verbindung. Projekt-Repository-Zuordnungen und alle lokalen Checkouts bleiben unverändert.",
+          )}</p>
+        </div>
+        <div class="project-confirm-boundary">${text(
+          "No repository or local file will be deleted.",
+          "Kein Repository und keine lokale Datei wird gelöscht.",
+        )}</div>
+        <div class="project-confirm-actions">
+          <button class="button secondary" data-project-confirm-cancel type="button">${text("Cancel", "Abbrechen")}</button>
+          <button class="button project-confirm-action" data-project-confirm-accept type="button">${text("Disconnect GitHub", "GitHub trennen")}</button>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  const identity = pendingConfirmation.identity;
+  const repository = esc(identity.repositoryId);
+  if (pendingConfirmation.kind === "remote-only") {
+    return `<div class="project-confirm-backdrop" data-project-confirm-backdrop>
+      <section class="project-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="project-confirm-title">
+        <div class="project-confirm-icon">↗</div>
+        <div class="project-confirm-copy">
+          <span class="eyebrow">${text("Local checkout", "Lokaler Checkout")}</span>
+          <h3 id="project-confirm-title">${text("Switch to Remote only?", "Auf „Nur Remote“ umstellen?")}</h3>
+          <p>${text(
+            `Livariant removes only the local checkout association for ${identity.repositoryId}. The folder stays untouched on this computer and the GitHub repository remains unchanged.`,
+            `Livariant entfernt nur die lokale Checkout-Zuordnung für ${identity.repositoryId}. Der Ordner bleibt auf diesem Computer unverändert und das GitHub-Repository bleibt bestehen.`,
+          )}</p>
+        </div>
+        <div class="project-confirm-repository">${repository}</div>
+        <div class="project-confirm-boundary">${text(
+          "Afterwards Livariant keeps this source as Remote only. Nothing is deleted.",
+          "Danach führt Livariant diese Quelle als „Nur Remote“. Es wird nichts gelöscht.",
+        )}</div>
+        <div class="project-confirm-actions">
+          <button class="button secondary" data-project-confirm-cancel type="button">${text("Cancel", "Abbrechen")}</button>
+          <button class="button project-confirm-action" data-project-confirm-accept type="button">${text("Switch to Remote only", "Auf Nur Remote umstellen")}</button>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  return `<div class="project-confirm-backdrop" data-project-confirm-backdrop>
+    <section class="project-confirm-dialog danger" role="alertdialog" aria-modal="true" aria-labelledby="project-confirm-title">
+      <div class="project-confirm-icon">−</div>
+      <div class="project-confirm-copy">
+        <span class="eyebrow">${text("Project source", "Projektquelle")}</span>
+        <h3 id="project-confirm-title">${text("Remove repository from this project?", "Repository aus diesem Projekt entfernen?")}</h3>
+        <p>${text(
+          `${identity.repositoryId} is removed only from this Livariant project's source registry. Local files and the GitHub repository remain untouched.`,
+          `${identity.repositoryId} wird nur aus dem Quellenregister dieses Livariant-Projekts entfernt. Lokale Dateien und das GitHub-Repository bleiben unverändert.`,
+        )}</p>
+      </div>
+      <div class="project-confirm-repository">${repository}</div>
+      <div class="project-confirm-boundary">${text(
+        "This does not delete the repository, its checkout, or project-owned files.",
+        "Dabei werden weder das Repository noch sein Checkout oder projekt-eigene Dateien gelöscht.",
+      )}</div>
+      <div class="project-confirm-actions">
+        <button class="button secondary" data-project-confirm-cancel type="button">${text("Cancel", "Abbrechen")}</button>
+        <button class="button project-confirm-action danger" data-project-confirm-accept type="button">${text("Remove association", "Zuordnung entfernen")}</button>
+      </div>
+    </section>
+  </div>`;
+}
+
 export function renderProjectConnectionsSettings(): string {
   return `<section class="project-connections-settings" aria-label="${text("GitHub and project repositories", "GitHub und Projekt-Repositories")}">
     <div class="project-connections-section-head"><div><span class="eyebrow">GitHub</span><h3>${text("GitHub connection", "GitHub-Verbindung")}</h3><p>${text("Manage the account connection separately from repositories associated with this project.", "Verwalte die Account-Verbindung getrennt von den diesem Projekt zugeordneten Repositories.")}</p></div></div>
@@ -195,6 +286,7 @@ export function renderProjectConnectionsSettings(): string {
     ${githubConnectionMarkup()}
     <div class="project-connections-section-head repositories"><div><span class="eyebrow">${text("Project sources", "Projektquellen")}</span><h3>${text("Associated repositories", "Zugeordnete Repositories")}</h3><p>${text("Edit local bindings and semantic descriptions or remove additional repository associations.", "Bearbeite lokale Zuordnungen und semantische Beschreibungen oder entferne zusätzliche Repository-Zuordnungen.")}</p></div><span class="project-source-count">${sourceRegistry ? 1 + sourceRegistry.additional.length : 0}</span></div>
     ${repositoriesMarkup()}
+    ${confirmationMarkup()}
   </section>`;
 }
 
@@ -282,22 +374,9 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
     rerender();
   });
 
-  document.querySelector<HTMLButtonElement>("[data-project-gh-disconnect]")?.addEventListener("click", async () => {
-    if (!window.confirm(text(
-      "Disconnect GitHub? Project repository associations and local checkouts will be kept.",
-      "GitHub trennen? Projekt-Repository-Zuordnungen und lokale Checkouts bleiben erhalten.",
-    ))) return;
-    busyKey = "github"; error = null; notice = null; rerender();
-    try {
-      await invoke("github_disconnect");
-      githubStatus = await invoke<GitHubConnectionStatus>("github_connection_status");
-      notice = text("GitHub disconnected. Project sources were kept.", "GitHub wurde getrennt. Projektquellen wurden beibehalten.");
-    } catch (cause) {
-      error = String(cause);
-    } finally {
-      busyKey = null;
-      rerender();
-    }
+  document.querySelector<HTMLButtonElement>("[data-project-gh-disconnect]")?.addEventListener("click", () => {
+    pendingConfirmation = { kind: "disconnect-github" };
+    rerender();
   });
 
   document.querySelector<HTMLButtonElement>("[data-project-gh-connect]")?.addEventListener("click", async () => {
@@ -368,20 +447,60 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
   document.querySelectorAll<HTMLButtonElement>("[data-source-remote-only]").forEach((button) => button.addEventListener("click", () => {
     const identity = identityFrom(button);
     if (!identity) return;
-    if (!window.confirm(text(
-      "Remove only the local checkout association? The folder and remote repository will not be deleted.",
-      "Nur die lokale Checkout-Zuordnung entfernen? Ordner und Remote-Repository werden nicht gelöscht.",
-    ))) return;
-    void applyAction({ type: "set-additional-local-binding", identity }, `additional:${identity.repositoryId}`, rerender);
+    pendingConfirmation = { kind: "remote-only", identity };
+    rerender();
   }));
 
   document.querySelectorAll<HTMLButtonElement>("[data-source-remove]").forEach((button) => button.addEventListener("click", () => {
     const identity = identityFrom(button);
     if (!identity) return;
-    if (!window.confirm(text(
-      `Remove ${identity.repositoryId} from this Livariant project? Local files and the GitHub repository will not be deleted.`,
-      `${identity.repositoryId} aus diesem Livariant-Projekt entfernen? Lokale Dateien und das GitHub-Repository werden nicht gelöscht.`,
-    ))) return;
-    void applyAction({ type: "remove-additional-repository", identity }, `additional:${identity.repositoryId}`, rerender);
+    pendingConfirmation = { kind: "remove-source", identity };
+    rerender();
   }));
+
+  const cancelConfirmation = () => {
+    pendingConfirmation = null;
+    rerender();
+  };
+
+  document.querySelector<HTMLButtonElement>("[data-project-confirm-cancel]")?.addEventListener("click", cancelConfirmation);
+  document.querySelector<HTMLElement>("[data-project-confirm-backdrop]")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) cancelConfirmation();
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-confirm-accept]")?.addEventListener("click", async () => {
+    const confirmation = pendingConfirmation;
+    if (!confirmation) return;
+    pendingConfirmation = null;
+
+    if (confirmation.kind === "disconnect-github") {
+      busyKey = "github"; error = null; notice = null; rerender();
+      try {
+        await invoke("github_disconnect");
+        githubStatus = await invoke<GitHubConnectionStatus>("github_connection_status");
+        notice = text("GitHub disconnected. Project sources were kept.", "GitHub wurde getrennt. Projektquellen wurden beibehalten.");
+      } catch (cause) {
+        error = String(cause);
+      } finally {
+        busyKey = null;
+        rerender();
+      }
+      return;
+    }
+
+    if (confirmation.kind === "remote-only") {
+      await applyAction(
+        { type: "set-additional-local-binding", identity: confirmation.identity },
+        `additional:${confirmation.identity.repositoryId}`,
+        rerender,
+      );
+      return;
+    }
+
+    await applyAction(
+      { type: "remove-additional-repository", identity: confirmation.identity },
+      `additional:${confirmation.identity.repositoryId}`,
+      rerender,
+    );
+  });
 }
