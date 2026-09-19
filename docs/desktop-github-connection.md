@@ -12,6 +12,12 @@ On Windows, access and refresh token material is protected with the operating sy
 
 The GitHub transport is host-owned and bounded. It uses a fixed Windows PowerShell helper path and fixed request scripts rather than exposing arbitrary renderer-supplied shell commands. The renderer can invoke only the declared GitHub commands.
 
+## Production build identity
+
+Official Windows builds receive the GitHub App client ID from the GitHub Actions repository variable `LIVARIANT_GITHUB_CLIENT_ID`. The client ID is public application identity, not a secret; private app keys or client secrets are not embedded in the Desktop build for the device-flow path.
+
+The ordinary installer build may still qualify with the variable unset and then behaves exactly as before with GitHub reported as not configured. A signed Desktop Preview build, however, requires a configured production client ID and fails closed when it is missing. This prevents a publishable Preview candidate from being built accidentally without the intended GitHub App identity.
+
 ## Repository discovery
 
 After authorization, Livariant asks GitHub for repositories visible through the authenticated GitHub App user connection. The normal repository picker can therefore include private repositories only when GitHub itself exposes them to that user/app installation.
