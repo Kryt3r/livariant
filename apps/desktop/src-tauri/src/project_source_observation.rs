@@ -65,20 +65,37 @@ fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSour
         return Err("Bundled Project Source observation runtime is not present in this Desktop build.".to_owned());
     }
 
-    let manifest: RuntimeManifest = serde_json::from_slice(
-        &fs::read(&manifest_path).map_err(|error| format!("Bundled runtime manifest could not be read: {error}"))?,
-    ).map_err(|error| format!("Bundled runtime manifest is invalid: {error}"))?;
+    let manifest_bytes = match fs::read(&manifest_path) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            let _ = fs::remove_file(&staged);
+            return Err(format!("Bundled runtime manifest could not be read: {error}"));
+        }
+    };
+    let manifest: RuntimeManifest = match serde_json::from_slice(&manifest_bytes) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            let _ = fs::remove_file(&staged);
+            return Err(format!("Bundled runtime manifest is invalid: {error}"));
+        }
+    };
     if manifest.authority_issued {
         let _ = fs::remove_file(&staged);
         return Err("Ordinary bundled runtime material must never claim Authority.".to_owned());
     }
 
-    let process = hidden_command(&node)
+    let process = match hidden_command(&node)
         .arg(&script)
         .current_dir(install_root)
         .env("LIVARIANT_PROJECT_SOURCE_REVIEW_INPUT", &staged)
         .output()
-        .map_err(|error| format!("Project Source observation runtime could not be started: {error}"))?;
+    {
+        Ok(process) => process,
+        Err(error) => {
+            let _ = fs::remove_file(&staged);
+            return Err(format!("Project Source observation runtime could not be started: {error}"));
+        }
+    };
     if !process.status.success() {
         let _ = fs::remove_file(&staged);
         let stderr = String::from_utf8_lossy(&process.stderr).trim().to_owned();
@@ -89,11 +106,24 @@ fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSour
         });
     }
 
-    let staged_bytes = fs::read(&staged)
-        .map_err(|error| format!("Observed Project Source configuration could not be read: {error}"))?;
-    let staged_configuration: ProjectSourceReviewConfigurationInput = serde_json::from_slice(&staged_bytes)
-        .map_err(|error| format!("Observed Project Source configuration is invalid: {error}"))?;
-    configuration_value(&staged_configuration)?;
+    let staged_bytes = match fs::read(&staged) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            let _ = fs::remove_file(&staged);
+            return Err(format!("Observed Project Source configuration could not be read: {error}"));
+        }
+    };
+    let staged_configuration: ProjectSourceReviewConfigurationInput = match serde_json::from_slice(&staged_bytes) {
+        Ok(configuration) => configuration,
+        Err(error) => {
+            let _ = fs::remove_file(&staged);
+            return Err(format!("Observed Project Source configuration is invalid: {error}"));
+        }
+    };
+    if let Err(error) = configuration_value(&staged_configuration) {
+        let _ = fs::remove_file(&staged);
+        return Err(error);
+    }
 
     if let Err(error) = with_project_persistence_scope_current(&app, registry_state.inner(), &scope, || {
         replace_staged_file(&staged, &input)
@@ -101,6 +131,12 @@ fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSour
         let _ = fs::remove_file(&staged);
         return Err(error);
     }
+
+    crate::desktop_project_registry::ensure_project_persistence_scope_current(
+        &app,
+        registry_state.inner(),
+        &scope,
+    )?;
 
     Ok(ProjectSourceObservationResult {
         state: "observed",
