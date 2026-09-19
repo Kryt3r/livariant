@@ -25,6 +25,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 minisign-verify = "=0.2.5"
 ureq = { version = "=2.12.1", default-features = false, features = ["tls"] }
+uuid = { version = "=1.26.0", features = ["v4"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2.10.1"
