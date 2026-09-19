@@ -93,7 +93,7 @@ async function chooseFolder(): Promise<string | null> {
 
 function bindLocalChoices(form: HTMLFormElement, repository: GitHubRepositorySummary): void {
   form.querySelector<HTMLButtonElement>("[data-gh-existing]")?.addEventListener("click", async () => {
-    const status = setLocalStatus(form, text("Choose the existing checkout folder…", "Wähle den vorhandenen Checkout-Ordner…"));
+    setLocalStatus(form, text("Choose the existing checkout folder…", "Wähle den vorhandenen Checkout-Ordner…"));
     try {
       const path = await chooseFolder();
       if (!path) {
@@ -119,11 +119,11 @@ function bindLocalChoices(form: HTMLFormElement, repository: GitHubRepositorySum
   });
 
   form.querySelector<HTMLButtonElement>("[data-gh-clone]")?.addEventListener("click", async () => {
-    const status = setLocalStatus(form, text("Choose an empty destination folder for the clone…", "Wähle einen leeren Zielordner für den Clone…"));
+    setLocalStatus(form, text("Choose an empty destination folder for the clone…", "Wähle einen leeren Zielordner für den Clone…"));
     try {
       const destinationPath = await chooseFolder();
       if (!destinationPath) {
-        status.textContent = text("No folder selected.", "Kein Ordner ausgewählt.");
+        setLocalStatus(form, text("No folder selected.", "Kein Ordner ausgewählt."));
         return;
       }
       setLocalStatus(form, text("Cloning the selected repository…", "Das ausgewählte Repository wird geklont…"));
