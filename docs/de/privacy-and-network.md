@@ -7,6 +7,7 @@ Livariant ist für lokale Projektarbeit ausgelegt. Diese Seite trennt das Netzwe
 Die aktuelle Livariant-Runtime und der Desktop implementieren keine:
 
 - Analytics oder Nutzungstelemetrie;
+- Crash-Reporting;
 - Werbe-Identifier;
 - Livariant-Account-Verfolgung;
 - automatischen Uploads von Project-Brain-Inhalten.
@@ -33,7 +34,7 @@ Die Anfrage ist ein begrenzter HTTPS-**GET**. Der geprüfte Transport:
 
 Der Kanal transportiert begrenzte Service-Hinweise und exakte versionsbezogene Update-Sicherheitsblöcke. Er ist kein Remote-Command-Kanal und vergibt keine Projekt- oder Mutation-Authority.
 
-Ein Transport- oder Verifikationsfehler autorisiert keine Aktion.
+Ein Transport- oder Verifikationsfehler autorisiert keine Aktion. Wie bei jeder HTTPS-Verbindung kann der entfernte Dienst gewöhnliche Netzwerk-Metadaten wie die Quell-IP-Adresse sehen; Livariant sendet über diesen GET jedoch keinen Projektinhalt im Request-Body.
 
 ## GitHub-Verbindung
 
