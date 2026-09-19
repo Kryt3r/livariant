@@ -1859,6 +1859,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-updater",
  "ureq",
+ "uuid",
 ]
 
 [[package]]
