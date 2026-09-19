@@ -51,8 +51,8 @@ test("Connections settings present Windows checkout paths without verbatim prefi
   const management = await read("apps/desktop/src/project-connections-settings.ts");
 
   assert.match(management, /function displayLocalPath/);
-  assert.match(management, /startsWith\("\\\\\\\\?\\\\UNC\\\\"\)/);
-  assert.match(management, /startsWith\("\\\\\\\\?\\\\"\)/);
+  assert.ok(management.includes(String.raw`startsWith("\\\\?\\UNC\\")`));
+  assert.ok(management.includes(String.raw`startsWith("\\\\?\\")`));
   assert.match(management, /esc\(displayLocalPath\(localPath\)\)/);
 });
 
