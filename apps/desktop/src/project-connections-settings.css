@@ -1,0 +1,40 @@
+.project-connections-settings{display:grid;gap:14px;margin-top:26px;padding-top:24px;border-top:1px solid rgba(153,176,224,.12)}
+.project-connections-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px}
+.project-connections-section-head.repositories{margin-top:12px}
+.project-connections-section-head h3{margin:4px 0 5px;font-size:17px}
+.project-connections-section-head p{margin:0;max-width:720px;color:var(--muted);font-size:12px;line-height:1.55}
+.project-connection-card,.project-source-manage-card,.project-source-empty{border:1px solid rgba(153,176,224,.16);border-radius:14px;background:linear-gradient(180deg,rgba(15,28,49,.72),rgba(7,18,33,.8));box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+.project-connection-card{padding:17px}
+.project-connection-card-head,.project-source-manage-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.project-connection-card-head small,.project-source-manage-head small{display:block;color:var(--muted-2);font-size:10px}
+.project-connection-card-head strong,.project-source-manage-head strong{display:block;margin-top:3px;font-size:14px}
+.project-connection-card-head span:not(.project-connection-badge){display:block;margin-top:4px;color:var(--muted);font-size:11px}
+.project-connection-card>p,.project-source-manage-card>p{margin:11px 0 0;color:var(--muted-2);font-size:10.5px;line-height:1.55}
+.project-connection-actions,.project-source-manage-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.project-connection-badge,.project-source-protected,.project-source-provider{display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border:1px solid var(--line);border-radius:999px;font-size:9px;font-weight:750;letter-spacing:.04em;text-transform:uppercase}
+.project-connection-badge.ok{color:var(--success);border-color:rgba(99,210,165,.28);background:rgba(99,210,165,.05)}
+.project-connection-badge.warning{color:#dec488;border-color:rgba(240,196,110,.25);background:rgba(240,196,110,.04)}
+.project-connection-badge.muted,.project-source-provider{color:var(--muted-2)}
+.project-source-protected{color:#c8b6ff;border-color:rgba(160,135,255,.25);background:rgba(123,89,255,.05)}
+.project-danger-soft{border-color:rgba(255,127,159,.17)!important;color:#efc2cf!important}
+.project-danger-soft:hover{border-color:rgba(255,127,159,.35)!important;background:rgba(255,127,159,.055)!important}
+.project-connection-boundary{padding-top:10px;border-top:1px solid rgba(153,176,224,.1)}
+.project-github-device{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin-top:14px;padding:12px;border:1px solid rgba(160,135,255,.2);border-radius:11px;background:rgba(123,89,255,.05)}
+.project-github-device span{grid-column:1/-1;color:var(--muted);font-size:11px}
+.project-github-device code{font-size:18px;font-weight:800;letter-spacing:.12em;color:#d8ceff}
+.project-source-count{display:grid;place-items:center;min-width:32px;height:32px;border:1px solid rgba(160,135,255,.22);border-radius:10px;color:#cabaff;background:rgba(123,89,255,.05);font-size:12px;font-weight:800}
+.project-source-manage-list{display:grid;gap:10px}
+.project-source-manage-card{padding:16px}
+.project-source-kind{display:block;color:#a892ff;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.project-source-description{display:grid;gap:7px;margin-top:14px}
+.project-source-description>span,.project-source-manage-local>small{color:#aeb9cc;font-size:10.5px;font-weight:650}
+.project-source-description input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:9px;outline:none;color:var(--text);background:rgba(4,11,20,.72);font:inherit;font-size:12px}
+.project-source-description input:focus{border-color:rgba(160,129,255,.5);box-shadow:0 0 0 3px rgba(123,89,255,.08)}
+.project-source-manage-local{display:grid;gap:6px;margin-top:13px}
+.project-source-local{display:block;padding:9px 10px;border:1px solid rgba(153,176,224,.11);border-radius:9px;color:#c7d0de;background:rgba(5,14,26,.55);font-size:10.5px;word-break:break-word}
+.project-source-local.remote{color:#998fa7;font-style:italic}
+.project-source-empty{padding:16px;color:var(--muted)}
+.project-connections-error,.project-connections-notice{padding:11px 13px;border-radius:10px;font-size:11.5px;line-height:1.5}
+.project-connections-error{color:#ffd8e2;border:1px solid rgba(255,127,159,.25);background:rgba(255,127,159,.06)}
+.project-connections-notice{color:#b9e8cd;border:1px solid rgba(99,210,165,.2);background:rgba(99,210,165,.05)}
+@media(max-width:760px){.project-connection-card-head,.project-source-manage-head,.project-connections-section-head{display:block}.project-connection-badge,.project-source-protected,.project-source-provider{margin-top:8px}.project-github-device{grid-template-columns:1fr}}
