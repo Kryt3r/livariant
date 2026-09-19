@@ -56,8 +56,8 @@
     "active": true,
     "targets": ["nsis"],
     "category": "DeveloperTool",
-    "shortDescription": "Living software framework desktop foundation",
-    "longDescription": "Livariant Desktop provides the normal-user surface for installation health, Guardian readiness, projects, First Steps, updates, settings and diagnostics.",
+    "shortDescription": "Controlled, verifiable AI-assisted project work",
+    "longDescription": "Livariant Desktop keeps AI-assisted project work understandable and controlled through explicit project context, evidence, verification, connections, updates and diagnostics.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",
