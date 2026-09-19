@@ -159,21 +159,15 @@ const renderCodexModal = () => {
   const mode = connector?.connectionMode ?? "auto";
   return `
     <div class="provider-modal-backdrop" data-close-provider>
-      <section class="provider-modal-stage" role="dialog" aria-modal="true" aria-labelledby="provider-codex-title" data-provider-modal>
-        <header class="provider-stage-header">
-          <div><span class="provider-stage-kicker">${lang("LLM connection hub", "LLM-Verbindungszentrale")}</span><strong>${lang("Local provider boundary", "Lokale Provider-Grenze")}</strong></div>
-          <span class="provider-stage-chip"><i></i>${lang("Authority separate", "Authority getrennt")}</span>
-        </header>
-        <div class="provider-stage-body">
-          <section class="provider-modal">
+      <section class="provider-modal provider-modal-codex" role="dialog" aria-modal="true" aria-labelledby="provider-codex-title" data-provider-modal>
         <button class="provider-modal-close" type="button" data-close-provider aria-label="${lang("Close Codex settings", "Codex-Einstellungen schließen")}">×</button>
-        <header class="provider-modal-header">
+        <header class="provider-modal-header provider-modal-hero">
           ${providerGlyph("codex")}
           <div><span class="eyebrow">OpenAI</span><h2 id="provider-codex-title">Codex</h2><p>${lang("Connect Livariant through the official local Codex App Server boundary.", "Verbinde Livariant über die offizielle lokale Codex-App-Server-Grenze.")}</p></div>
           <span class="provider-status provider-status-${state.tone}"><i></i>${state.label}</span>
         </header>
         ${error ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${t("connections.needsAttention")}</strong><p>${esc(error)}</p></div></div>` : ""}
-        <section class="provider-primary-card">
+        <section class="provider-primary-card provider-primary-card-emphasis">
           <div><span class="provider-card-kicker">${lang("Connection", "Verbindung")}</span><h3>${connected ? lang("Codex is connected", "Codex ist verbunden") : detected ? lang("Ready for one-click connection", "Bereit für die Ein-Klick-Verbindung") : lang("Codex setup required", "Codex-Einrichtung erforderlich")}</h3><p>${esc(error ?? connector?.detail ?? state.detail)}</p></div>
           <div class="provider-primary-actions">
             <button class="button secondary connector-refresh" type="button" ${checkingConnector || connectorMutating() ? "disabled" : ""}>${checkingConnector ? lang("Checking…", "Prüfe…") : t("common.refresh")}</button>
@@ -182,20 +176,16 @@ const renderCodexModal = () => {
               : `<button class="button primary connector-connect" type="button" ${connectorMutating() || !detected ? "disabled" : ""}>${connectorAction === "connect" ? lang("Connecting…", "Verbinde…") : t("connections.connectCodex")}</button>`}
           </div>
         </section>
-        <section class="provider-detail-grid" aria-label="${lang("Codex connection details", "Codex-Verbindungsdetails")}">
-          <div class="provider-detail"><small>${lang("Installation", "Installation")}</small><strong>${detected ? `Codex ${esc(connector?.version ?? "")}` : connector?.installationState === "unusable" ? lang("Unusable", "Nicht nutzbar") : lang("Not detected", "Nicht erkannt")}</strong></div>
-          <div class="provider-detail"><small>App Server</small><strong>${connected ? t("connections.connected") : lang("Disconnected", "Getrennt")}</strong></div>
-          <div class="provider-detail"><small>${lang("Connection method", "Verbindungsmethode")}</small><strong>${connected ? (mode === "manual" ? lang("Local fallback", "Lokaler Fallback") : lang("Automatic", "Automatisch")) : lang("Not active", "Nicht aktiv")}</strong></div>
-          <div class="provider-detail"><small>${lang("Approvals", "Freigaben")}</small><strong>${connector?.pendingApprovals ?? 0} ${lang("pending", "ausstehend")}</strong></div>
+        <section class="provider-detail-section">
+          <div class="provider-section-heading"><span>${lang("Connection details", "Verbindungsdetails")}</span><small>${lang("Observed locally", "Lokal beobachtet")}</small></div>
+          <div class="provider-detail-grid" aria-label="${lang("Codex connection details", "Codex-Verbindungsdetails")}">
+            <div class="provider-detail"><small>${lang("Installation", "Installation")}</small><strong>${detected ? `Codex ${esc(connector?.version ?? "")}` : connector?.installationState === "unusable" ? lang("Unusable", "Nicht nutzbar") : lang("Not detected", "Nicht erkannt")}</strong></div>
+            <div class="provider-detail"><small>App Server</small><strong>${connected ? t("connections.connected") : lang("Disconnected", "Getrennt")}</strong></div>
+            <div class="provider-detail"><small>${lang("Connection method", "Verbindungsmethode")}</small><strong>${connected ? (mode === "manual" ? lang("Local fallback", "Lokaler Fallback") : lang("Automatic", "Automatisch")) : lang("Not active", "Nicht aktiv")}</strong></div>
+            <div class="provider-detail"><small>${lang("Approvals", "Freigaben")}</small><strong>${connector?.pendingApprovals ?? 0} ${lang("pending", "ausstehend")}</strong></div>
+          </div>
         </section>
-        <footer class="provider-boundary"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("Connecting Codex does not authorize file changes, commands, merges or releases.", "Das Verbinden von Codex autorisiert keine Dateiänderungen, Befehle, Merges oder Releases.")}</p></footer>
-          </section>
-        </div>
-        <footer class="provider-stage-footer" aria-hidden="true">
-          <span>${lang("Local runtime", "Lokale Runtime")}</span>
-          <span>${lang("Explicit connection", "Explizite Verbindung")}</span>
-          <span>${lang("No implicit mutation rights", "Keine stillen Änderungsrechte")}</span>
-        </footer>
+        <footer class="provider-boundary provider-boundary-panel"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("Connecting Codex does not authorize file changes, commands, merges or releases.", "Das Verbinden von Codex autorisiert keine Dateiänderungen, Befehle, Merges oder Releases.")}</p></footer>
       </section>
     </div>`;
 };
@@ -208,22 +198,13 @@ const renderPlannedProviderModal = (provider: Exclude<ProviderId, "codex">) => {
   }[provider];
   return `
     <div class="provider-modal-backdrop" data-close-provider>
-      <section class="provider-modal-stage provider-modal-stage-compact" role="dialog" aria-modal="true" data-provider-modal>
-        <header class="provider-stage-header">
-          <div><span class="provider-stage-kicker">${lang("LLM connection hub", "LLM-Verbindungszentrale")}</span><strong>${lang("Provider integration", "Provider-Integration")}</strong></div>
-          <span class="provider-stage-chip muted">${lang("Planned", "Geplant")}</span>
-        </header>
-        <div class="provider-stage-body">
-          <section class="provider-modal provider-modal-compact">
+      <section class="provider-modal provider-modal-compact" role="dialog" aria-modal="true" data-provider-modal>
         <button class="provider-modal-close" type="button" data-close-provider aria-label="${lang("Close provider details", "Anbieterdetails schließen")}">×</button>
-        <header class="provider-modal-header">${providerGlyph(provider)}<div><span class="eyebrow">${copy.vendor}</span><h2>${copy.name}</h2></div><span class="provider-status provider-status-muted"><i></i>${lang("Planned", "Geplant")}</span></header>
+        <header class="provider-modal-header provider-modal-hero">${providerGlyph(provider)}<div><span class="eyebrow">${copy.vendor}</span><h2>${copy.name}</h2></div><span class="provider-status provider-status-muted"><i></i>${lang("Planned", "Geplant")}</span></header>
         <section class="provider-setup-card"><span class="provider-setup-icon">i</span><div><strong>${lang("Not available in this preview", "In dieser Vorschau nicht verfügbar")}</strong><p>${lang("This provider is visible so the layout can scale without pretending unsupported functionality exists.", "Dieser Anbieter ist sichtbar, damit das Layout skalieren kann, ohne nicht unterstützte Funktionen vorzutäuschen.")}</p></div></section>
-          </section>
-        </div>
       </section>
     </div>`;
 };
-
 const renderProviderModal = () => selectedProvider
   ? selectedProvider === "codex" ? renderCodexModal() : renderPlannedProviderModal(selectedProvider)
   : "";
