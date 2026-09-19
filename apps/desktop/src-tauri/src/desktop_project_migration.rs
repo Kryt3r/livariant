@@ -195,8 +195,8 @@ fn canonical_directory(value: &str, label: &str) -> Result<PathBuf, String> {
 fn same_directory(one: &Path, two: &Path) -> bool {
     #[cfg(target_os = "windows")]
     {
-        one.to_string_lossy().replace('/', "\").to_ascii_lowercase()
-            == two.to_string_lossy().replace('/', "\").to_ascii_lowercase()
+        one.to_string_lossy().replace('/', "\\").to_ascii_lowercase()
+            == two.to_string_lossy().replace('/', "\\").to_ascii_lowercase()
     }
     #[cfg(not(target_os = "windows"))]
     {
