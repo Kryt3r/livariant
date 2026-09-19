@@ -55,8 +55,20 @@ fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSour
     fs::copy(&input, &staged)
         .map_err(|error| format!("Project Source observation input could not be staged: {error}"))?;
 
-    let executable = std::env::current_exe().map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
-    let install_root = executable.parent().ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
+    let executable = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(error) => {
+            let _ = fs::remove_file(&staged);
+            return Err(format!("Desktop executable location could not be resolved: {error}"));
+        }
+    };
+    let install_root = match executable.parent() {
+        Some(path) => path,
+        None => {
+            let _ = fs::remove_file(&staged);
+            return Err("Desktop executable has no installation directory.".to_owned());
+        }
+    };
     let node = bundled_node_path(install_root);
     let script = install_root.join("runtime").join("core").join("dist").join("src").join("project").join("desktop-project-source-observation.js");
     let manifest_path = install_root.join("runtime").join("manifest.json");
