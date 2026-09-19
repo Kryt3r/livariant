@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
     fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -224,6 +225,42 @@ fn registry_backup_path(projects_root: &Path) -> PathBuf {
     projects_root.join("registry.json.bak")
 }
 
+fn ensure_projects_root(projects_root: &Path, create: bool) -> Result<bool, String> {
+    match fs::symlink_metadata(projects_root) {
+        Ok(metadata) => {
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("Desktop project registry root must be a real non-symbolic-link directory.".to_owned());
+            }
+            Ok(true)
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound && !create => Ok(false),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            fs::create_dir_all(projects_root)
+                .map_err(|error| format!("Desktop project registry directory could not be prepared: {error}"))?;
+            let metadata = fs::symlink_metadata(projects_root)
+                .map_err(|error| format!("Desktop project registry directory could not be inspected: {error}"))?;
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("Desktop project registry root must be a real non-symbolic-link directory.".to_owned());
+            }
+            Ok(true)
+        }
+        Err(error) => Err(format!("Desktop project registry directory could not be inspected: {error}")),
+    }
+}
+
+fn regular_file_exists(path: &Path, label: &str) -> Result<bool, String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if !metadata.is_file() || metadata.file_type().is_symlink() {
+                return Err(format!("{label} must be a real non-symbolic-link file."));
+            }
+            Ok(true)
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("{label} could not be inspected: {error}")),
+    }
+}
+
 fn project_state_root(projects_root: &Path, desktop_project_id: &str) -> Result<PathBuf, String> {
     let canonical = canonical_uuid(desktop_project_id, "desktopProjectId")?;
     Ok(projects_root.join(canonical))
@@ -276,9 +313,13 @@ fn validate_registry(registry: &DesktopProjectRegistry) -> Result<(), String> {
 }
 
 fn load_registry(projects_root: &Path) -> Result<DesktopProjectRegistry, String> {
+    if !ensure_projects_root(projects_root, false)? {
+        return Ok(DesktopProjectRegistry::default());
+    }
     let path = registry_path(projects_root);
-    if !path.is_file() {
-        if registry_backup_path(projects_root).is_file() {
+    let backup = registry_backup_path(projects_root);
+    if !regular_file_exists(&path, "Desktop project registry")? {
+        if regular_file_exists(&backup, "Desktop project registry backup")? {
             return Err("Desktop project registry recovery is required; a backup exists without a canonical registry.".to_owned());
         }
         return Ok(DesktopProjectRegistry::default());
@@ -292,11 +333,10 @@ fn load_registry(projects_root: &Path) -> Result<DesktopProjectRegistry, String>
 
 fn write_registry(projects_root: &Path, registry: &DesktopProjectRegistry) -> Result<(), String> {
     validate_registry(registry)?;
-    fs::create_dir_all(projects_root)
-        .map_err(|error| format!("Desktop project registry directory could not be prepared: {error}"))?;
+    ensure_projects_root(projects_root, true)?;
 
     let target = registry_path(projects_root);
-    let temp = projects_root.join("registry.json.tmp");
+    let temp = projects_root.join(format!(".registry-{}.tmp", Uuid::new_v4()));
     let backup = registry_backup_path(projects_root);
     let serialized = serde_json::to_vec_pretty(registry)
         .map_err(|error| format!("Desktop project registry could not be serialized: {error}"))?;
@@ -308,12 +348,12 @@ fn write_registry(projects_root: &Path, registry: &DesktopProjectRegistry) -> Re
     ).map_err(|error| format!("Desktop project registry temporary file is invalid: {error}"))?;
     validate_registry(&persisted)?;
 
-    if backup.exists() {
+    if regular_file_exists(&backup, "Desktop project registry backup")? {
         fs::remove_file(&backup)
             .map_err(|error| format!("Previous Desktop project registry backup could not be removed: {error}"))?;
     }
 
-    if target.exists() {
+    if regular_file_exists(&target, "Desktop project registry")? {
         fs::rename(&target, &backup)
             .map_err(|error| format!("Desktop project registry could not be checkpointed before replacement: {error}"))?;
     }
@@ -335,15 +375,29 @@ fn write_registry(projects_root: &Path, registry: &DesktopProjectRegistry) -> Re
 }
 
 fn real_state_directory(projects_root: &Path, desktop_project_id: &str, create: bool) -> Result<PathBuf, String> {
+    ensure_projects_root(projects_root, create)?;
     let root = project_state_root(projects_root, desktop_project_id)?;
-    if create {
-        fs::create_dir_all(&root)
-            .map_err(|error| format!("Desktop project state directory could not be prepared: {error}"))?;
-    }
-    let metadata = fs::symlink_metadata(&root)
-        .map_err(|error| format!("Desktop project state directory could not be inspected: {error}"))?;
-    if !metadata.is_dir() || metadata.file_type().is_symlink() {
-        return Err("Desktop project state directory must be a real non-symbolic-link directory.".to_owned());
+    match fs::symlink_metadata(&root) {
+        Ok(metadata) => {
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("Desktop project state directory must be a real non-symbolic-link directory.".to_owned());
+            }
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound && create => {
+            fs::create_dir(&root)
+                .map_err(|error| format!("Desktop project state directory could not be prepared: {error}"))?;
+            let metadata = fs::symlink_metadata(&root)
+                .map_err(|error| format!("Desktop project state directory could not be inspected: {error}"))?;
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("Desktop project state directory must be a real non-symbolic-link directory.".to_owned());
+            }
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            return Err("Desktop project state directory is missing.".to_owned());
+        }
+        Err(error) => {
+            return Err(format!("Desktop project state directory could not be inspected: {error}"));
+        }
     }
     Ok(root)
 }
@@ -410,6 +464,7 @@ fn register_at(
 ) -> Result<DesktopProjectMutationResult, String> {
     let canonical_root = canonical_local_root(&input.local_root)?;
     let stored_root = path_for_storage(&canonical_root);
+    let project_id = normalized_optional(input.project_id.as_deref(), "projectId", 240)?;
     let mut registry = load_registry(projects_root)?;
 
     if let Some(existing) = registry
@@ -419,6 +474,13 @@ fn register_at(
     {
         if existing.state == DesktopProjectRegistrationState::Detached {
             return Err("This local project is detached from Livariant; explicit re-adoption is required.".to_owned());
+        }
+        if let (Some(existing_project_id), Some(requested_project_id)) =
+            (existing.project_id.as_deref(), project_id.as_deref())
+        {
+            if existing_project_id != requested_project_id {
+                return Err("This local project is already registered with a different logical projectId.".to_owned());
+            }
         }
         return Ok(DesktopProjectMutationResult {
             state: "existing",
@@ -430,7 +492,6 @@ fn register_at(
 
     let desktop_project_id = Uuid::new_v4().hyphenated().to_string();
     let display_name = normalized_display_name(input.display_name.as_deref(), &canonical_root)?;
-    let project_id = normalized_optional(input.project_id.as_deref(), "projectId", 240)?;
     real_state_directory(projects_root, &desktop_project_id, true)?;
 
     registry.projects.push(DesktopProjectRecord {
@@ -590,6 +651,14 @@ pub(crate) fn active_project_scope(
         .ok_or_else(|| "Active Desktop project is no longer registered.".to_owned())?;
     if record.state != DesktopProjectRegistrationState::Registered || availability(record) != "available" {
         return Err("Active Desktop project is no longer safely available.".to_owned());
+    }
+    let current_local_root = canonical_local_root(&record.local_root)?;
+    if path_key(&path_for_storage(&current_local_root)) != path_key(&path_for_storage(&active.local_root)) {
+        return Err("Active Desktop project local-root binding changed after activation.".to_owned());
+    }
+    let current_state_root = real_state_directory(&projects_root, &active.desktop_project_id, false)?;
+    if current_state_root != active.state_root {
+        return Err("Active Desktop project state-root binding changed after activation.".to_owned());
     }
     Ok(active)
 }
@@ -860,6 +929,58 @@ mod tests {
             guard.active.as_mut().expect("active").generation = generation;
         }
         assert!(!active_generation_matches(&state, &id, first).expect("stale mismatch"));
+        fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn duplicate_root_with_conflicting_logical_project_id_fails_closed() {
+        let root = test_root("duplicate-project-id");
+        let projects = root.join("app-data").join("projects");
+        let local = project(&root, "one");
+        let runtime = ActiveProjectRuntime::default();
+        register_at(&projects, &runtime, register_input(&local, Some("One"))).expect("register");
+
+        let conflicting = DesktopProjectRegisterInput {
+            local_root: local.to_string_lossy().to_string(),
+            display_name: Some("One".to_owned()),
+            project_id: Some("different-project".to_owned()),
+        };
+        assert!(register_at(&projects, &runtime, conflicting).is_err());
+        fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_registry_file_is_rejected() {
+        use std::os::unix::fs::symlink;
+
+        let root = test_root("registry-symlink");
+        let projects = root.join("app-data").join("projects");
+        fs::create_dir_all(&projects).expect("projects root");
+        let outside = root.join("outside-registry.json");
+        fs::write(&outside, br#"{"schemaVersion":1,"projects":[]}"#).expect("outside registry");
+        symlink(&outside, registry_path(&projects)).expect("registry symlink");
+
+        let error = load_registry(&projects).expect_err("symlink rejected");
+        assert!(error.contains("non-symbolic-link"));
+        fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_projects_root_is_rejected() {
+        use std::os::unix::fs::symlink;
+
+        let root = test_root("projects-root-symlink");
+        let app_data = root.join("app-data");
+        let outside = root.join("outside-projects");
+        fs::create_dir_all(&app_data).expect("app data");
+        fs::create_dir_all(&outside).expect("outside");
+        let projects = app_data.join("projects");
+        symlink(&outside, &projects).expect("projects root symlink");
+
+        let error = load_registry(&projects).expect_err("symlink root rejected");
+        assert!(error.contains("non-symbolic-link"));
         fs::remove_dir_all(&root).expect("cleanup");
     }
 
