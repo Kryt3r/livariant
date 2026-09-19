@@ -83,6 +83,48 @@ test("lifecycle actions delegate to canonical first-run transitions", () => with
   assert.equal(firstRunSourceReviewReady(state), true);
 }));
 
+test("completed source registry remains editable through bounded lifecycle actions", () => withProject((root) => {
+  let state = createDesktopFirstRunInitialState();
+  state = transitionDesktopFirstRunState(state, { type: "select-project", projectId: "livariant", localRoot: root });
+  state = transitionDesktopFirstRunState(state, {
+    type: "set-primary-repository",
+    identity: { provider: "github", repositoryId: "Kryt3r/livariant", displayName: "livariant" },
+    localPath: root,
+  });
+  state = transitionDesktopFirstRunState(state, {
+    type: "add-additional-repository",
+    identity: { provider: "github", repositoryId: "Kryt3r/livariant-internal", displayName: "livariant-internal" },
+    description: "Original purpose.",
+  });
+
+  state = transitionDesktopFirstRunState(state, {
+    type: "update-additional-repository-description",
+    identity: { provider: "github", repositoryId: "Kryt3r/livariant-internal", displayName: "livariant-internal" },
+    description: "Second brain and governance.",
+  });
+  state = transitionDesktopFirstRunState(state, {
+    type: "set-additional-local-binding",
+    identity: { provider: "github", repositoryId: "Kryt3r/livariant-internal", displayName: "livariant-internal" },
+    localPath: "D:/work/livariant-internal",
+  });
+
+  assert.equal(state.project.sourceRegistry?.additional[0]?.description, "Second brain and governance.");
+  assert.equal(state.project.sourceRegistry?.additional[0]?.local?.localPath, "D:/work/livariant-internal");
+
+  state = transitionDesktopFirstRunState(state, {
+    type: "set-additional-local-binding",
+    identity: { provider: "github", repositoryId: "Kryt3r/livariant-internal", displayName: "livariant-internal" },
+  });
+  assert.equal(state.project.sourceRegistry?.additional[0]?.local, undefined);
+
+  state = transitionDesktopFirstRunState(state, {
+    type: "remove-additional-repository",
+    identity: { provider: "github", repositoryId: "Kryt3r/livariant-internal", displayName: "livariant-internal" },
+  });
+  assert.equal(state.project.sourceRegistry?.additional.length, 0);
+  assert.equal(state.project.sourceRegistry?.primary.identity.repositoryId, "Kryt3r/livariant");
+}));
+
 test("project localRoot is never silently promoted to primary repository binding", () => withProject((root) => {
   let state = createDesktopFirstRunInitialState();
   state = transitionDesktopFirstRunState(state, {
