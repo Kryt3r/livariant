@@ -29,7 +29,7 @@ test("source management actions preserve local files and protect the primary rep
   const registry = await read("src/project/source-registry.ts");
 
   assert.match(management, /Das Hauptrepository bleibt.*kann hier nicht entfernt werden/s);
-  assert.match(management, /Lokale Dateien und das GitHub-Repository werden nicht gelöscht/);
+  assert.match(management, /Lokale Dateien und das GitHub-Repository bleiben unverändert/);
   assert.match(lifecycle, /set-primary-local-binding/);
   assert.match(lifecycle, /update-additional-repository-description/);
   assert.match(lifecycle, /set-additional-local-binding/);
