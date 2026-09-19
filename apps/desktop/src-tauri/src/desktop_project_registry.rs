@@ -60,6 +60,18 @@ pub(crate) struct ActiveProjectScope {
     pub(crate) state_root: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) enum ProjectPersistenceScope {
+    Active(ActiveProjectScope),
+    LegacySingleProject,
+}
+
+impl ProjectPersistenceScope {
+    pub(crate) fn is_project_namespaced(&self) -> bool {
+        matches!(self, Self::Active(_))
+    }
+}
+
 #[derive(Debug, Default)]
 struct ActiveProjectRuntime {
     generation: u64,
@@ -688,6 +700,97 @@ pub(crate) fn active_project_scope(
         return Err("Active Desktop project state-root binding changed after activation.".to_owned());
     }
     Ok(active)
+}
+
+pub(crate) fn project_persistence_scope(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+) -> Result<ProjectPersistenceScope, String> {
+    let projects_root = projects_root(app)?;
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    let registry = load_registry(&projects_root)?;
+
+    if let Some(active) = runtime.active.clone() {
+        let record = registry
+            .projects
+            .iter()
+            .find(|project| project.desktop_project_id == active.desktop_project_id)
+            .ok_or_else(|| "Active Desktop project is no longer registered.".to_owned())?;
+        if record.state != DesktopProjectRegistrationState::Registered || availability(record) != "available" {
+            return Err("Active Desktop project is no longer safely available.".to_owned());
+        }
+        let current_local_root = canonical_local_root(&record.local_root)?;
+        if path_key(&path_for_storage(&current_local_root)) != path_key(&path_for_storage(&active.local_root)) {
+            return Err("Active Desktop project local-root binding changed after activation.".to_owned());
+        }
+        let current_state_root = real_state_directory(&projects_root, &active.desktop_project_id, false)?;
+        if current_state_root != active.state_root {
+            return Err("Active Desktop project state-root binding changed after activation.".to_owned());
+        }
+        return Ok(ProjectPersistenceScope::Active(active));
+    }
+
+    if registry.projects.is_empty() {
+        return Ok(ProjectPersistenceScope::LegacySingleProject);
+    }
+
+    Err("Desktop projects are registered, but no project is active; project-scoped persistence is unavailable.".to_owned())
+}
+
+pub(crate) fn with_project_persistence_scope_current<T>(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+    scope: &ProjectPersistenceScope,
+    operation: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    let projects_root = projects_root(app)?;
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    let registry = load_registry(&projects_root)?;
+
+    match scope {
+        ProjectPersistenceScope::Active(expected) => {
+            let current = runtime
+                .active
+                .as_ref()
+                .ok_or_else(|| "Project-scoped operation is stale because no Desktop project is active.".to_owned())?;
+            if current.desktop_project_id != expected.desktop_project_id || current.generation != expected.generation {
+                return Err("Project-scoped operation is stale because the active Desktop project changed.".to_owned());
+            }
+            let record = registry
+                .projects
+                .iter()
+                .find(|project| project.desktop_project_id == expected.desktop_project_id)
+                .ok_or_else(|| "Project-scoped operation target is no longer registered.".to_owned())?;
+            if record.state != DesktopProjectRegistrationState::Registered || availability(record) != "available" {
+                return Err("Project-scoped operation target is no longer safely available.".to_owned());
+            }
+            let current_state_root = real_state_directory(&projects_root, &expected.desktop_project_id, false)?;
+            if current_state_root != expected.state_root {
+                return Err("Project-scoped operation target state-root binding changed.".to_owned());
+            }
+        }
+        ProjectPersistenceScope::LegacySingleProject => {
+            if runtime.active.is_some() || !registry.projects.is_empty() {
+                return Err("Legacy single-project persistence became stale after Desktop project registration/activation.".to_owned());
+            }
+        }
+    }
+
+    operation()
+}
+
+pub(crate) fn ensure_project_persistence_scope_current(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+    scope: &ProjectPersistenceScope,
+) -> Result<(), String> {
+    with_project_persistence_scope_current(app, state, scope, || Ok(()))
 }
 
 pub(crate) fn active_generation_matches(
