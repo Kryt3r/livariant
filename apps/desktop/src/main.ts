@@ -8,7 +8,6 @@ import { getLanguage } from "./i18n/runtime.js";
 import {
   bindConnectionDiagnosticsEvents,
   refreshConnectionsSettings,
-  refreshConnector,
   renderConnectionsSettingsView,
   renderConnectionsView,
 } from "./connections-diagnostics.js";
