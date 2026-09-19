@@ -39,6 +39,8 @@ jobs:
     defaults:
       run:
         working-directory: apps/desktop
+    env:
+      LIVARIANT_GITHUB_CLIENT_ID: ${{ vars.LIVARIANT_GITHUB_CLIENT_ID }}
     steps:
       - name: Checkout exact source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

@@ -12,6 +12,12 @@ Unter Windows werden Zugriffs- und Refresh-Token mit der DPAPI-Schutzgrenze des 
 
 Der GitHub-Transport gehört dem nativen Host und bleibt eng begrenzt. Er verwendet einen festen Windows-PowerShell-Pfad und feste Request-Skripte, statt dem Renderer beliebige Shell-Befehle zu erlauben. Der Renderer kann nur die ausdrücklich registrierten GitHub-Kommandos aufrufen.
 
+## Produktions-Build-Identität
+
+Offizielle Windows-Builds beziehen die GitHub-App-Client-ID aus der GitHub-Actions-Repository-Variable `LIVARIANT_GITHUB_CLIENT_ID`. Die Client-ID ist öffentliche App-Identität und kein Secret; private App-Schlüssel oder Client-Secrets werden für den Desktop-Device-Flow nicht in den Build eingebettet.
+
+Der normale Installer-Build kann weiterhin ohne gesetzte Variable qualifizieren und verhält sich dann wie bisher als nicht konfigurierte GitHub-Integration. Ein signierter Desktop-Preview-Build muss dagegen eine konfigurierte Produktions-Client-ID besitzen und bricht andernfalls fail-closed ab. Dadurch kann kein veröffentlichungsfähiger Preview-Build versehentlich ohne die vorgesehene GitHub-App-Identität entstehen.
+
 ## Repository-Auswahl
 
 Nach der Autorisierung fragt Livariant die Repositories ab, die GitHub über die authentifizierte GitHub-App-/Benutzerverbindung bereitstellt. Dadurch können auch private Repositories erscheinen, aber nur, wenn GitHub sie für genau diese Verbindung freigibt.
