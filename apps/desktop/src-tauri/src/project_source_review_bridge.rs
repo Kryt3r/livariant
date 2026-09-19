@@ -1,7 +1,8 @@
 use crate::{
     desktop_project_registry::{
-        project_persistence_scope, with_project_persistence_scope_current,
-        DesktopProjectRegistryState, ProjectPersistenceScope,
+        ensure_project_persistence_scope_current, project_persistence_scope,
+        with_project_persistence_scope_current, DesktopProjectRegistryState,
+        ProjectPersistenceScope,
     },
     project_scoped_persistence::{
         replace_staged_file, source_review_input_path, source_review_presentation_path,
@@ -265,6 +266,15 @@ fn read_presentation_for_scope(
         return unavailable(format!("Project Source & Review presentation snapshot was rejected: {error}"));
     }
 
+    let state = app.state::<DesktopProjectRegistryState>();
+    if let Err(error) = ensure_project_persistence_scope_current(app, state.inner(), scope) {
+        return unavailable(error);
+    }
+
+    if let Err(error) = ensure_project_persistence_scope_current(&app, state.inner(), &scope) {
+        return unavailable(error);
+    }
+
     ProjectSourceReviewBridgeResult {
         state: "ready",
         presentation: Some(value),
@@ -388,7 +398,10 @@ pub fn refresh_project_source_review_presentation(app: tauri::AppHandle) -> Proj
         .output()
     {
         Ok(value) => value,
-        Err(error) => return unavailable(format!("Project Source & Review refresh runtime could not be started: {error}")),
+        Err(error) => {
+            let _ = fs::remove_file(&staged_output);
+            return unavailable(format!("Project Source & Review refresh runtime could not be started: {error}"));
+        }
     };
     if !process.status.success() {
         let _ = fs::remove_file(&staged_output);
@@ -402,7 +415,10 @@ pub fn refresh_project_source_review_presentation(app: tauri::AppHandle) -> Proj
 
     let bytes = match fs::read(&staged_output) {
         Ok(bytes) => bytes,
-        Err(error) => return unavailable(format!("Project Source & Review staged presentation could not be read: {error}")),
+        Err(error) => {
+            let _ = fs::remove_file(&staged_output);
+            return unavailable(format!("Project Source & Review staged presentation could not be read: {error}"));
+        }
     };
     let value: Value = match serde_json::from_slice(&bytes) {
         Ok(value) => value,
