@@ -1,11 +1,21 @@
+use crate::{
+    desktop_project_registry::{
+        ensure_project_persistence_scope_current, project_persistence_scope,
+        with_project_persistence_scope_current, DesktopProjectRegistryState,
+        ProjectPersistenceScope,
+    },
+    first_run_project_state::{
+        persist_first_run_project_state_for_scope, PersistFirstRunProjectStateInput,
+    },
+    project_scoped_persistence::{
+        first_run_request_path, operation_temp_path, replace_staged_file,
+        staged_path_for_target,
+    },
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, path::{Path, PathBuf}, process::Command};
 use tauri::Manager;
-
-use crate::first_run_project_state::{persist_first_run_project_state, PersistFirstRunProjectStateInput, REQUEST_FILE};
-
-const ACTION_FILE: &str = "first-run-lifecycle-action.json";
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Deserialize)]
@@ -98,13 +108,14 @@ fn preserved_review_material(path: &Path) -> Result<(Vec<String>, Vec<Value>), S
 }
 
 fn persist_progress_only(
-    app_data: &Path,
+    app: &tauri::AppHandle,
+    scope: &ProjectPersistenceScope,
     onboarding_state: &Value,
     selected_review_paths: Vec<String>,
     decisions: Vec<Value>,
 ) -> Result<(), String> {
-    let request_path = app_data.join(REQUEST_FILE);
-    let temp_path = app_data.join(format!("{REQUEST_FILE}.tmp"));
+    let request_path = first_run_request_path(app, scope, true)?;
+    let staged = staged_path_for_target(&request_path, "first-run-progress")?;
     let wrapper = json!({
         "schemaVersion": 1,
         "onboardingState": onboarding_state,
@@ -112,20 +123,26 @@ fn persist_progress_only(
         "decisions": decisions,
     });
     fs::write(
-        &temp_path,
-        serde_json::to_vec_pretty(&wrapper).map_err(|error| format!("First-run progress could not be serialized: {error}"))?,
-    ).map_err(|error| format!("First-run progress temp file could not be written: {error}"))?;
-    if request_path.exists() {
-        fs::remove_file(&request_path).map_err(|error| format!("Previous first-run progress could not be replaced: {error}"))?;
+        &staged,
+        serde_json::to_vec_pretty(&wrapper)
+            .map_err(|error| format!("First-run progress could not be serialized: {error}"))?,
+    )
+    .map_err(|error| format!("First-run progress temp file could not be written: {error}"))?;
+
+    let registry_state = app.state::<DesktopProjectRegistryState>();
+    if let Err(error) = with_project_persistence_scope_current(app, registry_state.inner(), scope, || {
+        replace_staged_file(&staged, &request_path)
+    }) {
+        let _ = fs::remove_file(&staged);
+        return Err(error);
     }
-    fs::rename(&temp_path, &request_path).map_err(|error| format!("First-run progress could not be committed: {error}"))?;
     Ok(())
 }
 
 fn run_lifecycle_runtime(app: &tauri::AppHandle, action: Option<Value>) -> Result<FirstRunLifecycleResult, String> {
-    let app_data = app.path().app_data_dir().map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?;
-    fs::create_dir_all(&app_data).map_err(|error| format!("Livariant app-data directory could not be prepared: {error}"))?;
-    let state_path = app_data.join(REQUEST_FILE);
+    let registry_state = app.state::<DesktopProjectRegistryState>();
+    let scope = project_persistence_scope(app, registry_state.inner())?;
+    let state_path = first_run_request_path(app, &scope, false)?;
 
     let executable = std::env::current_exe().map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
     let install_root = executable.parent().ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
@@ -152,22 +169,26 @@ fn run_lifecycle_runtime(app: &tauri::AppHandle, action: Option<Value>) -> Resul
         if !action_value.is_object() {
             return Err("First-run lifecycle action must be a JSON object.".to_owned());
         }
-        let action_bytes = serde_json::to_vec(action_value).map_err(|error| format!("First-run lifecycle action could not be serialized: {error}"))?;
+        let action_bytes = serde_json::to_vec(action_value)
+            .map_err(|error| format!("First-run lifecycle action could not be serialized: {error}"))?;
         if action_bytes.len() > MAX_ACTION_BYTES {
             return Err("First-run lifecycle action exceeds the bounded size limit.".to_owned());
         }
-        let path = app_data.join(ACTION_FILE);
-        fs::write(&path, action_bytes).map_err(|error| format!("First-run lifecycle action could not be staged: {error}"))?;
+        let path = operation_temp_path(app, &scope, "first-run-lifecycle-action")?;
+        fs::write(&path, action_bytes)
+            .map_err(|error| format!("First-run lifecycle action could not be staged: {error}"))?;
         command.env("LIVARIANT_FIRST_RUN_ACTION_PATH", &path);
         Some(path)
     } else {
         None
     };
 
-    let process = command.output().map_err(|error| format!("First-run lifecycle runtime could not be started: {error}"))?;
+    let process_result = command.output();
     if let Some(path) = action_path.as_ref() {
         let _ = fs::remove_file(path);
     }
+    let process = process_result
+        .map_err(|error| format!("First-run lifecycle runtime could not be started: {error}"))?;
     if !process.status.success() {
         let stderr = String::from_utf8_lossy(&process.stderr).trim().to_owned();
         return Err(if stderr.is_empty() {
@@ -177,21 +198,25 @@ fn run_lifecycle_runtime(app: &tauri::AppHandle, action: Option<Value>) -> Resul
         });
     }
     let result = parse_runtime_snapshot(
-        serde_json::from_slice(&process.stdout).map_err(|error| format!("First-run lifecycle runtime returned invalid JSON: {error}"))?,
+        serde_json::from_slice(&process.stdout)
+            .map_err(|error| format!("First-run lifecycle runtime returned invalid JSON: {error}"))?,
     )?;
+
+    ensure_project_persistence_scope_current(app, registry_state.inner(), &scope)?;
 
     if action.is_some() {
         let (selected_review_paths, decisions) = preserved_review_material(&state_path)?;
         if result.source_review_ready {
-            persist_first_run_project_state(app.clone(), PersistFirstRunProjectStateInput {
+            persist_first_run_project_state_for_scope(app, &scope, PersistFirstRunProjectStateInput {
                 schema_version: 1,
                 onboarding_state: result.onboarding_state.clone(),
                 selected_review_paths,
                 decisions,
             })?;
         } else {
-            persist_progress_only(&app_data, &result.onboarding_state, selected_review_paths, decisions)?;
+            persist_progress_only(app, &scope, &result.onboarding_state, selected_review_paths, decisions)?;
         }
+        ensure_project_persistence_scope_current(app, registry_state.inner(), &scope)?;
     }
 
     Ok(result)

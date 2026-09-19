@@ -60,6 +60,18 @@ pub(crate) struct ActiveProjectScope {
     pub(crate) state_root: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) enum ProjectPersistenceScope {
+    Active(ActiveProjectScope),
+    LegacySingleProject,
+}
+
+impl ProjectPersistenceScope {
+    pub(crate) fn is_project_namespaced(&self) -> bool {
+        matches!(self, Self::Active(_))
+    }
+}
+
 #[derive(Debug, Default)]
 struct ActiveProjectRuntime {
     generation: u64,
@@ -690,6 +702,118 @@ pub(crate) fn active_project_scope(
     Ok(active)
 }
 
+pub(crate) fn project_persistence_scope(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+) -> Result<ProjectPersistenceScope, String> {
+    let projects_root = projects_root(app)?;
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    let registry = load_registry(&projects_root)?;
+
+    if let Some(active) = runtime.active.clone() {
+        let record = registry
+            .projects
+            .iter()
+            .find(|project| project.desktop_project_id == active.desktop_project_id)
+            .ok_or_else(|| "Active Desktop project is no longer registered.".to_owned())?;
+        if record.state != DesktopProjectRegistrationState::Registered || availability(record) != "available" {
+            return Err("Active Desktop project is no longer safely available.".to_owned());
+        }
+        let current_local_root = canonical_local_root(&record.local_root)?;
+        if path_key(&path_for_storage(&current_local_root)) != path_key(&path_for_storage(&active.local_root)) {
+            return Err("Active Desktop project local-root binding changed after activation.".to_owned());
+        }
+        let current_state_root = real_state_directory(&projects_root, &active.desktop_project_id, false)?;
+        if current_state_root != active.state_root {
+            return Err("Active Desktop project state-root binding changed after activation.".to_owned());
+        }
+        return Ok(ProjectPersistenceScope::Active(active));
+    }
+
+    if registry.projects.is_empty() {
+        return Ok(ProjectPersistenceScope::LegacySingleProject);
+    }
+
+    Err("Desktop projects are registered, but no project is active; project-scoped persistence is unavailable.".to_owned())
+}
+
+fn persistence_scope_matches_runtime(
+    registry: &DesktopProjectRegistry,
+    runtime: &ActiveProjectRuntime,
+    scope: &ProjectPersistenceScope,
+) -> bool {
+    match scope {
+        ProjectPersistenceScope::Active(expected) => {
+            runtime.active.as_ref().is_some_and(|current| {
+                current.desktop_project_id == expected.desktop_project_id
+                    && current.generation == expected.generation
+            }) && registry.projects.iter().any(|project| {
+                project.desktop_project_id == expected.desktop_project_id
+                    && project.state == DesktopProjectRegistrationState::Registered
+            })
+        }
+        ProjectPersistenceScope::LegacySingleProject => {
+            runtime.active.is_none() && registry.projects.is_empty()
+        }
+    }
+}
+
+pub(crate) fn with_project_persistence_scope_current<T>(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+    scope: &ProjectPersistenceScope,
+    operation: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    let projects_root = projects_root(app)?;
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    let registry = load_registry(&projects_root)?;
+
+    if !persistence_scope_matches_runtime(&registry, &runtime, scope) {
+        return Err(match scope {
+            ProjectPersistenceScope::Active(_) => {
+                "Project-scoped operation is stale because the active Desktop project changed.".to_owned()
+            }
+            ProjectPersistenceScope::LegacySingleProject => {
+                "Legacy single-project persistence became stale after Desktop project registration/activation.".to_owned()
+            }
+        });
+    }
+
+    match scope {
+        ProjectPersistenceScope::Active(expected) => {
+            let record = registry
+                .projects
+                .iter()
+                .find(|project| project.desktop_project_id == expected.desktop_project_id)
+                .ok_or_else(|| "Project-scoped operation target is no longer registered.".to_owned())?;
+            if record.state != DesktopProjectRegistrationState::Registered || availability(record) != "available" {
+                return Err("Project-scoped operation target is no longer safely available.".to_owned());
+            }
+            let current_state_root = real_state_directory(&projects_root, &expected.desktop_project_id, false)?;
+            if current_state_root != expected.state_root {
+                return Err("Project-scoped operation target state-root binding changed.".to_owned());
+            }
+        }
+        ProjectPersistenceScope::LegacySingleProject => {}
+    }
+
+    operation()
+}
+
+pub(crate) fn ensure_project_persistence_scope_current(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+    scope: &ProjectPersistenceScope,
+) -> Result<(), String> {
+    with_project_persistence_scope_current(app, state, scope, || Ok(()))
+}
+
 pub(crate) fn active_generation_matches(
     state: &DesktopProjectRegistryState,
     desktop_project_id: &str,
@@ -928,6 +1052,60 @@ mod tests {
         assert!(marker.is_file());
         assert!(project_state_root(&projects, &id).expect("state root").is_dir());
         fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn persistence_scope_runtime_match_rejects_stale_generation_and_legacy_after_registration() {
+        let desktop_project_id = Uuid::new_v4().hyphenated().to_string();
+        let active = ActiveProjectScope {
+            generation: 4,
+            desktop_project_id: desktop_project_id.clone(),
+            local_root: PathBuf::from("project"),
+            state_root: PathBuf::from("state"),
+        };
+        let runtime = ActiveProjectRuntime {
+            generation: 4,
+            active: Some(active.clone()),
+        };
+        let registry = DesktopProjectRegistry {
+            schema_version: REGISTRY_SCHEMA_VERSION,
+            last_active_desktop_project_id: Some(desktop_project_id.clone()),
+            projects: vec![DesktopProjectRecord {
+                desktop_project_id,
+                display_name: "Project".to_owned(),
+                local_root: "project".to_owned(),
+                project_id: Some("project".to_owned()),
+                stable_project_identity: None,
+                state: DesktopProjectRegistrationState::Registered,
+            }],
+        };
+
+        assert!(persistence_scope_matches_runtime(
+            &registry,
+            &runtime,
+            &ProjectPersistenceScope::Active(active.clone()),
+        ));
+
+        let mut stale = active;
+        stale.generation = 3;
+        assert!(!persistence_scope_matches_runtime(
+            &registry,
+            &runtime,
+            &ProjectPersistenceScope::Active(stale),
+        ));
+        assert!(!persistence_scope_matches_runtime(
+            &registry,
+            &runtime,
+            &ProjectPersistenceScope::LegacySingleProject,
+        ));
+
+        let empty_registry = DesktopProjectRegistry::default();
+        let empty_runtime = ActiveProjectRuntime::default();
+        assert!(persistence_scope_matches_runtime(
+            &empty_registry,
+            &empty_runtime,
+            &ProjectPersistenceScope::LegacySingleProject,
+        ));
     }
 
     #[test]

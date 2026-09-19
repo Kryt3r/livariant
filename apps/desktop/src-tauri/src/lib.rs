@@ -20,6 +20,7 @@ mod operator_broadcast_verify;
 mod operator_live_notice;
 mod operator_update_block;
 mod project_review_selection;
+mod project_scoped_persistence;
 mod project_source_observation;
 mod project_source_review_async;
 mod project_source_review_bridge;

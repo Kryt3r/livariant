@@ -1,3 +1,13 @@
+use crate::{
+    desktop_project_registry::{
+        ensure_project_persistence_scope_current, project_persistence_scope,
+        with_project_persistence_scope_current, DesktopProjectRegistryState,
+        ProjectPersistenceScope,
+    },
+    project_scoped_persistence::{
+        replace_staged_file, source_review_input_path, staged_path_for_target,
+    },
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -8,7 +18,6 @@ use std::{
 };
 use tauri::Manager;
 
-const REFRESH_INPUT_FILE: &str = "project-source-review-input.json";
 const REVIEW_INVENTORY_SCRIPT: &str = "desktop-project-review-path-inventory.js";
 
 #[derive(Debug, Deserialize)]
@@ -102,12 +111,11 @@ fn normalize_selection(selected: &[String]) -> Result<Vec<String>, String> {
     Ok(normalized)
 }
 
-fn read_configuration(app: &tauri::AppHandle) -> Result<(PathBuf, Vec<u8>, Value), String> {
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?;
-    let input = app_data.join(REFRESH_INPUT_FILE);
+fn read_configuration(
+    app: &tauri::AppHandle,
+    scope: &ProjectPersistenceScope,
+) -> Result<(PathBuf, Vec<u8>, Value), String> {
+    let input = source_review_input_path(app, scope, false)?;
     if !input.is_file() {
         return Err("Project Source & Review runtime input is not configured yet.".to_owned());
     }
@@ -264,27 +272,35 @@ fn apply_selection(configuration: &mut Value, selected: &[String]) -> Result<(),
     Ok(())
 }
 
-fn write_configuration(input: &Path, configuration: &Value) -> Result<(), String> {
-    let parent = input
-        .parent()
-        .ok_or_else(|| "Project Source & Review configuration has no parent directory.".to_owned())?;
-    let temp = parent.join(format!("{REFRESH_INPUT_FILE}.review-start.tmp"));
+fn write_configuration(
+    app: &tauri::AppHandle,
+    scope: &ProjectPersistenceScope,
+    input: &Path,
+    configuration: &Value,
+) -> Result<(), String> {
+    let staged = staged_path_for_target(input, "review-selection")?;
     let serialized = serde_json::to_vec_pretty(configuration)
         .map_err(|error| format!("Review selection could not be serialized: {error}"))?;
-    fs::write(&temp, serialized)
+    fs::write(&staged, serialized)
         .map_err(|error| format!("Review selection temp file could not be written: {error}"))?;
-    if input.exists() {
-        fs::remove_file(input)
-            .map_err(|error| format!("Previous review configuration could not be replaced: {error}"))?;
+
+    let registry_state = app.state::<DesktopProjectRegistryState>();
+    if let Err(error) = with_project_persistence_scope_current(app, registry_state.inner(), scope, || {
+        replace_staged_file(&staged, input)
+    }) {
+        let _ = fs::remove_file(&staged);
+        return Err(error);
     }
-    fs::rename(&temp, input)
-        .map_err(|error| format!("Review selection could not be committed: {error}"))?;
     Ok(())
 }
 
 fn inventory_project_source_review_paths_blocking(app: tauri::AppHandle) -> Result<Value, String> {
-    let (input, _, _) = read_configuration(&app)?;
-    run_review_inventory(&app, &input)
+    let registry_state = app.state::<DesktopProjectRegistryState>();
+    let scope = project_persistence_scope(&app, registry_state.inner())?;
+    let (input, _, _) = read_configuration(&app, &scope)?;
+    let inventory = run_review_inventory(&app, &input)?;
+    ensure_project_persistence_scope_current(&app, registry_state.inner(), &scope)?;
+    Ok(inventory)
 }
 
 fn start_project_source_review_blocking(
@@ -292,7 +308,9 @@ fn start_project_source_review_blocking(
     selection: ReviewStartInput,
 ) -> Result<ReviewStartResult, String> {
     let selected = normalize_selection(&selection.selected_review_paths)?;
-    let (input, before, mut configuration) = read_configuration(&app)?;
+    let registry_state = app.state::<DesktopProjectRegistryState>();
+    let scope = project_persistence_scope(&app, registry_state.inner())?;
+    let (input, before, mut configuration) = read_configuration(&app, &scope)?;
     let inventory = run_review_inventory(&app, &input)?;
     let candidates = validate_inventory(&inventory)?;
 
@@ -310,14 +328,22 @@ fn start_project_source_review_blocking(
         return Err("Project Source & Review configuration changed while the review selection was being validated; start was rejected.".to_owned());
     }
 
+    ensure_project_persistence_scope_current(&app, registry_state.inner(), &scope)?;
     apply_selection(&mut configuration, &selected)?;
-    write_configuration(&input, &configuration)?;
+    write_configuration(&app, &scope, &input, &configuration)?;
 
     Ok(ReviewStartResult {
         state: "started",
         selected_count: selected.len(),
-        detail: "Explicit review selection saved to Livariant app-data. The existing canonical review producer must refresh it separately; no Project Truth, Authority or Semantic Apply was granted.".to_owned(),
+        detail: if scope.is_project_namespaced() {
+            "Explicit review selection saved to the active Desktop project's Livariant app-data namespace. The existing canonical review producer must refresh it separately; no Project Truth, Authority or Semantic Apply was granted.".to_owned()
+        } else {
+            "Explicit review selection saved to the legacy single-project app-data slot pending migration. The existing canonical review producer must refresh it separately; no Project Truth, Authority or Semantic Apply was granted.".to_owned()
+        },
         boundaries: json!({
+            "inputPathIsProjectScoped": scope.is_project_namespaced(),
+            "legacySingleProjectCompatibility": !scope.is_project_namespaced(),
+            "staleActivationCommitRejected": true,
             "selectionIsProjectTruth": false,
             "selectionGrantsAuthority": false,
             "changesProjectOwnedFiles": false,

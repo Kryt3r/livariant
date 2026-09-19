@@ -1,3 +1,14 @@
+use crate::{
+    desktop_project_registry::{
+        ensure_project_persistence_scope_current, project_persistence_scope,
+        with_project_persistence_scope_current, DesktopProjectRegistryState,
+        ProjectPersistenceScope,
+    },
+    project_scoped_persistence::{
+        replace_staged_file, source_review_input_path, source_review_presentation_path,
+        staged_path_for_target,
+    },
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -7,9 +18,6 @@ use std::{
     process::Command,
 };
 use tauri::Manager;
-
-const PRESENTATION_FILE: &str = "project-source-review-presentation.json";
-const REFRESH_INPUT_FILE: &str = "project-source-review-input.json";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -130,7 +138,7 @@ fn normalize_review_path(value: &str, index: usize) -> Result<String, String> {
     Ok(normalized.replace('\\', "/"))
 }
 
-fn configuration_value(input: &ProjectSourceReviewConfigurationInput) -> Result<Value, String> {
+pub(crate) fn configuration_value(input: &ProjectSourceReviewConfigurationInput) -> Result<Value, String> {
     if input.schema_version != 1 {
         return Err("Project Source & Review configuration schemaVersion must be 1.".to_owned());
     }
@@ -229,12 +237,19 @@ fn validate_presentation(value: &Value) -> Result<(), String> {
     Ok(())
 }
 
-fn read_presentation(app: &tauri::AppHandle) -> ProjectSourceReviewBridgeResult {
-    let app_data = match app.path().app_data_dir() {
+fn resolve_persistence_scope(app: &tauri::AppHandle) -> Result<ProjectPersistenceScope, String> {
+    let state = app.state::<DesktopProjectRegistryState>();
+    project_persistence_scope(app, state.inner())
+}
+
+fn read_presentation_for_scope(
+    app: &tauri::AppHandle,
+    scope: &ProjectPersistenceScope,
+) -> ProjectSourceReviewBridgeResult {
+    let path = match source_review_presentation_path(app, scope, false) {
         Ok(path) => path,
-        Err(error) => return unavailable(format!("Livariant app-data location could not be resolved: {error}")),
+        Err(error) => return unavailable(error),
     };
-    let path = app_data.join(PRESENTATION_FILE);
     if !path.is_file() {
         return unavailable("No canonical Project Source & Review presentation snapshot is available yet.");
     }
@@ -251,35 +266,54 @@ fn read_presentation(app: &tauri::AppHandle) -> ProjectSourceReviewBridgeResult 
         return unavailable(format!("Project Source & Review presentation snapshot was rejected: {error}"));
     }
 
+    let state = app.state::<DesktopProjectRegistryState>();
+    if let Err(error) = ensure_project_persistence_scope_current(app, state.inner(), scope) {
+        return unavailable(error);
+    }
+
     ProjectSourceReviewBridgeResult {
         state: "ready",
         presentation: Some(value),
-        detail: "Canonical runtime presentation snapshot loaded read-only. The bridge grants no Truth, Authority or mutation capability.".to_owned(),
+        detail: if scope.is_project_namespaced() {
+            "Canonical project-scoped runtime presentation snapshot loaded read-only. The bridge grants no Truth, Authority or mutation capability.".to_owned()
+        } else {
+            "Canonical legacy single-project runtime presentation snapshot loaded read-only pending migration. The bridge grants no Truth, Authority or mutation capability.".to_owned()
+        },
     }
 }
 
-#[tauri::command]
-pub fn configure_project_source_review(
-    app: tauri::AppHandle,
+pub(crate) fn configure_project_source_review_for_scope(
+    app: &tauri::AppHandle,
+    scope: &ProjectPersistenceScope,
     configuration: ProjectSourceReviewConfigurationInput,
 ) -> Result<ProjectSourceReviewConfigurationResult, String> {
     let value = configuration_value(&configuration)?;
-    let app_data = app.path().app_data_dir().map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?;
-    fs::create_dir_all(&app_data).map_err(|error| format!("Livariant app-data directory could not be prepared: {error}"))?;
-    let target = app_data.join(REFRESH_INPUT_FILE);
-    let temp = app_data.join(format!("{REFRESH_INPUT_FILE}.tmp"));
-    let serialized = serde_json::to_vec_pretty(&value).map_err(|error| format!("Project Source & Review configuration could not be serialized: {error}"))?;
-    fs::write(&temp, serialized).map_err(|error| format!("Project Source & Review configuration temp file could not be written: {error}"))?;
-    if target.exists() {
-        fs::remove_file(&target).map_err(|error| format!("Previous Project Source & Review configuration could not be replaced: {error}"))?;
+    let target = source_review_input_path(app, scope, true)?;
+    let staged = staged_path_for_target(&target, "source-review-input")?;
+    let serialized = serde_json::to_vec_pretty(&value)
+        .map_err(|error| format!("Project Source & Review configuration could not be serialized: {error}"))?;
+    fs::write(&staged, serialized)
+        .map_err(|error| format!("Project Source & Review configuration temp file could not be written: {error}"))?;
+
+    let state = app.state::<DesktopProjectRegistryState>();
+    if let Err(error) = with_project_persistence_scope_current(app, state.inner(), scope, || {
+        replace_staged_file(&staged, &target)
+    }) {
+        let _ = fs::remove_file(&staged);
+        return Err(error);
     }
-    fs::rename(&temp, &target).map_err(|error| format!("Project Source & Review configuration could not be committed: {error}"))?;
+    ensure_project_persistence_scope_current(app, state.inner(), scope)?;
 
     Ok(ProjectSourceReviewConfigurationResult {
         state: "configured",
-        detail: "Bounded Project Source & Review configuration saved to Livariant app-data. Source associations and review selections grant no Truth or Authority.".to_owned(),
+        detail: if scope.is_project_namespaced() {
+            "Bounded Project Source & Review configuration saved to the active Desktop project's Livariant app-data namespace. Source associations and review selections grant no Truth or Authority.".to_owned()
+        } else {
+            "Bounded Project Source & Review configuration saved to the legacy single-project app-data slot pending migration. Source associations and review selections grant no Truth or Authority.".to_owned()
+        },
         boundaries: json!({
-            "outputPathIsFixed": true,
+            "outputPathIsProjectScoped": scope.is_project_namespaced(),
+            "legacySingleProjectCompatibility": !scope.is_project_namespaced(),
             "configurationGrantsAuthority": false,
             "configurationIsProjectTruth": false,
             "configurationCreatesObservedEvidence": false,
@@ -290,24 +324,44 @@ pub fn configure_project_source_review(
 }
 
 #[tauri::command]
+pub fn configure_project_source_review(
+    app: tauri::AppHandle,
+    configuration: ProjectSourceReviewConfigurationInput,
+) -> Result<ProjectSourceReviewConfigurationResult, String> {
+    let scope = resolve_persistence_scope(&app)?;
+    configure_project_source_review_for_scope(&app, &scope, configuration)
+}
+
+#[tauri::command]
 pub fn project_source_review_presentation(app: tauri::AppHandle) -> ProjectSourceReviewBridgeResult {
-    read_presentation(&app)
+    let scope = match resolve_persistence_scope(&app) {
+        Ok(scope) => scope,
+        Err(error) => return unavailable(error),
+    };
+    read_presentation_for_scope(&app, &scope)
 }
 
 #[tauri::command]
 pub fn refresh_project_source_review_presentation(app: tauri::AppHandle) -> ProjectSourceReviewBridgeResult {
-    let app_data = match app.path().app_data_dir() {
-        Ok(path) => path,
-        Err(error) => return unavailable(format!("Livariant app-data location could not be resolved: {error}")),
+    let scope = match resolve_persistence_scope(&app) {
+        Ok(scope) => scope,
+        Err(error) => return unavailable(error),
     };
-    if let Err(error) = fs::create_dir_all(&app_data) {
-        return unavailable(format!("Livariant app-data directory could not be prepared: {error}"));
-    }
-    let input = app_data.join(REFRESH_INPUT_FILE);
-    let output = app_data.join(PRESENTATION_FILE);
+    let input = match source_review_input_path(&app, &scope, false) {
+        Ok(path) => path,
+        Err(error) => return unavailable(error),
+    };
+    let output = match source_review_presentation_path(&app, &scope, true) {
+        Ok(path) => path,
+        Err(error) => return unavailable(error),
+    };
     if !input.is_file() {
         return unavailable("Project Source & Review runtime input is not configured yet; no refresh was attempted.");
     }
+    let staged_output = match staged_path_for_target(&output, "source-review-presentation") {
+        Ok(path) => path,
+        Err(error) => return unavailable(error),
+    };
 
     let executable = match std::env::current_exe() {
         Ok(path) => path,
@@ -337,13 +391,17 @@ pub fn refresh_project_source_review_presentation(app: tauri::AppHandle) -> Proj
         .arg(&script)
         .current_dir(install_root)
         .env("LIVARIANT_PROJECT_SOURCE_REVIEW_INPUT", &input)
-        .env("LIVARIANT_PROJECT_SOURCE_REVIEW_OUTPUT", &output)
+        .env("LIVARIANT_PROJECT_SOURCE_REVIEW_OUTPUT", &staged_output)
         .output()
     {
         Ok(value) => value,
-        Err(error) => return unavailable(format!("Project Source & Review refresh runtime could not be started: {error}")),
+        Err(error) => {
+            let _ = fs::remove_file(&staged_output);
+            return unavailable(format!("Project Source & Review refresh runtime could not be started: {error}"));
+        }
     };
     if !process.status.success() {
+        let _ = fs::remove_file(&staged_output);
         let stderr = String::from_utf8_lossy(&process.stderr).trim().to_owned();
         return unavailable(if stderr.is_empty() {
             "Project Source & Review refresh failed closed without replacing the current snapshot.".to_owned()
@@ -351,7 +409,46 @@ pub fn refresh_project_source_review_presentation(app: tauri::AppHandle) -> Proj
             format!("Project Source & Review refresh failed closed: {stderr}")
         });
     }
-    read_presentation(&app)
+
+    let bytes = match fs::read(&staged_output) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            let _ = fs::remove_file(&staged_output);
+            return unavailable(format!("Project Source & Review staged presentation could not be read: {error}"));
+        }
+    };
+    let value: Value = match serde_json::from_slice(&bytes) {
+        Ok(value) => value,
+        Err(error) => {
+            let _ = fs::remove_file(&staged_output);
+            return unavailable(format!("Project Source & Review staged presentation is invalid JSON: {error}"));
+        }
+    };
+    if let Err(error) = validate_presentation(&value) {
+        let _ = fs::remove_file(&staged_output);
+        return unavailable(format!("Project Source & Review staged presentation was rejected: {error}"));
+    }
+
+    let state = app.state::<DesktopProjectRegistryState>();
+    if let Err(error) = with_project_persistence_scope_current(&app, state.inner(), &scope, || {
+        replace_staged_file(&staged_output, &output)
+    }) {
+        let _ = fs::remove_file(&staged_output);
+        return unavailable(error);
+    }
+    if let Err(error) = ensure_project_persistence_scope_current(&app, state.inner(), &scope) {
+        return unavailable(error);
+    }
+
+    ProjectSourceReviewBridgeResult {
+        state: "ready",
+        presentation: Some(value),
+        detail: if scope.is_project_namespaced() {
+            "Canonical project-scoped runtime presentation snapshot refreshed under the active Desktop project generation. The bridge grants no Truth, Authority or mutation capability.".to_owned()
+        } else {
+            "Canonical legacy single-project runtime presentation snapshot refreshed pending migration. The bridge grants no Truth, Authority or mutation capability.".to_owned()
+        },
+    }
 }
 
 #[cfg(test)]
