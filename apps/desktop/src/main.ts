@@ -11,13 +11,18 @@ import {
   renderConnectionsSettingsView,
   renderConnectionsView,
 } from "./connections-diagnostics.js";
+import {
+  bindAboutSupportSettingsEvents,
+  refreshAboutSupportSettings,
+  renderAboutSupportSettingsView,
+} from "./about-support-settings.js";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
 const appWindow = getCurrentWindow();
 const uiText = (en: string, de: string) => getLanguage() === "de" ? de : en;
 
 type View = "steps" | "updates" | "connections" | "diagnostics";
-type SettingsSection = "general" | "connections" | "updates" | "system";
+type SettingsSection = "general" | "connections" | "updates" | "system" | "about";
 type NoticeKind = "info" | "success" | "warning" | "error";
 type AreaState = "open" | "deferred" | "review" | "confirmed";
 type TruthFilter = "all" | "review" | "open" | "conflicts";
@@ -422,6 +427,7 @@ const renderUpdatesSettingsView = () => {
 const renderSettingsContent = () => {
   if (settingsSection === "connections") return renderConnectionsSettingsView();
   if (settingsSection === "updates") return renderUpdatesSettingsView();
+  if (settingsSection === "about") return renderAboutSupportSettingsView();
   if (settingsSection === "system") return `
     <section class="settings-panel">
       <span class="eyebrow">Desktop</span><h2>System</h2>
@@ -450,6 +456,9 @@ const renderSettingsModal = () => settingsOpen ? `
         <div class="settings-nav-group"><small>Desktop</small>
           <button class="settings-nav-item ${settingsSection === "updates" ? "active" : ""}" data-settings-section="updates" type="button">${icon("updates")}<span>Updates</span></button>
           <button class="settings-nav-item ${settingsSection === "system" ? "active" : ""}" data-settings-section="system" type="button">${icon("settings")}<span>System</span></button>
+        </div>
+        <div class="settings-nav-group"><small>${uiText("Information", "Information")}</small>
+          <button class="settings-nav-item ${settingsSection === "about" ? "active" : ""}" data-settings-section="about" type="button">${icon("home")}<span>${uiText("About & support", "Über Livariant & Hilfe")}</span></button>
         </div>
       </aside>
       <div class="settings-content"><button class="modal-close" data-close-settings type="button" aria-label="${uiText("Close settings", "Einstellungen schließen")}">×</button><div class="settings-content-body">${renderSettingsContent()}</div></div>
@@ -509,6 +518,7 @@ const renderSettingsSectionOnly = () => {
   });
   bindUpdateCheckEvent();
   bindConnectionDiagnosticsEvents(renderSettingsSectionOnly);
+  bindAboutSupportSettingsEvents(renderSettingsSectionOnly);
 };
 
 const archiveCurrentTruth = (area: TruthArea, reason: TruthRevision["reason"]) => {
@@ -591,11 +601,15 @@ const bindEvents = () => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
       const section = button.dataset.settingsSection;
-      if (section !== "general" && section !== "connections" && section !== "updates" && section !== "system") return;
+      if (section !== "general" && section !== "connections" && section !== "updates" && section !== "system" && section !== "about") return;
       settingsSection = section;
       renderSettingsSectionOnly();
       if (section === "connections") {
         await refreshConnectionsSettings();
+        renderSettingsSectionOnly();
+      }
+      if (section === "about") {
+        await refreshAboutSupportSettings();
         renderSettingsSectionOnly();
       }
     });
