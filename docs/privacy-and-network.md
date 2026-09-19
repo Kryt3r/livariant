@@ -7,6 +7,7 @@ Livariant is designed for local project use. This page separates the network beh
 The current Livariant Runtime and Desktop do not implement:
 
 - analytics or usage telemetry;
+- crash reporting;
 - advertising identifiers;
 - Livariant account tracking;
 - automatic upload of Project Brain contents.
@@ -33,7 +34,7 @@ This request is a bounded HTTPS **GET**. The reviewed transport:
 
 The channel carries bounded service notices and exact-version update safety blocks. It is not a remote command channel and grants no project or mutation Authority.
 
-A transport or verification failure does not authorize any action.
+A transport or verification failure does not authorize any action. As with any HTTPS connection, the remote service can observe ordinary network metadata such as the source IP address; Livariant sends no project content in this GET request body.
 
 ## GitHub connection
 
