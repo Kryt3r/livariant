@@ -15,6 +15,9 @@ test("GitHub local clone host is bounded to the selected live repository", async
   assert.match(host, /GIT_CONFIG_KEY_0/);
   assert.match(host, /http\.https:\/\/github\.com\/\.extraheader/);
   assert.match(host, /credential\.helper/);
+  assert.match(host, /core\.longpaths=true/);
+  assert.match(host, /git_compatible_path/);
+  assert.match(host, /strip_prefix\(r"\\\\\?\\/);
   assert.doesNotMatch(host, /https:\/\/x-access-token:/);
   assert.doesNotMatch(host, /remove_dir_all/);
 });
@@ -35,4 +38,17 @@ test("clone remains separate from Livariant source confirmation and Authority", 
   assert.match(ui, /inspect_first_run_repository/);
   assert.match(ui, /github_clone_repository/);
   assert.match(ui, /Confirm the repository form/);
+});
+
+
+test("clone UI presents localized readable error state instead of raw host error", async () => {
+  const ui = await text("apps/desktop/src/github-first-run-integration.ts");
+  const css = await text("apps/desktop/src/github-source-picker.css");
+
+  assert.match(ui, /Lokales Klonen fehlgeschlagen/);
+  assert.match(ui, /fr-github-local-status/);
+  assert.match(ui, /setLocalStatus\(form, cloneFailureMessage\(\), "error"\)/);
+  assert.doesNotMatch(ui, /status\.textContent = String\(cause\)/);
+  assert.match(css, /\.fr-github-local-status\[data-tone="error"\]/);
+  assert.match(css, /font-size:13px/);
 });
