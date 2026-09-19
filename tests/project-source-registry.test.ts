@@ -4,6 +4,9 @@ import {
   addAdditionalProjectRepository,
   createProjectSourceRegistry,
   disconnectAdditionalProjectRepository,
+  setAdditionalProjectRepositoryLocalBinding,
+  setPrimaryProjectRepositoryLocalBinding,
+  updateAdditionalProjectRepositoryDescription,
 } from "../src/project/source-registry.js";
 
 const primary = {
@@ -102,4 +105,41 @@ test("disconnecting an unknown repository is deterministic and non-destructive",
   assert.equal(result.registry, registry);
   assert.equal(result.boundaries.remoteRepositoryDeleted, false);
   assert.equal(result.boundaries.localCheckoutDeleted, false);
+});
+
+
+test("primary local binding can be changed without dropping additional repositories", () => {
+  const initial = createProjectSourceRegistry("livariant", primary);
+  const withInternal = addAdditionalProjectRepository(initial, internal).registry;
+  const changed = setPrimaryProjectRepositoryLocalBinding(withInternal, { localPath: "D:/work/livariant" });
+
+  assert.equal(changed.changed, true);
+  assert.equal(changed.registry.primary.local?.localPath, "D:/work/livariant");
+  assert.equal(changed.registry.additional.length, 1);
+  assert.equal(changed.boundaries.localCheckoutDeleted, false);
+});
+
+test("additional repository description and local binding are independently editable", () => {
+  const initial = addAdditionalProjectRepository(createProjectSourceRegistry("livariant", primary), internal).registry;
+  const renamed = updateAdditionalProjectRepositoryDescription(initial, internal.identity, "Second brain and governance.");
+  const remoteOnly = setAdditionalProjectRepositoryLocalBinding(renamed.registry, internal.identity, null);
+  const relinked = setAdditionalProjectRepositoryLocalBinding(remoteOnly.registry, internal.identity, { localPath: "D:/work/livariant-internal" });
+
+  assert.equal(renamed.registry.additional[0]?.description, "Second brain and governance.");
+  assert.equal(remoteOnly.registry.additional[0]?.local, undefined);
+  assert.equal(relinked.registry.additional[0]?.local?.localPath, "D:/work/livariant-internal");
+  assert.equal(remoteOnly.boundaries.localCheckoutDeleted, false);
+  assert.equal(relinked.boundaries.grantsAuthority, false);
+});
+
+test("editing an unknown additional repository fails closed", () => {
+  const registry = createProjectSourceRegistry("livariant", primary);
+  assert.throws(
+    () => updateAdditionalProjectRepositoryDescription(registry, internal.identity, "Unknown"),
+    /not associated/,
+  );
+  assert.throws(
+    () => setAdditionalProjectRepositoryLocalBinding(registry, internal.identity, null),
+    /not associated/,
+  );
 });
