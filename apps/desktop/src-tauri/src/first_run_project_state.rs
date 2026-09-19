@@ -89,8 +89,20 @@ pub(crate) fn persist_first_run_project_state_for_scope(
     )
     .map_err(|error| format!("First-run project state temp file could not be written: {error}"))?;
 
-    let executable = std::env::current_exe().map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
-    let install_root = executable.parent().ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
+    let executable = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(error) => {
+            let _ = fs::remove_file(&staged_request);
+            return Err(format!("Desktop executable location could not be resolved: {error}"));
+        }
+    };
+    let install_root = match executable.parent() {
+        Some(path) => path,
+        None => {
+            let _ = fs::remove_file(&staged_request);
+            return Err("Desktop executable has no installation directory.".to_owned());
+        }
+    };
     let node = bundled_node_path(install_root);
     let script = install_root.join("runtime").join("core").join("dist").join("src").join("project").join("desktop-first-run-source-review-projection.js");
     let manifest_path = install_root.join("runtime").join("manifest.json");
@@ -98,20 +110,37 @@ pub(crate) fn persist_first_run_project_state_for_scope(
         let _ = fs::remove_file(&staged_request);
         return Err("Bundled first-run Project Source & Review projection runtime is not present in this Desktop build.".to_owned());
     }
-    let manifest: RuntimeManifest = serde_json::from_slice(
-        &fs::read(&manifest_path).map_err(|error| format!("Bundled runtime manifest could not be read: {error}"))?,
-    ).map_err(|error| format!("Bundled runtime manifest is invalid: {error}"))?;
+    let manifest_bytes = match fs::read(&manifest_path) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            let _ = fs::remove_file(&staged_request);
+            return Err(format!("Bundled runtime manifest could not be read: {error}"));
+        }
+    };
+    let manifest: RuntimeManifest = match serde_json::from_slice(&manifest_bytes) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            let _ = fs::remove_file(&staged_request);
+            return Err(format!("Bundled runtime manifest is invalid: {error}"));
+        }
+    };
     if manifest.authority_issued {
         let _ = fs::remove_file(&staged_request);
         return Err("Ordinary bundled runtime material must never claim Authority.".to_owned());
     }
 
-    let process = hidden_command(&node)
+    let process = match hidden_command(&node)
         .arg(&script)
         .current_dir(install_root)
         .env("LIVARIANT_FIRST_RUN_SOURCE_REVIEW_REQUEST", &staged_request)
         .output()
-        .map_err(|error| format!("First-run Project Source & Review projection runtime could not be started: {error}"))?;
+    {
+        Ok(process) => process,
+        Err(error) => {
+            let _ = fs::remove_file(&staged_request);
+            return Err(format!("First-run Project Source & Review projection runtime could not be started: {error}"));
+        }
+    };
     if !process.status.success() {
         let _ = fs::remove_file(&staged_request);
         let stderr = String::from_utf8_lossy(&process.stderr).trim().to_owned();
@@ -122,9 +151,17 @@ pub(crate) fn persist_first_run_project_state_for_scope(
         });
     }
 
-    let configuration: ProjectSourceReviewConfigurationInput = serde_json::from_slice(&process.stdout)
-        .map_err(|error| format!("First-run Project Source & Review projection returned invalid configuration JSON: {error}"))?;
-    configure_project_source_review_for_scope(app, scope, configuration)?;
+    let configuration: ProjectSourceReviewConfigurationInput = match serde_json::from_slice(&process.stdout) {
+        Ok(configuration) => configuration,
+        Err(error) => {
+            let _ = fs::remove_file(&staged_request);
+            return Err(format!("First-run Project Source & Review projection returned invalid configuration JSON: {error}"));
+        }
+    };
+    if let Err(error) = configure_project_source_review_for_scope(app, scope, configuration) {
+        let _ = fs::remove_file(&staged_request);
+        return Err(error);
+    }
 
     let registry_state = app.state::<DesktopProjectRegistryState>();
     if let Err(error) = with_project_persistence_scope_current(app, registry_state.inner(), scope, || {
