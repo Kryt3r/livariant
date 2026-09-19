@@ -183,10 +183,12 @@ fn run_lifecycle_runtime(app: &tauri::AppHandle, action: Option<Value>) -> Resul
         None
     };
 
-    let process = command.output().map_err(|error| format!("First-run lifecycle runtime could not be started: {error}"))?;
+    let process_result = command.output();
     if let Some(path) = action_path.as_ref() {
         let _ = fs::remove_file(path);
     }
+    let process = process_result
+        .map_err(|error| format!("First-run lifecycle runtime could not be started: {error}"))?;
     if !process.status.success() {
         let stderr = String::from_utf8_lossy(&process.stderr).trim().to_owned();
         return Err(if stderr.is_empty() {
