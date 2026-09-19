@@ -26,6 +26,7 @@ jobs:
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      LIVARIANT_GITHUB_CLIENT_ID: ${{ vars.LIVARIANT_GITHUB_CLIENT_ID }}
 
     steps:
       - name: Validate requested source identity
@@ -64,6 +65,14 @@ jobs:
             throw "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not configured."
           }
           Write-Host "Updater signing secrets are present; values remain masked."
+
+      - name: Require production GitHub App client identity
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:LIVARIANT_GITHUB_CLIENT_ID)) {
+            throw "LIVARIANT_GITHUB_CLIENT_ID repository variable is not configured. Signed Desktop Preview builds must carry the operator-owned GitHub App client identity."
+          }
+          Write-Host "GitHub App client identity is configured for this Preview build; the public client ID value is not printed."
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
