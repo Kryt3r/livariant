@@ -356,12 +356,30 @@ fn validate_clone_destination(destination: &Path) -> Result<PathBuf, String> {
     Ok(canonical_parent.join(name))
 }
 
+#[cfg(target_os = "windows")]
+fn git_compatible_path(path: &Path) -> PathBuf {
+    let raw = path.to_string_lossy();
+    if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    if let Some(rest) = raw.strip_prefix(r"\\?\") {
+        return PathBuf::from(rest);
+    }
+    path.to_path_buf()
+}
+
+#[cfg(not(target_os = "windows"))]
+fn git_compatible_path(path: &Path) -> PathBuf {
+    path.to_path_buf()
+}
+
 fn git_clone(repository: &GitHubRepositorySummary, destination: &Path, token: &str) -> Result<(), String> {
+    let git_destination = git_compatible_path(destination);
     let mut command = Command::new("git");
     command
-        .args(["clone", "--origin", "origin", "--"])
+        .args(["-c", "core.longpaths=true", "clone", "--origin", "origin", "--"])
         .arg(&repository.remote_url)
-        .arg(destination)
+        .arg(&git_destination)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_CONFIG_COUNT", "2")
         .env("GIT_CONFIG_KEY_0", "http.https://github.com/.extraheader")
@@ -503,7 +521,7 @@ pub fn github_clone_repository(repository_id: String, numeric_id: u64, destinati
     Ok(GitHubCloneResult {
         state: "cloned",
         repository_id: repository.repository_id,
-        local_path: destination.to_string_lossy().to_string(),
+        local_path: git_compatible_path(&destination).to_string_lossy().to_string(),
         detail: "Repository cloned into the explicitly selected destination. Local binding still requires explicit source confirmation in Livariant.".to_owned(),
         boundaries: clone_boundaries(),
     })
@@ -511,7 +529,7 @@ pub fn github_clone_repository(repository_id: String, numeric_id: u64, destinati
 
 #[cfg(test)]
 mod tests {
-    use super::{boundaries, clone_boundaries, github_client_id, validate_clone_destination};
+    use super::{boundaries, clone_boundaries, git_compatible_path, github_client_id, validate_clone_destination};
     use std::path::Path;
 
     #[test]
@@ -541,5 +559,22 @@ mod tests {
     #[test]
     fn missing_client_id_is_supported_as_fail_closed_configuration() {
         let _ = github_client_id();
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn git_path_strips_windows_verbatim_prefix_without_changing_destination_identity() {
+        let path = Path::new(r"\\?\C:\Users\Robin\Desktop\Livariant\livariant-internal");
+        assert_eq!(
+            git_compatible_path(path),
+            Path::new(r"C:\Users\Robin\Desktop\Livariant\livariant-internal")
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn git_path_converts_verbatim_unc_prefix() {
+        let path = Path::new(r"\\?\UNC\server\share\repo");
+        assert_eq!(git_compatible_path(path), Path::new(r"\\server\share\repo"));
     }
 }
