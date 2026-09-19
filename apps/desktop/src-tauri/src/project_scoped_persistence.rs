@@ -154,6 +154,7 @@ pub(crate) fn staged_path_for_target(target: &Path, label: &str) -> Result<PathB
     let parent = target
         .parent()
         .ok_or_else(|| "Project-scoped persistence target has no parent directory.".to_owned())?;
+    ensure_real_directory(parent, false, "Project-scoped persistence target directory")?;
     Ok(parent.join(format!(".{label}-{}.tmp", Uuid::new_v4().hyphenated())))
 }
 
@@ -170,6 +171,7 @@ pub(crate) fn replace_staged_file(staged: &Path, target: &Path) -> Result<(), St
     let parent = target
         .parent()
         .ok_or_else(|| "Project-scoped persistence target has no parent directory.".to_owned())?;
+    ensure_real_directory(parent, false, "Project-scoped persistence target directory")?;
     let backup = parent.join(format!(".livariant-backup-{}.tmp", Uuid::new_v4().hyphenated()));
     let had_target = match fs::symlink_metadata(target) {
         Ok(metadata) => {
@@ -204,7 +206,7 @@ pub(crate) fn replace_staged_file(staged: &Path, target: &Path) -> Result<(), St
 
 #[cfg(test)]
 mod tests {
-    use super::{file_path_for_roots, replace_staged_file};
+    use super::{file_path_for_roots, replace_staged_file, staged_path_for_target};
     use crate::desktop_project_registry::{ActiveProjectScope, ProjectPersistenceScope};
     use std::{fs, path::PathBuf};
     use uuid::Uuid;
@@ -261,6 +263,23 @@ mod tests {
         .expect("legacy path");
 
         assert_eq!(path, app_data.join("first-run-project-source-review-request.json"));
+        fs::remove_dir_all(&base).expect("cleanup");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn staged_path_rejects_symlinked_target_directory() {
+        use std::os::unix::fs::symlink;
+
+        let base = root("staged-parent-symlink");
+        let outside = base.join("outside");
+        let link = base.join("linked");
+        fs::create_dir_all(&outside).expect("outside");
+        symlink(&outside, &link).expect("link");
+
+        let error = staged_path_for_target(&link.join("input.json"), "input")
+            .expect_err("symlinked parent rejected");
+        assert!(error.contains("non-symbolic-link"));
         fs::remove_dir_all(&base).expect("cleanup");
     }
 
