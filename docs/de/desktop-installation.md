@@ -1,4 +1,4 @@
-# Livariant Desktop — Windows-Installation & erster Start
+# Livariant Desktop - Windows-Installation & erster Start
 
 Diese Anleitung gilt für die **Windows-Desktop**-Produktoberfläche. Core/CLI und der geschützte Guardian-Installationspfad sind getrennte Oberflächen und bleiben unter [Installation & erstes Projekt](installation.md) dokumentiert.
 
@@ -144,8 +144,8 @@ App-Daten-Aufbewahrung/-Entfernung ist von Projekt-Repository-Löschung getrennt
 
 Livariant besitzt derzeit getrennte Produktoberflächen:
 
-- **Desktop** — Windows-first Normalnutzer-Oberfläche dieser Anleitung;
-- **Core/CLI** — Kommandozeilen- und geschützte Guardian-/Runtime-Workflows unter [Installation & erstes Projekt](installation.md).
+- **Desktop** - Windows-first Normalnutzer-Oberfläche dieser Anleitung;
+- **Core/CLI** - Kommandozeilen- und geschützte Guardian-/Runtime-Workflows unter [Installation & erstes Projekt](installation.md).
 
 Beide Oberflächen teilen Livariants Trust-/Authority-Semantik, haben aber nicht denselben Installations- oder First-Run-Pfad.
 
