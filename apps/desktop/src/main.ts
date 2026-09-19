@@ -7,6 +7,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getLanguage } from "./i18n/runtime.js";
 import {
   bindConnectionDiagnosticsEvents,
+  refreshConnectionsSettings,
   refreshConnector,
   renderConnectionsSettingsView,
   renderConnectionsView,
@@ -568,7 +569,7 @@ const activateView = async (view: View) => {
   // Diagnostics is enhanced by diagnostics-cockpit.ts, which owns its own qualified summary load.
   // A second connector/diagnostics refresh here used to trigger another full app render and remount
   // the cockpit, producing the visible double reload/twitch reported by the maintainer.
-  if (view === "connections") await refreshConnector();
+  if (view === "connections") await refreshConnectionsSettings();
   render();
 };
 
@@ -595,7 +596,7 @@ const bindEvents = () => {
       settingsSection = section;
       renderSettingsSectionOnly();
       if (section === "connections") {
-        await refreshConnector();
+        await refreshConnectionsSettings();
         renderSettingsSectionOnly();
       }
     });
