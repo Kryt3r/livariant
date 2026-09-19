@@ -18,6 +18,21 @@ Official Windows builds receive the GitHub App client ID from the GitHub Actions
 
 The ordinary installer build may still qualify with the variable unset and then behaves exactly as before with GitHub reported as not configured. A signed Desktop Preview build, however, requires a configured production client ID and fails closed when it is missing. This prevents a publishable Preview candidate from being built accidentally without the intended GitHub App identity.
 
+
+## Post-setup management
+
+After first-run setup, **Settings → Connections** brings together the GitHub account connection and repositories associated with the current project without collapsing their boundaries.
+
+From there the user can:
+
+- disconnect GitHub or reconnect through the same device flow;
+- reassign the primary repository's local checkout;
+- edit the purpose description of additional repositories;
+- associate additional repositories with an existing local checkout or return them to **Remote only**;
+- remove additional repository associations from the Livariant project.
+
+The primary repository is protected in this surface and cannot be removed. Disconnecting GitHub does not remove project sources. Removing an additional repository association deletes neither the remote repository nor local files or checkouts.
+
 ## Repository discovery
 
 After authorization, Livariant asks GitHub for repositories visible through the authenticated GitHub App user connection. The normal repository picker can therefore include private repositories only when GitHub itself exposes them to that user/app installation.
