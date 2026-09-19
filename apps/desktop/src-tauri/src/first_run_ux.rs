@@ -25,6 +25,20 @@ fn hidden_git(path: &Path, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
+fn user_visible_path(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{rest}");
+        }
+        if let Some(rest) = raw.strip_prefix(r"\\?\") {
+            return rest.to_owned();
+        }
+    }
+    raw.into_owned()
+}
+
 fn github_repository_id(remote: &str) -> Option<String> {
     let normalized = remote.trim().trim_end_matches('/').trim_end_matches(".git");
     if let Some(rest) = normalized.strip_prefix("https://github.com/") { return Some(rest.to_owned()); }
@@ -43,7 +57,7 @@ pub fn inspect_first_run_repository(local_path: String) -> FirstRunRepositoryIns
     if !inside {
         return FirstRunRepositoryInspection {
             is_repository: false,
-            local_path: canonical.to_string_lossy().to_string(),
+            local_path: user_visible_path(&canonical),
             display_name,
             provider: None,
             repository_id: None,
@@ -55,7 +69,7 @@ pub fn inspect_first_run_repository(local_path: String) -> FirstRunRepositoryIns
     let repository_id = remote.as_deref().and_then(github_repository_id);
     FirstRunRepositoryInspection {
         is_repository: true,
-        local_path: canonical.to_string_lossy().to_string(),
+        local_path: user_visible_path(&canonical),
         display_name,
         provider: Some(if repository_id.is_some() { "github" } else { "git" }),
         repository_id,
@@ -96,5 +110,30 @@ pub fn pick_first_run_folder() -> Result<Option<String>, String> {
     #[cfg(not(target_os = "windows"))]
     {
         Err("Native folder selection is not available on this Desktop platform yet.".to_owned())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::user_visible_path;
+    use std::path::Path;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn user_visible_path_strips_windows_verbatim_drive_prefix() {
+        assert_eq!(
+            user_visible_path(Path::new(r"\\?\C:\Users\Robin\Desktop\Livariant\livariant-internal")),
+            r"C:\Users\Robin\Desktop\Livariant\livariant-internal"
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn user_visible_path_converts_windows_verbatim_unc_prefix() {
+        assert_eq!(
+            user_visible_path(Path::new(r"\\?\UNC\server\share\repo")),
+            r"\\server\share\repo"
+        );
     }
 }

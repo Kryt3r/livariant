@@ -29,7 +29,7 @@ test("source management actions preserve local files and protect the primary rep
   const registry = await read("src/project/source-registry.ts");
 
   assert.match(management, /Das Hauptrepository bleibt.*kann hier nicht entfernt werden/s);
-  assert.match(management, /Lokale Dateien und das GitHub-Repository werden nicht gelöscht/);
+  assert.match(management, /Lokale Dateien und das GitHub-Repository bleiben unverändert/);
   assert.match(lifecycle, /set-primary-local-binding/);
   assert.match(lifecycle, /update-additional-repository-description/);
   assert.match(lifecycle, /set-additional-local-binding/);
@@ -44,4 +44,28 @@ test("duplicate onboarding source errors point users to Connections management",
   assert.match(firstRun, /friendlyLifecycleError/);
   assert.match(firstRun, /Einstellungen → Verbindungen/);
   assert.match(firstRun, /Additional repository identity is already associated with this project/);
+});
+
+
+test("Connections settings present Windows checkout paths without verbatim prefixes", async () => {
+  const management = await read("apps/desktop/src/project-connections-settings.ts");
+
+  assert.match(management, /function displayLocalPath/);
+  assert.ok(management.includes(String.raw`startsWith("\\\\?\\UNC\\")`));
+  assert.ok(management.includes(String.raw`startsWith("\\\\?\\")`));
+  assert.match(management, /esc\(displayLocalPath\(localPath\)\)/);
+});
+
+test("destructive-looking source actions use Livariant confirmation UI instead of native browser confirms", async () => {
+  const management = await read("apps/desktop/src/project-connections-settings.ts");
+  const css = await read("apps/desktop/src/project-connections-settings.css");
+
+  assert.doesNotMatch(management, /window\.confirm/);
+  assert.match(management, /project-confirm-backdrop/);
+  assert.match(management, /role="alertdialog"/);
+  assert.match(management, /Auf „Nur Remote“ umstellen\?/);
+  assert.match(management, /Repository aus diesem Projekt entfernen\?/);
+  assert.match(management, /Kein Repository und keine lokale Datei wird gelöscht/);
+  assert.match(css, /\.project-confirm-dialog/);
+  assert.match(css, /\.project-confirm-action\.danger/);
 });
