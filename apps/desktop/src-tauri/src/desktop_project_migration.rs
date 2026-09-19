@@ -633,6 +633,41 @@ fn cleanup_plan(final_root: &Path) {
     let _ = fs::remove_file(final_root.join(PLAN_FILE));
 }
 
+fn cleanup_completed_plan(
+    projects_root: &Path,
+    source_fingerprint: &str,
+) -> Result<(), String> {
+    if !ensure_real_directory(projects_root, false, "Desktop project registry root")? {
+        return Ok(());
+    }
+    for entry in fs::read_dir(projects_root)
+        .map_err(|error| format!("Desktop project registry directory could not be enumerated: {error}"))?
+    {
+        let entry = entry.map_err(|error| format!("Desktop project registry entry could not be inspected: {error}"))?;
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        if canonical_uuid(&name, "completed legacy migration project namespace").is_err() {
+            continue;
+        }
+        let plan_path = entry.path().join(PLAN_FILE);
+        let metadata = match fs::symlink_metadata(&plan_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Err(error) => return Err(format!("Completed legacy migration plan could not be inspected: {error}")),
+        };
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err("Completed legacy migration plan must be a real non-symbolic-link file.".to_owned());
+        }
+        let plan = read_plan(&plan_path)?;
+        if plan.desktop_project_id == name && plan.source_fingerprint == source_fingerprint {
+            fs::remove_file(&plan_path)
+                .map_err(|error| format!("Completed legacy migration plan could not be cleaned up: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn registry_exists(projects_root: &Path) -> Result<bool, String> {
     let path = projects_root.join(REGISTRY_FILE);
     match fs::symlink_metadata(path) {
@@ -680,53 +715,85 @@ pub(crate) fn initialize(
         .map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?;
     ensure_real_directory(&app_data, true, "Livariant app-data directory")?;
     let projects_root = app_data.join(PROJECTS_DIR);
+    let has_registry = registry_exists(&projects_root)?;
 
-    let material = read_legacy_material(&app_data)?;
-    let candidate = if material.is_empty() {
-        None
-    } else {
-        Some(candidate_from_material(material)?)
-    };
-
-    if !registry_exists(&projects_root)? {
-        if let Some(candidate) = candidate.as_ref() {
-            if find_resumable_namespace(&projects_root, candidate)?.is_some() {
-                migrate_candidate(app, state, &projects_root, candidate)?;
+    if has_registry {
+        let status = legacy_migration_status(app)?;
+        match status.state {
+            LegacyMigrationState::Complete => {
+                if let Some(fingerprint) = status.source_fingerprint.as_deref() {
+                    cleanup_completed_plan(&projects_root, fingerprint)?;
+                }
                 restore_last_active_project(app, state)?;
                 return Ok(());
             }
+            LegacyMigrationState::RecoveryRequired => {
+                return Ok(());
+            }
+            LegacyMigrationState::Pending | LegacyMigrationState::NotNeeded => {}
         }
-    }
 
-    let status = legacy_migration_status(app)?;
-    match status.state {
-        LegacyMigrationState::Complete => {
+        let material = match read_legacy_material(&app_data) {
+            Ok(material) => material,
+            Err(error) => {
+                mark_legacy_migration_recovery(
+                    app,
+                    None,
+                    "Legacy singleton state could not be safely read; explicit recovery is required.",
+                )?;
+                return Err(error);
+            }
+        };
+        if material.is_empty() {
+            if status.project_count > 0 && status.state == LegacyMigrationState::Pending {
+                mark_legacy_migration_not_needed(app)?;
+            }
             restore_last_active_project(app, state)?;
             return Ok(());
         }
-        LegacyMigrationState::RecoveryRequired => {
+
+        let candidate = match candidate_from_material(material) {
+            Ok(candidate) => candidate,
+            Err(error) => {
+                mark_legacy_migration_recovery(
+                    app,
+                    None,
+                    "Legacy singleton state is contradictory or unsafe; explicit recovery is required.",
+                )?;
+                return Err(error);
+            }
+        };
+        if status.project_count > 0 {
+            mark_legacy_migration_recovery(
+                app,
+                Some(candidate.source_fingerprint.clone()),
+                "Legacy singleton state exists alongside registered Desktop projects; explicit recovery is required before import.",
+            )?;
             return Ok(());
         }
-        LegacyMigrationState::Pending | LegacyMigrationState::NotNeeded => {}
-    }
 
-    let Some(candidate) = candidate else {
-        if status.project_count > 0 && status.state == LegacyMigrationState::Pending {
-            mark_legacy_migration_not_needed(app)?;
-        }
+        migrate_candidate(app, state, &projects_root, &candidate)?;
         restore_last_active_project(app, state)?;
         return Ok(());
-    };
+    }
 
-    if status.project_count > 0 {
-        mark_legacy_migration_recovery(
-            app,
-            Some(candidate.source_fingerprint.clone()),
-            "Legacy singleton state exists alongside registered Desktop projects; explicit recovery is required before import.",
-        )?;
+    let material = read_legacy_material(&app_data)?;
+    if material.is_empty() {
+        restore_last_active_project(app, state)?;
+        return Ok(());
+    }
+    let candidate = candidate_from_material(material)?;
+
+    if find_resumable_namespace(&projects_root, &candidate)?.is_some() {
+        migrate_candidate(app, state, &projects_root, &candidate)?;
+        restore_last_active_project(app, state)?;
         return Ok(());
     }
 
+    let status = legacy_migration_status(app)?;
+    if status.project_count > 0 {
+        return Err("Desktop project recovery is required before legacy migration can continue.".to_owned());
+    }
     migrate_candidate(app, state, &projects_root, &candidate)?;
     restore_last_active_project(app, state)?;
     Ok(())
