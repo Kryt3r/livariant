@@ -154,7 +154,7 @@ const githubConnectionMarkup = () => {
 
 function sourceLocalMarkup(localPath: string | undefined): string {
   return localPath?.trim()
-    ? `<span class="project-source-local linked" title="${esc(localPath)}">${esc(displayLocalPath(localPath))}</span>`
+    ? `<span class="project-source-local linked" title="${esc(displayLocalPath(localPath))}">${esc(displayLocalPath(localPath))}</span>`
     : `<span class="project-source-local remote">${text("Remote only", "Nur Remote")}</span>`;
 }
 
