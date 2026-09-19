@@ -22,6 +22,7 @@ mod project_review_selection;
 mod project_source_observation;
 mod project_source_review_async;
 mod project_source_review_bridge;
+mod public_resources;
 mod updater;
 
 use serde::{Deserialize, Serialize};
@@ -259,6 +260,8 @@ pub fn run() {
             project_source_review_async::refresh_project_source_review_presentation_nonblocking,
             project_review_selection::inventory_project_source_review_paths,
             project_review_selection::start_project_source_review,
+            public_resources::desktop_public_identity,
+            public_resources::open_public_resource,
             notification_product_events::check_for_update_with_notifications,
             updater::apply_update,
             connector_host::codex_connector_status,
