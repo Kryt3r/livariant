@@ -80,6 +80,7 @@ let connectorAction: ConnectorAction = null;
 let diagnosticsBusy: "measure" | "diagnostics" | "export" | null = null;
 let error: string | null = null;
 let errorSummary: string | null = null;
+let errorContext: "connector" | "diagnostics" | null = null;
 let diagnosticsNotice: string | null = null;
 let selectedProvider: ProviderId | null = null;
 let selectedDiagnosticsPreset: DiagnosticPreset = "30d";
@@ -96,10 +97,17 @@ const lang = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 const clearError = () => {
   error = null;
   errorSummary = null;
+  errorContext = null;
 };
 
-const captureError = (cause: unknown, en: string, de: string) => {
+const captureError = (
+  cause: unknown,
+  context: "connector" | "diagnostics",
+  en: string,
+  de: string,
+) => {
   error = String(cause);
+  errorContext = context;
   errorSummary = lang(en, de);
 };
 
@@ -153,6 +161,7 @@ export async function refreshConnector(): Promise<void> {
   catch (cause) {
     captureError(
       cause,
+      "connector",
       "Codex connection status could not be checked. Check the local Codex installation and try again.",
       "Der Codex-Verbindungsstatus konnte nicht geprüft werden. Prüfe die lokale Codex-Installation und versuche es erneut.",
     );
@@ -172,6 +181,7 @@ export async function refreshDiagnostics(): Promise<void> {
   catch (cause) {
     captureError(
       cause,
+      "diagnostics",
       "Diagnostics could not be refreshed. Existing evidence remains unchanged.",
       "Die Diagnose konnte nicht aktualisiert werden. Vorhandene Nachweise bleiben unverändert.",
     );
@@ -190,6 +200,8 @@ const renderCodexModal = () => {
   const detected = connector?.installationState === "available";
   const connected = connector?.connected === true;
   const mode = connector?.connectionMode ?? "auto";
+  const connectorError = errorContext === "connector" ? error : null;
+  const connectorErrorSummary = errorContext === "connector" ? errorSummary : null;
   return `
     <div class="provider-modal-backdrop" data-close-provider>
       <section class="provider-modal provider-modal-codex" role="dialog" aria-modal="true" aria-labelledby="provider-codex-title" data-provider-modal>
@@ -199,7 +211,7 @@ const renderCodexModal = () => {
           <div><span class="eyebrow">OpenAI</span><h2 id="provider-codex-title">Codex</h2><p>${lang("Connect Livariant through the official local Codex App Server boundary.", "Verbinde Livariant über die offizielle lokale Codex-App-Server-Grenze.")}</p></div>
           <span class="provider-status provider-status-${state.tone}"><i></i>${state.label}</span>
         </header>
-        ${error ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${t("connections.needsAttention")}</strong><p>${esc(errorSummary ?? lang("Codex could not complete this request.", "Codex konnte diese Anfrage nicht abschließen."))}</p>${renderTechnicalDetails(error)}</div></div>` : ""}
+        ${connectorError ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${t("connections.needsAttention")}</strong><p>${esc(connectorErrorSummary ?? lang("Codex could not complete this request.", "Codex konnte diese Anfrage nicht abschließen."))}</p>${renderTechnicalDetails(connectorError)}</div></div>` : ""}
         <section class="provider-primary-card provider-primary-card-emphasis">
           <div><span class="provider-card-kicker">${lang("Connection", "Verbindung")}</span><h3>${connected ? lang("Codex is connected", "Codex ist verbunden") : detected ? lang("Ready for one-click connection", "Bereit für die Ein-Klick-Verbindung") : lang("Codex setup required", "Codex-Einrichtung erforderlich")}</h3><p>${esc(connector?.detail ?? state.detail)}</p></div>
           <div class="provider-primary-actions">
@@ -333,7 +345,7 @@ export function renderDiagnosticsView(): string {
         <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>${t("diagnostics.cachedInput")}</small><strong>${measured(observed?.cacheReadTokens ?? 0)}</strong></div></div>
         <div class="health-card ${diagnostics?.hasObservedData ? "" : "muted"}"><span class="health-icon">●</span><div><small>Reasoning</small><strong>${measured(observed?.reasoningTokens ?? 0)}</strong></div></div>
       </section>
-      <section class="progress-panel diagnostics-observed-status"><div><span class="eyebrow">Observed · ${presetLabel(selectedDiagnosticsPreset)}</span><h2>${observed?.eventCount ?? 0} ${lang("measured events", "gemessene Ereignisse")}</h2><p>${esc(diagnosticsNotice ?? (error ? (errorSummary ?? lang("Diagnostics could not complete this request.", "Die Diagnose konnte diese Anfrage nicht abschließen.")) : (diagnostics?.hasObservedData ? lang("Stored locally from Codex App Server runtime evidence.", "Lokal aus Runtime-Evidence des Codex App Servers gespeichert.") : lang("No measured usage exists for this period.", "Für diesen Zeitraum liegt keine gemessene Nutzung vor."))))}</p>${error ? renderTechnicalDetails(error) : ""}</div><span class="state-pill">${diagnostics?.hasObservedData ? t("diagnostics.measured") : t("common.unknown")}</span></section>
+      <section class="progress-panel diagnostics-observed-status"><div><span class="eyebrow">Observed · ${presetLabel(selectedDiagnosticsPreset)}</span><h2>${observed?.eventCount ?? 0} ${lang("measured events", "gemessene Ereignisse")}</h2><p>${esc(diagnosticsNotice ?? (errorContext === "diagnostics" && error ? (errorSummary ?? lang("Diagnostics could not complete this request.", "Die Diagnose konnte diese Anfrage nicht abschließen.")) : (diagnostics?.hasObservedData ? lang("Stored locally from Codex App Server runtime evidence.", "Lokal aus Runtime-Evidence des Codex App Servers gespeichert.") : lang("No measured usage exists for this period.", "Für diesen Zeitraum liegt keine gemessene Nutzung vor."))))}</p>${errorContext === "diagnostics" && error ? renderTechnicalDetails(error) : ""}</div><span class="state-pill">${diagnostics?.hasObservedData ? t("diagnostics.measured") : t("common.unknown")}</span></section>
       <section class="provider-primary-card" data-diagnostics-attribution><div><span class="provider-card-kicker">${lang("Evidence attribution", "Evidence-Zuordnung")}</span><h3>${lang("Where the measured events came from", "Woher die gemessenen Ereignisse stammen")}</h3></div><section class="provider-detail-grid">${["Provider","Model",lang("Project","Projekt"),lang("Session","Sitzung"),lang("Task","Aufgabe")].map((label, index) => `<div class="provider-detail"><small>${label}</small><strong>${esc(attributionValues[index] ?? t("common.unavailable"))}</strong></div>`).join("")}</section></section>
       <section class="diagnostics-action-card" data-diagnostics-calculation><div><span class="eyebrow">${lang("Calculation path", "Berechnungsweg")}</span><h3>${lang("How these totals are calculated", "Wie diese Summen berechnet werden")}</h3><p>${esc(calculation)}</p></div></section>
       <section class="diagnostics-action-card diagnostics-measure-compact"><div><span class="eyebrow">${t("diagnostics.connectionDiagnostics")}</span><h3>${t("diagnostics.measureTurn")}</h3><p>${lang("Run one fixed harmless turn and record provider/runtime-owned token evidence. The test prompt is fixed in Core and cannot be supplied by the renderer.", "Einen fest definierten harmlosen Turn ausführen und provider-/runtime-eigene Token-Evidence erfassen. Der Test-Prompt ist fest im Core hinterlegt und kann nicht vom Renderer geliefert werden.")}</p></div><button class="button primary diagnostics-measure" type="button" ${diagnosticsBusy || !connected ? "disabled" : ""}>${diagnosticsBusy === "measure" ? t("diagnostics.measuring") : t("diagnostics.measure")}</button></section>
@@ -424,6 +436,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     catch (cause) {
       captureError(
         cause,
+        "connector",
         "Codex connection status could not be refreshed. Check the local Codex installation and try again.",
         "Der Codex-Verbindungsstatus konnte nicht aktualisiert werden. Prüfe die lokale Codex-Installation und versuche es erneut.",
       );
@@ -441,6 +454,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     catch (cause) {
       captureError(
         cause,
+        "connector",
         "Codex could not be connected. Check the local Codex installation and try again.",
         "Codex konnte nicht verbunden werden. Prüfe die lokale Codex-Installation und versuche es erneut.",
       );
@@ -454,6 +468,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     catch (cause) {
       captureError(
         cause,
+        "connector",
         "Codex could not be disconnected cleanly. Refresh the connection state before trying again.",
         "Codex konnte nicht sauber getrennt werden. Aktualisiere den Verbindungsstatus, bevor du es erneut versuchst.",
       );
@@ -491,6 +506,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     } catch (cause) {
       captureError(
         cause,
+        "diagnostics",
         "Diagnostics export could not be saved. No project data was changed.",
         "Der Diagnose-Export konnte nicht gespeichert werden. Projektdaten wurden nicht verändert.",
       );
@@ -515,6 +531,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     } catch (cause) {
       captureError(
         cause,
+        "diagnostics",
         "Measurement could not be refreshed. Existing diagnostics evidence remains unchanged.",
         "Die Messung konnte nicht aktualisiert werden. Vorhandene Diagnose-Nachweise bleiben unverändert.",
       );
