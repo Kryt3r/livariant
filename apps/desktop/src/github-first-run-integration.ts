@@ -41,12 +41,30 @@ function localPath(form: HTMLFormElement): HTMLInputElement | null {
 function statusNode(form: HTMLFormElement): HTMLElement {
   let status = form.querySelector<HTMLElement>("[data-gh-local-status]");
   if (!status) {
-    status = document.createElement("small");
+    status = document.createElement("div");
     status.dataset.ghLocalStatus = "true";
-    status.className = "fr-footnote";
+    status.className = "fr-github-local-status";
     form.querySelector("[data-gh-local-actions]")?.after(status);
   }
   return status;
+}
+
+function setLocalStatus(
+  form: HTMLFormElement,
+  message: string,
+  tone: "info" | "success" | "error" = "info",
+): HTMLElement {
+  const status = statusNode(form);
+  status.textContent = message;
+  status.dataset.tone = tone;
+  return status;
+}
+
+function cloneFailureMessage(): string {
+  return text(
+    "Local clone failed. Livariant did not automatically remove or clean up the destination. Check whether a partial checkout exists, then choose an empty folder and try again.",
+    "Lokales Klonen fehlgeschlagen. Livariant hat den Zielordner nicht automatisch aufgeräumt oder gelöscht. Prüfe, ob dort ein unvollständiger Checkout liegt, wähle anschließend einen leeren Ordner und versuche es erneut.",
+  );
 }
 
 function localChoiceMarkup(repository: GitHubRepositorySummary): string {
@@ -75,39 +93,40 @@ async function chooseFolder(): Promise<string | null> {
 
 function bindLocalChoices(form: HTMLFormElement, repository: GitHubRepositorySummary): void {
   form.querySelector<HTMLButtonElement>("[data-gh-existing]")?.addEventListener("click", async () => {
-    const status = statusNode(form);
-    status.textContent = text("Choose the existing checkout folder…", "Wähle den vorhandenen Checkout-Ordner…");
+    const status = setLocalStatus(form, text("Choose the existing checkout folder…", "Wähle den vorhandenen Checkout-Ordner…"));
     try {
       const path = await chooseFolder();
       if (!path) {
-        status.textContent = text("No folder selected.", "Kein Ordner ausgewählt.");
+        setLocalStatus(form, text("No folder selected.", "Kein Ordner ausgewählt."));
         return;
       }
       const inspection = await invoke<RepositoryInspection>("inspect_first_run_repository", { localPath: path });
       if (!inspection.isRepository || !inspection.repositoryId || inspection.repositoryId.toLowerCase() !== repository.repositoryId.toLowerCase()) {
-        status.textContent = text(
+        setLocalStatus(form, text(
           "The selected folder is not a checkout of the selected GitHub repository. No local binding was changed.",
           "Der gewählte Ordner ist kein Checkout des ausgewählten GitHub-Repositories. Die lokale Bindung wurde nicht geändert.",
-        );
+        ), "error");
         return;
       }
       setField(form, "localPath", inspection.localPath);
-      status.textContent = text("Existing checkout verified. Confirm the repository form to link it.", "Vorhandener Checkout geprüft. Bestätige das Repository-Formular, um ihn zu verknüpfen.");
-    } catch (cause) {
-      status.textContent = String(cause);
+      setLocalStatus(form, text("Existing checkout verified. Confirm the repository form to link it.", "Vorhandener Checkout geprüft. Bestätige das Repository-Formular, um ihn zu verknüpfen."), "success");
+    } catch {
+      setLocalStatus(form, text(
+        "The existing checkout could not be verified. No local binding was changed.",
+        "Der vorhandene Checkout konnte nicht geprüft werden. Die lokale Bindung wurde nicht geändert.",
+      ), "error");
     }
   });
 
   form.querySelector<HTMLButtonElement>("[data-gh-clone]")?.addEventListener("click", async () => {
-    const status = statusNode(form);
-    status.textContent = text("Choose an empty destination folder for the clone…", "Wähle einen leeren Zielordner für den Clone…");
+    const status = setLocalStatus(form, text("Choose an empty destination folder for the clone…", "Wähle einen leeren Zielordner für den Clone…"));
     try {
       const destinationPath = await chooseFolder();
       if (!destinationPath) {
         status.textContent = text("No folder selected.", "Kein Ordner ausgewählt.");
         return;
       }
-      status.textContent = text("Cloning the selected repository…", "Das ausgewählte Repository wird geklont…");
+      setLocalStatus(form, text("Cloning the selected repository…", "Das ausgewählte Repository wird geklont…"));
       const result = await invoke<GitHubCloneResult>("github_clone_repository", {
         repositoryId: repository.repositoryId,
         numericId: repository.numericId,
@@ -117,18 +136,18 @@ function bindLocalChoices(form: HTMLFormElement, repository: GitHubRepositorySum
         throw new Error(text("GitHub clone result did not match the selected repository.", "Das GitHub-Clone-Ergebnis stimmt nicht mit dem ausgewählten Repository überein."));
       }
       setField(form, "localPath", result.localPath);
-      status.textContent = text("Clone completed. Confirm the repository form to create the local binding.", "Clone abgeschlossen. Bestätige das Repository-Formular, um die lokale Bindung anzulegen.");
-    } catch (cause) {
-      status.textContent = String(cause);
+      setLocalStatus(form, text("Clone completed. Confirm the repository form to create the local binding.", "Clone abgeschlossen. Bestätige das Repository-Formular, um die lokale Bindung anzulegen."), "success");
+    } catch {
+      setLocalStatus(form, cloneFailureMessage(), "error");
     }
   });
 
   form.querySelector<HTMLButtonElement>("[data-gh-later]")?.addEventListener("click", () => {
     setField(form, "localPath", "");
-    statusNode(form).textContent = text(
+    setLocalStatus(form, text(
       "This source will remain remote-only until you explicitly link or clone a checkout.",
       "Diese Quelle bleibt nur Remote, bis du ausdrücklich einen Checkout verknüpfst oder klonst.",
-    );
+    ));
   });
 }
 
