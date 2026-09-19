@@ -327,8 +327,9 @@ fn write_registry(projects_root: &Path, registry: &DesktopProjectRegistry) -> Re
     }
 
     if backup.exists() {
-        fs::remove_file(&backup)
-            .map_err(|error| format!("Desktop project registry backup could not be finalized: {error}"))?;
+        // The canonical registry is already committed at this point. Backup cleanup
+        // must not turn a successful commit into an ambiguous reported failure.
+        let _ = fs::remove_file(&backup);
     }
     Ok(())
 }
@@ -855,7 +856,8 @@ mod tests {
         {
             let mut guard = state.runtime.lock().expect("lock");
             guard.generation += 1;
-            guard.active.as_mut().expect("active").generation = guard.generation;
+            let generation = guard.generation;
+            guard.active.as_mut().expect("active").generation = generation;
         }
         assert!(!active_generation_matches(&state, &id, first).expect("stale mismatch"));
         fs::remove_dir_all(&root).expect("cleanup");
