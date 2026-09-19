@@ -8,9 +8,13 @@ import {
   completeFirstRunOnboarding,
   createFirstRunOnboardingState,
   moveFirstRunOnboardingTo,
+  removeOnboardingAdditionalRepository,
   selectOnboardingProject,
+  setOnboardingAdditionalRepositoryLocalBinding,
   setOnboardingPrimaryRepository,
+  setOnboardingPrimaryRepositoryLocalBinding,
   setOnboardingProviders,
+  updateOnboardingAdditionalRepositoryDescription,
   setOnboardingUnderstandingReview,
   skipOnboardingQuestion,
   type FirstRunOnboardingState,
@@ -36,6 +40,10 @@ export type DesktopFirstRunLifecycleAction =
       description: string;
       localPath?: string;
     }
+  | { type: "set-primary-local-binding"; localPath: string }
+  | { type: "update-additional-repository-description"; identity: RepositoryIdentity; description: string }
+  | { type: "set-additional-local-binding"; identity: RepositoryIdentity; localPath?: string }
+  | { type: "remove-additional-repository"; identity: RepositoryIdentity }
   | { type: "set-providers"; providerIds: string[]; deferred?: boolean }
   | { type: "complete" };
 
@@ -163,6 +171,26 @@ function parseAction(value: unknown): DesktopFirstRunLifecycleAction {
         ...(typeof action.localPath === "string" ? { localPath: action.localPath } : {}),
       };
     }
+    case "set-primary-local-binding":
+      if (typeof action.localPath !== "string" || !action.localPath.trim()) throw new Error("Primary local binding action requires localPath.");
+      return { type: "set-primary-local-binding", localPath: action.localPath };
+    case "update-additional-repository-description": {
+      const identity = requireObject(action.identity, "firstRunAction.identity") as unknown as RepositoryIdentity;
+      if (typeof action.description !== "string") throw new Error("Additional repository description action requires description.");
+      return { type: "update-additional-repository-description", identity, description: action.description };
+    }
+    case "set-additional-local-binding": {
+      const identity = requireObject(action.identity, "firstRunAction.identity") as unknown as RepositoryIdentity;
+      return {
+        type: "set-additional-local-binding",
+        identity,
+        ...(typeof action.localPath === "string" && action.localPath.trim() ? { localPath: action.localPath } : {}),
+      };
+    }
+    case "remove-additional-repository": {
+      const identity = requireObject(action.identity, "firstRunAction.identity") as unknown as RepositoryIdentity;
+      return { type: "remove-additional-repository", identity };
+    }
     case "set-providers":
       if (!Array.isArray(action.providerIds) || !action.providerIds.every((value) => typeof value === "string")) {
         throw new Error("Provider action requires a string providerIds array.");
@@ -211,6 +239,14 @@ export function transitionDesktopFirstRunState(
         description: action.description,
         ...(action.localPath?.trim() ? { local: { localPath: action.localPath } } : {}),
       });
+    case "set-primary-local-binding":
+      return setOnboardingPrimaryRepositoryLocalBinding(state, action.localPath);
+    case "update-additional-repository-description":
+      return updateOnboardingAdditionalRepositoryDescription(state, action.identity, action.description);
+    case "set-additional-local-binding":
+      return setOnboardingAdditionalRepositoryLocalBinding(state, action.identity, action.localPath);
+    case "remove-additional-repository":
+      return removeOnboardingAdditionalRepository(state, action.identity);
     case "set-providers":
       return setOnboardingProviders(state, action.providerIds, { deferred: action.deferred });
     case "complete":
