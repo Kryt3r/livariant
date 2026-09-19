@@ -53,10 +53,27 @@ function setLocalStatus(
   form: HTMLFormElement,
   message: string,
   tone: "info" | "success" | "error" = "info",
+  technicalDetail?: string,
 ): HTMLElement {
   const status = statusNode(form);
-  status.textContent = message;
+  status.replaceChildren();
   status.dataset.tone = tone;
+
+  const messageNode = document.createElement("span");
+  messageNode.className = "fr-github-local-status-message";
+  messageNode.textContent = message;
+  status.append(messageNode);
+
+  if (technicalDetail?.trim()) {
+    const details = document.createElement("details");
+    details.className = "fr-github-local-status-details";
+    const summary = document.createElement("summary");
+    summary.textContent = text("Show technical details", "Technische Details anzeigen");
+    const pre = document.createElement("pre");
+    pre.textContent = technicalDetail.trim();
+    details.append(summary, pre);
+    status.append(details);
+  }
   return status;
 }
 
@@ -137,8 +154,8 @@ function bindLocalChoices(form: HTMLFormElement, repository: GitHubRepositorySum
       }
       setField(form, "localPath", result.localPath);
       setLocalStatus(form, text("Clone completed. Confirm the repository form to create the local binding.", "Clone abgeschlossen. Bestätige das Repository-Formular, um die lokale Bindung anzulegen."), "success");
-    } catch {
-      setLocalStatus(form, cloneFailureMessage(), "error");
+    } catch (cause) {
+      setLocalStatus(form, cloneFailureMessage(), "error", String(cause));
     }
   });
 

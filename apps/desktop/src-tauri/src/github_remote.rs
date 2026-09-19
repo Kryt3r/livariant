@@ -373,6 +373,50 @@ fn git_compatible_path(path: &Path) -> PathBuf {
     path.to_path_buf()
 }
 
+fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = String::with_capacity(((bytes.len() + 2) / 3) * 4);
+    let mut index = 0;
+    while index < bytes.len() {
+        let a = bytes[index] as u32;
+        let b = bytes.get(index + 1).copied().unwrap_or(0) as u32;
+        let d = bytes.get(index + 2).copied().unwrap_or(0) as u32;
+        let triple = (a << 16) | (b << 8) | d;
+
+        output.push(TABLE[((triple >> 18) & 0x3f) as usize] as char);
+        output.push(TABLE[((triple >> 12) & 0x3f) as usize] as char);
+        if index + 1 < bytes.len() {
+            output.push(TABLE[((triple >> 6) & 0x3f) as usize] as char);
+        } else {
+            output.push('=');
+        }
+        if index + 2 < bytes.len() {
+            output.push(TABLE[(triple & 0x3f) as usize] as char);
+        } else {
+            output.push('=');
+        }
+        index += 3;
+    }
+    output
+}
+
+fn git_http_authorization(token: &str) -> String {
+    let credential = format!("x-access-token:{token}");
+    format!("AUTHORIZATION: basic {}", base64_encode(credential.as_bytes()))
+}
+
+fn sanitize_git_error(stderr: &str, token: &str) -> String {
+    let redacted = stderr.replace(token, "[REDACTED]");
+    let trimmed = redacted.trim();
+    let mut chars = trimmed.chars();
+    let clipped: String = chars.by_ref().take(1400).collect();
+    if chars.next().is_none() {
+        clipped
+    } else {
+        format!("{clipped}…")
+    }
+}
+
 fn git_clone(repository: &GitHubRepositorySummary, destination: &Path, token: &str) -> Result<(), String> {
     let git_destination = git_compatible_path(destination);
     let mut command = Command::new("git");
@@ -383,7 +427,7 @@ fn git_clone(repository: &GitHubRepositorySummary, destination: &Path, token: &s
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_CONFIG_COUNT", "2")
         .env("GIT_CONFIG_KEY_0", "http.https://github.com/.extraheader")
-        .env("GIT_CONFIG_VALUE_0", format!("AUTHORIZATION: bearer {token}"))
+        .env("GIT_CONFIG_VALUE_0", git_http_authorization(token))
         .env("GIT_CONFIG_KEY_1", "credential.helper")
         .env("GIT_CONFIG_VALUE_1", "")
         .stdout(Stdio::piped())
@@ -398,11 +442,11 @@ fn git_clone(repository: &GitHubRepositorySummary, destination: &Path, token: &s
     if output.status.success() {
         return Ok(());
     }
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+    let stderr = sanitize_git_error(&String::from_utf8_lossy(&output.stderr), token);
     Err(if stderr.is_empty() {
         "Git clone failed. Livariant did not remove the destination automatically; review any partial checkout before retrying.".to_owned()
     } else {
-        format!("Git clone failed: {stderr}. Livariant did not remove the destination automatically; review any partial checkout before retrying.")
+        format!("Git clone failed: {stderr}")
     })
 }
 
@@ -529,7 +573,7 @@ pub fn github_clone_repository(repository_id: String, numeric_id: u64, destinati
 
 #[cfg(test)]
 mod tests {
-    use super::{boundaries, clone_boundaries, git_compatible_path, github_client_id, validate_clone_destination};
+    use super::{base64_encode, boundaries, clone_boundaries, git_compatible_path, git_http_authorization, github_client_id, sanitize_git_error, validate_clone_destination};
     use std::path::Path;
 
     #[test]
@@ -559,6 +603,21 @@ mod tests {
     #[test]
     fn missing_client_id_is_supported_as_fail_closed_configuration() {
         let _ = github_client_id();
+    }
+
+    #[test]
+    fn git_http_auth_uses_access_token_as_http_password_without_url_embedding() {
+        assert_eq!(base64_encode(b"x-access-token:abc"), "eC1hY2Nlc3MtdG9rZW46YWJj");
+        assert_eq!(
+            git_http_authorization("abc"),
+            "AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46YWJj"
+        );
+    }
+
+    #[test]
+    fn git_error_redacts_access_token() {
+        let sanitized = sanitize_git_error("remote error token=ghu_secret", "ghu_secret");
+        assert_eq!(sanitized, "remote error token=[REDACTED]");
     }
 
     #[cfg(target_os = "windows")]
