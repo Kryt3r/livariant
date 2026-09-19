@@ -2,6 +2,10 @@ import type { UnderstandingReviewReport } from "./understanding-review.js";
 import {
   addAdditionalProjectRepository,
   createProjectSourceRegistry,
+  disconnectAdditionalProjectRepository,
+  setAdditionalProjectRepositoryLocalBinding,
+  setPrimaryProjectRepositoryLocalBinding,
+  updateAdditionalProjectRepositoryDescription,
   type AdditionalProjectRepository,
   type PrimaryProjectRepository,
   type ProjectSourceRegistry,
@@ -209,6 +213,53 @@ export function addOnboardingAdditionalRepository(
   if (!state.project.sourceRegistry) throw new Error("Configure the primary repository before adding additional repositories.");
   const sourceRegistry = addAdditionalProjectRepository(state.project.sourceRegistry, repository).registry;
   return withHealth({ ...state, project: { ...state.project, sourceRegistry } });
+}
+
+export function setOnboardingPrimaryRepositoryLocalBinding(
+  state: FirstRunOnboardingState,
+  localPath: string,
+): FirstRunOnboardingState {
+  const registry = state.project.sourceRegistry;
+  if (!registry) throw new Error("Configure the primary repository before changing its local binding.");
+  const sourceRegistry = setPrimaryProjectRepositoryLocalBinding(registry, { localPath }).registry;
+  return withHealth({ ...state, project: { ...state.project, sourceRegistry } });
+}
+
+export function updateOnboardingAdditionalRepositoryDescription(
+  state: FirstRunOnboardingState,
+  identity: AdditionalProjectRepository["identity"],
+  description: string,
+): FirstRunOnboardingState {
+  const registry = state.project.sourceRegistry;
+  if (!registry) throw new Error("Configure project repositories before editing an additional repository.");
+  const sourceRegistry = updateAdditionalProjectRepositoryDescription(registry, identity, description).registry;
+  return withHealth({ ...state, project: { ...state.project, sourceRegistry } });
+}
+
+export function setOnboardingAdditionalRepositoryLocalBinding(
+  state: FirstRunOnboardingState,
+  identity: AdditionalProjectRepository["identity"],
+  localPath?: string,
+): FirstRunOnboardingState {
+  const registry = state.project.sourceRegistry;
+  if (!registry) throw new Error("Configure project repositories before changing an additional repository binding.");
+  const sourceRegistry = setAdditionalProjectRepositoryLocalBinding(
+    registry,
+    identity,
+    localPath?.trim() ? { localPath } : null,
+  ).registry;
+  return withHealth({ ...state, project: { ...state.project, sourceRegistry } });
+}
+
+export function removeOnboardingAdditionalRepository(
+  state: FirstRunOnboardingState,
+  identity: AdditionalProjectRepository["identity"],
+): FirstRunOnboardingState {
+  const registry = state.project.sourceRegistry;
+  if (!registry) throw new Error("Configure project repositories before removing an additional repository.");
+  const change = disconnectAdditionalProjectRepository(registry, identity);
+  if (!change.changed) throw new Error("Additional repository identity is not associated with this project.");
+  return withHealth({ ...state, project: { ...state.project, sourceRegistry: change.registry } });
 }
 
 export function setOnboardingProviders(
