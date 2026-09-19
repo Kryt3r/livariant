@@ -3,3 +3,8 @@
 .fr-github-local-status{margin-top:12px;padding:11px 13px;border:1px solid rgba(153,176,224,.14);border-radius:10px;color:var(--muted);background:rgba(7,18,33,.62);font-size:12px;line-height:1.55;word-break:break-word}
 .fr-github-local-status[data-tone="success"]{color:#b9e8cd;border-color:rgba(99,210,165,.22);background:rgba(99,210,165,.055)}
 .fr-github-local-status[data-tone="error"]{padding:13px 14px;color:#ffd8e2;border-color:rgba(255,127,159,.28);background:rgba(255,127,159,.07);font-size:13px;font-weight:600;line-height:1.6}
+
+.fr-github-local-status-message{display:block}
+.fr-github-local-status-details{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:9px;font-weight:400}
+.fr-github-local-status-details summary{cursor:pointer;color:#f0d6df;font-size:11px;font-weight:700}
+.fr-github-local-status-details pre{margin:8px 0 0;max-height:150px;overflow:auto;padding:9px 10px;border-radius:8px;background:rgba(2,7,14,.45);color:#d7cdd2;font:10.5px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
