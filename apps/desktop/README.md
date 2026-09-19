@@ -1,6 +1,6 @@
-# Livariant Desktop Foundation
+# Livariant Desktop
 
-This directory contains Livariant's Windows-first Tauri Desktop surface.
+This directory contains Livariant's Windows-first Tauri Desktop application source.
 
 ## Current purpose
 
