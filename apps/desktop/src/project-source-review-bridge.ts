@@ -53,6 +53,7 @@ interface ProjectSourceReviewBridgeResult {
   state: "ready" | "unavailable";
   presentation: DesktopSourceReviewPresentation | null;
   detail: string;
+  technicalDetail?: string;
 }
 
 interface ReviewPathInventoryResult {
@@ -134,7 +135,11 @@ const applyPresentationResult = (result: ProjectSourceReviewBridgeResult) => {
   bridgeState = {
     state: "unavailable",
     presentation: null,
-    detail: result.detail || text("Project source presentation is unavailable.", "Die Darstellung der Projektquellen ist nicht verfügbar."),
+    detail: text(
+      "Project source state is unavailable. Check the configured sources and try refreshing again.",
+      "Der Projektquellen-Status ist nicht verfügbar. Prüfe die eingerichteten Quellen und aktualisiere anschließend erneut.",
+    ),
+    technicalDetail: result.detail || undefined,
   };
   return false;
 };
@@ -158,7 +163,11 @@ async function refreshReviewPathInventory(): Promise<void> {
       candidates: [],
       selectedReviewPaths: [],
       attention: [],
-      detail: `${text("Review material could not be inventoried safely", "Review-Material konnte nicht sicher inventarisiert werden")}: ${String(error)}`,
+      detail: text(
+        "Review material could not be inventoried safely. Check the linked primary checkout and try again.",
+        "Review-Material konnte nicht sicher inventarisiert werden. Prüfe den verknüpften Haupt-Checkout und versuche es erneut.",
+      ),
+      technicalDetail: String(error),
     };
   }
 }
@@ -179,7 +188,11 @@ export async function loadProjectSourceReviewPresentation(): Promise<void> {
     bridgeState = {
       state: "unavailable",
       presentation: null,
-      detail: `${text("Cached project source presentation could not be loaded safely", "Die zwischengespeicherte Projektquellen-Darstellung konnte nicht sicher geladen werden")}: ${String(error)}`,
+      detail: text(
+        "Project source state could not be loaded. Refresh the source view or check the configured source connections.",
+        "Der Projektquellen-Status konnte nicht geladen werden. Aktualisiere die Quellenansicht oder prüfe die eingerichteten Quellenverbindungen.",
+      ),
+      technicalDetail: String(error),
     };
   }
 }
@@ -198,12 +211,17 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
       selectedReviewPaths: [],
       attention: [],
       detail: bridgeState.detail,
+      technicalDetail: bridgeState.technicalDetail,
     };
   } catch (error: unknown) {
     bridgeState = {
       state: "unavailable",
       presentation: null,
-      detail: `${text("Project source observation could not be refreshed safely", "Die Projektquellen-Beobachtung konnte nicht sicher aktualisiert werden")}: ${String(error)}`,
+      detail: text(
+        "Project source observation could not be refreshed. Existing project state remains unchanged.",
+        "Die Projektquellen-Beobachtung konnte nicht aktualisiert werden. Der vorhandene Projektzustand bleibt unverändert.",
+      ),
+      technicalDetail: String(error),
     };
     selectionState = {
       state: "unavailable",
@@ -211,6 +229,7 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
       selectedReviewPaths: [],
       attention: [],
       detail: bridgeState.detail,
+      technicalDetail: bridgeState.technicalDetail,
     };
   }
 }
@@ -231,6 +250,8 @@ export function getCurrentProjectSourceReviewPresentation(): DesktopSourceReview
 }
 
 export function renderProjectSourceReviewBridgeView(): string {
-  if (bridgeState.state !== "ready" || !bridgeState.presentation) return renderProjectSourceReviewUnavailable(bridgeState.detail);
+  if (bridgeState.state !== "ready" || !bridgeState.presentation) {
+    return renderProjectSourceReviewUnavailable(bridgeState.detail, bridgeState.technicalDetail);
+  }
   return renderProjectSourceReviewView(bridgeState.presentation, selectionState);
 }
