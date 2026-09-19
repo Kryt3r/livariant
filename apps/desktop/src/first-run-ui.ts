@@ -54,6 +54,17 @@ const esc = (value: string) => value.replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character] ?? character);
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
+const friendlyLifecycleError = (cause: unknown): string => {
+  const raw = String(cause);
+  if (raw.includes("Additional repository identity is already associated with this project.")) {
+    return text(
+      "This repository is already associated with the project. Return to Livariant and open Settings → Connections to edit its description or local checkout, switch it to remote-only, or remove the association.",
+      "Dieses Repository ist bereits mit dem Projekt verknüpft. Kehre zu Livariant zurück und öffne Einstellungen → Verbindungen, um Beschreibung oder lokalen Checkout zu bearbeiten, auf „Nur Remote“ umzustellen oder die Zuordnung zu entfernen.",
+    );
+  }
+  return raw;
+};
+
 const STEPS: Step[] = ["welcome", "project", "understanding", "sources", "providers", "health"];
 const STEP_LABELS: Record<Step, readonly [string, string]> = {
   welcome: ["Welcome", "Willkommen"], project: ["Project", "Projekt"], understanding: ["Understanding", "Verstehen"],
@@ -173,7 +184,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     const context = preserveContext ? captureContext() : undefined;
     busy = true; error = null; render(context);
     try { snapshot = await transitionFirstRunLifecycle(action); return true; }
-    catch (cause) { error = String(cause); return false; }
+    catch (cause) { error = friendlyLifecycleError(cause); return false; }
     finally { busy = false; render(context); }
   };
 
