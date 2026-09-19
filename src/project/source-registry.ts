@@ -143,6 +143,76 @@ export function addAdditionalProjectRepository(
   };
 }
 
+export function setPrimaryProjectRepositoryLocalBinding(
+  registry: ProjectSourceRegistry,
+  local: RepositoryLocalBinding,
+): ProjectSourceRegistryChange {
+  const nextLocal = localBinding(local);
+  const currentPath = registry.primary.local?.localPath ?? "";
+  if (currentPath === nextLocal?.localPath) {
+    return { changed: false, registry, boundaries: changeBoundaries() };
+  }
+  return {
+    changed: true,
+    registry: {
+      ...registry,
+      primary: {
+        ...registry.primary,
+        ...(nextLocal ? { local: nextLocal } : {}),
+      },
+    },
+    boundaries: changeBoundaries(),
+  };
+}
+
+export function updateAdditionalProjectRepositoryDescription(
+  registry: ProjectSourceRegistry,
+  identity: RepositoryIdentity,
+  description: string,
+): ProjectSourceRegistryChange {
+  const key = identityKey(normalizeIdentity(identity));
+  const nextDescription = required(description, "description");
+  let found = false;
+  const additional = registry.additional.map((item) => {
+    if (identityKey(item.identity) !== key) return item;
+    found = true;
+    return item.description === nextDescription ? item : { ...item, description: nextDescription };
+  });
+  if (!found) throw new Error("Additional repository identity is not associated with this project.");
+  const changed = additional.some((item, index) => item !== registry.additional[index]);
+  return {
+    changed,
+    registry: changed ? { ...registry, additional } : registry,
+    boundaries: changeBoundaries(),
+  };
+}
+
+export function setAdditionalProjectRepositoryLocalBinding(
+  registry: ProjectSourceRegistry,
+  identity: RepositoryIdentity,
+  local: RepositoryLocalBinding | null,
+): ProjectSourceRegistryChange {
+  const key = identityKey(normalizeIdentity(identity));
+  const nextLocal = local ? localBinding(local) : undefined;
+  let found = false;
+  const additional = registry.additional.map((item) => {
+    if (identityKey(item.identity) !== key) return item;
+    found = true;
+    const currentPath = item.local?.localPath ?? "";
+    const nextPath = nextLocal?.localPath ?? "";
+    if (currentPath === nextPath) return item;
+    const { local: _ignored, ...rest } = item;
+    return nextLocal ? { ...rest, local: nextLocal } : rest;
+  });
+  if (!found) throw new Error("Additional repository identity is not associated with this project.");
+  const changed = additional.some((item, index) => item !== registry.additional[index]);
+  return {
+    changed,
+    registry: changed ? { ...registry, additional } : registry,
+    boundaries: changeBoundaries(),
+  };
+}
+
 export function disconnectAdditionalProjectRepository(
   registry: ProjectSourceRegistry,
   identity: RepositoryIdentity,
