@@ -18,6 +18,21 @@ export type FirstRunLifecycleAction =
       description: string;
       localPath?: string;
     }
+  | { type: "set-primary-local-binding"; localPath: string }
+  | {
+      type: "update-additional-repository-description";
+      identity: { provider: "github" | "git"; repositoryId: string; displayName: string; remoteUrl?: string };
+      description: string;
+    }
+  | {
+      type: "set-additional-local-binding";
+      identity: { provider: "github" | "git"; repositoryId: string; displayName: string; remoteUrl?: string };
+      localPath?: string;
+    }
+  | {
+      type: "remove-additional-repository";
+      identity: { provider: "github" | "git"; repositoryId: string; displayName: string; remoteUrl?: string };
+    }
   | { type: "set-providers"; providerIds: string[]; deferred?: boolean }
   | { type: "complete" };
 
