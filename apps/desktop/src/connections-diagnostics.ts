@@ -3,6 +3,11 @@ import "./connections-polish.css";
 import "./diagnostics-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage, t } from "./i18n/runtime.js";
+import {
+  bindProjectConnectionsSettingsEvents,
+  refreshProjectConnectionsSettings,
+  renderProjectConnectionsSettings,
+} from "./project-connections-settings.js";
 
 export type ConnectorDesktopView = "connections" | "diagnostics";
 
@@ -137,6 +142,10 @@ export async function refreshConnector(): Promise<void> {
   finally { checkingConnector = false; }
 }
 
+export async function refreshConnectionsSettings(): Promise<void> {
+  await Promise.all([refreshConnector(), refreshProjectConnectionsSettings()]);
+}
+
 export async function refreshDiagnostics(): Promise<void> {
   diagnosticsBusy = "diagnostics";
   error = null;
@@ -225,6 +234,7 @@ export function renderConnectionsSettingsView(): string {
         ${renderProviderCard("gemini", "Gemini", lang("Google · provider support", "Google · Anbieter-Unterstützung"), lang("Planned", "Geplant"), "muted", false)}
         ${renderProviderCard("custom", lang("Custom connection", "Eigene Verbindung"), lang("Advanced provider setup", "Erweiterte Anbieter-Einrichtung"), lang("Planned", "Geplant"), "muted", false)}
       </div>
+      ${renderProjectConnectionsSettings()}
       ${renderProviderModal()}
     </section>`;
 }
@@ -361,6 +371,7 @@ const syncDiagnosticsSurface = (fallback: () => void) => {
 };
 
 export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
+  bindProjectConnectionsSettingsEvents(rerender);
   document.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((button) => {
     button.addEventListener("click", async () => {
       const provider = button.dataset.provider;
