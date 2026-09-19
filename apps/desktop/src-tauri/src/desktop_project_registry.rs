@@ -445,6 +445,52 @@ fn load_registry(projects_root: &Path) -> Result<DesktopProjectRegistry, String>
     Ok(registry)
 }
 
+fn load_registry_for_legacy_finalize(
+    projects_root: &Path,
+    expected_desktop_project_id: &str,
+) -> Result<DesktopProjectRegistry, String> {
+    let expected = canonical_uuid(expected_desktop_project_id, "desktopProjectId")?;
+    if !ensure_projects_root(projects_root, false)? {
+        return Ok(DesktopProjectRegistry::default());
+    }
+
+    let path = registry_path(projects_root);
+    let backup = registry_backup_path(projects_root);
+    if regular_file_exists(&path, "Desktop project registry")? {
+        return load_registry(projects_root);
+    }
+    if regular_file_exists(&backup, "Desktop project registry backup")? {
+        return Err("Desktop project registry recovery is required; a backup exists without a canonical registry.".to_owned());
+    }
+
+    let mut observed_expected = false;
+    for entry in fs::read_dir(projects_root)
+        .map_err(|error| format!("Desktop project registry directory could not be enumerated: {error}"))?
+    {
+        let entry = entry.map_err(|error| format!("Desktop project registry entry could not be inspected: {error}"))?;
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        if canonical_uuid(&name, "project namespace").is_err() {
+            continue;
+        }
+        let metadata = fs::symlink_metadata(entry.path())
+            .map_err(|error| format!("Desktop project namespace could not be inspected: {error}"))?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err("Desktop project namespace must be a real non-symbolic-link directory.".to_owned());
+        }
+        if name != expected || observed_expected {
+            return Err("Desktop project registry recovery is required; unexpected project state exists before legacy migration finalization.".to_owned());
+        }
+        observed_expected = true;
+    }
+
+    if !observed_expected {
+        return Err("Legacy migration finalization expected a committed project namespace, but none was found.".to_owned());
+    }
+    Ok(DesktopProjectRegistry::default())
+}
+
 fn write_registry(projects_root: &Path, registry: &DesktopProjectRegistry) -> Result<(), String> {
     validate_registry(registry)?;
     ensure_projects_root(projects_root, true)?;
@@ -1028,7 +1074,7 @@ pub(crate) fn finalize_legacy_migration(
         .runtime
         .lock()
         .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
-    let mut registry = load_registry(&projects_root)?;
+    let mut registry = load_registry_for_legacy_finalize(&projects_root, &id)?;
 
     if registry.legacy_migration.state == LegacyMigrationState::Complete {
         if registry.legacy_migration.source_fingerprint.as_deref() == Some(import.source_fingerprint.as_str())
@@ -1226,6 +1272,25 @@ mod tests {
             display_name: display_name.map(str::to_owned),
             project_id: Some("logical-project".to_owned()),
         }
+    }
+
+    #[test]
+    fn legacy_finalize_loader_allows_only_the_expected_orphan_namespace() {
+        let root = test_root("legacy-finalize-loader");
+        let projects = root.join("app-data").join("projects");
+        fs::create_dir_all(&projects).expect("projects");
+        let expected = Uuid::new_v4().hyphenated().to_string();
+        fs::create_dir(projects.join(&expected)).expect("expected namespace");
+
+        let registry = load_registry_for_legacy_finalize(&projects, &expected)
+            .expect("expected migration namespace allowed");
+        assert!(registry.projects.is_empty());
+
+        let unexpected = Uuid::new_v4().hyphenated().to_string();
+        fs::create_dir(projects.join(&unexpected)).expect("unexpected namespace");
+        assert!(load_registry_for_legacy_finalize(&projects, &expected).is_err());
+
+        fs::remove_dir_all(&root).expect("cleanup");
     }
 
     #[test]
