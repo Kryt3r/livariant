@@ -140,6 +140,8 @@ pub struct DesktopProjectRegistrySnapshot {
     schema_version: u32,
     projects: Vec<DesktopProjectEntrySnapshot>,
     active: Option<ActiveDesktopProjectSnapshot>,
+    legacy_migration: LegacyMigrationRecord,
+    startup_recovery: Option<String>,
     boundaries: serde_json::Value,
 }
 
