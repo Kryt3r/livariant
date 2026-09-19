@@ -271,10 +271,6 @@ fn read_presentation_for_scope(
         return unavailable(error);
     }
 
-    if let Err(error) = ensure_project_persistence_scope_current(&app, state.inner(), &scope) {
-        return unavailable(error);
-    }
-
     ProjectSourceReviewBridgeResult {
         state: "ready",
         presentation: Some(value),
@@ -306,6 +302,7 @@ pub(crate) fn configure_project_source_review_for_scope(
         let _ = fs::remove_file(&staged);
         return Err(error);
     }
+    ensure_project_persistence_scope_current(app, state.inner(), scope)?;
 
     Ok(ProjectSourceReviewConfigurationResult {
         state: "configured",
@@ -437,6 +434,9 @@ pub fn refresh_project_source_review_presentation(app: tauri::AppHandle) -> Proj
         replace_staged_file(&staged_output, &output)
     }) {
         let _ = fs::remove_file(&staged_output);
+        return unavailable(error);
+    }
+    if let Err(error) = ensure_project_persistence_scope_current(&app, state.inner(), &scope) {
         return unavailable(error);
     }
 
