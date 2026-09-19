@@ -785,7 +785,6 @@ pub(crate) fn initialize(
 
     if find_resumable_namespace(&projects_root, &candidate)?.is_some() {
         migrate_candidate(app, state, &projects_root, &candidate)?;
-        restore_last_active_project(app, state)?;
         return Ok(());
     }
 
