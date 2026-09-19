@@ -408,10 +408,13 @@ fn git_http_authorization(token: &str) -> String {
 fn sanitize_git_error(stderr: &str, token: &str) -> String {
     let redacted = stderr.replace(token, "[REDACTED]");
     let trimmed = redacted.trim();
-    if trimmed.len() <= 1400 {
-        return trimmed.to_owned();
+    let mut chars = trimmed.chars();
+    let clipped: String = chars.by_ref().take(1400).collect();
+    if chars.next().is_none() {
+        clipped
+    } else {
+        format!("{clipped}…")
     }
-    format!("{}…", &trimmed[..1400])
 }
 
 fn git_clone(repository: &GitHubRepositorySummary, destination: &Path, token: &str) -> Result<(), String> {
