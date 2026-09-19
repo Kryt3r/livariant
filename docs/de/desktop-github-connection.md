@@ -18,6 +18,21 @@ Offizielle Windows-Builds beziehen die GitHub-App-Client-ID aus der GitHub-Actio
 
 Der normale Installer-Build kann weiterhin ohne gesetzte Variable qualifizieren und verhält sich dann wie bisher als nicht konfigurierte GitHub-Integration. Ein signierter Desktop-Preview-Build muss dagegen eine konfigurierte Produktions-Client-ID besitzen und bricht andernfalls fail-closed ab. Dadurch kann kein veröffentlichungsfähiger Preview-Build versehentlich ohne die vorgesehene GitHub-App-Identität entstehen.
 
+
+## Verwaltung nach der Einrichtung
+
+Nach der Ersteinrichtung führt **Einstellungen → Verbindungen** die GitHub-Account-Verbindung und die dem aktuellen Projekt zugeordneten Repositories zusammen, ohne ihre Grenzen zu vermischen.
+
+Dort kann der Nutzer:
+
+- GitHub trennen oder über denselben Device Flow erneut verbinden;
+- den lokalen Checkout des Hauptrepositories neu zuordnen;
+- die Zweckbeschreibung zusätzlicher Repositories bearbeiten;
+- zusätzliche Repositories mit einem vorhandenen lokalen Checkout verknüpfen oder auf **Nur Remote** zurücksetzen;
+- zusätzliche Repository-Zuordnungen aus dem Livariant-Projekt entfernen.
+
+Das Hauptrepository ist in dieser Oberfläche geschützt und kann nicht entfernt werden. Das Trennen von GitHub entfernt keine Projektquellen. Das Entfernen einer zusätzlichen Repository-Zuordnung löscht weder das Remote-Repository noch lokale Dateien oder Checkouts.
+
 ## Repository-Auswahl
 
 Nach der Autorisierung fragt Livariant die Repositories ab, die GitHub über die authentifizierte GitHub-App-/Benutzerverbindung bereitstellt. Dadurch können auch private Repositories erscheinen, aber nur, wenn GitHub sie für genau diese Verbindung freigibt.
