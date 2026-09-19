@@ -1,4 +1,5 @@
 import { getLanguage } from "./i18n/runtime.js";
+import { renderTechnicalDetails } from "./technical-details.js";
 
 export type SourceReachability = "unknown" | "reachable" | "unreachable";
 export type SourceRemoteState = "recorded" | "not-recorded";
@@ -66,6 +67,7 @@ export interface DesktopReviewSelectionState {
   selectedReviewPaths: string[];
   attention: Array<{ code: string; message: string; provenance: string[] }>;
   detail: string;
+  technicalDetail?: string;
 }
 
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
@@ -152,7 +154,7 @@ const kindLabel = (kind: string): string => {
 
 const reviewSelectionSection = (selection: DesktopReviewSelectionState): string => {
   if (selection.state !== "ready") {
-    return `<section class="source-review-selection"><div class="source-review-section-head"><div><span class="eyebrow">${text("Review material", "Review-Material")}</span><h2>${text("Select what Livariant should inspect", "Auswählen, was Livariant prüfen soll")}</h2></div></div><p class="source-review-muted">${escapeHtml(selection.detail)}</p><p class="source-review-boundary"><strong>${text("Evidence ≠ Truth · Proposal ≠ Authorization · Authorization ≠ Apply", "Evidence ≠ Truth · Vorschlag ≠ Autorisierung · Autorisierung ≠ Übernahme")}</strong></p></section>`;
+    return `<section class="source-review-selection"><div class="source-review-section-head"><div><span class="eyebrow">${text("Review material", "Review-Material")}</span><h2>${text("Select what Livariant should inspect", "Auswählen, was Livariant prüfen soll")}</h2></div></div><p class="source-review-muted">${escapeHtml(selection.detail)}</p>${renderTechnicalDetails(selection.technicalDetail)}<p class="source-review-boundary"><strong>${text("Evidence ≠ Truth · Proposal ≠ Authorization · Authorization ≠ Apply", "Evidence ≠ Truth · Vorschlag ≠ Autorisierung · Autorisierung ≠ Übernahme")}</strong></p></section>`;
   }
 
   const selected = new Set(selection.selectedReviewPaths);
@@ -201,8 +203,11 @@ const reviewSection = (review: DesktopReviewPresentation | null): string => {
   </section>`;
 };
 
-export function renderProjectSourceReviewUnavailable(detail = text("Project source data is not available yet.", "Projektquellen-Daten sind noch nicht verfügbar.")): string {
-  return `<header class="topbar"><div><span class="eyebrow">${text("Project operations", "Projektbetrieb")}</span><h1>${text("Project sources & review", "Projektquellen & Prüfung")}</h1><p>${text("Repositories, source status, findings and proposals for the current project.", "Repositories, Quellenstatus, Befunde und Vorschläge für das aktuelle Projekt.")}</p></div></header><section class="source-review-empty"><span class="eyebrow">${text("Runtime bridge", "Laufzeitverbindung")}</span><h2>${text("Source state unavailable", "Quellenstatus nicht verfügbar")}</h2><p>${escapeHtml(detail)}</p><p>${text("The state is unknown and is not presented as healthy or current.", "Der Zustand ist unbekannt und wird nicht als gesund oder aktuell dargestellt.")}</p></section>`;
+export function renderProjectSourceReviewUnavailable(
+  detail = text("Project source data is not available yet.", "Projektquellen-Daten sind noch nicht verfügbar."),
+  technicalDetail?: string,
+): string {
+  return `<header class="topbar"><div><span class="eyebrow">${text("Project operations", "Projektbetrieb")}</span><h1>${text("Project sources & review", "Projektquellen & Prüfung")}</h1><p>${text("Repositories, source status, findings and proposals for the current project.", "Repositories, Quellenstatus, Befunde und Vorschläge für das aktuelle Projekt.")}</p></div></header><section class="source-review-empty"><span class="eyebrow">${text("Runtime bridge", "Laufzeitverbindung")}</span><h2>${text("Source state unavailable", "Quellenstatus nicht verfügbar")}</h2><p>${escapeHtml(detail)}</p>${renderTechnicalDetails(technicalDetail)}<p>${text("The state is unknown and is not presented as healthy or current.", "Der Zustand ist unbekannt und wird nicht als gesund oder aktuell dargestellt.")}</p></section>`;
 }
 
 export function renderProjectSourceReviewView(presentation: DesktopSourceReviewPresentation, selection: DesktopReviewSelectionState): string {
