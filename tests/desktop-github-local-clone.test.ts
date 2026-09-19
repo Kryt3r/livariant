@@ -14,6 +14,9 @@ test("GitHub local clone host is bounded to the selected live repository", async
   assert.match(host, /GIT_TERMINAL_PROMPT/);
   assert.match(host, /GIT_CONFIG_KEY_0/);
   assert.match(host, /http\.https:\/\/github\.com\/\.extraheader/);
+  assert.match(host, /git_http_authorization/);
+  assert.match(host, /AUTHORIZATION: basic/);
+  assert.doesNotMatch(host, /AUTHORIZATION: bearer \{token\}/);
   assert.match(host, /credential\.helper/);
   assert.match(host, /core\.longpaths=true/);
   assert.match(host, /git_compatible_path/);
@@ -47,8 +50,11 @@ test("clone UI presents localized readable error state instead of raw host error
 
   assert.match(ui, /Lokales Klonen fehlgeschlagen/);
   assert.match(ui, /fr-github-local-status/);
-  assert.match(ui, /setLocalStatus\(form, cloneFailureMessage\(\), "error"\)/);
+  assert.match(ui, /setLocalStatus\(form, cloneFailureMessage\(\), "error", String\(cause\)\)/);
+  assert.match(ui, /Technische Details anzeigen/);
+  assert.match(ui, /technicalDetail\?\.trim\(\)/);
   assert.doesNotMatch(ui, /status\.textContent = String\(cause\)/);
   assert.match(css, /\.fr-github-local-status\[data-tone="error"\]/);
   assert.match(css, /font-size:13px/);
+  assert.match(css, /\.fr-github-local-status-details/);
 });
