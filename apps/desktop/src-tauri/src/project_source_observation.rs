@@ -1,8 +1,16 @@
+use crate::{
+    desktop_project_registry::{
+        project_persistence_scope, with_project_persistence_scope_current,
+        DesktopProjectRegistryState,
+    },
+    project_scoped_persistence::{
+        replace_staged_file, source_review_input_path, staged_path_for_target,
+    },
+    project_source_review_bridge::{configuration_value, ProjectSourceReviewConfigurationInput},
+};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path, process::Command};
 use tauri::Manager;
-
-const REFRESH_INPUT_FILE: &str = "project-source-review-input.json";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,11 +45,15 @@ fn hidden_command(program: &Path) -> Command {
 }
 
 fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSourceObservationResult, String> {
-    let app_data = app.path().app_data_dir().map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?;
-    let input = app_data.join(REFRESH_INPUT_FILE);
+    let registry_state = app.state::<DesktopProjectRegistryState>();
+    let scope = project_persistence_scope(&app, registry_state.inner())?;
+    let input = source_review_input_path(&app, &scope, false)?;
     if !input.is_file() {
         return Err("Project Source & Review configuration is not available for observation yet.".to_owned());
     }
+    let staged = staged_path_for_target(&input, "source-observation")?;
+    fs::copy(&input, &staged)
+        .map_err(|error| format!("Project Source observation input could not be staged: {error}"))?;
 
     let executable = std::env::current_exe().map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
     let install_root = executable.parent().ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
@@ -49,6 +61,7 @@ fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSour
     let script = install_root.join("runtime").join("core").join("dist").join("src").join("project").join("desktop-project-source-observation.js");
     let manifest_path = install_root.join("runtime").join("manifest.json");
     if !node.is_file() || !script.is_file() || !manifest_path.is_file() {
+        let _ = fs::remove_file(&staged);
         return Err("Bundled Project Source observation runtime is not present in this Desktop build.".to_owned());
     }
 
@@ -56,16 +69,18 @@ fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSour
         &fs::read(&manifest_path).map_err(|error| format!("Bundled runtime manifest could not be read: {error}"))?,
     ).map_err(|error| format!("Bundled runtime manifest is invalid: {error}"))?;
     if manifest.authority_issued {
+        let _ = fs::remove_file(&staged);
         return Err("Ordinary bundled runtime material must never claim Authority.".to_owned());
     }
 
     let process = hidden_command(&node)
         .arg(&script)
         .current_dir(install_root)
-        .env("LIVARIANT_PROJECT_SOURCE_REVIEW_INPUT", &input)
+        .env("LIVARIANT_PROJECT_SOURCE_REVIEW_INPUT", &staged)
         .output()
         .map_err(|error| format!("Project Source observation runtime could not be started: {error}"))?;
     if !process.status.success() {
+        let _ = fs::remove_file(&staged);
         let stderr = String::from_utf8_lossy(&process.stderr).trim().to_owned();
         return Err(if stderr.is_empty() {
             "Project Source observation failed closed.".to_owned()
@@ -74,11 +89,30 @@ fn observe_project_sources_blocking(app: tauri::AppHandle) -> Result<ProjectSour
         });
     }
 
+    let staged_bytes = fs::read(&staged)
+        .map_err(|error| format!("Observed Project Source configuration could not be read: {error}"))?;
+    let staged_configuration: ProjectSourceReviewConfigurationInput = serde_json::from_slice(&staged_bytes)
+        .map_err(|error| format!("Observed Project Source configuration is invalid: {error}"))?;
+    configuration_value(&staged_configuration)?;
+
+    if let Err(error) = with_project_persistence_scope_current(&app, registry_state.inner(), &scope, || {
+        replace_staged_file(&staged, &input)
+    }) {
+        let _ = fs::remove_file(&staged);
+        return Err(error);
+    }
+
     Ok(ProjectSourceObservationResult {
         state: "observed",
-        detail: "Configured local repository bindings were observed through fixed bundled runtime. Observation remains Evidence, not Project Truth or Authority.".to_owned(),
+        detail: if scope.is_project_namespaced() {
+            "Configured local repository bindings were observed through fixed bundled runtime and committed only to the active Desktop project's app-data namespace. Observation remains Evidence, not Project Truth or Authority.".to_owned()
+        } else {
+            "Configured local repository bindings were observed through fixed bundled runtime in the legacy single-project slot pending migration. Observation remains Evidence, not Project Truth or Authority.".to_owned()
+        },
         boundaries: serde_json::json!({
-            "inputPathIsFixed": true,
+            "inputPathIsProjectScoped": scope.is_project_namespaced(),
+            "legacySingleProjectCompatibility": !scope.is_project_namespaced(),
+            "staleActivationCommitRejected": true,
             "rendererSuppliesCommand": false,
             "observationIsProjectTruth": false,
             "observationGrantsAuthority": false,
