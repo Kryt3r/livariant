@@ -1,0 +1,4 @@
+.lv-technical-details{margin-top:9px;color:var(--muted-2,#8f99ad);font-size:10.5px}
+.lv-technical-details summary{width:max-content;max-width:100%;cursor:pointer;color:#aaa2bc;font-weight:650;user-select:none}
+.lv-technical-details summary:hover{color:#d2c9e2}
+.lv-technical-details pre{max-height:180px;margin:8px 0 0;padding:10px 11px;overflow:auto;border:1px solid rgba(153,176,224,.12);border-radius:9px;background:rgba(3,9,18,.58);color:#aab3c3;font:10px/1.5 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere}
