@@ -418,17 +418,18 @@ async function diagnosticsExport(preset: DiagnosticPreset = "all", projectId: st
   const range = diagnosticRangeForPreset(preset);
   const allEvents = await store.readAll();
   const scoped = projectScopedDiagnosticEvents(allEvents, range, projectId);
+  const evidence = buildDiagnosticEvidenceExport(scoped.events, {
+    preset,
+    range,
+    coreVersion: clientVersion,
+  });
   return {
-    scope: {
+    ...evidence,
+    projectScope: {
       kind: "project",
       projectId,
       unattributedEventCount: scoped.unattributedEventCount,
     },
-    evidence: buildDiagnosticEvidenceExport(scoped.events, {
-      preset,
-      range,
-      coreVersion: clientVersion,
-    }),
   };
 }
 
