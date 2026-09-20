@@ -280,7 +280,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     root.querySelector<HTMLButtonElement>("[data-fr-connect-codex-manual]")?.addEventListener("click", async () => { const manualPath = root.querySelector<HTMLInputElement>("[data-fr-codex-path]")?.value.trim(); if (!manualPath) { error = text("Enter an explicit Codex executable path first.", "Trage zuerst einen expliziten Codex-Programmpfad ein."); render(captureContext()); return; } const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath }); } catch (cause) { error = String(cause); } finally { busy = false; render(context); } });
     root.querySelector<HTMLButtonElement>("[data-fr-save-provider]")?.addEventListener("click", async () => { if (await apply({ type: "set-providers", providerIds: ["codex"], deferred: false })) await apply({ type: "move", step: "health" }); });
     root.querySelector<HTMLButtonElement>("[data-fr-defer-provider]")?.addEventListener("click", async () => { if (await apply({ type: "set-providers", providerIds: [], deferred: true })) await apply({ type: "move", step: "health" }); });
-    root.querySelector<HTMLButtonElement>("[data-fr-complete]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) options.onExit(); });
+    root.querySelector<HTMLButtonElement>("[data-fr-complete]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) exit(); });
   };
 
   const initialState = stateFrom(snapshot); if (initialState.project.localRoot) await inspectRepository(initialState.project.localRoot);
