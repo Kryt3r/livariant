@@ -13,6 +13,138 @@ use crate::desktop_project_registry::{
     active_diagnostics_project_id, DesktopProjectRegistryState,
 };
 
+#[cfg(target_os = "windows")]
+mod child_lifetime {
+    use std::{
+        ffi::c_void,
+        mem::{size_of, zeroed},
+        os::windows::io::AsRawHandle,
+        process::Child,
+        ptr,
+    };
+
+    type Handle = *mut c_void;
+    const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS: i32 = 9;
+    const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x0000_2000;
+
+    #[repr(C)]
+    struct JobObjectBasicLimitInformation {
+        per_process_user_time_limit: i64,
+        per_job_user_time_limit: i64,
+        limit_flags: u32,
+        minimum_working_set_size: usize,
+        maximum_working_set_size: usize,
+        active_process_limit: u32,
+        affinity: usize,
+        priority_class: u32,
+        scheduling_class: u32,
+    }
+
+    #[repr(C)]
+    struct IoCounters {
+        read_operation_count: u64,
+        write_operation_count: u64,
+        other_operation_count: u64,
+        read_transfer_count: u64,
+        write_transfer_count: u64,
+        other_transfer_count: u64,
+    }
+
+    #[repr(C)]
+    struct JobObjectExtendedLimitInformation {
+        basic_limit_information: JobObjectBasicLimitInformation,
+        io_info: IoCounters,
+        process_memory_limit: usize,
+        job_memory_limit: usize,
+        peak_process_memory_used: usize,
+        peak_job_memory_used: usize,
+    }
+
+    #[link(name = "Kernel32")]
+    extern "system" {
+        fn CreateJobObjectW(attributes: *mut c_void, name: *const u16) -> Handle;
+        fn SetInformationJobObject(
+            job: Handle,
+            information_class: i32,
+            information: *mut c_void,
+            information_length: u32,
+        ) -> i32;
+        fn AssignProcessToJobObject(job: Handle, process: Handle) -> i32;
+        fn CloseHandle(handle: Handle) -> i32;
+        fn GetLastError() -> u32;
+    }
+
+    pub(crate) struct ChildLifetimeGuard(Handle);
+
+    // Windows kernel handles are process-wide objects and may be closed from a
+    // different thread than the one that created them. The guard owns the only
+    // Job Object handle and never dereferences the opaque HANDLE value.
+    unsafe impl Send for ChildLifetimeGuard {}
+
+    impl ChildLifetimeGuard {
+        pub(crate) fn attach(child: &Child) -> Result<Self, String> {
+            let job = unsafe { CreateJobObjectW(ptr::null_mut(), ptr::null()) };
+            if job.is_null() {
+                return Err(format!(
+                    "Connector host Windows lifetime job could not be created (Windows error {}).",
+                    unsafe { GetLastError() }
+                ));
+            }
+
+            let mut information: JobObjectExtendedLimitInformation = unsafe { zeroed() };
+            information.basic_limit_information.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let configured = unsafe {
+                SetInformationJobObject(
+                    job,
+                    JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,
+                    (&mut information as *mut JobObjectExtendedLimitInformation).cast::<c_void>(),
+                    size_of::<JobObjectExtendedLimitInformation>() as u32,
+                )
+            };
+            if configured == 0 {
+                let error = unsafe { GetLastError() };
+                unsafe { CloseHandle(job) };
+                return Err(format!(
+                    "Connector host Windows lifetime job could not enable kill-on-close (Windows error {error})."
+                ));
+            }
+
+            let process = child.as_raw_handle() as Handle;
+            let assigned = unsafe { AssignProcessToJobObject(job, process) };
+            if assigned == 0 {
+                let error = unsafe { GetLastError() };
+                unsafe { CloseHandle(job) };
+                return Err(format!(
+                    "Connector host process could not be assigned to its Windows lifetime job (Windows error {error})."
+                ));
+            }
+
+            Ok(Self(job))
+        }
+    }
+
+    impl Drop for ChildLifetimeGuard {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                unsafe { CloseHandle(self.0) };
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+mod child_lifetime {
+    use std::process::Child;
+
+    pub(crate) struct ChildLifetimeGuard;
+
+    impl ChildLifetimeGuard {
+        pub(crate) fn attach(_child: &Child) -> Result<Self, String> {
+            Ok(Self)
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeManifest {
@@ -25,6 +157,7 @@ struct ConnectorHostProcess {
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     next_id: u64,
+    _lifetime_guard: child_lifetime::ChildLifetimeGuard,
 }
 
 impl Drop for ConnectorHostProcess {
@@ -130,9 +263,23 @@ fn spawn_host(app: &AppHandle) -> Result<ConnectorHostProcess, String> {
         .stderr(Stdio::null())
         .spawn()
         .map_err(|error| format!("Livariant connector host could not be started: {error}"))?;
+    let lifetime_guard = match child_lifetime::ChildLifetimeGuard::attach(&child) {
+        Ok(guard) => guard,
+        Err(error) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
+    };
     let stdin = child.stdin.take().ok_or_else(|| "Connector host stdin was unavailable.".to_owned())?;
     let stdout = child.stdout.take().ok_or_else(|| "Connector host stdout was unavailable.".to_owned())?;
-    Ok(ConnectorHostProcess { child, stdin, stdout: BufReader::new(stdout), next_id: 1 })
+    Ok(ConnectorHostProcess {
+        child,
+        stdin,
+        stdout: BufReader::new(stdout),
+        next_id: 1,
+        _lifetime_guard: lifetime_guard,
+    })
 }
 
 fn request(

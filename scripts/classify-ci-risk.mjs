@@ -41,6 +41,7 @@ function isDesktopRendererPath(path) {
 }
 
 function isClassD(path) {
+  if (path === "apps/desktop/src-tauri/src/connector_host.rs") return true;
   if (path.startsWith(".github/workflows/")) return true;
   if (path === "package.json" || path === "package-lock.json") return true;
   if (path === "tsconfig.json") return true;
