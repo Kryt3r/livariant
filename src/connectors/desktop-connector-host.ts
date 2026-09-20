@@ -203,9 +203,8 @@ async function connectSession(options: ConnectSessionOptions = {}) {
     const result = sequencer.accept(event.snapshot);
     if (result.kind !== "delta") return;
     const sessionId = result.event.attribution?.sessionId;
-    const taskId = result.event.attribution?.taskId;
-    const measurementProjectId = sessionId && taskId
-      ? measurementProjectScopes.get(completionKey(sessionId, taskId))
+    const measurementProjectId = sessionId
+      ? measurementProjectScopes.get(sessionId)
       : undefined;
     const diagnosticEvent = measurementProjectId
       ? {
@@ -461,10 +460,10 @@ async function measure(preset: DiagnosticPreset = "all", projectId: string) {
     ephemeral: true,
     ...(target.model ? { model: target.model } : {}),
   });
+  measurementProjectScopes.set(thread.threadId, projectId);
   sequencer.markNewThread(thread.threadId);
   const turn = await workflow.startTurn(thread.threadId, "Reply with exactly: Livariant diagnostics connection verified.");
   const key = completionKey(turn.threadId, turn.turnId);
-  measurementProjectScopes.set(key, projectId);
   try {
     const deadline = Date.now() + 60_000;
     while (!completedTurns.has(key)) {
@@ -487,7 +486,7 @@ async function measure(preset: DiagnosticPreset = "all", projectId: string) {
       diagnostics: await diagnostics(preset, projectId),
     };
   } finally {
-    measurementProjectScopes.delete(key);
+    measurementProjectScopes.delete(thread.threadId);
     completedTurns.delete(key);
   }
 }
