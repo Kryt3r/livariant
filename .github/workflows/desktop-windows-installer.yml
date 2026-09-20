@@ -15,6 +15,7 @@ on:
       - "package-lock.json"
       - "tsconfig.json"
       - ".github/workflows/desktop-windows-installer.yml"
+      - ".github/workflows/desktop-preview-update.yml"
       - ".github/workflows/ci-verification-mode.yml"
       - "scripts/classify-ci-risk.mjs"
       - "scripts/classify-ci-risk.test.mjs"
