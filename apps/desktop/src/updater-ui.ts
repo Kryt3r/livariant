@@ -72,6 +72,18 @@ type UiCopy = {
   phaseInstallDetail: string;
 };
 
+const updaterHostFailureCopy = (kind: "check" | "install"): string => {
+  const de = document.documentElement.lang.toLowerCase().startsWith("de");
+  if (kind === "install") {
+    return de
+      ? "Das Update konnte nicht installiert werden. Die bestehende Installation wurde nicht als erfolgreich ersetzt. Versuche es erneut oder prüfe später erneut nach Updates."
+      : "The update could not be installed. The existing installation was not treated as successfully replaced. Try again or check for updates later.";
+  }
+  return de
+    ? "Die Update-Prüfung konnte nicht abgeschlossen werden. Die bestehende Installation wurde nicht verändert. Prüfe deine Verbindung und versuche es erneut."
+    : "The update check could not be completed. The existing installation was not changed. Check your connection and try again.";
+};
+
 const copy = (): UiCopy => document.documentElement.lang.toLowerCase().startsWith("de") ? {
   checking: "Prüfe…",
   check: "Nach Updates suchen",
@@ -447,7 +459,7 @@ const checkForUpdates = async () => {
       state: "error",
       currentVersion: "unknown",
       availableVersion: null,
-      detail: `Update host bridge failed without changing the installation: ${String(error)}`,
+      detail: updaterHostFailureCopy("check"),
       releaseNotes: null,
     };
   } finally {
@@ -480,7 +492,7 @@ const installUpdate = async (expectedVersion: string) => {
       state: "error",
       currentVersion: "unknown",
       availableVersion: expectedVersion,
-      detail: `Signed Desktop update installation failed without granting additional Authority: ${String(error)}`,
+      detail: updaterHostFailureCopy("install"),
       releaseNotes: cachedResult?.releaseNotes ?? null,
     };
   } finally {
