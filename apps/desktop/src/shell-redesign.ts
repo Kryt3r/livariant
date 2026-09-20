@@ -2,13 +2,9 @@ import "./shell-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
 import {
-  activateDesktopProject,
-  getActiveDesktopProject,
-  getDesktopProjectRegistrySnapshot,
-  onDesktopProjectActivated,
-  onDesktopProjectRegistryChanged,
-  refreshDesktopProjectRegistrySnapshot,
-} from "./desktop-project-registry.js";
+  ensureShellProjectRegistryLoaded,
+  syncShellProjectSwitcher,
+} from "./shell-project-switcher.js";
 
 const SIDEBAR_STORAGE_KEY = "livariant.desktop.sidebar.collapsed";
 const appRoot = document.querySelector<HTMLElement>("#app");
@@ -50,9 +46,6 @@ let navObserver: MutationObserver | null = null;
 let observedNav: HTMLElement | null = null;
 let scheduled = false;
 let enhancing = false;
-let projectRegistryLoaded = false;
-let projectRegistryLoading = false;
-let projectRegistryError: string | null = null;
 
 const healthState = (): HealthState => {
   if (!connectorStatusLoaded) return "unknown";
@@ -234,11 +227,7 @@ const ensureHeader = (frame: HTMLElement) => {
     header.innerHTML = `
       <div class="global-header-left" data-tauri-drag-region>
         <div class="global-brand" data-tauri-drag-region>${logo ? `<img src="${esc(logo)}" alt="" aria-hidden="true"/>` : ""}<strong data-tauri-drag-region>Livariant</strong></div>
-        <button class="global-project" type="button" title="${text("Current project", "Aktuelles Projekt")}">
-          <span class="global-project-icon">${svg("project")}</span>
-          <span><small>${text("Current project", "Aktuelles Projekt")}</small><strong>${text("My project", "Mein Projekt")}</strong></span>
-          <span class="global-project-chevron">⌄</span>
-        </button>
+        <div data-shell-project-host></div>
       </div>
       <div class="global-notice-slot" data-operator-notice-slot data-tauri-drag-region></div>
       <div class="global-header-right">
@@ -374,6 +363,8 @@ const enhance = () => {
     if (!frame) return;
     frame.classList.add("shell-redesign-active");
     ensureHeader(frame);
+    syncShellProjectSwitcher();
+    ensureShellProjectRegistryLoaded();
     ensureSidebar(frame);
     moveOperatorNotices(frame);
     syncWindowControls(frame);
