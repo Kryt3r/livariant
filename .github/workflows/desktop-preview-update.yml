@@ -27,6 +27,7 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       LIVARIANT_GITHUB_CLIENT_ID: ${{ vars.LIVARIANT_GITHUB_CLIENT_ID }}
+      LIVARIANT_PRIVACY_NOTICE_URL: ${{ vars.LIVARIANT_PRIVACY_NOTICE_URL }}
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
       WINDOWS_CODE_SIGNING_TIMESTAMP_URL: ${{ vars.WINDOWS_CODE_SIGNING_TIMESTAMP_URL }}
@@ -77,6 +78,22 @@ jobs:
           }
           Write-Host "GitHub App client identity is configured for this Preview build; the public client ID value is not printed."
 
+      - name: Require formal privacy notice for publication
+        if: ${{ inputs.publish_preview }}
+        shell: pwsh
+        run: |
+          $privacyUrl = "$env:LIVARIANT_PRIVACY_NOTICE_URL".Trim()
+          if ([string]::IsNullOrWhiteSpace($privacyUrl)) {
+            throw "LIVARIANT_PRIVACY_NOTICE_URL is required to publish a Windows preview."
+          }
+          $privacyUri = $null
+          if (-not [Uri]::TryCreate($privacyUrl, [UriKind]::Absolute, [ref]$privacyUri)) {
+            throw "LIVARIANT_PRIVACY_NOTICE_URL must be an absolute HTTPS URL."
+          }
+          if ($privacyUri.Scheme -ne "https" -or -not [string]::IsNullOrWhiteSpace($privacyUri.Fragment)) {
+            throw "LIVARIANT_PRIVACY_NOTICE_URL must use HTTPS and must not contain a fragment."
+          }
+          Write-Host "Formal privacy notice destination is configured for this publication build."
       - name: Prepare Windows Authenticode signing for publication
         id: authenticode
         if: ${{ inputs.publish_preview }}
