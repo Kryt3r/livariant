@@ -30,3 +30,12 @@ test("updater requests are also bounded by fixed host policy", async () => {
   assert.match(updater, /\.timeout\(UPDATER_REQUEST_TIMEOUT\)/);
   assert.doesNotMatch(updater, /UPDATER_REQUEST_TIMEOUT.*env::var/);
 });
+
+
+test("Git clone stalls are bounded without imposing an aggressive bandwidth floor", async () => {
+  const host = await read("apps/desktop/src-tauri/src/github_remote.rs");
+
+  assert.match(host, /\.env\("GIT_HTTP_LOW_SPEED_LIMIT", "1"\)/);
+  assert.match(host, /\.env\("GIT_HTTP_LOW_SPEED_TIME", "60"\)/);
+  assert.match(host, /\.env\("GIT_TERMINAL_PROMPT", "0"\)/);
+});
