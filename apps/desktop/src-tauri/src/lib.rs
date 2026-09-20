@@ -24,6 +24,7 @@ mod operator_live_notice;
 mod operator_update_block;
 mod project_review_selection;
 mod project_scoped_persistence;
+mod public_resources;
 mod project_source_observation;
 mod project_source_review_async;
 mod project_source_review_bridge;
@@ -251,6 +252,8 @@ pub fn run() {
         .on_window_event(background_runtime::handle_window_event)
         .invoke_handler(tauri::generate_handler![
             runtime_health,
+            public_resources::desktop_public_identity,
+            public_resources::open_public_resource,
             installer_language,
             desktop_project_registry::desktop_project_registry_snapshot,
             desktop_project_registry::desktop_project_register,
