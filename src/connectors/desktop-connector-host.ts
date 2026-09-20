@@ -21,7 +21,9 @@ import { assertDiagnosticsMeasurementSession } from "./diagnostics-connection-po
 import { aggregateObservedAttribution } from "../diagnostics/attribution.js";
 import {
   aggregateDiagnosticEvents,
+  diagnosticEventsInRange,
   diagnosticRangeForPreset,
+  type DiagnosticEvent,
   type DiagnosticPreset,
 } from "../diagnostics/efficiency.js";
 import { buildDiagnosticEvidenceExport } from "../diagnostics/export.js";
@@ -65,6 +67,7 @@ type Request = {
   method: "inspect" | "connect" | "disconnect" | "diagnostics" | "export" | "measure";
   manualPath?: string;
   diagnosticsPreset?: DiagnosticPreset;
+  diagnosticsProjectId?: string;
 };
 type ResolvedCodexInspection = {
   resolution: ReturnType<typeof resolveCodexCommand>;
@@ -91,13 +94,21 @@ function assertRequest(value: unknown): Request {
   if (record.diagnosticsPreset !== undefined && !DIAGNOSTIC_PRESETS.includes(record.diagnosticsPreset as DiagnosticPreset)) {
     throw new Error("Desktop connector host diagnosticsPreset is invalid.");
   }
+  if (record.diagnosticsProjectId !== undefined && typeof record.diagnosticsProjectId !== "string") {
+    throw new Error("Desktop connector host diagnosticsProjectId must be a string when supplied.");
+  }
   const manualPath = typeof record.manualPath === "string" ? record.manualPath.trim() : undefined;
   const diagnosticsPreset = record.diagnosticsPreset as DiagnosticPreset | undefined;
+  const diagnosticsProjectId = typeof record.diagnosticsProjectId === "string" ? record.diagnosticsProjectId.trim() : undefined;
+  if (diagnosticsProjectId !== undefined && (!diagnosticsProjectId || diagnosticsProjectId.length > 240)) {
+    throw new Error("Desktop connector host diagnosticsProjectId is invalid.");
+  }
   return {
     id: record.id as number,
     method: record.method as Request["method"],
     ...(manualPath ? { manualPath } : {}),
     ...(diagnosticsPreset ? { diagnosticsPreset } : {}),
+    ...(diagnosticsProjectId ? { diagnosticsProjectId } : {}),
   };
 }
 
@@ -366,36 +377,62 @@ async function measurementStatus() {
   }
 }
 
-async function diagnostics(preset: DiagnosticPreset = "all") {
+function projectScopedDiagnosticEvents(
+  events: readonly DiagnosticEvent[],
+  range: ReturnType<typeof diagnosticRangeForPreset>,
+  projectId: string,
+): { events: DiagnosticEvent[]; unattributedEventCount: number } {
+  const inRange = diagnosticEventsInRange(events, range);
+  return {
+    events: inRange.filter((event) => event.attribution?.projectId === projectId),
+    unattributedEventCount: inRange.filter((event) => event.attribution?.projectId === undefined).length,
+  };
+}
+
+async function diagnostics(preset: DiagnosticPreset = "all", projectId: string) {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
-  const events = await store.readAll();
-  const aggregate = aggregateDiagnosticEvents(events, range);
+  const allEvents = await store.readAll();
+  const scoped = projectScopedDiagnosticEvents(allEvents, range, projectId);
+  const aggregate = aggregateDiagnosticEvents(scoped.events, range);
   return {
     preset,
     range: aggregate.range,
+    scope: {
+      kind: "project",
+      projectId,
+      unattributedEventCount: scoped.unattributedEventCount,
+    },
     observed: aggregate.observed,
     avoided: aggregate.avoided,
     estimated: aggregate.estimated,
-    attribution: aggregateObservedAttribution(events, range),
+    attribution: aggregateObservedAttribution(scoped.events, range),
     hasObservedData: aggregate.observed.eventCount > 0,
     storage: "local-jsonl",
     measurement: await measurementStatus(),
   };
 }
 
-async function diagnosticsExport(preset: DiagnosticPreset = "all") {
+async function diagnosticsExport(preset: DiagnosticPreset = "all", projectId: string) {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
-  const events = await store.readAll();
-  return buildDiagnosticEvidenceExport(events, {
-    preset,
-    range,
-    coreVersion: clientVersion,
-  });
+  const allEvents = await store.readAll();
+  const scoped = projectScopedDiagnosticEvents(allEvents, range, projectId);
+  return {
+    scope: {
+      kind: "project",
+      projectId,
+      unattributedEventCount: scoped.unattributedEventCount,
+    },
+    evidence: buildDiagnosticEvidenceExport(scoped.events, {
+      preset,
+      range,
+      coreVersion: clientVersion,
+    }),
+  };
 }
 
-async function measure(preset: DiagnosticPreset = "all") {
+async function measure(preset: DiagnosticPreset = "all", projectId: string) {
   assertDiagnosticsMeasurementSession(Boolean(session?.isOpen() && workflow));
   if (!workflow || !session?.isOpen()) throw new Error("Codex diagnostics measurement requires an already connected session.");
 
@@ -441,7 +478,7 @@ async function measure(preset: DiagnosticPreset = "all") {
       displayName: target.displayName,
       scope: resolved.scope,
     },
-    diagnostics: await diagnostics(preset),
+    diagnostics: await diagnostics(preset, projectId),
   };
 }
 
@@ -452,9 +489,16 @@ async function handle(request: Request): Promise<unknown> {
   }
   if (request.method === "connect") return await connect(request.manualPath);
   if (request.method === "disconnect") return await disconnectByUser();
-  if (request.method === "diagnostics") return await diagnostics(request.diagnosticsPreset);
-  if (request.method === "export") return await diagnosticsExport(request.diagnosticsPreset);
-  return await measure(request.diagnosticsPreset);
+  if (request.method === "diagnostics") {
+    if (!request.diagnosticsProjectId) throw new Error("Project-focused Diagnostics requires diagnosticsProjectId.");
+    return await diagnostics(request.diagnosticsPreset, request.diagnosticsProjectId);
+  }
+  if (request.method === "export") {
+    if (!request.diagnosticsProjectId) throw new Error("Project-focused Diagnostics export requires diagnosticsProjectId.");
+    return await diagnosticsExport(request.diagnosticsPreset, request.diagnosticsProjectId);
+  }
+  if (!request.diagnosticsProjectId) throw new Error("Project-focused Diagnostics measurement requires diagnosticsProjectId.");
+  return await measure(request.diagnosticsPreset, request.diagnosticsProjectId);
 }
 
 const input = createInterface({ input: stdin, crlfDelay: Infinity });
