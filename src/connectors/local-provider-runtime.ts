@@ -112,8 +112,8 @@ export function inspectBundledLocalProvider(options: InspectBundledProviderOptio
         commandName: options.provider === "claude" ? "claude" : "gemini",
         nativeWindowsBasenames: options.provider === "claude" ? ["claude.exe"] : ["gemini.exe"],
         npmPackages: options.provider === "claude"
-          ? [{ packagePath: ["@anthropic-ai", "claude-code"], entrypoints: ["dist\\cli.js", "cli.js"] }]
-          : [{ packagePath: ["@google", "gemini-cli"], entrypoints: ["bundle\\gemini.js"] }],
+          ? [{ packagePath: ["@anthropic-ai", "claude-code"], entrypoints: ["dist\\cli.js", "cli.js", "dist\\index.js"] }]
+          : [{ packagePath: ["@google", "gemini-cli"], entrypoints: ["bundle\\gemini.js", "dist\\index.js", "dist\\gemini.js"] }],
         ...options.resolveOptions,
       });
 
