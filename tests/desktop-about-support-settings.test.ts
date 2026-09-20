@@ -20,7 +20,9 @@ test("About and support Settings surface exposes release identity and public res
   assert.match(surface, /Issues/);
   assert.match(surface, /Security reporting/);
   assert.match(surface, /Imprint \/ provider information/);
-  assert.match(surface, /Privacy/);
+  assert.match(surface, /Privacy notice/);
+  assert.match(surface, /Privacy & network behavior/);
+  assert.match(surface, /privacyNoticeConfigured/);
   assert.match(surface, /Software license/);
   assert.match(surface, /Third-party notices/);
 });
@@ -33,7 +35,10 @@ test("public-resource host command is fixed allowlist and cannot open renderer-s
   assert.match(host, /"issues" => Some\("https:\/\/github\.com\/Kryt3r\/livariant\/issues"\)/);
   assert.match(host, /"security" => Some\("https:\/\/github\.com\/Kryt3r\/livariant\/security\/policy"\)/);
   assert.match(host, /"imprint" => Some\("https:\/\/www\.einfachrobin\.de\/impressum"\)/);
-  assert.match(host, /"privacy" => Some/);
+  assert.match(host, /"privacy-notice" => privacy_notice_url\(\)/);
+  assert.match(host, /"privacy-network" => Some/);
+  assert.match(host, /LIVARIANT_PRIVACY_NOTICE_URL/);
+  assert.match(host, /privacy_notice_configured: privacy_notice_url\(\)\.is_some\(\)/);
   assert.match(host, /"license" => Some/);
   assert.match(host, /"third-party" => Some/);
   assert.match(host, /Unknown public Livariant resource/);
@@ -49,4 +54,15 @@ test("social and Discord destinations are not exposed before real links exist", 
   assert.doesNotMatch(surface, /data-public-resource="youtube"/);
   assert.doesNotMatch(surface, /data-public-resource="tiktok"/);
   assert.match(surface, /only appear here once real public destinations exist/);
+});
+
+
+test("public Preview publication requires a formal privacy notice URL", async () => {
+  const workflow = await read(".github/workflows/desktop-preview-update.yml");
+
+  assert.match(workflow, /LIVARIANT_PRIVACY_NOTICE_URL: \$\{\{ vars\.LIVARIANT_PRIVACY_NOTICE_URL \}\}/);
+  assert.match(workflow, /Require formal privacy notice for publication/);
+  assert.match(workflow, /if: \$\{\{ inputs\.publish_preview \}\}/);
+  assert.match(workflow, /LIVARIANT_PRIVACY_NOTICE_URL is required to publish a Windows preview/);
+  assert.match(workflow, /must be a fixed HTTPS URL without whitespace or fragments/);
 });
