@@ -20,6 +20,26 @@ enum DesktopProjectRegistrationState {
     Detached,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum LegacyMigrationState {
+    #[default]
+    Pending,
+    NotNeeded,
+    Complete,
+    RecoveryRequired,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+struct LegacyMigrationRecord {
+    state: LegacyMigrationState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_fingerprint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    detail: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 struct DesktopProjectRecord {
@@ -40,6 +60,8 @@ struct DesktopProjectRegistry {
     #[serde(skip_serializing_if = "Option::is_none")]
     last_active_desktop_project_id: Option<String>,
     projects: Vec<DesktopProjectRecord>,
+    #[serde(default)]
+    legacy_migration: LegacyMigrationRecord,
 }
 
 impl Default for DesktopProjectRegistry {
@@ -48,6 +70,7 @@ impl Default for DesktopProjectRegistry {
             schema_version: REGISTRY_SCHEMA_VERSION,
             last_active_desktop_project_id: None,
             projects: Vec::new(),
+            legacy_migration: LegacyMigrationRecord::default(),
         }
     }
 }
@@ -76,6 +99,7 @@ impl ProjectPersistenceScope {
 struct ActiveProjectRuntime {
     generation: u64,
     active: Option<ActiveProjectScope>,
+    startup_recovery: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -116,6 +140,8 @@ pub struct DesktopProjectRegistrySnapshot {
     schema_version: u32,
     projects: Vec<DesktopProjectEntrySnapshot>,
     active: Option<ActiveDesktopProjectSnapshot>,
+    legacy_migration: LegacyMigrationRecord,
+    startup_recovery: Option<String>,
     boundaries: serde_json::Value,
 }
 
@@ -126,6 +152,22 @@ pub struct DesktopProjectMutationResult {
     created: bool,
     snapshot: DesktopProjectRegistrySnapshot,
     boundaries: serde_json::Value,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct LegacyMigrationStatus {
+    pub(crate) state: LegacyMigrationState,
+    pub(crate) source_fingerprint: Option<String>,
+    pub(crate) project_count: usize,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct LegacyMigrationImport {
+    pub(crate) desktop_project_id: String,
+    pub(crate) local_root: String,
+    pub(crate) project_id: Option<String>,
+    pub(crate) stable_project_identity: Option<String>,
+    pub(crate) source_fingerprint: String,
 }
 
 fn boundaries() -> serde_json::Value {
@@ -312,6 +354,47 @@ fn validate_registry(registry: &DesktopProjectRegistry) -> Result<(), String> {
         }
     }
 
+    match registry.legacy_migration.state {
+        LegacyMigrationState::Pending | LegacyMigrationState::NotNeeded => {
+            if registry.legacy_migration.source_fingerprint.is_some() || registry.legacy_migration.detail.is_some() {
+                return Err("Desktop project registry legacy migration metadata is inconsistent.".to_owned());
+            }
+        }
+        LegacyMigrationState::Complete => {
+            let fingerprint = registry
+                .legacy_migration
+                .source_fingerprint
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty() && value.len() <= 128)
+                .ok_or_else(|| "Completed legacy migration requires a bounded source fingerprint.".to_owned())?;
+            if fingerprint.len() > 128 || registry.legacy_migration.detail.is_some() {
+                return Err("Completed legacy migration metadata is invalid.".to_owned());
+            }
+            if registry.projects.is_empty() {
+                return Err("Completed legacy migration requires a registered Desktop project.".to_owned());
+            }
+        }
+        LegacyMigrationState::RecoveryRequired => {
+            if let Some(fingerprint) = registry.legacy_migration.source_fingerprint.as_deref() {
+                let fingerprint = fingerprint.trim();
+                if fingerprint.is_empty() || fingerprint.len() > 128 {
+                    return Err("Legacy migration recovery fingerprint is invalid.".to_owned());
+                }
+            }
+            let detail = registry
+                .legacy_migration
+                .detail
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty() && value.chars().count() <= 512)
+                .ok_or_else(|| "Legacy migration recovery requires a bounded detail.".to_owned())?;
+            if detail.chars().count() > 512 {
+                return Err("Legacy migration recovery detail is invalid.".to_owned());
+            }
+        }
+    }
+
     if let Some(active) = registry.last_active_desktop_project_id.as_deref() {
         let active = canonical_uuid(active, "lastActiveDesktopProjectId")?;
         let Some(record) = registry.projects.iter().find(|project| project.desktop_project_id == active) else {
@@ -362,6 +445,52 @@ fn load_registry(projects_root: &Path) -> Result<DesktopProjectRegistry, String>
         .map_err(|error| format!("Desktop project registry is invalid JSON: {error}"))?;
     validate_registry(&registry)?;
     Ok(registry)
+}
+
+fn load_registry_for_legacy_finalize(
+    projects_root: &Path,
+    expected_desktop_project_id: &str,
+) -> Result<DesktopProjectRegistry, String> {
+    let expected = canonical_uuid(expected_desktop_project_id, "desktopProjectId")?;
+    if !ensure_projects_root(projects_root, false)? {
+        return Ok(DesktopProjectRegistry::default());
+    }
+
+    let path = registry_path(projects_root);
+    let backup = registry_backup_path(projects_root);
+    if regular_file_exists(&path, "Desktop project registry")? {
+        return load_registry(projects_root);
+    }
+    if regular_file_exists(&backup, "Desktop project registry backup")? {
+        return Err("Desktop project registry recovery is required; a backup exists without a canonical registry.".to_owned());
+    }
+
+    let mut observed_expected = false;
+    for entry in fs::read_dir(projects_root)
+        .map_err(|error| format!("Desktop project registry directory could not be enumerated: {error}"))?
+    {
+        let entry = entry.map_err(|error| format!("Desktop project registry entry could not be inspected: {error}"))?;
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        if canonical_uuid(&name, "project namespace").is_err() {
+            continue;
+        }
+        let metadata = fs::symlink_metadata(entry.path())
+            .map_err(|error| format!("Desktop project namespace could not be inspected: {error}"))?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err("Desktop project namespace must be a real non-symbolic-link directory.".to_owned());
+        }
+        if name != expected || observed_expected {
+            return Err("Desktop project registry recovery is required; unexpected project state exists before legacy migration finalization.".to_owned());
+        }
+        observed_expected = true;
+    }
+
+    if !observed_expected {
+        return Err("Legacy migration finalization expected a committed project namespace, but none was found.".to_owned());
+    }
+    Ok(DesktopProjectRegistry::default())
 }
 
 fn write_registry(projects_root: &Path, registry: &DesktopProjectRegistry) -> Result<(), String> {
@@ -486,6 +615,8 @@ fn registry_snapshot(
             desktop_project_id: active.desktop_project_id.clone(),
             generation: active.generation,
         }),
+        legacy_migration: registry.legacy_migration.clone(),
+        startup_recovery: runtime.startup_recovery.clone(),
         boundaries: boundaries(),
     })
 }
@@ -711,6 +842,9 @@ pub(crate) fn project_persistence_scope(
         .runtime
         .lock()
         .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    if let Some(recovery) = runtime.startup_recovery.as_deref() {
+        return Err(format!("Desktop project recovery is required: {recovery}"));
+    }
     let registry = load_registry(&projects_root)?;
 
     if let Some(active) = runtime.active.clone() {
@@ -733,11 +867,30 @@ pub(crate) fn project_persistence_scope(
         return Ok(ProjectPersistenceScope::Active(active));
     }
 
-    if registry.projects.is_empty() {
+    if registry.projects.is_empty()
+        && matches!(
+            registry.legacy_migration.state,
+            LegacyMigrationState::Pending | LegacyMigrationState::NotNeeded
+        )
+    {
         return Ok(ProjectPersistenceScope::LegacySingleProject);
     }
 
-    Err("Desktop projects are registered, but no project is active; project-scoped persistence is unavailable.".to_owned())
+    Err(match registry.legacy_migration.state {
+        LegacyMigrationState::Complete => {
+            "Legacy singleton persistence is disabled after completed migration; no Desktop project is active.".to_owned()
+        }
+        LegacyMigrationState::RecoveryRequired => {
+            registry
+                .legacy_migration
+                .detail
+                .clone()
+                .unwrap_or_else(|| "Legacy migration recovery is required before project-scoped persistence can continue.".to_owned())
+        }
+        LegacyMigrationState::Pending | LegacyMigrationState::NotNeeded => {
+            "Desktop projects are registered, but no project is active; project-scoped persistence is unavailable.".to_owned()
+        }
+    })
 }
 
 fn persistence_scope_matches_runtime(
@@ -812,6 +965,204 @@ pub(crate) fn ensure_project_persistence_scope_current(
     scope: &ProjectPersistenceScope,
 ) -> Result<(), String> {
     with_project_persistence_scope_current(app, state, scope, || Ok(()))
+}
+
+pub(crate) fn mark_startup_recovery(
+    state: &DesktopProjectRegistryState,
+    detail: impl Into<String>,
+) -> Result<(), String> {
+    let detail = detail.into();
+    if detail.trim().is_empty() || detail.chars().count() > 1024 {
+        return Err("Desktop project startup recovery detail is invalid.".to_owned());
+    }
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    runtime.active = None;
+    runtime.startup_recovery = Some(detail);
+    Ok(())
+}
+
+pub(crate) fn clear_startup_recovery(
+    state: &DesktopProjectRegistryState,
+) -> Result<(), String> {
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    runtime.startup_recovery = None;
+    Ok(())
+}
+
+pub(crate) fn legacy_migration_status(
+    app: &tauri::AppHandle,
+) -> Result<LegacyMigrationStatus, String> {
+    let projects_root = projects_root(app)?;
+    let registry = load_registry(&projects_root)?;
+    Ok(LegacyMigrationStatus {
+        state: registry.legacy_migration.state.clone(),
+        source_fingerprint: registry.legacy_migration.source_fingerprint.clone(),
+        project_count: registry.projects.len(),
+    })
+}
+
+pub(crate) fn mark_legacy_migration_not_needed(
+    app: &tauri::AppHandle,
+) -> Result<(), String> {
+    let projects_root = projects_root(app)?;
+    let mut registry = load_registry(&projects_root)?;
+    if registry.legacy_migration.state == LegacyMigrationState::Complete {
+        return Ok(());
+    }
+    if registry.legacy_migration.state == LegacyMigrationState::RecoveryRequired {
+        return Err("Legacy migration is in recovery-required state.".to_owned());
+    }
+    registry.legacy_migration = LegacyMigrationRecord {
+        state: LegacyMigrationState::NotNeeded,
+        source_fingerprint: None,
+        detail: None,
+    };
+    write_registry(&projects_root, &registry)
+}
+
+pub(crate) fn mark_legacy_migration_recovery(
+    app: &tauri::AppHandle,
+    source_fingerprint: Option<String>,
+    detail: &str,
+) -> Result<(), String> {
+    let projects_root = projects_root(app)?;
+    let mut registry = load_registry(&projects_root)?;
+    let detail = detail.trim();
+    if detail.is_empty() || detail.chars().count() > 512 {
+        return Err("Legacy migration recovery detail is invalid.".to_owned());
+    }
+    if let Some(fingerprint) = source_fingerprint.as_deref() {
+        let fingerprint = fingerprint.trim();
+        if fingerprint.is_empty() || fingerprint.len() > 128 {
+            return Err("Legacy migration recovery fingerprint is invalid.".to_owned());
+        }
+    }
+    registry.legacy_migration = LegacyMigrationRecord {
+        state: LegacyMigrationState::RecoveryRequired,
+        source_fingerprint,
+        detail: Some(detail.to_owned()),
+    };
+    registry.last_active_desktop_project_id = None;
+    write_registry(&projects_root, &registry)
+}
+
+pub(crate) fn finalize_legacy_migration(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+    import: LegacyMigrationImport,
+) -> Result<(), String> {
+    let projects_root = projects_root(app)?;
+    let id = canonical_uuid(&import.desktop_project_id, "desktopProjectId")?;
+    let canonical_root = canonical_local_root(&import.local_root)?;
+    let stored_root = path_for_storage(&canonical_root);
+    let project_id = normalized_optional(import.project_id.as_deref(), "projectId", 240)?;
+    let stable_project_identity = match import.stable_project_identity.as_deref() {
+        Some(value) => Some(canonical_uuid(value, "stableProjectIdentity")?),
+        None => None,
+    };
+    if import.source_fingerprint.trim().is_empty() || import.source_fingerprint.len() > 128 {
+        return Err("Legacy migration source fingerprint is invalid.".to_owned());
+    }
+    let display_name = normalized_display_name(None, &canonical_root)?;
+    let state_root = real_state_directory(&projects_root, &id, false)?;
+
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    let mut registry = load_registry_for_legacy_finalize(&projects_root, &id)?;
+
+    if registry.legacy_migration.state == LegacyMigrationState::Complete {
+        if registry.legacy_migration.source_fingerprint.as_deref() == Some(import.source_fingerprint.as_str())
+            && registry.projects.iter().any(|project| project.desktop_project_id == id)
+        {
+            runtime.startup_recovery = None;
+            return Ok(());
+        }
+        return Err("A different legacy migration is already recorded complete.".to_owned());
+    }
+    if registry.legacy_migration.state == LegacyMigrationState::RecoveryRequired {
+        return Err("Legacy migration is in recovery-required state.".to_owned());
+    }
+    if !registry.projects.is_empty() {
+        return Err("Legacy migration cannot create a project because Desktop projects are already registered.".to_owned());
+    }
+
+    registry.projects.push(DesktopProjectRecord {
+        desktop_project_id: id.clone(),
+        display_name,
+        local_root: stored_root,
+        project_id,
+        stable_project_identity,
+        state: DesktopProjectRegistrationState::Registered,
+    });
+    registry.last_active_desktop_project_id = Some(id.clone());
+    registry.legacy_migration = LegacyMigrationRecord {
+        state: LegacyMigrationState::Complete,
+        source_fingerprint: Some(import.source_fingerprint),
+        detail: None,
+    };
+    write_registry(&projects_root, &registry)?;
+
+    let next_generation = runtime
+        .generation
+        .checked_add(1)
+        .ok_or_else(|| "Desktop project activation generation is exhausted.".to_owned())?;
+    runtime.generation = next_generation;
+    runtime.active = Some(ActiveProjectScope {
+        generation: next_generation,
+        desktop_project_id: id,
+        local_root: canonical_root,
+        state_root,
+    });
+    runtime.startup_recovery = None;
+    Ok(())
+}
+
+pub(crate) fn restore_last_active_project(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+) -> Result<(), String> {
+    let projects_root = projects_root(app)?;
+    let registry = load_registry(&projects_root)?;
+    if registry.legacy_migration.state == LegacyMigrationState::RecoveryRequired {
+        return Ok(());
+    }
+    let Some(id) = registry.last_active_desktop_project_id.as_deref() else {
+        return Ok(());
+    };
+    let Some(project) = registry.projects.iter().find(|project| project.desktop_project_id == id) else {
+        return Err("Desktop project registry last-active identity does not exist.".to_owned());
+    };
+    if project.state != DesktopProjectRegistrationState::Registered || availability(project) != "available" {
+        return Ok(());
+    }
+    let local_root = canonical_local_root(&project.local_root)?;
+    let state_root = real_state_directory(&projects_root, id, false)?;
+
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    let next_generation = runtime
+        .generation
+        .checked_add(1)
+        .ok_or_else(|| "Desktop project activation generation is exhausted.".to_owned())?;
+    runtime.generation = next_generation;
+    runtime.active = Some(ActiveProjectScope {
+        generation: next_generation,
+        desktop_project_id: id.to_owned(),
+        local_root,
+        state_root,
+    });
+    runtime.startup_recovery = None;
+    Ok(())
 }
 
 pub(crate) fn active_generation_matches(
@@ -923,6 +1274,36 @@ mod tests {
             display_name: display_name.map(str::to_owned),
             project_id: Some("logical-project".to_owned()),
         }
+    }
+
+    #[test]
+    fn registry_without_legacy_migration_field_defaults_to_pending() {
+        let value = serde_json::json!({
+            "schemaVersion": 1,
+            "projects": []
+        });
+        let registry: DesktopProjectRegistry = serde_json::from_value(value).expect("old registry");
+        assert_eq!(registry.legacy_migration.state, LegacyMigrationState::Pending);
+        validate_registry(&registry).expect("old registry remains valid");
+    }
+
+    #[test]
+    fn legacy_finalize_loader_allows_only_the_expected_orphan_namespace() {
+        let root = test_root("legacy-finalize-loader");
+        let projects = root.join("app-data").join("projects");
+        fs::create_dir_all(&projects).expect("projects");
+        let expected = Uuid::new_v4().hyphenated().to_string();
+        fs::create_dir(projects.join(&expected)).expect("expected namespace");
+
+        let registry = load_registry_for_legacy_finalize(&projects, &expected)
+            .expect("expected migration namespace allowed");
+        assert!(registry.projects.is_empty());
+
+        let unexpected = Uuid::new_v4().hyphenated().to_string();
+        fs::create_dir(projects.join(&unexpected)).expect("unexpected namespace");
+        assert!(load_registry_for_legacy_finalize(&projects, &expected).is_err());
+
+        fs::remove_dir_all(&root).expect("cleanup");
     }
 
     #[test]

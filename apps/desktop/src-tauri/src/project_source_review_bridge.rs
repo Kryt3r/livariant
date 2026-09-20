@@ -220,7 +220,7 @@ fn hidden_command(program: &Path) -> Command {
     command
 }
 
-fn validate_presentation(value: &Value) -> Result<(), String> {
+pub(crate) fn validate_presentation(value: &Value) -> Result<(), String> {
     let object = value.as_object().ok_or_else(|| "Presentation snapshot must be a JSON object.".to_owned())?;
     if object.get("schemaVersion").and_then(Value::as_u64) != Some(1) {
         return Err("Presentation snapshot schemaVersion must be 1.".to_owned());

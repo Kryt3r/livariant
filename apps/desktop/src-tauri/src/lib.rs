@@ -2,6 +2,7 @@ mod background_runtime;
 mod connector_host;
 mod diagnostics_export_save;
 mod desktop_project_registry;
+mod desktop_project_migration;
 mod first_run_lifecycle;
 mod first_run_project_state;
 mod first_run_ux;
@@ -227,6 +228,13 @@ pub fn run() {
 
             background_runtime::install(app)?;
             operator_broadcast_runtime::start(app.handle().clone());
+
+            {
+                let state = app.state::<desktop_project_registry::DesktopProjectRegistryState>();
+                if let Err(error) = desktop_project_migration::initialize(app.handle(), state.inner()) {
+                    let _ = desktop_project_registry::mark_startup_recovery(state.inner(), error);
+                }
+            }
 
             let handle = app.handle().clone();
             std::thread::spawn(move || {
