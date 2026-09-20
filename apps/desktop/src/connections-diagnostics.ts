@@ -167,6 +167,23 @@ const providerGlyph = (provider: ProviderId) => {
   return '<span class="provider-glyph provider-glyph-custom">+</span>';
 };
 
+const localizedCodexDetail = (detail: string | null | undefined): string | null => {
+  if (!detail) return null;
+  if (detail === "Codex was found only through a Windows command shim whose native executable could not be resolved without invoking a shell.") {
+    return lang(
+      "Codex was found through a Windows command shim, but Livariant could not resolve its native executable safely.",
+      "Codex wurde über einen Windows-Befehls-Shim gefunden, aber Livariant konnte die native Programmdatei nicht sicher auflösen.",
+    );
+  }
+  if (detail === "The configured Codex executable is no longer a native executable that Livariant can validate without a shell.") {
+    return lang(
+      "The configured Codex executable is no longer available as a native executable.",
+      "Die konfigurierte native Codex-Programmdatei ist nicht mehr verfügbar.",
+    );
+  }
+  return detail;
+};
+
 const codexState = () => {
   if (checkingConnector) return { label: lang("Checking", "Prüft"), tone: "checking", detail: lang("Inspecting the local Codex installation…", "Lokale Codex-Installation wird geprüft…") };
   if (connector?.connected) return { label: t("connections.connected"), tone: "connected", detail: lang(`Codex ${connector.version ?? ""} · App Server connected`, `Codex ${connector.version ?? ""} · App Server verbunden`) };
@@ -260,7 +277,7 @@ const renderCodexModal = () => {
         </header>
         ${error ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${t("connections.needsAttention")}</strong><p>${esc(error)}</p></div></div>` : ""}
         <section class="provider-primary-card provider-primary-card-emphasis">
-          <div><span class="provider-card-kicker">${lang("Connection", "Verbindung")}</span><h3>${connected ? lang("Codex is connected", "Codex ist verbunden") : detected ? lang("Ready for one-click connection", "Bereit für die Ein-Klick-Verbindung") : lang("Codex setup required", "Codex-Einrichtung erforderlich")}</h3><p>${esc(error ?? connector?.detail ?? state.detail)}</p></div>
+          <div><span class="provider-card-kicker">${lang("Connection", "Verbindung")}</span><h3>${connected ? lang("Codex is connected", "Codex ist verbunden") : detected ? lang("Ready for one-click connection", "Bereit für die Ein-Klick-Verbindung") : lang("Codex setup required", "Codex-Einrichtung erforderlich")}</h3><p>${esc(error ?? localizedCodexDetail(connector?.detail) ?? state.detail)}</p></div>
           <div class="provider-primary-actions">
             <button class="button secondary connector-refresh" type="button" ${checkingConnector || connectorMutating() ? "disabled" : ""}>${checkingConnector ? lang("Checking…", "Prüfe…") : t("common.refresh")}</button>
             ${connected
