@@ -1,6 +1,7 @@
 import "./diagnostics-empty-state-polish.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 
 type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
 type DiagnosticsAvailability = { hasObservedData: boolean; observed: { eventCount: number } };
@@ -33,6 +34,15 @@ const reconcileEmptyHero = async () => {
     // The cockpit owns command/error presentation. This polish must never hide or replace it.
   }
 };
+
+onDesktopProjectActivated(() => {
+  generation += 1;
+  document.querySelectorAll<HTMLElement>("[data-surface='diagnostics'] .dc-hero").forEach((hero) => {
+    delete hero.dataset.availabilityChecked;
+    hero.classList.remove("empty");
+  });
+  void reconcileEmptyHero();
+});
 
 const observer = new MutationObserver(() => void reconcileEmptyHero());
 observer.observe(document.documentElement, { childList: true, subtree: true });
