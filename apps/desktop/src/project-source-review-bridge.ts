@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 import {
   renderProjectSourceReviewUnavailable,
   renderProjectSourceReviewView,
@@ -101,6 +102,27 @@ let selectionState: DesktopReviewSelectionState = {
   attention: [],
   detail: text("Review material has not been inventoried yet.", "Review-Material wurde noch nicht inventarisiert."),
 };
+let rendererProjectGeneration = 0;
+
+const resetProjectScopedRendererState = () => {
+  bridgeState = {
+    state: "unavailable",
+    presentation: null,
+    detail: text("Project source data is loading for the active project.", "Projektquellen-Daten werden für das aktive Projekt geladen."),
+  };
+  selectionState = {
+    state: "idle",
+    candidates: [],
+    selectedReviewPaths: [],
+    attention: [],
+    detail: text("Review material is loading for the active project.", "Review-Material wird für das aktive Projekt geladen."),
+  };
+};
+
+onDesktopProjectActivated(() => {
+  rendererProjectGeneration += 1;
+  resetProjectScopedRendererState();
+});
 
 const isPresentation = (value: unknown): value is DesktopSourceReviewPresentation => {
   if (!value || typeof value !== "object") return false;
@@ -139,9 +161,10 @@ const applyPresentationResult = (result: ProjectSourceReviewBridgeResult) => {
   return false;
 };
 
-async function refreshReviewPathInventory(): Promise<void> {
+async function refreshReviewPathInventory(expectedGeneration = rendererProjectGeneration): Promise<void> {
   try {
     const result = await invoke<ReviewPathInventoryResult>("inventory_project_source_review_paths");
+    if (expectedGeneration !== rendererProjectGeneration) return;
     if (!isReviewInventory(result)) {
       throw new Error(text("The host returned an invalid review-path inventory.", "Der Host hat eine ungültige Review-Pfad-Inventarisierung geliefert."));
     }
@@ -153,6 +176,7 @@ async function refreshReviewPathInventory(): Promise<void> {
       detail: text("Reviewable material was inventoried from the linked primary checkout.", "Prüfbares Material wurde aus dem verknüpften Haupt-Checkout inventarisiert."),
     };
   } catch (error: unknown) {
+    if (expectedGeneration !== rendererProjectGeneration) return;
     selectionState = {
       state: "unavailable",
       candidates: [],
@@ -172,10 +196,13 @@ export async function observeProjectSources(): Promise<ProjectSourceObservationR
 }
 
 export async function loadProjectSourceReviewPresentation(): Promise<void> {
+  const generation = rendererProjectGeneration;
   try {
     const result = await invoke<ProjectSourceReviewBridgeResult>("project_source_review_presentation");
+    if (generation !== rendererProjectGeneration) return;
     applyPresentationResult(result);
   } catch (error: unknown) {
+    if (generation !== rendererProjectGeneration) return;
     bridgeState = {
       state: "unavailable",
       presentation: null,
@@ -185,11 +212,14 @@ export async function loadProjectSourceReviewPresentation(): Promise<void> {
 }
 
 export async function refreshProjectSourceReviewPresentation(): Promise<void> {
+  const generation = rendererProjectGeneration;
   try {
     await observeProjectSources();
+    if (generation !== rendererProjectGeneration) return;
     const result = await invoke<ProjectSourceReviewBridgeResult>("refresh_project_source_review_presentation_nonblocking");
+    if (generation !== rendererProjectGeneration) return;
     if (applyPresentationResult(result)) {
-      await refreshReviewPathInventory();
+      await refreshReviewPathInventory(generation);
       return;
     }
     selectionState = {
@@ -200,6 +230,7 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
       detail: bridgeState.detail,
     };
   } catch (error: unknown) {
+    if (generation !== rendererProjectGeneration) return;
     bridgeState = {
       state: "unavailable",
       presentation: null,
@@ -216,12 +247,14 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
 }
 
 export async function startProjectSourceReview(selectedReviewPaths: string[]): Promise<ReviewStartResult> {
+  const generation = rendererProjectGeneration;
   const result = await invoke<ReviewStartResult>("start_project_source_review", {
     selection: { selectedReviewPaths },
   });
   if (result.state !== "started" || result.boundaries.selectionGrantsAuthority !== false || result.boundaries.performsSemanticApply !== false) {
     throw new Error(text("The host returned an invalid review-start result.", "Der Host hat ein ungültiges Ergebnis für den Review-Start geliefert."));
   }
+  if (generation !== rendererProjectGeneration) return result;
   await refreshProjectSourceReviewPresentation();
   return result;
 }
