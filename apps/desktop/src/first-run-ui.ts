@@ -63,7 +63,29 @@ const friendlyLifecycleError = (cause: unknown): string => {
       "Dieses Repository ist bereits mit dem Projekt verknüpft. Kehre zu Livariant zurück und öffne Einstellungen → Verbindungen, um Beschreibung oder lokalen Checkout zu bearbeiten, auf „Nur Remote“ umzustellen oder die Zuordnung zu entfernen.",
     );
   }
-  return raw;
+  return text(
+    "This setup change could not be saved. Review the current step and try again. Livariant did not change project files.",
+    "Diese Einrichtungsänderung konnte nicht gespeichert werden. Prüfe den aktuellen Schritt und versuche es erneut. Livariant hat keine Projektdateien verändert.",
+  );
+};
+
+const friendlyFolderError = (): string => text(
+  "The folder picker could not be opened. Try again or enter the project folder manually.",
+  "Die Ordnerauswahl konnte nicht geöffnet werden. Versuche es erneut oder trage den Projektordner manuell ein.",
+);
+
+const friendlyCodexError = (cause: unknown): string => {
+  const raw = String(cause).toLowerCase();
+  if (raw.includes("not found") || raw.includes("not available") || raw.includes("executable") || raw.includes("path")) {
+    return text(
+      "Codex could not be connected. Check that Codex is installed, or choose its executable path explicitly. You can also continue and set it up later.",
+      "Codex konnte nicht verbunden werden. Prüfe, ob Codex installiert ist, oder wähle den Programmpfad ausdrücklich aus. Du kannst auch fortfahren und Codex später einrichten.",
+    );
+  }
+  return text(
+    "The Codex connection could not be completed. Check the local Codex installation and try again, or set it up later.",
+    "Die Codex-Verbindung konnte nicht abgeschlossen werden. Prüfe die lokale Codex-Installation und versuche es erneut oder richte Codex später ein.",
+  );
 };
 
 const STEPS: Step[] = ["welcome", "project", "understanding", "sources", "providers", "health"];
@@ -233,7 +255,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
       return generation === projectActivationGeneration ? selected : null;
     } catch (cause) {
       if (generation !== projectActivationGeneration) return null;
-      error = String(cause);
+      error = friendlyFolderError();
       render(captureContext());
       return null;
     }
@@ -276,8 +298,8 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     root.querySelector<HTMLFormElement>("[data-fr-primary]")?.addEventListener("submit", (event) => { event.preventDefault(); void apply(repoAction(event.currentTarget as HTMLFormElement, false), true); });
     root.querySelector<HTMLFormElement>("[data-fr-additional]")?.addEventListener("submit", (event) => { event.preventDefault(); void apply(repoAction(event.currentTarget as HTMLFormElement, true), true); });
 
-    root.querySelector<HTMLButtonElement>("[data-fr-connect-codex]")?.addEventListener("click", async () => { const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath: null }); } catch (cause) { error = String(cause); } finally { busy = false; render(context); } });
-    root.querySelector<HTMLButtonElement>("[data-fr-connect-codex-manual]")?.addEventListener("click", async () => { const manualPath = root.querySelector<HTMLInputElement>("[data-fr-codex-path]")?.value.trim(); if (!manualPath) { error = text("Enter an explicit Codex executable path first.", "Trage zuerst einen expliziten Codex-Programmpfad ein."); render(captureContext()); return; } const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath }); } catch (cause) { error = String(cause); } finally { busy = false; render(context); } });
+    root.querySelector<HTMLButtonElement>("[data-fr-connect-codex]")?.addEventListener("click", async () => { const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath: null }); } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
+    root.querySelector<HTMLButtonElement>("[data-fr-connect-codex-manual]")?.addEventListener("click", async () => { const manualPath = root.querySelector<HTMLInputElement>("[data-fr-codex-path]")?.value.trim(); if (!manualPath) { error = text("Enter an explicit Codex executable path first.", "Trage zuerst einen expliziten Codex-Programmpfad ein."); render(captureContext()); return; } const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath }); } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
     root.querySelector<HTMLButtonElement>("[data-fr-save-provider]")?.addEventListener("click", async () => { if (await apply({ type: "set-providers", providerIds: ["codex"], deferred: false })) await apply({ type: "move", step: "health" }); });
     root.querySelector<HTMLButtonElement>("[data-fr-defer-provider]")?.addEventListener("click", async () => { if (await apply({ type: "set-providers", providerIds: [], deferred: true })) await apply({ type: "move", step: "health" }); });
     root.querySelector<HTMLButtonElement>("[data-fr-complete]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) exit(); });
