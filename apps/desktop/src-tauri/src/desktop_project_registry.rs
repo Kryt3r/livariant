@@ -800,6 +800,81 @@ fn detach_at(
     })
 }
 
+#[cfg(feature = "ci-multi-project-acceptance")]
+pub(crate) fn ci_register_project(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+    local_root: &Path,
+    display_name: &str,
+    project_id: &str,
+) -> Result<String, String> {
+    let projects_root = projects_root(app)?;
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    let result = register_at(
+        &projects_root,
+        &runtime,
+        DesktopProjectRegisterInput {
+            local_root: local_root.to_string_lossy().to_string(),
+            display_name: Some(display_name.to_owned()),
+            project_id: Some(project_id.to_owned()),
+        },
+    )?;
+    let canonical_root = canonical_local_root(&local_root.to_string_lossy())?;
+    let stored_root = path_for_storage(&canonical_root);
+    let registry = load_registry(&projects_root)?;
+    registry
+        .projects
+        .iter()
+        .find(|project| path_key(project.local_root.trim()) == path_key(&stored_root))
+        .map(|project| project.desktop_project_id.clone())
+        .ok_or_else(|| "CI project registration completed without a discoverable Desktop project identity.".to_owned())
+}
+
+#[cfg(feature = "ci-multi-project-acceptance")]
+pub(crate) fn ci_activate_project(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+    desktop_project_id: &str,
+) -> Result<ActiveProjectScope, String> {
+    let projects_root = projects_root(app)?;
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    activate_at(&projects_root, &mut runtime, desktop_project_id)?;
+    runtime
+        .active
+        .clone()
+        .ok_or_else(|| "CI project activation did not produce an active Desktop project.".to_owned())
+}
+
+#[cfg(feature = "ci-multi-project-acceptance")]
+pub(crate) fn ci_detach_project(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+    desktop_project_id: &str,
+) -> Result<(), String> {
+    let projects_root = projects_root(app)?;
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    detach_at(&projects_root, &mut runtime, desktop_project_id)?;
+    Ok(())
+}
+
+#[cfg(feature = "ci-multi-project-acceptance")]
+pub(crate) fn ci_project_state_root(
+    app: &tauri::AppHandle,
+    desktop_project_id: &str,
+) -> Result<PathBuf, String> {
+    let projects_root = projects_root(app)?;
+    real_state_directory(&projects_root, desktop_project_id, false)
+}
+
 pub(crate) fn active_diagnostics_project_id(
     app: &tauri::AppHandle,
     state: &DesktopProjectRegistryState,

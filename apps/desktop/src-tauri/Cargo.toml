@@ -15,6 +15,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [features]
 default = []
 ci-updater-acceptance = []
+ci-multi-project-acceptance = []
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
