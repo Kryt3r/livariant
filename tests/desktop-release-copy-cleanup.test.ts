@@ -20,3 +20,16 @@ test("normal Desktop surfaces do not expose stale Foundation preview wording", a
   assert.match(settingsSync, /foundation: "App settings"/);
   assert.match(settingsSync, /foundation: "App-Einstellungen"/);
 });
+
+
+test("first-run host failures are translated into actionable product copy", async () => {
+  const firstRun = await read("apps/desktop/src/first-run-ui.ts");
+
+  assert.match(firstRun, /friendlyFolderError/);
+  assert.match(firstRun, /friendlyCodexError/);
+  assert.match(firstRun, /Codex could not be connected/);
+  assert.match(firstRun, /You can also continue and set it up later/);
+  assert.match(firstRun, /Livariant did not change project files/);
+  assert.doesNotMatch(firstRun, /error = String\(cause\)/);
+  assert.doesNotMatch(firstRun, /return raw;/);
+});
