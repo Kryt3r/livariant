@@ -72,6 +72,10 @@ test("detects renderer-only Desktop changes without weakening their C risk class
   assert.equal(classifyPaths(["README.md"]).desktopRendererOnly, false);
 });
 
+test("keeps Desktop process lifecycle changes in D", () => {
+  assert.equal(classifyPaths(["apps/desktop/src-tauri/src/connector_host.rs"]).class, "D");
+});
+
 test("keeps Desktop packaging, installer, capability, and distribution surfaces in D", () => {
   assert.equal(classifyPaths(["apps/desktop/package.json"]).class, "D");
   assert.equal(classifyPaths(["apps/desktop/package-lock.json"]).class, "D");
