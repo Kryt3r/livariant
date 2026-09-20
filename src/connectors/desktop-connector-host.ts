@@ -21,12 +21,11 @@ import { assertDiagnosticsMeasurementSession } from "./diagnostics-connection-po
 import { aggregateObservedAttribution } from "../diagnostics/attribution.js";
 import {
   aggregateDiagnosticEvents,
-  diagnosticEventsInRange,
   diagnosticRangeForPreset,
-  type DiagnosticEvent,
   type DiagnosticPreset,
 } from "../diagnostics/efficiency.js";
 import { buildDiagnosticEvidenceExport } from "../diagnostics/export.js";
+import { filterDiagnosticEventsByProjectScope } from "../diagnostics/project-scope.js";
 import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
 import {
   DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS,
@@ -377,23 +376,11 @@ async function measurementStatus() {
   }
 }
 
-function projectScopedDiagnosticEvents(
-  events: readonly DiagnosticEvent[],
-  range: ReturnType<typeof diagnosticRangeForPreset>,
-  projectId: string,
-): { events: DiagnosticEvent[]; unattributedEventCount: number } {
-  const inRange = diagnosticEventsInRange(events, range);
-  return {
-    events: inRange.filter((event) => event.attribution?.projectId === projectId),
-    unattributedEventCount: inRange.filter((event) => event.attribution?.projectId === undefined).length,
-  };
-}
-
 async function diagnostics(preset: DiagnosticPreset = "all", projectId: string) {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
   const allEvents = await store.readAll();
-  const scoped = projectScopedDiagnosticEvents(allEvents, range, projectId);
+  const scoped = filterDiagnosticEventsByProjectScope(allEvents, range, projectId);
   const aggregate = aggregateDiagnosticEvents(scoped.events, range);
   return {
     preset,
@@ -417,7 +404,7 @@ async function diagnosticsExport(preset: DiagnosticPreset = "all", projectId: st
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
   const allEvents = await store.readAll();
-  const scoped = projectScopedDiagnosticEvents(allEvents, range, projectId);
+  const scoped = filterDiagnosticEventsByProjectScope(allEvents, range, projectId);
   const evidence = buildDiagnosticEvidenceExport(scoped.events, {
     preset,
     range,
