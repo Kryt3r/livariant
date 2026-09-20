@@ -190,9 +190,61 @@ const measurementFixture = () => {
   };
 };
 
+let visualDesktopProjectId = "11111111-1111-4111-8111-111111111111";
+let visualDesktopProjectGeneration = 1;
+
+const desktopProjectRegistryFixture = () => ({
+  schemaVersion: 1,
+  projects: [
+    {
+      desktopProjectId: "11111111-1111-4111-8111-111111111111",
+      displayName: "Livariant",
+      localRoot: "C:/Projects/livariant",
+      projectId: "livariant",
+      stableProjectIdentity: null,
+      state: "registered",
+      availability: "available",
+    },
+    {
+      desktopProjectId: "22222222-2222-4222-8222-222222222222",
+      displayName: "Livariant Internal",
+      localRoot: "C:/Projects/livariant-internal",
+      projectId: "livariant-internal",
+      stableProjectIdentity: null,
+      state: "registered",
+      availability: "available",
+    },
+  ],
+  active: {
+    desktopProjectId: visualDesktopProjectId,
+    generation: visualDesktopProjectGeneration,
+  },
+  legacyMigration: { state: "complete", sourceFingerprint: "visual-preview" },
+  startupRecovery: null,
+  boundaries: {
+    registryIsProjectTruth: false,
+    registryGrantsAuthority: false,
+    activationGrantsAuthority: false,
+    changesProjectOwnedFiles: false,
+    deletesRepositories: false,
+    deletesLocalCheckouts: false,
+  },
+});
+
 const invoke: VisualInvoke = async (command, args) => {
   if (command === "plugin:event|listen") return 1;
   if (command === "plugin:event|unlisten") return null;
+  if (command === "desktop_project_registry_snapshot") return desktopProjectRegistryFixture();
+  if (command === "desktop_project_activate") {
+    const requested = args?.desktopProjectId;
+    if (typeof requested !== "string" || !desktopProjectRegistryFixture().projects.some((project) => project.desktopProjectId === requested)) {
+      throw new Error("Visual QA project is unavailable.");
+    }
+    visualDesktopProjectId = requested;
+    visualDesktopProjectGeneration += 1;
+    const snapshot = desktopProjectRegistryFixture();
+    return { state: "activated", created: false, snapshot, boundaries: snapshot.boundaries };
+  }
   if (command === "codex_connector_status") {
     return {
       installationState: "available",

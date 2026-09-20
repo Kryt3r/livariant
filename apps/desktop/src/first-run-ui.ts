@@ -3,6 +3,7 @@ import "./first-run-ux-polish.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getLanguage } from "./i18n/runtime.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 import { presentFirstRunQuestion, suggestProjectIdFromPath } from "./first-run-presentation.js";
 import {
   loadFirstRunLifecycle,
@@ -169,6 +170,12 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
   let snapshot = await loadFirstRunLifecycle();
   if (snapshot.status === "complete" && !options.force) return false;
   let codex: CodexStatus | null = null; let inspection: RepositoryInspection | null = null; let busy = false; let error: string | null = null;
+  let projectActivationGeneration = 0;
+  let disposeProjectActivation = () => {};
+  const exit = () => {
+    disposeProjectActivation();
+    options.onExit();
+  };
 
   const refreshCodex = async () => { try { codex = await invoke<CodexStatus>("codex_connector_status"); } catch { codex = null; } };
   await refreshCodex();
@@ -181,11 +188,24 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
 
   const apply = async (action: FirstRunLifecycleAction, preserveContext = false): Promise<boolean> => {
     if (busy) return false;
+    const generation = projectActivationGeneration;
     const context = preserveContext ? captureContext() : undefined;
     busy = true; error = null; render(context);
-    try { snapshot = await transitionFirstRunLifecycle(action); return true; }
-    catch (cause) { error = friendlyLifecycleError(cause); return false; }
-    finally { busy = false; render(context); }
+    try {
+      const next = await transitionFirstRunLifecycle(action);
+      if (generation !== projectActivationGeneration) return false;
+      snapshot = next;
+      return true;
+    } catch (cause) {
+      if (generation !== projectActivationGeneration) return false;
+      error = friendlyLifecycleError(cause);
+      return false;
+    } finally {
+      if (generation === projectActivationGeneration) {
+        busy = false;
+        render(context);
+      }
+    }
   };
 
   const formValue = (form: HTMLFormElement, name: string) => new FormData(form).get(name)?.toString().trim() ?? "";
@@ -197,13 +217,26 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
   };
 
   const inspectRepository = async (path: string) => {
-    try { inspection = await invoke<RepositoryInspection>("inspect_first_run_repository", { localPath: path }); }
-    catch { inspection = null; }
+    const generation = projectActivationGeneration;
+    try {
+      const next = await invoke<RepositoryInspection>("inspect_first_run_repository", { localPath: path });
+      if (generation === projectActivationGeneration) inspection = next;
+    } catch {
+      if (generation === projectActivationGeneration) inspection = null;
+    }
   };
 
   const chooseFolder = async (): Promise<string | null> => {
-    try { return await invoke<string | null>("pick_first_run_folder"); }
-    catch (cause) { error = String(cause); render(captureContext()); return null; }
+    const generation = projectActivationGeneration;
+    try {
+      const selected = await invoke<string | null>("pick_first_run_folder");
+      return generation === projectActivationGeneration ? selected : null;
+    } catch (cause) {
+      if (generation !== projectActivationGeneration) return null;
+      error = String(cause);
+      render(captureContext());
+      return null;
+    }
   };
 
   const render = (context?: RenderContext) => {
@@ -216,9 +249,9 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     }
 
     root.querySelectorAll<HTMLButtonElement>("[data-fr-window]").forEach((button) => button.addEventListener("click", async () => { const action = button.dataset.frWindow; if (action === "minimize") await appWindow.minimize(); if (action === "maximize") await appWindow.toggleMaximize(); if (action === "close") await appWindow.close(); }));
-    root.querySelector<HTMLButtonElement>("[data-fr-exit]")?.addEventListener("click", options.onExit);
+    root.querySelector<HTMLButtonElement>("[data-fr-exit]")?.addEventListener("click", exit);
     root.querySelectorAll<HTMLButtonElement>("[data-fr-move]").forEach((button) => button.addEventListener("click", () => void apply({ type: "move", step: button.dataset.frMove as Step })));
-    root.querySelector<HTMLButtonElement>("[data-fr-skip-all]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) options.onExit(); });
+    root.querySelector<HTMLButtonElement>("[data-fr-skip-all]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) exit(); });
 
     root.querySelector<HTMLButtonElement>("[data-fr-pick-project]")?.addEventListener("click", async () => {
       const selected = await chooseFolder(); if (!selected) return;
@@ -247,9 +280,30 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     root.querySelector<HTMLButtonElement>("[data-fr-connect-codex-manual]")?.addEventListener("click", async () => { const manualPath = root.querySelector<HTMLInputElement>("[data-fr-codex-path]")?.value.trim(); if (!manualPath) { error = text("Enter an explicit Codex executable path first.", "Trage zuerst einen expliziten Codex-Programmpfad ein."); render(captureContext()); return; } const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath }); } catch (cause) { error = String(cause); } finally { busy = false; render(context); } });
     root.querySelector<HTMLButtonElement>("[data-fr-save-provider]")?.addEventListener("click", async () => { if (await apply({ type: "set-providers", providerIds: ["codex"], deferred: false })) await apply({ type: "move", step: "health" }); });
     root.querySelector<HTMLButtonElement>("[data-fr-defer-provider]")?.addEventListener("click", async () => { if (await apply({ type: "set-providers", providerIds: [], deferred: true })) await apply({ type: "move", step: "health" }); });
-    root.querySelector<HTMLButtonElement>("[data-fr-complete]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) options.onExit(); });
+    root.querySelector<HTMLButtonElement>("[data-fr-complete]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) exit(); });
   };
 
   const initialState = stateFrom(snapshot); if (initialState.project.localRoot) await inspectRepository(initialState.project.localRoot);
+
+  disposeProjectActivation = onDesktopProjectActivated(() => {
+    const generation = ++projectActivationGeneration;
+    busy = false;
+    error = null;
+    inspection = null;
+    void loadFirstRunLifecycle()
+      .then(async (next) => {
+        if (generation !== projectActivationGeneration || !root.isConnected) return;
+        snapshot = next;
+        const state = stateFrom(snapshot);
+        if (state.project.localRoot) await inspectRepository(state.project.localRoot);
+        if (generation === projectActivationGeneration && root.isConnected) render();
+      })
+      .catch((cause: unknown) => {
+        if (generation !== projectActivationGeneration || !root.isConnected) return;
+        error = friendlyLifecycleError(cause);
+        render();
+      });
+  });
+
   render(); return true;
 }
