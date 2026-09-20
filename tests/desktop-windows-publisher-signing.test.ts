@@ -37,3 +37,12 @@ test("non-public preview builds do not require publisher certificate secrets", a
 
   assert.match(workflow, /Build signed updater artifacts with locked Rust dependencies\n\s+if: \$\{\{ !inputs\.publish_preview \}\}/);
 });
+
+
+test("Windows qualification workflows are triggered by preview publication workflow changes", async () => {
+  const installer = await read(".github/workflows/desktop-windows-installer.yml");
+  const foundation = await read(".github/workflows/desktop-windows-foundation.yml");
+
+  assert.match(installer, /\.github\/workflows\/desktop-preview-update\.yml/);
+  assert.match(foundation, /\.github\/workflows\/desktop-preview-update\.yml/);
+});
