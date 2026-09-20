@@ -233,6 +233,8 @@ Livariant besitzt aktuell **unabhängig versionierte Produktoberflächen**. Root
 
 Das kanonisch veröffentlichte Desktop Preview ist `0.1.0-rc.29`. Es wurde als unveränderliches Prerelease mit dem Tag `desktop-preview-0.1.0-rc.29-bbfd076f0710` aus dem exakten Quellstand `bbfd076f07103026688611f4e5438c8a58687e83` veröffentlicht.
 
+Windows-Nutzer finden unter [Desktop - Windows-Installation & erster Start](docs/de/desktop-installation.md) die exakte Installer-Identität, Digest-Prüfung sowie First-Run-, GitHub-/Provider-, Update- und Deinstallationsgrenzen.
+
 Dieses Release ist ein Desktop Preview und keine Stable-Release-Autorisierung. Seine Veröffentlichung autorisiert weder ein Stable Release noch Paketveröffentlichungen oder andere Updater-Veröffentlichungen.
 
 ### Aktueller Repository-`main`
@@ -278,7 +280,15 @@ Mehr unter [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md).
 
 ## Hier starten
 
-Für Installation und aktuellen Entwicklungsstand:
+Livariant besitzt derzeit getrennte Setup-Pfade für Desktop und Core/CLI.
+
+### Windows Desktop
+
+1. [Desktop - Windows-Installation & erster Start](docs/de/desktop-installation.md)
+2. [Desktop-GitHub-Verbindung](docs/de/desktop-github-connection.md)
+3. [Datenschutz & Netzwerkverhalten](docs/de/privacy-and-network.md)
+
+### Core / CLI / geschützte Guardian-Workflows
 
 1. [Installation & erstes Projekt](docs/de/installation.md)
 2. [Fünf-Minuten-Schnellstart](docs/de/quickstart.md)
