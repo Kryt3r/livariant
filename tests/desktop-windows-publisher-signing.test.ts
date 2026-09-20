@@ -35,7 +35,7 @@ test("public Windows preview verifies publisher signature before publication", a
 test("non-public preview builds do not require publisher certificate secrets", async () => {
   const workflow = await read(".github/workflows/desktop-preview-update.yml");
 
-  assert.match(workflow, /Build signed updater artifacts with locked Rust dependencies\n\s+if: \$\{\{ !inputs\.publish_preview \}\}/);
+  assert.match(workflow, /Build signed updater artifacts with locked Rust dependencies\r?\n\s+if: \$\{\{ !inputs\.publish_preview \}\}/);
 });
 
 
