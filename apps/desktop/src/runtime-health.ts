@@ -175,7 +175,7 @@ void getVersion()
     desktopDetail = `Desktop updater version: ${version}`;
     applyRuntimeHealth();
   })
-  .catch((error: unknown) => {
+  .catch(() => {
     cachedDesktopVersion = null;
     desktopDetail = runtimeBridgeFailureCopy("desktop");
     applyRuntimeHealth();
@@ -186,7 +186,7 @@ void invoke<RuntimeHealth>("runtime_health")
     cachedHealth = health;
     applyRuntimeHealth();
   })
-  .catch((error: unknown) => {
+  .catch(() => {
     cachedHealth = {
       state: "invalid",
       coreVersion: null,
