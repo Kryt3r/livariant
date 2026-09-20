@@ -11,6 +11,7 @@ const primaryErrorSurfaces = [
   "apps/desktop/src/project-source-review-lazy-view.ts",
   "apps/desktop/src/diagnostics-cockpit.ts",
   "apps/desktop/src/wp056-redesign-polish.ts",
+  "apps/desktop/src/github-source-picker.ts",
 ];
 
 test("normal Desktop error surfaces do not render raw caught host errors", async () => {
@@ -26,10 +27,12 @@ test("normalized errors tell users how to recover without weakening fail-closed 
   const connections = await read("apps/desktop/src/project-connections-settings.ts");
   const diagnostics = await read("apps/desktop/src/connections-diagnostics.ts");
   const review = await read("apps/desktop/src/project-source-review-lazy-view.ts");
+  const githubPicker = await read("apps/desktop/src/github-source-picker.ts");
 
   assert.match(switcher, /current project remains active/);
   assert.match(connections, /Nothing was deleted/);
   assert.match(connections, /Check your network connection and try again/);
   assert.match(diagnostics, /Existing evidence was kept/);
   assert.match(review, /Try refreshing this section/);
+  assert.match(githubPicker, /enter repository details manually/);
 });
