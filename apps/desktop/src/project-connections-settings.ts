@@ -244,8 +244,8 @@ function confirmationMarkup(): string {
           <span class="eyebrow">GitHub</span>
           <h3 id="project-confirm-title">${text("Disconnect GitHub?", "GitHub trennen?")}</h3>
           <p>${text(
-            "Livariant removes only the account connection. Project repository associations and every local checkout remain unchanged.",
-            "Livariant entfernt nur die Account-Verbindung. Projekt-Repository-Zuordnungen und alle lokalen Checkouts bleiben unverändert.",
+            "Livariant removes only the locally stored protected GitHub credential. The GitHub-side app authorization is not revoked here and must be revoked separately in GitHub if you want to remove it there. Project repository associations and every local checkout remain unchanged.",
+            "Livariant entfernt nur das lokal gespeicherte geschützte GitHub-Credential. Die GitHub-seitige App-Autorisierung wird hier nicht widerrufen und muss bei Bedarf separat in GitHub widerrufen werden. Projekt-Repository-Zuordnungen und alle lokalen Checkouts bleiben unverändert.",
           )}</p>
         </div>
         <div class="project-confirm-boundary">${text(
@@ -522,7 +522,10 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
       try {
         await invoke("github_disconnect");
         githubStatus = await invoke<GitHubConnectionStatus>("github_connection_status");
-        notice = text("GitHub disconnected. Project sources were kept.", "GitHub wurde getrennt. Projektquellen wurden beibehalten.");
+        notice = text(
+          "Local GitHub credential removed. Project sources were kept. GitHub-side app authorization was not revoked.",
+          "Lokales GitHub-Credential entfernt. Projektquellen wurden beibehalten. Die GitHub-seitige App-Autorisierung wurde nicht widerrufen.",
+        );
       } catch (cause) {
         error = connectionError("manage");
       } finally {
