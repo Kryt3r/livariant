@@ -76,6 +76,11 @@ mod child_lifetime {
 
     pub(crate) struct ChildLifetimeGuard(Handle);
 
+    // Windows kernel handles are process-wide objects and may be closed from a
+    // different thread than the one that created them. The guard owns the only
+    // Job Object handle and never dereferences the opaque HANDLE value.
+    unsafe impl Send for ChildLifetimeGuard {}
+
     impl ChildLifetimeGuard {
         pub(crate) fn attach(child: &Child) -> Result<Self, String> {
             let job = unsafe { CreateJobObjectW(ptr::null_mut(), ptr::null()) };
