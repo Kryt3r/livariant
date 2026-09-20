@@ -193,7 +193,7 @@ fn public_status(app: &AppHandle, provider: &str, intent: &ProviderIntent) -> Re
         "detail": inspection.get("detail").cloned().unwrap_or(Value::String("Local provider state observed.".to_owned())),
         "launchSource": inspection.get("launchSource").cloned().unwrap_or(Value::Null),
         "connected": connected,
-        "connectionMode": intent.mode,
+        "connectionMode": intent.mode.clone(),
         "configuredPath": intent.manual_path.clone(),
     }))
 }
