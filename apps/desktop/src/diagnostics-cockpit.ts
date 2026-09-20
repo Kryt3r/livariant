@@ -138,9 +138,17 @@ const renderQuality = (data: DiagnosticsSummary) => {
 
 const renderFindings = (data: DiagnosticsSummary) => {
   const findings: { tone: string; text: string }[] = [];
+  const projectUnattributed = data.scope.unattributedEventCount;
   const taskMissing = data.attribution.taskId.unattributedEventCount;
   const modelMissing = data.attribution.model.unattributedEventCount;
   const providerUnknown = sumUnknownTotals(data.attribution.provider);
+  if (projectUnattributed > 0) findings.push({
+    tone: "info",
+    text: lang(
+      `${number(projectUnattributed)} diagnostic events in this period have no project attribution and are excluded from this project view.`,
+      `${number(projectUnattributed)} Diagnose-Ereignisse in diesem Zeitraum besitzen keine Projektzuordnung und werden in dieser Projektansicht nicht eingerechnet.`,
+    ),
+  });
   if (taskMissing > 0) findings.push({ tone: "warning", text: lang(`${number(taskMissing)} observed events have no task attribution.`, `${number(taskMissing)} beobachtete Ereignisse besitzen keine Task-Zuordnung.`) });
   if (modelMissing > 0) findings.push({ tone: "info", text: lang(`${number(modelMissing)} observed events have no model attribution.`, `${number(modelMissing)} beobachtete Ereignisse besitzen keine Modell-Zuordnung.`) });
   if (providerUnknown > 0) findings.push({ tone: "info", text: lang(`${number(providerUnknown)} provider-attributed events have no explicit total-token value.`, `${number(providerUnknown)} dem Provider zugeordnete Ereignisse besitzen keinen expliziten Gesamt-Tokenwert.`) });
