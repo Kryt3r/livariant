@@ -505,7 +505,7 @@ const bindUpdateCheckEvent = () => {
       else if (updateResult.state === "current") notice = { kind: "success", title: "Livariant is up to date", detail: updateResult.detail };
       else if (updateResult.state === "not-configured") notice = { kind: "warning", title: "Update channel not configured", detail: updateResult.detail };
       else notice = { kind: "error", title: "Update check needs attention", detail: updateResult.detail };
-    } catch (error: unknown) {
+    } catch {
       updateResult = { state: "error", currentVersion: "unknown", availableVersion: null, detail: updateHostFailureCopy() };
       updateState = "error";
       notice = { kind: "error", title: "Update check failed", detail: updateResult.detail };
