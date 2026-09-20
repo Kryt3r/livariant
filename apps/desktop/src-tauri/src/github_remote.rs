@@ -15,6 +15,7 @@ const GITHUB_API: &str = "https://api.github.com";
 const GITHUB_LOGIN: &str = "https://github.com/login";
 const API_VERSION: &str = "2022-11-28";
 const USER_AGENT: &str = "Livariant-Desktop";
+const GITHUB_HTTP_TIMEOUT_SECONDS: u64 = 15;
 const SECRET_FILE: &str = "github-user-access-token.dpapi";
 
 #[derive(Debug, Clone)]
@@ -257,16 +258,16 @@ fn delete_credential() -> Result<(), String> { Ok(()) }
 
 fn github_post_form<T: for<'de> Deserialize<'de>>(url: &str, form: Value) -> Result<T, String> {
     let response = run_powershell_json(
-        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); $body=@{}; $p.form.psobject.Properties|%{$body[$_.Name]=[string]$_.Value}; try{$r=Invoke-RestMethod -Method Post -Uri $p.url -Headers @{Accept='application/json';'User-Agent'=$p.userAgent} -Body $body -ContentType 'application/x-www-form-urlencoded'; $r|ConvertTo-Json -Compress -Depth 20}catch{Write-Error $_; exit 1}",
-        &json!({"url": url, "form": form, "userAgent": USER_AGENT}),
+        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); $body=@{}; $p.form.psobject.Properties|%{$body[$_.Name]=[string]$_.Value}; try{$r=Invoke-RestMethod -Method Post -Uri $p.url -Headers @{Accept='application/json';'User-Agent'=$p.userAgent} -Body $body -ContentType 'application/x-www-form-urlencoded' -TimeoutSec $p.timeoutSeconds; $r|ConvertTo-Json -Compress -Depth 20}catch{Write-Error $_; exit 1}",
+        &json!({"url": url, "form": form, "userAgent": USER_AGENT, "timeoutSeconds": GITHUB_HTTP_TIMEOUT_SECONDS}),
     )?;
     serde_json::from_value(response).map_err(|error| format!("GitHub authorization response was invalid: {error}"))
 }
 
 fn github_get_json(path: &str, token: &str) -> Result<Value, String> {
     run_powershell_json(
-        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); try{$r=Invoke-RestMethod -Method Get -Uri $p.url -Headers @{Accept='application/vnd.github+json';Authorization=('Bearer '+$p.token);'X-GitHub-Api-Version'=$p.apiVersion;'User-Agent'=$p.userAgent}; $r|ConvertTo-Json -Compress -Depth 30}catch{Write-Error $_; exit 1}",
-        &json!({"url": format!("{GITHUB_API}{path}"), "token": token, "apiVersion": API_VERSION, "userAgent": USER_AGENT}),
+        "$p=ConvertFrom-Json ([Console]::In.ReadToEnd()); try{$r=Invoke-RestMethod -Method Get -Uri $p.url -Headers @{Accept='application/vnd.github+json';Authorization=('Bearer '+$p.token);'X-GitHub-Api-Version'=$p.apiVersion;'User-Agent'=$p.userAgent} -TimeoutSec $p.timeoutSeconds; $r|ConvertTo-Json -Compress -Depth 30}catch{Write-Error $_; exit 1}",
+        &json!({"url": format!("{GITHUB_API}{path}"), "token": token, "apiVersion": API_VERSION, "userAgent": USER_AGENT, "timeoutSeconds": GITHUB_HTTP_TIMEOUT_SECONDS}),
     )
 }
 
