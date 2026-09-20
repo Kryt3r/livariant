@@ -1,6 +1,7 @@
 import "./diagnostics-cockpit.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 
 type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
 type DiagnosticsTab = "overview" | "usage" | "attribution" | "details";
@@ -19,6 +20,11 @@ type ObservedAttributionDimension = {
 type DiagnosticsSummary = {
   preset: DiagnosticPreset;
   range: { start?: string; end?: string };
+  scope: {
+    kind: "project";
+    projectId: string;
+    unattributedEventCount: number;
+  };
   hasObservedData: boolean;
   storage: string;
   observed: {
@@ -61,6 +67,7 @@ const state: CockpitState = {
   error: null,
   notice: null,
 };
+let projectActivationGeneration = 0;
 
 const lang = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 const number = (value: number) => new Intl.NumberFormat(getLanguage() === "de" ? "de-DE" : "en-US").format(value);
@@ -197,6 +204,7 @@ const renderCockpit = (surface: HTMLElement) => {
 };
 
 const load = async (surface: HTMLElement) => {
+  const generation = projectActivationGeneration;
   state.busy = true;
   state.error = null;
   state.notice = null;
@@ -207,13 +215,17 @@ const load = async (surface: HTMLElement) => {
   else surface.innerHTML = `<div class="dc-loading"><span></span><strong>${lang("Loading diagnostic evidence…", "Lade Diagnose-Evidence…")}</strong></div>`;
 
   try {
-    state.data = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: state.preset });
+    const next = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: state.preset });
+    if (generation !== projectActivationGeneration) return;
+    state.data = next;
   } catch (cause) {
+    if (generation !== projectActivationGeneration) return;
     state.error = String(cause);
     if (!state.data) {
       surface.innerHTML = `<div class="dc-error dc-error-standalone"><strong>${lang("Diagnostics could not be loaded.", "Diagnose konnte nicht geladen werden.")}</strong><p>${esc(state.error)}</p></div>`;
     }
   } finally {
+    if (generation !== projectActivationGeneration) return;
     state.busy = false;
     if (state.data) renderCockpit(surface);
   }
@@ -235,15 +247,19 @@ const bind = (surface: HTMLElement) => {
   surface.querySelector<HTMLButtonElement>(".dc-refresh")?.addEventListener("click", () => void load(surface));
   surface.querySelector<HTMLButtonElement>(".dc-export")?.addEventListener("click", async () => {
     if (state.busy) return;
+    const generation = projectActivationGeneration;
     state.busy = true;
     state.notice = null;
     renderCockpit(surface);
     try {
       const result = await invoke<ExportResult>("save_codex_diagnostics_export", { preset: state.preset });
+      if (generation !== projectActivationGeneration) return;
       if (result.saved) state.notice = lang(`Export saved${result.fileName ? ` as ${result.fileName}` : ""}.`, `Export gespeichert${result.fileName ? ` als ${result.fileName}` : ""}.`);
     } catch (cause) {
+      if (generation !== projectActivationGeneration) return;
       state.error = String(cause);
     } finally {
+      if (generation !== projectActivationGeneration) return;
       state.busy = false;
       renderCockpit(surface);
     }
@@ -262,3 +278,14 @@ const mount = () => {
 const observer = new MutationObserver(() => mount());
 observer.observe(document.documentElement, { childList: true, subtree: true });
 mount();
+
+
+onDesktopProjectActivated(() => {
+  projectActivationGeneration += 1;
+  state.data = null;
+  state.busy = false;
+  state.error = null;
+  state.notice = null;
+  const surface = document.querySelector<HTMLElement>("[data-surface='diagnostics']");
+  if (surface?.dataset.diagnosticsCockpit === "mounted") void load(surface);
+});
