@@ -1,4 +1,7 @@
-use crate::connector_host::{codex_diagnostics_export, ConnectorHostState};
+use crate::{
+    connector_host::{codex_diagnostics_export, ConnectorHostState},
+    desktop_project_registry::DesktopProjectRegistryState,
+};
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -33,6 +36,29 @@ fn validate_export_for_save(value: &Value) -> Result<(), String> {
     }
     if value.get("kind").and_then(Value::as_str) != Some("livariant-diagnostics-evidence-export") {
         return Err("Diagnostics export kind is invalid.".to_owned());
+    }
+    let scope = value
+        .get("projectScope")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "Diagnostics export projectScope is required.".to_owned())?;
+    if scope.get("kind").and_then(Value::as_str) != Some("project") {
+        return Err("Diagnostics export projectScope kind is invalid.".to_owned());
+    }
+    let project_id = scope
+        .get("projectId")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.chars().count() <= 240)
+        .ok_or_else(|| "Diagnostics export projectScope projectId is invalid.".to_owned())?;
+    if project_id.chars().count() > 240 {
+        return Err("Diagnostics export projectScope projectId is invalid.".to_owned());
+    }
+    if !scope
+        .get("unattributedEventCount")
+        .and_then(Value::as_u64)
+        .is_some()
+    {
+        return Err("Diagnostics export projectScope unattributedEventCount is invalid.".to_owned());
     }
     for field in [
         "rawPromptsIncluded",
@@ -99,10 +125,11 @@ fn pick_export_path(default_file_name: &str) -> Result<Option<PathBuf>, String> 
 pub fn save_codex_diagnostics_export(
     app: AppHandle,
     state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
     preset: Option<String>,
 ) -> Result<DiagnosticsExportSaveResult, String> {
     let file_label = preset.clone().unwrap_or_else(|| "current".to_owned());
-    let evidence = codex_diagnostics_export(app, state, preset)?;
+    let evidence = codex_diagnostics_export(app, state, registry, preset)?;
     validate_export_for_save(&evidence)?;
 
     let default_file_name = format!("livariant-diagnostics-{file_label}.json");
@@ -130,6 +157,11 @@ mod tests {
         json!({
             "schemaVersion": 1,
             "kind": "livariant-diagnostics-evidence-export",
+            "projectScope": {
+                "kind": "project",
+                "projectId": "project-a",
+                "unattributedEventCount": 2
+            },
             "privacy": {
                 "rawPromptsIncluded": false,
                 "freeformReasonsIncluded": false,
