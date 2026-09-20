@@ -64,5 +64,6 @@ test("public Preview publication requires a formal privacy notice URL", async ()
   assert.match(workflow, /Require formal privacy notice for publication/);
   assert.match(workflow, /if: \$\{\{ inputs\.publish_preview \}\}/);
   assert.match(workflow, /LIVARIANT_PRIVACY_NOTICE_URL is required to publish a Windows preview/);
-  assert.match(workflow, /must be a fixed HTTPS URL without whitespace or fragments/);
+  assert.match(workflow, /must be an absolute HTTPS URL/);
+  assert.match(workflow, /must use HTTPS and must not contain a fragment/);
 });
