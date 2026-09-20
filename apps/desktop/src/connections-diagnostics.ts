@@ -99,6 +99,25 @@ const measured = (value: number) => diagnostics?.hasObservedData ? formatNumber(
 const connectorMutating = () => connectorAction !== null;
 const lang = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 
+const connectionSurfaceError = (area: "connector" | "diagnostics" | "export" | "measure"): string => {
+  if (area === "connector") return lang(
+    "The Codex connection could not be refreshed. Check the local Codex installation and try again.",
+    "Die Codex-Verbindung konnte nicht aktualisiert werden. Prüfe die lokale Codex-Installation und versuche es erneut.",
+  );
+  if (area === "export") return lang(
+    "The diagnostics export could not be saved. Check the destination and try again.",
+    "Der Diagnose-Export konnte nicht gespeichert werden. Prüfe das Ziel und versuche es erneut.",
+  );
+  if (area === "measure") return lang(
+    "The diagnostics measurement could not be completed. Existing evidence was kept.",
+    "Die Diagnosemessung konnte nicht abgeschlossen werden. Bestehende Evidence wurde beibehalten.",
+  );
+  return lang(
+    "Diagnostics could not be refreshed. Existing evidence was kept; try again.",
+    "Die Diagnose konnte nicht aktualisiert werden. Bestehende Evidence wurde beibehalten; versuche es erneut.",
+  );
+};
+
 const presetLabel = (preset: DiagnosticPreset) => ({
   "1d": t("diagnostics.day"),
   "7d": t("diagnostics.days7"),
@@ -146,7 +165,7 @@ export async function refreshConnector(): Promise<void> {
   checkingConnector = true;
   error = null;
   try { connector = await invoke<ConnectorStatus>("codex_connector_status"); }
-  catch (cause) { error = String(cause); }
+  catch (_cause) { error = connectionSurfaceError("connector"); }
   finally { checkingConnector = false; }
 }
 
@@ -166,7 +185,7 @@ export async function refreshDiagnostics(): Promise<void> {
   }
   catch (cause) {
     if (generation !== diagnosticsProjectGeneration) return;
-    error = String(cause);
+    error = connectionSurfaceError("diagnostics");
   }
   finally {
     if (generation === diagnosticsProjectGeneration) diagnosticsBusy = null;
@@ -416,7 +435,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     checkingConnector = true;
     setRefreshVisualState(true);
     try { connector = await invoke<ConnectorStatus>("codex_connector_status"); error = null; }
-    catch (cause) { error = String(cause); }
+    catch (_cause) { error = connectionSurfaceError("connector"); }
     finally {
       checkingConnector = false;
       const changed = !sameConnectorStatus(previousConnector, connector) || previousError !== error;
@@ -427,14 +446,14 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   document.querySelector<HTMLButtonElement>(".connector-connect")?.addEventListener("click", async () => {
     connectorAction = "connect"; error = null; rerenderConnectionsSurface(rerender);
     try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); }
-    catch (cause) { error = String(cause); }
+    catch (_cause) { error = connectionSurfaceError("connector"); }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
 
   document.querySelector<HTMLButtonElement>(".connector-disconnect")?.addEventListener("click", async () => {
     connectorAction = "disconnect"; error = null; rerenderConnectionsSurface(rerender);
     try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); }
-    catch (cause) { error = String(cause); }
+    catch (_cause) { error = connectionSurfaceError("connector"); }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
 
@@ -469,7 +488,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
       }
     } catch (cause) {
       if (generation !== diagnosticsProjectGeneration) return;
-      error = String(cause);
+      error = connectionSurfaceError("export");
     }
     finally {
       if (generation !== diagnosticsProjectGeneration) return;
@@ -496,7 +515,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
       diagnostics = result.diagnostics;
     } catch (cause) {
       if (generation !== diagnosticsProjectGeneration) return;
-      error = String(cause);
+      error = connectionSurfaceError("measure");
     }
     finally {
       if (generation !== diagnosticsProjectGeneration) return;
