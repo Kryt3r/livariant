@@ -208,7 +208,7 @@ export function inspectCustomLocalProvider(
       command: launch.command,
       argsPrefix: launch.argsPrefix,
       launchSource: launch.source,
-      detail: result.errorMessage ?? result.stderr.trim() || result.stdout.trim() || `exit ${String(result.status)}`,
+      detail: result.errorMessage ?? (result.stderr.trim() || result.stdout.trim() || `exit ${String(result.status)}`),
     };
   }
 
