@@ -46,3 +46,20 @@ test("Windows qualification workflows are triggered by preview publication workf
   assert.match(installer, /\.github\/workflows\/desktop-preview-update\.yml/);
   assert.match(foundation, /\.github\/workflows\/desktop-preview-update\.yml/);
 });
+
+
+test("publisher certificate policy rejects unusable identities before build", async () => {
+  const workflow = await read(".github/workflows/desktop-preview-update.yml");
+
+  assert.match(workflow, /WINDOWS_CODE_SIGNING_TIMESTAMP_URL must be an absolute HTTPS URL/);
+  assert.match(workflow, /WINDOWS_CODE_SIGNING_TIMESTAMP_URL must use HTTPS and must not contain a fragment/);
+  assert.match(workflow, /Windows code-signing certificate is not valid yet/);
+  assert.match(workflow, /Windows code-signing certificate has expired/);
+  assert.match(workflow, /2\.5\.29\.37/);
+  assert.match(workflow, /1\.3\.6\.1\.5\.5\.7\.3\.3/);
+  assert.match(workflow, /Windows code-signing certificate is not valid for Code Signing/);
+
+  const policyIndex = workflow.indexOf("Windows code-signing certificate is not valid for Code Signing");
+  const buildIndex = workflow.indexOf("Build Authenticode + updater signed publication artifacts");
+  assert.ok(policyIndex >= 0 && buildIndex > policyIndex, "publisher certificate policy must be enforced before publication build");
+});
