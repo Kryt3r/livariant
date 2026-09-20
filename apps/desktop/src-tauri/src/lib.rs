@@ -10,6 +10,7 @@ mod first_run_project_state;
 mod first_run_ux;
 mod github_remote;
 mod github_telemetry;
+mod local_provider_desktop;
 mod notification_center;
 mod notification_product_events;
 mod operator_broadcast;
@@ -288,6 +289,9 @@ pub fn run() {
             connector_host::codex_connector_status,
             connector_host::codex_connector_connect,
             connector_host::codex_connector_disconnect,
+            local_provider_desktop::local_provider_status,
+            local_provider_desktop::local_provider_connect,
+            local_provider_desktop::local_provider_disconnect,
             connector_host::codex_diagnostics_summary,
             diagnostics_export_save::save_codex_diagnostics_export,
             connector_host::codex_diagnostics_measure
