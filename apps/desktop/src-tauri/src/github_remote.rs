@@ -426,6 +426,8 @@ fn git_clone(repository: &GitHubRepositorySummary, destination: &Path, token: &s
         .arg(&repository.remote_url)
         .arg(&git_destination)
         .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_HTTP_LOW_SPEED_LIMIT", "1")
+        .env("GIT_HTTP_LOW_SPEED_TIME", "60")
         .env("GIT_CONFIG_COUNT", "2")
         .env("GIT_CONFIG_KEY_0", "http.https://github.com/.extraheader")
         .env("GIT_CONFIG_VALUE_0", git_http_authorization(token))
