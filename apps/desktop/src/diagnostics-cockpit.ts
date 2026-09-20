@@ -228,7 +228,7 @@ const load = async (surface: HTMLElement) => {
     state.data = next;
   } catch (cause) {
     if (generation !== projectActivationGeneration) return;
-    state.error = String(cause);
+    state.error = diagnosticsErrorCopy("load");
     if (!state.data) {
       surface.innerHTML = `<div class="dc-error dc-error-standalone"><strong>${lang("Diagnostics could not be loaded.", "Diagnose konnte nicht geladen werden.")}</strong><p>${esc(state.error)}</p></div>`;
     }
@@ -265,7 +265,7 @@ const bind = (surface: HTMLElement) => {
       if (result.saved) state.notice = lang(`Export saved${result.fileName ? ` as ${result.fileName}` : ""}.`, `Export gespeichert${result.fileName ? ` als ${result.fileName}` : ""}.`);
     } catch (cause) {
       if (generation !== projectActivationGeneration) return;
-      state.error = String(cause);
+      state.error = diagnosticsErrorCopy("export");
     } finally {
       if (generation !== projectActivationGeneration) return;
       state.busy = false;
