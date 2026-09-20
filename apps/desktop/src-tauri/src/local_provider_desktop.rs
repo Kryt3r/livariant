@@ -190,7 +190,7 @@ fn public_status(app: &AppHandle, provider: &str, intent: &ProviderIntent) -> Re
         "launchSource": inspection.get("launchSource").cloned().unwrap_or(Value::Null),
         "connected": connected,
         "connectionMode": intent.mode,
-        "configuredPath": intent.manual_path,
+        "configuredPath": intent.manual_path.clone(),
     }))
 }
 
