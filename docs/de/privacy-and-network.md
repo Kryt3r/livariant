@@ -51,6 +51,8 @@ Die aktuelle GitHub-Fähigkeit ist leseorientiert. Das Verbinden von GitHub verg
 
 Unter Windows werden Access-/Refresh-Token mit der DPAPI-Grenze des aktuellen Benutzers geschützt, bevor ausschließlich geschütztes Material unter Livariant-App-Daten gespeichert wird. Klartext-Tokens werden nicht in Projektdateien geschrieben.
 
+**GitHub trennen** entfernt dieses lokal gespeicherte geschützte Credential und verwirft einen eventuell laufenden Device-Flow. Livariant widerruft dabei nicht die GitHub-seitige App-Autorisierung; wenn du diese ebenfalls entfernen möchtest, musst du sie separat in GitHub widerrufen.
+
 Ein Git-Clone überträgt zwangsläufig Inhalte des ausdrücklich ausgewählten Repositories von GitHub in den von dir gewählten lokalen Checkout. Livariant klont Repositories nicht stillschweigend.
 
 Siehe [Desktop-GitHub-Verbindung](desktop-github-connection.md).
