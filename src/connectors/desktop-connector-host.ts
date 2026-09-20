@@ -54,6 +54,7 @@ let unsubscribeWorkflow: (() => void) | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
 let pendingApprovals = 0;
 const completedTurns = new Set<string>();
+const measurementProjectScopes = new Map<string, string>();
 let selectedResolution: CodexCommandResolution | undefined;
 let selectedMode: "auto" | "manual" = "auto";
 let lastRestoreError: string | undefined;
@@ -172,6 +173,7 @@ async function disconnectSession(): Promise<void> {
   pendingApprovals = 0;
   sequencer.reset();
   completedTurns.clear();
+  measurementProjectScopes.clear();
 }
 
 async function connectSession(options: ConnectSessionOptions = {}) {
@@ -200,7 +202,21 @@ async function connectSession(options: ConnectSessionOptions = {}) {
     if (event.kind !== "usage") return;
     const result = sequencer.accept(event.snapshot);
     if (result.kind !== "delta") return;
-    writeQueue = writeQueue.then(() => store.append(result.event));
+    const sessionId = result.event.attribution?.sessionId;
+    const taskId = result.event.attribution?.taskId;
+    const measurementProjectId = sessionId && taskId
+      ? measurementProjectScopes.get(completionKey(sessionId, taskId))
+      : undefined;
+    const diagnosticEvent = measurementProjectId
+      ? {
+          ...result.event,
+          attribution: {
+            ...result.event.attribution,
+            projectId: measurementProjectId,
+          },
+        }
+      : result.event;
+    writeQueue = writeQueue.then(() => store.append(diagnosticEvent));
   });
   return connectionStatus();
 }
@@ -448,26 +464,32 @@ async function measure(preset: DiagnosticPreset = "all", projectId: string) {
   sequencer.markNewThread(thread.threadId);
   const turn = await workflow.startTurn(thread.threadId, "Reply with exactly: Livariant diagnostics connection verified.");
   const key = completionKey(turn.threadId, turn.turnId);
-  const deadline = Date.now() + 60_000;
-  while (!completedTurns.has(key)) {
-    if (!session.isOpen()) throw new Error("Codex disconnected during the diagnostics measurement turn.");
-    if (Date.now() >= deadline) throw new Error("Codex diagnostics measurement turn timed out.");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+  measurementProjectScopes.set(key, projectId);
+  try {
+    const deadline = Date.now() + 60_000;
+    while (!completedTurns.has(key)) {
+      if (!session.isOpen()) throw new Error("Codex disconnected during the diagnostics measurement turn.");
+      if (Date.now() >= deadline) throw new Error("Codex diagnostics measurement turn timed out.");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    completedTurns.delete(key);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await writeQueue;
+    await measurementStore.recordSuccess(target);
+    return {
+      connection: connectionStatus(),
+      measuredTarget: {
+        provider: target.provider,
+        model: target.model,
+        displayName: target.displayName,
+        scope: resolved.scope,
+      },
+      diagnostics: await diagnostics(preset, projectId),
+    };
+  } finally {
+    measurementProjectScopes.delete(key);
+    completedTurns.delete(key);
   }
-  completedTurns.delete(key);
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  await writeQueue;
-  await measurementStore.recordSuccess(target);
-  return {
-    connection: connectionStatus(),
-    measuredTarget: {
-      provider: target.provider,
-      model: target.model,
-      displayName: target.displayName,
-      scope: resolved.scope,
-    },
-    diagnostics: await diagnostics(preset, projectId),
-  };
 }
 
 async function handle(request: Request): Promise<unknown> {
