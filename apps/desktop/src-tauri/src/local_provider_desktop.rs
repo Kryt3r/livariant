@@ -87,6 +87,10 @@ fn write_intent(app: &AppHandle, provider: &str, intent: &ProviderIntent) -> Res
         .map_err(|error| format!("Local provider connection preference could not be encoded: {error}"))?;
     fs::write(&temporary, bytes)
         .map_err(|error| format!("Local provider connection preference could not be written: {error}"))?;
+    if path.exists() {
+        fs::remove_file(&path)
+            .map_err(|error| format!("Previous local provider connection preference could not be replaced: {error}"))?;
+    }
     fs::rename(&temporary, &path)
         .map_err(|error| format!("Local provider connection preference could not be committed: {error}"))?;
     Ok(())
