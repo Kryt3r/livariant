@@ -454,7 +454,7 @@ const checkForUpdates = async () => {
   reconcile();
   try {
     cachedResult = await invoke<UpdateResult>("check_for_update");
-  } catch (error: unknown) {
+  } catch {
     cachedResult = {
       state: "error",
       currentVersion: "unknown",
@@ -487,7 +487,7 @@ const installUpdate = async (expectedVersion: string) => {
 
   try {
     cachedResult = await invoke<UpdateResult>("apply_update", { expectedVersion });
-  } catch (error: unknown) {
+  } catch {
     cachedResult = {
       state: "error",
       currentVersion: "unknown",
