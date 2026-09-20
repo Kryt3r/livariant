@@ -93,6 +93,20 @@ onDesktopProjectActivated(() => {
 });
 
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
+const connectionError = (action: "load" | "connect" | "manage"): string => {
+  if (action === "load") return text(
+    "Connection settings could not be loaded. Try refreshing this section.",
+    "Verbindungseinstellungen konnten nicht geladen werden. Aktualisiere diesen Bereich erneut.",
+  );
+  if (action === "connect") return text(
+    "GitHub connection could not be completed. Check your network connection and try again.",
+    "Die GitHub-Verbindung konnte nicht abgeschlossen werden. Prüfe deine Netzwerkverbindung und versuche es erneut.",
+  );
+  return text(
+    "This connection change could not be saved. Nothing was deleted. Try again.",
+    "Diese Verbindungsänderung konnte nicht gespeichert werden. Es wurde nichts gelöscht. Versuche es erneut.",
+  );
+};
 const esc = (value: string) => value.replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character] ?? character);
