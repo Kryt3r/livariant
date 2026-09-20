@@ -198,11 +198,15 @@ fn run_acceptance(app: &AppHandle) -> Result<AcceptanceOutcome, String> {
 
     let active_b = ci_activate_project(app, state.inner(), &id_b)?;
     let scope_b = ProjectPersistenceScope::Active(active_b.clone());
-    let stale_error = with_project_persistence_scope_current(app, state.inner(), &scope_a, || {
-        replace_staged_file(&stale_a, &a_presentation)
-    })
-    .expect_err("stale Project A commit must be rejected after Project B activation");
-    let stale_a_commit_rejected = stale_error.contains("stale") || stale_error.contains("active Desktop project changed");
+    let stale_a_commit_rejected = match with_project_persistence_scope_current(
+        app,
+        state.inner(),
+        &scope_a,
+        || replace_staged_file(&stale_a, &a_presentation),
+    ) {
+        Ok(()) => false,
+        Err(error) => error.contains("stale") || error.contains("active Desktop project changed"),
+    };
     let _ = fs::remove_file(&stale_a);
 
     write_scoped_markers(app, &scope_b, "B")?;
