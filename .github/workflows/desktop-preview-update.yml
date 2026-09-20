@@ -12,6 +12,11 @@ on:
         required: true
         default: false
         type: boolean
+      windows_authenticode:
+        description: Sign the Windows installer/executable with a configured CA-issued Authenticode identity
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -96,7 +101,7 @@ jobs:
           Write-Host "Formal privacy notice destination is configured for this publication build."
       - name: Prepare Windows Authenticode signing for publication
         id: authenticode
-        if: ${{ inputs.publish_preview }}
+        if: ${{ inputs.publish_preview && inputs.windows_authenticode }}
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) {
@@ -259,15 +264,15 @@ jobs:
       - name: Install desktop dependencies from lockfile
         run: npm ci --no-audit --no-fund
 
-      - name: Build signed updater artifacts with locked Rust dependencies
-        if: ${{ !inputs.publish_preview }}
+      - name: Build updater-signed artifacts without Windows publisher identity
+        if: ${{ !inputs.publish_preview || !inputs.windows_authenticode }}
         run: npm run tauri:build -- --config src-tauri/tauri.preview-update.conf.json --bundles nsis --ci -- --locked
 
       - name: Build Authenticode + updater signed publication artifacts
-        if: ${{ inputs.publish_preview }}
+        if: ${{ inputs.publish_preview && inputs.windows_authenticode }}
         run: npm run tauri:build -- --config src-tauri/tauri.preview-update.conf.json --config "${{ steps.authenticode.outputs.config }}" --bundles nsis --ci -- --locked
 
-      - name: Resolve signed updater bundle and immutable candidate identity
+      - name: Resolve updater-signed bundle and immutable candidate identity
         id: update
         shell: pwsh
         run: |
@@ -285,7 +290,9 @@ jobs:
             throw "Updater signature file is empty."
           }
 
-          if ("${{ inputs.publish_preview }}" -eq "true") {
+          $publisherMode = "not-applicable"
+          if ("${{ inputs.publish_preview }}" -eq "true" -and "${{ inputs.windows_authenticode }}" -eq "true") {
+            $publisherMode = "authenticode"
             $authenticode = Get-AuthenticodeSignature -LiteralPath $installers[0].FullName
             if ($authenticode.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
               throw "Public Windows preview installer is not validly Authenticode-signed. Status: $($authenticode.Status)."
@@ -297,6 +304,9 @@ jobs:
               throw "Public Windows preview installer was signed by an unexpected publisher certificate."
             }
             Write-Host "Verified Authenticode publisher identity: $($authenticode.SignerCertificate.Subject)"
+          } elseif ("${{ inputs.publish_preview }}" -eq "true") {
+            $publisherMode = "unsigned-direct-download"
+            Write-Warning "Publishing without a Windows Authenticode publisher identity. Windows may show Unknown publisher / SmartScreen warnings. Tauri updater signing remains mandatory."
           }
 
           $notesPath = Join-Path $PWD "release-notes\$version.json"
@@ -360,9 +370,10 @@ jobs:
           "notes=$notesPath" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
           "preview_tag=$previewTag" >> $env:GITHUB_OUTPUT
-          Write-Host "Prepared signed immutable preview candidate $previewTag with validated de/en release notes from exact source ${{ steps.source.outputs.sha }}."
+          "publisher_mode=$publisherMode" >> $env:GITHUB_OUTPUT
+          Write-Host "Prepared updater-signed immutable preview candidate $previewTag with Windows publisher mode '$publisherMode' and validated de/en release notes from exact source ${{ steps.source.outputs.sha }}."
 
-      - name: Smoke signed preview installer
+      - name: Smoke preview installer
         shell: pwsh
         run: |
           $installDir = Join-Path $env:RUNNER_TEMP "LivariantPreviewUpdateSmoke"
@@ -375,7 +386,7 @@ jobs:
           if (-not (Test-Path -LiteralPath $app -PathType Leaf)) {
             throw "Installed Livariant Desktop executable not found."
           }
-          if ("${{ inputs.publish_preview }}" -eq "true") {
+          if ("${{ inputs.publish_preview }}" -eq "true" -and "${{ inputs.windows_authenticode }}" -eq "true") {
             $installedSignature = Get-AuthenticodeSignature -LiteralPath $app
             if ($installedSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
               throw "Installed public Livariant Desktop executable is not validly Authenticode-signed. Status: $($installedSignature.Status)."
@@ -414,7 +425,7 @@ jobs:
             throw "Immutable preview release $tag already exists. Refusing to overwrite or replace it."
           }
 
-          gh release create $tag --draft --target "${{ steps.source.outputs.sha }}" --title "Livariant Desktop Preview ${{ steps.update.outputs.version }} (${{ steps.source.outputs.sha }})" --notes "Immutable machine-consumable Livariant Desktop preview candidate from exact source ${{ steps.source.outputs.sha }}. This is not Stable release authority." --repo "${{ github.repository }}"
+          gh release create $tag --draft --target "${{ steps.source.outputs.sha }}" --title "Livariant Desktop Preview ${{ steps.update.outputs.version }} (${{ steps.source.outputs.sha }})" --notes "Immutable machine-consumable Livariant Desktop preview candidate from exact source ${{ steps.source.outputs.sha }}. Windows publisher mode: ${{ steps.update.outputs.publisher_mode }}. The updater payload remains cryptographically signed. This is not Stable release authority." --repo "${{ github.repository }}"
           if ($LASTEXITCODE -ne 0) { throw "Failed to create draft immutable preview release $tag." }
 
           gh release upload $tag "${{ steps.update.outputs.bundle }}" "${{ steps.update.outputs.signature }}" "${{ steps.update.outputs.latest }}" "${{ steps.update.outputs.notes }}" --repo "${{ github.repository }}"
