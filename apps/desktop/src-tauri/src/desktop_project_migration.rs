@@ -145,6 +145,33 @@ fn read_legacy_material(app_data: &Path) -> Result<LegacyMaterial, String> {
     })
 }
 
+fn is_pre_project_first_run_progress(material: &LegacyMaterial) -> Result<bool, String> {
+    if material.source_review.is_some() || material.presentation.is_some() {
+        return Ok(false);
+    }
+    let Some(first_run) = material.first_run.as_ref() else {
+        return Ok(false);
+    };
+    let request = validate_first_run(first_run)?;
+    let project = request
+        .onboarding_state
+        .get("project")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "Legacy First Run state omits project state.".to_owned())?;
+    let has_project_id = project
+        .get("projectId")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty());
+    let has_local_root = project
+        .get("localRoot")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty());
+    let has_source_registry = project.get("sourceRegistry").is_some_and(Value::is_object);
+    Ok(!has_project_id && !has_local_root && !has_source_registry)
+}
+
 fn optional_string(value: Option<&Value>) -> Option<String> {
     value
         .and_then(Value::as_str)
@@ -751,6 +778,13 @@ pub(crate) fn initialize(
             restore_last_active_project(app, state)?;
             return Ok(());
         }
+        if is_pre_project_first_run_progress(&material)? {
+            if status.project_count > 0 && status.state == LegacyMigrationState::Pending {
+                mark_legacy_migration_not_needed(app)?;
+                restore_last_active_project(app, state)?;
+            }
+            return Ok(());
+        }
 
         let candidate = match candidate_from_material(material) {
             Ok(candidate) => candidate,
@@ -779,6 +813,9 @@ pub(crate) fn initialize(
     let material = read_legacy_material(&app_data)?;
     if material.is_empty() {
         restore_last_active_project(app, state)?;
+        return Ok(());
+    }
+    if is_pre_project_first_run_progress(&material)? {
         return Ok(());
     }
     let candidate = candidate_from_material(material)?;
@@ -908,6 +945,48 @@ mod tests {
             }),
             presentation: None,
         }
+    }
+
+    #[test]
+    fn pre_project_first_run_progress_does_not_require_project_migration() {
+        let state = json!({
+            "schemaVersion": 1,
+            "onboardingState": {
+                "schemaVersion": 1,
+                "currentStep": "project",
+                "completed": false,
+                "project": {},
+                "understanding": {"projectRoot": "", "questions": []},
+                "providers": {"configuredProviderIds": [], "deferred": false},
+                "health": {
+                    "reviewed": false,
+                    "readyForMainUi": false,
+                    "openQuestionCount": 0,
+                    "skippedQuestionCount": 0,
+                    "hasProjectSelection": false,
+                    "hasSourceRegistry": false
+                },
+                "boundaries": {
+                    "unansweredQuestionGetsDefault": false,
+                    "skippedQuestionBecomesKnown": false,
+                    "onboardingEvidenceIsProjectTruth": false,
+                    "repositoryDescriptionGrantsAuthority": false,
+                    "grantsAuthority": false,
+                    "mutationAuthorized": false,
+                    "changesProjectOwnedFiles": false
+                }
+            },
+            "selectedReviewPaths": [],
+            "decisions": []
+        });
+        let material = LegacyMaterial::default();
+        material.first_run = Some(LegacyJson {
+            bytes: serde_json::to_vec_pretty(&state).expect("state bytes"),
+            value: state,
+        });
+
+        assert!(is_pre_project_first_run_progress(&material).expect("pre-project state accepted"));
+        assert!(candidate_from_material(material).is_err());
     }
 
     #[test]
