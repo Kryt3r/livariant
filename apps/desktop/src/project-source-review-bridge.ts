@@ -189,7 +189,7 @@ async function refreshReviewPathInventory(expectedGeneration = rendererProjectGe
       attention: result.attention,
       detail: text("Reviewable material was inventoried from the linked primary checkout.", "Prüfbares Material wurde aus dem verknüpften Haupt-Checkout inventarisiert."),
     };
-  } catch (error: unknown) {
+  } catch {
     if (expectedGeneration !== rendererProjectGeneration) return;
     selectionState = {
       state: "unavailable",
@@ -215,7 +215,7 @@ export async function loadProjectSourceReviewPresentation(): Promise<void> {
     const result = await invoke<ProjectSourceReviewBridgeResult>("project_source_review_presentation");
     if (generation !== rendererProjectGeneration) return;
     applyPresentationResult(result);
-  } catch (error: unknown) {
+  } catch {
     if (generation !== rendererProjectGeneration) return;
     bridgeState = {
       state: "unavailable",
@@ -243,7 +243,7 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
       attention: [],
       detail: bridgeState.detail,
     };
-  } catch (error: unknown) {
+  } catch {
     if (generation !== rendererProjectGeneration) return;
     bridgeState = {
       state: "unavailable",
