@@ -67,7 +67,7 @@ function isRegistrySnapshot(value: unknown): value is DesktopProjectRegistrySnap
     if (typeof candidate.active !== "object") return false;
     const active = candidate.active as Record<string, unknown>;
     if (typeof active.desktopProjectId !== "string" || !active.desktopProjectId.trim()) return false;
-    if (!Number.isSafeInteger(active.generation) || Number(active.generation) < 0) return false;
+    if (typeof active.generation !== "number" || !Number.isSafeInteger(active.generation) || active.generation < 0) return false;
   }
   return candidate.projects.every((project) => {
     if (!project || typeof project !== "object") return false;
