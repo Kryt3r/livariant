@@ -15,6 +15,10 @@ let cachedHealth: RuntimeHealth | null = null;
 let cachedDesktopVersion: string | null = null;
 let desktopDetail = "Desktop version is loading.";
 
+const runtimeBridgeFailureCopy = (kind: "desktop" | "runtime"): string => kind === "desktop"
+  ? "Desktop version could not be loaded. The installed application remains unchanged."
+  : "Bundled runtime health could not be loaded. Existing runtime state was not treated as healthy.";
+
 // Keep the native window itself fixed to the viewport. The scrollable surface is
 // the app shell, and its visual scrollbar remains intentionally hidden while
 // wheel/touchpad scrolling stays available.
@@ -171,9 +175,9 @@ void getVersion()
     desktopDetail = `Desktop updater version: ${version}`;
     applyRuntimeHealth();
   })
-  .catch((error: unknown) => {
+  .catch(() => {
     cachedDesktopVersion = null;
-    desktopDetail = `Desktop version bridge failed: ${String(error)}`;
+    desktopDetail = runtimeBridgeFailureCopy("desktop");
     applyRuntimeHealth();
   });
 
@@ -182,14 +186,14 @@ void invoke<RuntimeHealth>("runtime_health")
     cachedHealth = health;
     applyRuntimeHealth();
   })
-  .catch((error: unknown) => {
+  .catch(() => {
     cachedHealth = {
       state: "invalid",
       coreVersion: null,
       coreSourceSha: null,
       nodeVersion: null,
       authorityIssued: false,
-      detail: `Desktop runtime health bridge failed: ${String(error)}`,
+      detail: runtimeBridgeFailureCopy("runtime"),
     };
     applyRuntimeHealth();
   });

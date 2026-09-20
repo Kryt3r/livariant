@@ -90,6 +90,20 @@ interface ReviewStartResult {
 }
 
 const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
+const sourceReviewFailureCopy = (kind: "inventory" | "cached" | "refresh"): string => {
+  if (kind === "inventory") return text(
+    "Review material could not be inventoried safely. Check the linked checkout and try again.",
+    "Review-Material konnte nicht sicher inventarisiert werden. Prüfe den verknüpften Checkout und versuche es erneut.",
+  );
+  if (kind === "cached") return text(
+    "The cached project-source view could not be loaded safely. Refresh the project sources to rebuild it.",
+    "Die zwischengespeicherte Projektquellen-Ansicht konnte nicht sicher geladen werden. Aktualisiere die Projektquellen, um sie neu aufzubauen.",
+  );
+  return text(
+    "Project sources could not be refreshed safely. Existing source state was not treated as current. Check the linked checkout and try again.",
+    "Projektquellen konnten nicht sicher aktualisiert werden. Der bestehende Quellenstatus wurde nicht als aktuell behandelt. Prüfe den verknüpften Checkout und versuche es erneut.",
+  );
+};
 let bridgeState: ProjectSourceReviewBridgeResult = {
   state: "unavailable",
   presentation: null,
@@ -175,14 +189,14 @@ async function refreshReviewPathInventory(expectedGeneration = rendererProjectGe
       attention: result.attention,
       detail: text("Reviewable material was inventoried from the linked primary checkout.", "Prüfbares Material wurde aus dem verknüpften Haupt-Checkout inventarisiert."),
     };
-  } catch (error: unknown) {
+  } catch {
     if (expectedGeneration !== rendererProjectGeneration) return;
     selectionState = {
       state: "unavailable",
       candidates: [],
       selectedReviewPaths: [],
       attention: [],
-      detail: `${text("Review material could not be inventoried safely", "Review-Material konnte nicht sicher inventarisiert werden")}: ${String(error)}`,
+      detail: sourceReviewFailureCopy("inventory"),
     };
   }
 }
@@ -201,12 +215,12 @@ export async function loadProjectSourceReviewPresentation(): Promise<void> {
     const result = await invoke<ProjectSourceReviewBridgeResult>("project_source_review_presentation");
     if (generation !== rendererProjectGeneration) return;
     applyPresentationResult(result);
-  } catch (error: unknown) {
+  } catch {
     if (generation !== rendererProjectGeneration) return;
     bridgeState = {
       state: "unavailable",
       presentation: null,
-      detail: `${text("Cached project source presentation could not be loaded safely", "Die zwischengespeicherte Projektquellen-Darstellung konnte nicht sicher geladen werden")}: ${String(error)}`,
+      detail: sourceReviewFailureCopy("cached"),
     };
   }
 }
@@ -229,12 +243,12 @@ export async function refreshProjectSourceReviewPresentation(): Promise<void> {
       attention: [],
       detail: bridgeState.detail,
     };
-  } catch (error: unknown) {
+  } catch {
     if (generation !== rendererProjectGeneration) return;
     bridgeState = {
       state: "unavailable",
       presentation: null,
-      detail: `${text("Project source observation could not be refreshed safely", "Die Projektquellen-Beobachtung konnte nicht sicher aktualisiert werden")}: ${String(error)}`,
+      detail: sourceReviewFailureCopy("refresh"),
     };
     selectionState = {
       state: "unavailable",
