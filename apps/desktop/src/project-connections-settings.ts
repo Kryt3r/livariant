@@ -1,6 +1,7 @@
 import "./project-connections-settings.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 import {
   loadFirstRunLifecycle,
   transitionFirstRunLifecycle,
@@ -75,6 +76,21 @@ let authorization: GitHubDeviceAuthorization | null = null;
 let pollTimer: number | null = null;
 let activeRerender: (() => void) | null = null;
 let pendingConfirmation: PendingConfirmation | null = null;
+let projectActivationGeneration = 0;
+
+onDesktopProjectActivated(() => {
+  projectActivationGeneration += 1;
+  sourceRegistry = null;
+  loading = false;
+  if (busyKey !== "github") busyKey = null;
+  error = null;
+  notice = null;
+  pendingConfirmation = null;
+  activeRerender?.();
+  if (activeRerender) {
+    void refreshProjectConnectionsSettings().then(() => activeRerender?.());
+  }
+});
 
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 const esc = (value: string) => value.replace(/[&<>"']/g, (character) => ({
@@ -100,6 +116,7 @@ function updateFromSnapshot(snapshot: FirstRunLifecycleSnapshot): void {
 }
 
 export async function refreshProjectConnectionsSettings(): Promise<void> {
+  const generation = projectActivationGeneration;
   loading = true;
   error = null;
   try {
@@ -107,12 +124,14 @@ export async function refreshProjectConnectionsSettings(): Promise<void> {
       invoke<GitHubConnectionStatus>("github_connection_status"),
       loadFirstRunLifecycle(),
     ]);
+    if (generation !== projectActivationGeneration) return;
     githubStatus = github;
     updateFromSnapshot(lifecycle);
   } catch (cause) {
+    if (generation !== projectActivationGeneration) return;
     error = String(cause);
   } finally {
-    loading = false;
+    if (generation === projectActivationGeneration) loading = false;
   }
 }
 
@@ -301,13 +320,20 @@ function identityFrom(element: HTMLElement): RepositoryIdentity | null {
   }
 }
 
+async function transitionForCurrentProject(action: FirstRunLifecycleAction): Promise<FirstRunLifecycleSnapshot | null> {
+  const generation = projectActivationGeneration;
+  const snapshot = await transitionFirstRunLifecycle(action);
+  return generation === projectActivationGeneration ? snapshot : null;
+}
+
 async function applyAction(action: FirstRunLifecycleAction, key: string, rerender: () => void): Promise<void> {
   busyKey = key;
   error = null;
   notice = null;
   rerender();
   try {
-    const snapshot = await transitionFirstRunLifecycle(action);
+    const snapshot = await transitionForCurrentProject(action);
+    if (!snapshot) return;
     updateFromSnapshot(snapshot);
     notice = text("Project repository settings updated.", "Projekt-Repository-Einstellungen wurden aktualisiert.");
   } catch (cause) {
@@ -404,9 +430,11 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
     const key = `primary:${identity.repositoryId}`;
     busyKey = key; error = null; notice = null; rerender();
     try {
+      const generation = projectActivationGeneration;
       const localPath = await verifiedCheckout(identity);
-      if (!localPath) return;
-      const snapshot = await transitionFirstRunLifecycle({ type: "set-primary-local-binding", localPath });
+      if (!localPath || generation !== projectActivationGeneration) return;
+      const snapshot = await transitionForCurrentProject({ type: "set-primary-local-binding", localPath });
+      if (!snapshot) return;
       updateFromSnapshot(snapshot);
       notice = text("Primary checkout updated.", "Checkout des Hauptrepositories wurde aktualisiert.");
     } catch (cause) {
@@ -431,9 +459,11 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
     const key = `additional:${identity.repositoryId}`;
     busyKey = key; error = null; notice = null; rerender();
     try {
+      const generation = projectActivationGeneration;
       const localPath = await verifiedCheckout(identity);
-      if (!localPath) return;
-      const snapshot = await transitionFirstRunLifecycle({ type: "set-additional-local-binding", identity, localPath });
+      if (!localPath || generation !== projectActivationGeneration) return;
+      const snapshot = await transitionForCurrentProject({ type: "set-additional-local-binding", identity, localPath });
+      if (!snapshot) return;
       updateFromSnapshot(snapshot);
       notice = text("Local checkout association updated.", "Lokale Checkout-Zuordnung wurde aktualisiert.");
     } catch (cause) {
