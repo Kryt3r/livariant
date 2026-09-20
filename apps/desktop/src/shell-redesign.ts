@@ -1,6 +1,14 @@
 import "./shell-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
+import {
+  activateDesktopProject,
+  getActiveDesktopProject,
+  getDesktopProjectRegistrySnapshot,
+  onDesktopProjectActivated,
+  onDesktopProjectRegistryChanged,
+  refreshDesktopProjectRegistrySnapshot,
+} from "./desktop-project-registry.js";
 
 const SIDEBAR_STORAGE_KEY = "livariant.desktop.sidebar.collapsed";
 const appRoot = document.querySelector<HTMLElement>("#app");
@@ -42,6 +50,9 @@ let navObserver: MutationObserver | null = null;
 let observedNav: HTMLElement | null = null;
 let scheduled = false;
 let enhancing = false;
+let projectRegistryLoaded = false;
+let projectRegistryLoading = false;
+let projectRegistryError: string | null = null;
 
 const healthState = (): HealthState => {
   if (!connectorStatusLoaded) return "unknown";
