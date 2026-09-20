@@ -36,3 +36,10 @@ test("normalized errors tell users how to recover without weakening fail-closed 
   assert.match(review, /Try refreshing this section/);
   assert.match(githubPicker, /enter repository details manually/);
 });
+
+
+test("unconfigured account affordance is not an interactive dead end", async () => {
+  const shell = await read("apps/desktop/src/shell-redesign.ts");
+  assert.match(shell, /class="global-account" type="button" disabled aria-disabled="true"/);
+  assert.match(shell, /Account area, not configured yet/);
+});
