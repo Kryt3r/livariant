@@ -18,7 +18,8 @@ test("installed acceptance exercises A-B-A isolation through native scope guards
   assert.match(acceptance, /ci_activate_project/);
   assert.match(acceptance, /with_project_persistence_scope_current/);
   assert.match(acceptance, /replace_staged_file/);
-  assert.match(acceptance, /expect_err\("stale Project A commit must be rejected after Project B activation"\)/);
+  assert.match(acceptance, /let stale_a_commit_rejected = match with_project_persistence_scope_current/);
+  assert.doesNotMatch(acceptance, /expect_err\("stale Project A commit/);
   assert.match(acceptance, /active_diagnostics_project_id/);
   assert.match(acceptance, /ci_detach_project/);
   assert.match(acceptance, /project_brain_marker/);
