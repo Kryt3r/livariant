@@ -51,6 +51,8 @@ Current GitHub capability is read-oriented. Connecting GitHub does not grant Liv
 
 On Windows, access/refresh token material is protected with the current user's DPAPI boundary before encrypted material is persisted under Livariant app data. Plaintext tokens are not written to project-owned files.
 
+**Disconnect GitHub** removes this locally stored protected credential and clears any pending Device Flow state. Livariant does not revoke the GitHub-side app authorization; if you want to remove that authorization too, revoke it separately in GitHub.
+
 A Git clone necessarily transfers the selected repository contents from GitHub to the local checkout you explicitly chose. Livariant does not silently clone repositories.
 
 See [Desktop GitHub connection](desktop-github-connection.md).
