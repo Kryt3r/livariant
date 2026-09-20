@@ -21,3 +21,12 @@ test("GitHub timeout remains host policy rather than renderer input", async () =
   assert.doesNotMatch(host, /pub fn .*timeout/i);
   assert.doesNotMatch(host, /GITHUB_HTTP_TIMEOUT_SECONDS.*env::var/);
 });
+
+
+test("updater requests are also bounded by fixed host policy", async () => {
+  const updater = await read("apps/desktop/src-tauri/src/updater.rs");
+
+  assert.match(updater, /const UPDATER_REQUEST_TIMEOUT: Duration = Duration::from_secs\(600\);/);
+  assert.match(updater, /\.timeout\(UPDATER_REQUEST_TIMEOUT\)/);
+  assert.doesNotMatch(updater, /UPDATER_REQUEST_TIMEOUT.*env::var/);
+});
