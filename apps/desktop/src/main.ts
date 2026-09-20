@@ -548,7 +548,7 @@ const render = () => {
         </nav>
         <div class="sidebar-lower">
           <button class="nav-item settings-launcher ${settingsOpen ? "active" : ""}" type="button" data-open-settings>${icon("settings")}<span>Settings</span></button>
-          <div class="sidebar-footer"><div class="status-dot"></div><div><strong>Foundation preview</strong><small>Connector + diagnostics integration</small></div></div>
+          <div class="sidebar-footer"><div class="status-dot"></div><div><strong>Desktop preview</strong><small>Project context + diagnostics</small></div></div>
         </div>
       </aside><main class="content">${renderContent()}</main></div>
       ${renderNotice()}
