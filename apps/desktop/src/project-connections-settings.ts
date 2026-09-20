@@ -127,9 +127,9 @@ export async function refreshProjectConnectionsSettings(): Promise<void> {
     if (generation !== projectActivationGeneration) return;
     githubStatus = github;
     updateFromSnapshot(lifecycle);
-  } catch (cause) {
+  } catch (_cause) {
     if (generation !== projectActivationGeneration) return;
-    error = String(cause);
+    error = connectionError("load");
   } finally {
     if (generation === projectActivationGeneration) loading = false;
   }
@@ -337,7 +337,7 @@ async function applyAction(action: FirstRunLifecycleAction, key: string, rerende
     updateFromSnapshot(snapshot);
     notice = text("Project repository settings updated.", "Projekt-Repository-Einstellungen wurden aktualisiert.");
   } catch (cause) {
-    error = String(cause);
+    error = connectionError("manage");
   } finally {
     busyKey = null;
     rerender();
@@ -382,9 +382,9 @@ function pollAuthorization(delaySeconds: number): void {
       authorization = null;
       error = result.detail;
       activeRerender?.();
-    } catch (cause) {
+    } catch (_cause) {
       authorization = null;
-      error = String(cause);
+      error = connectionError("connect");
       activeRerender?.();
     }
   }, Math.max(5, delaySeconds) * 1000);
@@ -411,8 +411,8 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
       authorization = await invoke<GitHubDeviceAuthorization>("github_begin_device_authorization");
       await invoke("github_open_verification_page");
       pollAuthorization(authorization.intervalSeconds);
-    } catch (cause) {
-      error = String(cause);
+    } catch (_cause) {
+      error = connectionError("connect");
       authorization = null;
     } finally {
       busyKey = null;
@@ -438,7 +438,7 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
       updateFromSnapshot(snapshot);
       notice = text("Primary checkout updated.", "Checkout des Hauptrepositories wurde aktualisiert.");
     } catch (cause) {
-      error = String(cause);
+      error = connectionError("manage");
     } finally {
       busyKey = null;
       rerender();
@@ -467,7 +467,7 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
       updateFromSnapshot(snapshot);
       notice = text("Local checkout association updated.", "Lokale Checkout-Zuordnung wurde aktualisiert.");
     } catch (cause) {
-      error = String(cause);
+      error = connectionError("manage");
     } finally {
       busyKey = null;
       rerender();
@@ -510,7 +510,7 @@ export function bindProjectConnectionsSettingsEvents(rerender: () => void): void
         githubStatus = await invoke<GitHubConnectionStatus>("github_connection_status");
         notice = text("GitHub disconnected. Project sources were kept.", "GitHub wurde getrennt. Projektquellen wurden beibehalten.");
       } catch (cause) {
-        error = String(cause);
+        error = connectionError("manage");
       } finally {
         busyKey = null;
         rerender();
