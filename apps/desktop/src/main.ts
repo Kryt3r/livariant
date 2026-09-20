@@ -488,6 +488,11 @@ const applyTruthFilters = () => {
   if (empty) empty.hidden = visibleCount > 0;
 };
 
+const updateHostFailureCopy = () => uiText(
+  "The update check could not be completed. The existing installation was not changed. Check your connection and try again.",
+  "Die Update-Prüfung konnte nicht abgeschlossen werden. Die bestehende Installation wurde nicht verändert. Prüfe deine Verbindung und versuche es erneut.",
+);
+
 const bindUpdateCheckEvent = () => {
   document.querySelector<HTMLButtonElement>(".check-updates")?.addEventListener("click", async () => {
     updateState = "checking";
@@ -501,7 +506,7 @@ const bindUpdateCheckEvent = () => {
       else if (updateResult.state === "not-configured") notice = { kind: "warning", title: "Update channel not configured", detail: updateResult.detail };
       else notice = { kind: "error", title: "Update check needs attention", detail: updateResult.detail };
     } catch (error: unknown) {
-      updateResult = { state: "error", currentVersion: "unknown", availableVersion: null, detail: `Update host bridge failed without changing the installation: ${String(error)}` };
+      updateResult = { state: "error", currentVersion: "unknown", availableVersion: null, detail: updateHostFailureCopy() };
       updateState = "error";
       notice = { kind: "error", title: "Update check failed", detail: updateResult.detail };
     }
