@@ -12,6 +12,7 @@ const UPDATER_ENDPOINTS: &[&str] = &[
     "https://raw.githubusercontent.com/Kryt3r/livariant/desktop-preview-index/latest.json",
 ];
 const UPDATER_PROGRESS_EVENT: &str = "livariant://updater-progress";
+const UPDATER_REQUEST_TIMEOUT: Duration = Duration::from_secs(600);
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -159,6 +160,7 @@ fn build_updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, Strin
     }
 
     app.updater_builder()
+        .timeout(UPDATER_REQUEST_TIMEOUT)
         .pubkey(public_key)
         .endpoints(endpoints)
         .and_then(|builder| builder.build())
