@@ -99,7 +99,10 @@ export function syncShellProjectSwitcher(): void {
           wrap.dataset.open = "false";
           button.setAttribute("aria-expanded", "false");
         } catch (cause: unknown) {
-          error = String(cause);
+          error = text(
+          "Project switching could not be completed. Your current project remains active. Try again.",
+          "Der Projektwechsel konnte nicht abgeschlossen werden. Dein aktuelles Projekt bleibt aktiv. Versuche es erneut.",
+        );
           if (status) status.textContent = error;
         } finally {
           wrap.dataset.switching = "false";
@@ -118,8 +121,11 @@ export function ensureShellProjectRegistryLoaded(): void {
       loaded = true;
       error = null;
     })
-    .catch((cause: unknown) => {
-      error = String(cause);
+    .catch((_cause: unknown) => {
+      error = text(
+        "Projects could not be loaded. Try opening the project menu again.",
+        "Projekte konnten nicht geladen werden. Öffne das Projektmenü erneut.",
+      );
     })
     .finally(() => {
       loading = false;

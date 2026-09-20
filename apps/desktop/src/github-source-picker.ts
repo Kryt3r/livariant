@@ -39,6 +39,20 @@ export type GitHubRepositorySummary = {
 };
 
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
+const githubPickerError = (kind: "status" | "repositories" | "connect"): string => {
+  if (kind === "repositories") return text(
+    "GitHub repositories could not be loaded. Check the connection and try again.",
+    "GitHub-Repositories konnten nicht geladen werden. Prüfe die Verbindung und versuche es erneut.",
+  );
+  if (kind === "connect") return text(
+    "GitHub connection could not be completed. Check your network connection and try again, or enter repository details manually.",
+    "Die GitHub-Verbindung konnte nicht abgeschlossen werden. Prüfe deine Netzwerkverbindung und versuche es erneut oder trage die Repository-Daten manuell ein.",
+  );
+  return text(
+    "GitHub connection status could not be checked. Try again, or enter repository details manually.",
+    "Der GitHub-Verbindungsstatus konnte nicht geprüft werden. Versuche es erneut oder trage die Repository-Daten manuell ein.",
+  );
+};
 const esc = (value: string) => value.replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character] ?? character);
@@ -64,7 +78,7 @@ export async function mountGitHubSourcePicker(
       repositories = await invoke<GitHubRepositorySummary[]>("github_list_repositories");
       error = null;
     } catch (cause) {
-      error = String(cause);
+      error = githubPickerError("repositories");
       repositories = [];
     }
   };
@@ -138,7 +152,7 @@ export async function mountGitHubSourcePicker(
         render();
       } catch (cause) {
         authorization = null;
-        error = String(cause);
+        error = githubPickerError("connect");
         render();
       }
     }, Math.max(5, delaySeconds) * 1000);
@@ -152,7 +166,7 @@ export async function mountGitHubSourcePicker(
       await invoke("github_open_verification_page");
       void poll(authorization.intervalSeconds);
     } catch (cause) {
-      error = String(cause);
+      error = githubPickerError("connect");
       render();
     }
   };
@@ -161,8 +175,8 @@ export async function mountGitHubSourcePicker(
     status = await invoke<GitHubConnectionStatus>("github_connection_status");
     if (status.connected) await loadRepositories();
   } catch (cause) {
-    status = { state: "disconnected", connected: false, configured: true, login: null, detail: String(cause) };
-    error = String(cause);
+    status = { state: "disconnected", connected: false, configured: true, login: null, detail: githubPickerError("status") };
+    error = githubPickerError("status");
   }
   render();
 

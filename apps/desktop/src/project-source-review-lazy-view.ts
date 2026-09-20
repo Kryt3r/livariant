@@ -128,13 +128,13 @@ export function bindProjectSourceReviewHub(content: HTMLElement, presentation: D
             if (!isStillActive()) return;
             heavyRoot.insertAdjacentHTML(
               "beforeend",
-              `<div class="gh-telemetry-unavailable"><strong>${text("Background refresh failed", "Hintergrund-Aktualisierung fehlgeschlagen")}</strong><span>${escapeHtml(String(cause))}</span></div>`,
+              `<div class="gh-telemetry-unavailable"><strong>${text("Background refresh failed", "Hintergrund-Aktualisierung fehlgeschlagen")}</strong><span>${text("Try refreshing this section.", "Aktualisiere diesen Bereich erneut.")}</span></div>`,
             );
           }
         }
       } catch (cause) {
         if (!isStillActive()) return;
-        heavyRoot.innerHTML = renderGitHubTelemetryError(primary.identity.repositoryId, String(cause));
+        heavyRoot.innerHTML = renderGitHubTelemetryError(primary.identity.repositoryId, text("GitHub activity could not be loaded. Try again.", "GitHub-Aktivität konnte nicht geladen werden. Versuche es erneut."));
       }
       return;
     }
@@ -148,7 +148,7 @@ export function bindProjectSourceReviewHub(content: HTMLElement, presentation: D
         heavyRoot.innerHTML = renderMaterialPage(inventory, selected, 0);
       } catch (cause) {
         if (!isStillActive()) return;
-        heavyRoot.innerHTML = `<p class="source-review-muted">${text("Review material could not be read safely", "Review-Material konnte nicht sicher ausgelesen werden")}: ${escapeHtml(String(cause))}</p>`;
+        heavyRoot.innerHTML = `<p class="source-review-muted">${text("Review material could not be read safely", "Review-Material konnte nicht sicher ausgelesen werden")}: ${text("Try refreshing this section.", "Aktualisiere diesen Bereich erneut.")}</p>`;
       }
     }
   };
@@ -196,7 +196,7 @@ export function bindProjectSourceReviewHub(content: HTMLElement, presentation: D
       } catch (cause) {
         if (!isStillActive()) return;
         startButton.disabled = false;
-        if (status) status.textContent = `${text("Review could not be started safely", "Review konnte nicht sicher gestartet werden")}: ${String(cause)}`;
+        if (status) status.textContent = text("Review could not be started safely. Check the selected material and try again.", "Review konnte nicht sicher gestartet werden. Prüfe das ausgewählte Material und versuche es erneut.");
       }
     }
   });

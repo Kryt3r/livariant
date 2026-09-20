@@ -243,7 +243,7 @@ const ensureHeader = (frame: HTMLElement) => {
           </div>
         </div>
         <button class="global-notifications" type="button" data-shell-notifications aria-label="${text("Notifications", "Benachrichtigungen")}">${svg("bell")}</button>
-        <button class="global-account" type="button" aria-label="${text("Account area, not configured yet", "Kontobereich, noch nicht eingerichtet")}">
+        <button class="global-account" type="button" disabled aria-disabled="true" aria-label="${text("Account area, not configured yet", "Kontobereich, noch nicht eingerichtet")}">
           <span class="global-account-avatar">${svg("user")}</span><span><strong>${text("Account", "Konto")}</strong><small>${text("Not configured", "Noch nicht eingerichtet")}</small></span>
         </button>
         <div class="global-window-controls" data-shell-window-controls></div>
