@@ -25,6 +25,7 @@ import {
   type DiagnosticPreset,
 } from "../diagnostics/efficiency.js";
 import { buildDiagnosticEvidenceExport } from "../diagnostics/export.js";
+import { filterDiagnosticEventsByProjectScope } from "../diagnostics/project-scope.js";
 import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
 import {
   DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS,
@@ -53,6 +54,7 @@ let unsubscribeWorkflow: (() => void) | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
 let pendingApprovals = 0;
 const completedTurns = new Set<string>();
+const measurementProjectScopes = new Map<string, string>();
 let selectedResolution: CodexCommandResolution | undefined;
 let selectedMode: "auto" | "manual" = "auto";
 let lastRestoreError: string | undefined;
@@ -65,6 +67,7 @@ type Request = {
   method: "inspect" | "connect" | "disconnect" | "diagnostics" | "export" | "measure";
   manualPath?: string;
   diagnosticsPreset?: DiagnosticPreset;
+  diagnosticsProjectId?: string;
 };
 type ResolvedCodexInspection = {
   resolution: ReturnType<typeof resolveCodexCommand>;
@@ -91,13 +94,21 @@ function assertRequest(value: unknown): Request {
   if (record.diagnosticsPreset !== undefined && !DIAGNOSTIC_PRESETS.includes(record.diagnosticsPreset as DiagnosticPreset)) {
     throw new Error("Desktop connector host diagnosticsPreset is invalid.");
   }
+  if (record.diagnosticsProjectId !== undefined && typeof record.diagnosticsProjectId !== "string") {
+    throw new Error("Desktop connector host diagnosticsProjectId must be a string when supplied.");
+  }
   const manualPath = typeof record.manualPath === "string" ? record.manualPath.trim() : undefined;
   const diagnosticsPreset = record.diagnosticsPreset as DiagnosticPreset | undefined;
+  const diagnosticsProjectId = typeof record.diagnosticsProjectId === "string" ? record.diagnosticsProjectId.trim() : undefined;
+  if (diagnosticsProjectId !== undefined && (!diagnosticsProjectId || diagnosticsProjectId.length > 240)) {
+    throw new Error("Desktop connector host diagnosticsProjectId is invalid.");
+  }
   return {
     id: record.id as number,
     method: record.method as Request["method"],
     ...(manualPath ? { manualPath } : {}),
     ...(diagnosticsPreset ? { diagnosticsPreset } : {}),
+    ...(diagnosticsProjectId ? { diagnosticsProjectId } : {}),
   };
 }
 
@@ -162,6 +173,7 @@ async function disconnectSession(): Promise<void> {
   pendingApprovals = 0;
   sequencer.reset();
   completedTurns.clear();
+  measurementProjectScopes.clear();
 }
 
 async function connectSession(options: ConnectSessionOptions = {}) {
@@ -190,7 +202,20 @@ async function connectSession(options: ConnectSessionOptions = {}) {
     if (event.kind !== "usage") return;
     const result = sequencer.accept(event.snapshot);
     if (result.kind !== "delta") return;
-    writeQueue = writeQueue.then(() => store.append(result.event));
+    const sessionId = result.event.attribution?.sessionId;
+    const measurementProjectId = sessionId
+      ? measurementProjectScopes.get(sessionId)
+      : undefined;
+    const diagnosticEvent = measurementProjectId
+      ? {
+          ...result.event,
+          attribution: {
+            ...result.event.attribution,
+            projectId: measurementProjectId,
+          },
+        }
+      : result.event;
+    writeQueue = writeQueue.then(() => store.append(diagnosticEvent));
   });
   return connectionStatus();
 }
@@ -366,36 +391,51 @@ async function measurementStatus() {
   }
 }
 
-async function diagnostics(preset: DiagnosticPreset = "all") {
+async function diagnostics(preset: DiagnosticPreset = "all", projectId: string) {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
-  const events = await store.readAll();
-  const aggregate = aggregateDiagnosticEvents(events, range);
+  const allEvents = await store.readAll();
+  const scoped = filterDiagnosticEventsByProjectScope(allEvents, range, projectId);
+  const aggregate = aggregateDiagnosticEvents(scoped.events, range);
   return {
     preset,
     range: aggregate.range,
+    scope: {
+      kind: "project",
+      projectId,
+      unattributedEventCount: scoped.unattributedEventCount,
+    },
     observed: aggregate.observed,
     avoided: aggregate.avoided,
     estimated: aggregate.estimated,
-    attribution: aggregateObservedAttribution(events, range),
+    attribution: aggregateObservedAttribution(scoped.events, range),
     hasObservedData: aggregate.observed.eventCount > 0,
     storage: "local-jsonl",
     measurement: await measurementStatus(),
   };
 }
 
-async function diagnosticsExport(preset: DiagnosticPreset = "all") {
+async function diagnosticsExport(preset: DiagnosticPreset = "all", projectId: string) {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
-  const events = await store.readAll();
-  return buildDiagnosticEvidenceExport(events, {
+  const allEvents = await store.readAll();
+  const scoped = filterDiagnosticEventsByProjectScope(allEvents, range, projectId);
+  const evidence = buildDiagnosticEvidenceExport(scoped.events, {
     preset,
     range,
     coreVersion: clientVersion,
   });
+  return {
+    ...evidence,
+    projectScope: {
+      kind: "project",
+      projectId,
+      unattributedEventCount: scoped.unattributedEventCount,
+    },
+  };
 }
 
-async function measure(preset: DiagnosticPreset = "all") {
+async function measure(preset: DiagnosticPreset = "all", projectId: string) {
   assertDiagnosticsMeasurementSession(Boolean(session?.isOpen() && workflow));
   if (!workflow || !session?.isOpen()) throw new Error("Codex diagnostics measurement requires an already connected session.");
 
@@ -420,29 +460,35 @@ async function measure(preset: DiagnosticPreset = "all") {
     ephemeral: true,
     ...(target.model ? { model: target.model } : {}),
   });
+  measurementProjectScopes.set(thread.threadId, projectId);
   sequencer.markNewThread(thread.threadId);
   const turn = await workflow.startTurn(thread.threadId, "Reply with exactly: Livariant diagnostics connection verified.");
   const key = completionKey(turn.threadId, turn.turnId);
-  const deadline = Date.now() + 60_000;
-  while (!completedTurns.has(key)) {
-    if (!session.isOpen()) throw new Error("Codex disconnected during the diagnostics measurement turn.");
-    if (Date.now() >= deadline) throw new Error("Codex diagnostics measurement turn timed out.");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+  try {
+    const deadline = Date.now() + 60_000;
+    while (!completedTurns.has(key)) {
+      if (!session.isOpen()) throw new Error("Codex disconnected during the diagnostics measurement turn.");
+      if (Date.now() >= deadline) throw new Error("Codex diagnostics measurement turn timed out.");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    completedTurns.delete(key);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await writeQueue;
+    await measurementStore.recordSuccess(target);
+    return {
+      connection: connectionStatus(),
+      measuredTarget: {
+        provider: target.provider,
+        model: target.model,
+        displayName: target.displayName,
+        scope: resolved.scope,
+      },
+      diagnostics: await diagnostics(preset, projectId),
+    };
+  } finally {
+    measurementProjectScopes.delete(thread.threadId);
+    completedTurns.delete(key);
   }
-  completedTurns.delete(key);
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  await writeQueue;
-  await measurementStore.recordSuccess(target);
-  return {
-    connection: connectionStatus(),
-    measuredTarget: {
-      provider: target.provider,
-      model: target.model,
-      displayName: target.displayName,
-      scope: resolved.scope,
-    },
-    diagnostics: await diagnostics(preset),
-  };
 }
 
 async function handle(request: Request): Promise<unknown> {
@@ -452,9 +498,16 @@ async function handle(request: Request): Promise<unknown> {
   }
   if (request.method === "connect") return await connect(request.manualPath);
   if (request.method === "disconnect") return await disconnectByUser();
-  if (request.method === "diagnostics") return await diagnostics(request.diagnosticsPreset);
-  if (request.method === "export") return await diagnosticsExport(request.diagnosticsPreset);
-  return await measure(request.diagnosticsPreset);
+  if (request.method === "diagnostics") {
+    if (!request.diagnosticsProjectId) throw new Error("Project-focused Diagnostics requires diagnosticsProjectId.");
+    return await diagnostics(request.diagnosticsPreset, request.diagnosticsProjectId);
+  }
+  if (request.method === "export") {
+    if (!request.diagnosticsProjectId) throw new Error("Project-focused Diagnostics export requires diagnosticsProjectId.");
+    return await diagnosticsExport(request.diagnosticsPreset, request.diagnosticsProjectId);
+  }
+  if (!request.diagnosticsProjectId) throw new Error("Project-focused Diagnostics measurement requires diagnosticsProjectId.");
+  return await measure(request.diagnosticsPreset, request.diagnosticsProjectId);
 }
 
 const input = createInterface({ input: stdin, crlfDelay: Infinity });

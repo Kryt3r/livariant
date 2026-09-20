@@ -164,8 +164,12 @@ test("desktop diagnostics export reuses the canonical Core contract through the 
   assert.match(nodeHost, /method: "inspect" \| "connect" \| "disconnect" \| "diagnostics" \| "export" \| "measure"/);
   assert.match(nodeHost, /request\.method === "export"/);
   assert.match(rustHost, /pub fn codex_diagnostics_export/);
-  assert.match(rustHost, /request\(&app, &state, "export", None, preset\)/);
-  assert.match(nativeSave, /codex_diagnostics_export\(app, state, preset\)\?/);
+  assert.match(rustHost, /active_diagnostics_project_id/);
+  assert.match(rustHost, /request\(&app, &state, "export", None, preset, Some\(&project_id\)\)/);
+  assert.match(nodeHost, /diagnosticsProjectId/);
+  assert.match(nodeHost, /projectScope/);
+  assert.match(nativeSave, /codex_diagnostics_export\(app, state, registry, preset\)\?/);
+  assert.match(nativeSave, /projectScope/);
   assert.doesNotMatch(lib, /connector_host::codex_diagnostics_export,/);
   assert.match(lib, /diagnostics_export_save::save_codex_diagnostics_export/);
 });

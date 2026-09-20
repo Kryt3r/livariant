@@ -9,6 +9,10 @@ use std::{
 };
 use tauri::{AppHandle, Manager, State};
 
+use crate::desktop_project_registry::{
+    active_diagnostics_project_id, DesktopProjectRegistryState,
+};
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeManifest {
@@ -37,6 +41,7 @@ impl ConnectorHostProcess {
         method: &'static str,
         manual_path: Option<&str>,
         diagnostics_preset: Option<&str>,
+        diagnostics_project_id: Option<&str>,
     ) -> Result<Value, String> {
         let id = self.next_id;
         self.next_id = self.next_id.checked_add(1).ok_or_else(|| "Connector host request id space exhausted.".to_owned())?;
@@ -46,6 +51,9 @@ impl ConnectorHostProcess {
         }
         if let Some(preset) = diagnostics_preset {
             request["diagnosticsPreset"] = Value::String(preset.to_owned());
+        }
+        if let Some(project_id) = diagnostics_project_id {
+            request["diagnosticsProjectId"] = Value::String(project_id.to_owned());
         }
         writeln!(self.stdin, "{request}")
             .map_err(|error| format!("Connector host request could not be written: {error}"))?;
@@ -133,6 +141,7 @@ fn request(
     method: &'static str,
     manual_path: Option<&str>,
     diagnostics_preset: Option<&str>,
+    diagnostics_project_id: Option<&str>,
 ) -> Result<Value, String> {
     let mut guard = state.process.lock().map_err(|_| "Connector host state lock is poisoned.".to_owned())?;
     if guard.is_none() {
@@ -141,7 +150,7 @@ fn request(
     let result = guard
         .as_mut()
         .expect("connector host initialized")
-        .request(method, manual_path, diagnostics_preset);
+        .request(method, manual_path, diagnostics_preset, diagnostics_project_id);
     if result.is_err() {
         *guard = None;
     }
@@ -196,7 +205,7 @@ pub fn restore_persistent_connection(app: &AppHandle, state: &ConnectorHostState
     if !desired {
         return Ok(());
     }
-    request(app, state, "inspect", None, None).map(|_| ())
+    request(app, state, "inspect", None, None, None).map(|_| ())
 }
 
 fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, String> {
@@ -209,47 +218,53 @@ fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, Str
 
 #[tauri::command]
 pub fn codex_connector_status(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "inspect", None, None)
+    request(&app, &state, "inspect", None, None, None)
 }
 
 #[tauri::command]
 pub fn codex_connector_connect(app: AppHandle, state: State<'_, ConnectorHostState>, manual_path: Option<String>) -> Result<Value, String> {
-    request(&app, &state, "connect", manual_path.as_deref(), None)
+    request(&app, &state, "connect", manual_path.as_deref(), None, None)
 }
 
 #[tauri::command]
 pub fn codex_connector_disconnect(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "disconnect", None, None)
+    request(&app, &state, "disconnect", None, None, None)
 }
 
 #[tauri::command]
 pub fn codex_diagnostics_summary(
     app: AppHandle,
     state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
     preset: Option<String>,
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
-    request(&app, &state, "diagnostics", None, preset)
+    let project_id = active_diagnostics_project_id(&app, registry.inner())?;
+    request(&app, &state, "diagnostics", None, preset, Some(&project_id))
 }
 
 #[tauri::command]
 pub fn codex_diagnostics_export(
     app: AppHandle,
     state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
     preset: Option<String>,
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
-    request(&app, &state, "export", None, preset)
+    let project_id = active_diagnostics_project_id(&app, registry.inner())?;
+    request(&app, &state, "export", None, preset, Some(&project_id))
 }
 
 #[tauri::command]
 pub fn codex_diagnostics_measure(
     app: AppHandle,
     state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
     preset: Option<String>,
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
-    request(&app, &state, "measure", None, preset)
+    let project_id = active_diagnostics_project_id(&app, registry.inner())?;
+    request(&app, &state, "measure", None, preset, Some(&project_id))
 }
 
 #[cfg(test)]

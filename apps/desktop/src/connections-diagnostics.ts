@@ -3,6 +3,7 @@ import "./connections-polish.css";
 import "./diagnostics-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage, t } from "./i18n/runtime.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 import {
   bindProjectConnectionsSettingsEvents,
   refreshProjectConnectionsSettings,
@@ -49,6 +50,11 @@ type ObservedAttributionSummary = {
 type DiagnosticsSummary = {
   preset: DiagnosticPreset;
   range: { start?: string; end?: string };
+  scope: {
+    kind: "project";
+    projectId: string;
+    unattributedEventCount: number;
+  };
   hasObservedData: boolean;
   storage: string;
   observed: {
@@ -81,6 +87,8 @@ let error: string | null = null;
 let diagnosticsNotice: string | null = null;
 let selectedProvider: ProviderId | null = null;
 let selectedDiagnosticsPreset: DiagnosticPreset = "30d";
+let diagnosticsProjectGeneration = 0;
+let activeDiagnosticsRerender: (() => void) | null = null;
 
 const esc = (value: string) => value.replace(/[&<>'\"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;",
@@ -147,12 +155,22 @@ export async function refreshConnectionsSettings(): Promise<void> {
 }
 
 export async function refreshDiagnostics(): Promise<void> {
+  const generation = diagnosticsProjectGeneration;
   diagnosticsBusy = "diagnostics";
   error = null;
   diagnosticsNotice = null;
-  try { diagnostics = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: selectedDiagnosticsPreset }); }
-  catch (cause) { error = String(cause); }
-  finally { diagnosticsBusy = null; }
+  try {
+    const next = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: selectedDiagnosticsPreset });
+    if (generation !== diagnosticsProjectGeneration) return;
+    diagnostics = next;
+  }
+  catch (cause) {
+    if (generation !== diagnosticsProjectGeneration) return;
+    error = String(cause);
+  }
+  finally {
+    if (generation === diagnosticsProjectGeneration) diagnosticsBusy = null;
+  }
 }
 
 const renderProviderCard = (provider: ProviderId, name: string, description: string, status: string, tone: string, enabled = true) => `
@@ -371,6 +389,7 @@ const syncDiagnosticsSurface = (fallback: () => void) => {
 };
 
 export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
+  activeDiagnosticsRerender = rerender;
   bindProjectConnectionsSettingsEvents(rerender);
   document.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -439,15 +458,24 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   });
 
   document.querySelector<HTMLButtonElement>(".diagnostics-export")?.addEventListener("click", async () => {
+    const generation = diagnosticsProjectGeneration;
     diagnosticsBusy = "export"; error = null; diagnosticsNotice = null; setDiagnosticsVisualBusyState();
     try {
       const result = await invoke<DiagnosticsExportSaveResult>("save_codex_diagnostics_export", { preset: selectedDiagnosticsPreset });
+      if (generation !== diagnosticsProjectGeneration) return;
       if (result.saved) {
         const fileName = result.fileName ?? lang("JSON file", "JSON-Datei");
         diagnosticsNotice = lang(`Export saved as ${fileName}.`, `Export als ${fileName} gespeichert.`);
       }
-    } catch (cause) { error = String(cause); }
-    finally { diagnosticsBusy = null; syncDiagnosticsSurface(rerender); }
+    } catch (cause) {
+      if (generation !== diagnosticsProjectGeneration) return;
+      error = String(cause);
+    }
+    finally {
+      if (generation !== diagnosticsProjectGeneration) return;
+      diagnosticsBusy = null;
+      syncDiagnosticsSurface(rerender);
+    }
   });
 
   document.querySelector<HTMLButtonElement>(".diagnostics-refresh")?.addEventListener("click", async () => {
@@ -459,12 +487,32 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   });
 
   document.querySelector<HTMLButtonElement>(".diagnostics-measure")?.addEventListener("click", async () => {
+    const generation = diagnosticsProjectGeneration;
     diagnosticsBusy = "measure"; error = null; diagnosticsNotice = null; setDiagnosticsVisualBusyState();
     try {
       const result = await invoke<MeasureResult>("codex_diagnostics_measure", { preset: selectedDiagnosticsPreset });
+      if (generation !== diagnosticsProjectGeneration) return;
       connector = result.connection;
       diagnostics = result.diagnostics;
-    } catch (cause) { error = String(cause); }
-    finally { diagnosticsBusy = null; syncDiagnosticsSurface(rerender); }
+    } catch (cause) {
+      if (generation !== diagnosticsProjectGeneration) return;
+      error = String(cause);
+    }
+    finally {
+      if (generation !== diagnosticsProjectGeneration) return;
+      diagnosticsBusy = null;
+      syncDiagnosticsSurface(rerender);
+    }
   });
 }
+
+onDesktopProjectActivated(() => {
+  diagnosticsProjectGeneration += 1;
+  diagnostics = null;
+  diagnosticsBusy = null;
+  diagnosticsNotice = null;
+  error = null;
+  const rerender = activeDiagnosticsRerender;
+  if (!rerender) return;
+  void refreshDiagnostics().then(() => syncDiagnosticsSurface(rerender));
+});

@@ -231,6 +231,15 @@ const desktopProjectRegistryFixture = () => ({
   },
 });
 
+const diagnosticsProjectScopeFixture = () => {
+  const project = desktopProjectRegistryFixture().projects.find((candidate) => candidate.desktopProjectId === visualDesktopProjectId);
+  return {
+    kind: "project" as const,
+    projectId: project?.projectId ?? "visual-project",
+    unattributedEventCount: previewScenario === "empty" ? 0 : 3,
+  };
+};
+
 const invoke: VisualInvoke = async (command, args) => {
   if (command === "plugin:event|listen") return 1;
   if (command === "plugin:event|unlisten") return null;
@@ -258,13 +267,18 @@ const invoke: VisualInvoke = async (command, args) => {
     };
   }
   if (command === "codex_diagnostics_summary") {
-    return { ...currentFixture(), measurement: measurementFixture(), preset: (args?.preset as string | undefined) ?? "30d" };
+    return {
+      ...currentFixture(),
+      scope: diagnosticsProjectScopeFixture(),
+      measurement: measurementFixture(),
+      preset: (args?.preset as string | undefined) ?? "30d",
+    };
   }
   if (command === "codex_diagnostics_measure") {
     return {
       connection: { connected: true },
       measuredTarget: { provider: "openai-codex", model: "gpt-5.6-pro", displayName: "GPT-5.6 Pro", scope: "model" },
-      diagnostics: { ...currentFixture(), measurement: measurementFixture() },
+      diagnostics: { ...currentFixture(), scope: diagnosticsProjectScopeFixture(), measurement: measurementFixture() },
     };
   }
   if (command === "save_codex_diagnostics_export") {

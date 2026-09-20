@@ -800,6 +800,43 @@ fn detach_at(
     })
 }
 
+pub(crate) fn active_diagnostics_project_id(
+    app: &tauri::AppHandle,
+    state: &DesktopProjectRegistryState,
+) -> Result<String, String> {
+    let projects_root = projects_root(app)?;
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    if let Some(recovery) = runtime.startup_recovery.as_deref() {
+        return Err(format!("Desktop project recovery is required: {recovery}"));
+    }
+    let registry = load_registry(&projects_root)?;
+    let active = runtime
+        .active
+        .as_ref()
+        .ok_or_else(|| "Project-focused Diagnostics requires an active Desktop project.".to_owned())?;
+    let record = registry
+        .projects
+        .iter()
+        .find(|project| project.desktop_project_id == active.desktop_project_id)
+        .ok_or_else(|| "Active Desktop project is no longer registered.".to_owned())?;
+    if record.state != DesktopProjectRegistrationState::Registered || availability(record) != "available" {
+        return Err("Active Desktop project is no longer safely available for Diagnostics.".to_owned());
+    }
+    let project_id = record
+        .project_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Project-focused Diagnostics is unavailable because the active Desktop project has no logical projectId.".to_owned())?;
+    if project_id.chars().count() > 240 {
+        return Err("Active Desktop project projectId exceeds the supported Diagnostics scope length.".to_owned());
+    }
+    Ok(project_id.to_owned())
+}
+
 pub(crate) fn active_project_scope(
     app: &tauri::AppHandle,
     state: &DesktopProjectRegistryState,
