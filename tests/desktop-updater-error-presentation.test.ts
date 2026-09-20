@@ -26,3 +26,17 @@ test("updater recovery copy preserves fail-closed installation semantics", async
   assert.match(updater, /Check your connection and try again/);
   assert.match(main, /existing installation was not changed/i);
 });
+
+
+test("runtime health and source-review bridge failures stay bounded", async () => {
+  const runtimeHealth = await read("apps/desktop/src/runtime-health.ts");
+  const sourceReview = await read("apps/desktop/src/project-source-review-bridge.ts");
+
+  assert.doesNotMatch(runtimeHealth, /String\(error\)/);
+  assert.doesNotMatch(sourceReview, /String\(error\)/);
+
+  assert.match(runtimeHealth, /installed application remains unchanged/);
+  assert.match(runtimeHealth, /Existing runtime state was not treated as healthy/);
+  assert.match(sourceReview, /Existing source state was not treated as current/);
+  assert.match(sourceReview, /Check the linked checkout and try again/);
+});
