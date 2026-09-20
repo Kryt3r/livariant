@@ -7,12 +7,14 @@ test("Desktop diagnostics export saving stays behind the native host boundary", 
   const nativeLib = await readFile("apps/desktop/src-tauri/src/lib.rs", "utf8");
   const renderer = await readFile("apps/desktop/src/connections-diagnostics.ts", "utf8");
 
-  assert.match(nativeSave, /codex_diagnostics_export\(app, state, preset\)\?/);
+  assert.match(nativeSave, /codex_diagnostics_export\(app, state, registry, preset\)\?/);
   assert.match(nativeSave, /validate_export_for_save\(&evidence\)\?/);
   assert.match(nativeSave, /pick_export_path\(&default_file_name\)\?/);
   assert.match(nativeSave, /fs::write\(&path, encoded\)/);
   assert.match(nativeSave, /rawPromptsIncluded/);
   assert.match(nativeSave, /exportGrantsAuthority/);
+  assert.match(nativeSave, /projectScope/);
+  assert.match(nativeSave, /unattributedEventCount/);
 
   assert.match(nativeLib, /diagnostics_export_save::save_codex_diagnostics_export/);
   assert.doesNotMatch(nativeLib, /connector_host::codex_diagnostics_export,/);
@@ -29,5 +31,6 @@ test("native save command does not accept renderer supplied path or export conte
   assert.doesNotMatch(signature, /path\s*:/i);
   assert.doesNotMatch(signature, /content\s*:/i);
   assert.doesNotMatch(signature, /evidence\s*:/i);
+  assert.match(signature, /registry: State<'_, DesktopProjectRegistryState>/);
   assert.match(signature, /preset: Option<String>/);
 });
