@@ -1,4 +1,6 @@
 mod background_runtime;
+#[cfg(feature = "ci-multi-project-acceptance")]
+mod ci_multi_project_acceptance;
 mod connector_host;
 mod diagnostics_export_save;
 mod desktop_project_registry;
@@ -235,6 +237,9 @@ pub fn run() {
                     let _ = desktop_project_registry::mark_startup_recovery(state.inner(), error);
                 }
             }
+
+            #[cfg(feature = "ci-multi-project-acceptance")]
+            ci_multi_project_acceptance::start_if_requested(app.handle().clone());
 
             let handle = app.handle().clone();
             std::thread::spawn(move || {
