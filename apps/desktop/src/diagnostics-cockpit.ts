@@ -70,6 +70,15 @@ const state: CockpitState = {
 let projectActivationGeneration = 0;
 
 const lang = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
+const diagnosticsErrorCopy = (kind: "load" | "export"): string => kind === "export"
+  ? lang(
+      "The diagnostics export could not be saved. Existing diagnostics were kept; try again.",
+      "Der Diagnose-Export konnte nicht gespeichert werden. Bestehende Diagnosedaten wurden beibehalten; versuche es erneut.",
+    )
+  : lang(
+      "Diagnostics could not be loaded. Check the local connection and try again.",
+      "Die Diagnose konnte nicht geladen werden. Prüfe die lokale Verbindung und versuche es erneut.",
+    );
 const number = (value: number) => new Intl.NumberFormat(getLanguage() === "de" ? "de-DE" : "en-US").format(value);
 const esc = (value: string) => value.replace(/[&<>'\"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;",
@@ -228,9 +237,10 @@ const load = async (surface: HTMLElement) => {
     state.data = next;
   } catch (cause) {
     if (generation !== projectActivationGeneration) return;
-    state.error = diagnosticsErrorCopy("load");
+    const errorCopy = diagnosticsErrorCopy("load");
+    state.error = errorCopy;
     if (!state.data) {
-      surface.innerHTML = `<div class="dc-error dc-error-standalone"><strong>${lang("Diagnostics could not be loaded.", "Diagnose konnte nicht geladen werden.")}</strong><p>${esc(state.error)}</p></div>`;
+      surface.innerHTML = `<div class="dc-error dc-error-standalone"><strong>${lang("Diagnostics could not be loaded.", "Diagnose konnte nicht geladen werden.")}</strong><p>${esc(errorCopy)}</p></div>`;
     }
   } finally {
     if (generation !== projectActivationGeneration) return;
