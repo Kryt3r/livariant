@@ -76,12 +76,27 @@ type DiagnosticsSummary = {
 type MeasureResult = { connection: ConnectorStatus; diagnostics: DiagnosticsSummary };
 type DiagnosticsExportSaveResult = { saved: boolean; fileName?: string | null };
 type ProviderId = "codex" | "claude" | "gemini" | "custom";
+type LocalProviderId = Exclude<ProviderId, "codex">;
 type ConnectorAction = "connect" | "disconnect" | null;
+type LocalProviderStatus = {
+  provider: LocalProviderId;
+  installationState: "available" | "not-found" | "unusable";
+  authState: "authenticated" | "configured" | "unknown" | "unavailable";
+  version: string | null;
+  connected: boolean;
+  detail: string;
+  connectionMode: "auto" | "manual";
+  configuredPath?: string | null;
+  launchSource?: string | null;
+};
 
 let connector: ConnectorStatus | null = null;
 let diagnostics: DiagnosticsSummary | null = null;
 let checkingConnector = false;
 let connectorAction: ConnectorAction = null;
+let localProviderAction: { provider: LocalProviderId; action: ConnectorAction } | null = null;
+let localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>> = {};
+let localProviderErrors: Partial<Record<LocalProviderId, string>> = {};
 let diagnosticsBusy: "measure" | "diagnostics" | "export" | null = null;
 let error: string | null = null;
 let diagnosticsNotice: string | null = null;
@@ -169,8 +184,23 @@ export async function refreshConnector(): Promise<void> {
   finally { checkingConnector = false; }
 }
 
+async function refreshLocalProviders(): Promise<void> {
+  const providers: LocalProviderId[] = ["claude", "gemini", "custom"];
+  await Promise.all(providers.map(async (provider) => {
+    try {
+      localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_status", { provider });
+      delete localProviderErrors[provider];
+    } catch (_cause) {
+      localProviderErrors[provider] = lang(
+        "The local provider could not be inspected. Check its local installation and try again.",
+        "Der lokale Anbieter konnte nicht geprüft werden. Prüfe die lokale Installation und versuche es erneut.",
+      );
+    }
+  }));
+}
+
 export async function refreshConnectionsSettings(): Promise<void> {
-  await Promise.all([refreshConnector(), refreshProjectConnectionsSettings()]);
+  await Promise.all([refreshConnector(), refreshLocalProviders(), refreshProjectConnectionsSettings()]);
 }
 
 export async function refreshDiagnostics(): Promise<void> {
@@ -192,11 +222,27 @@ export async function refreshDiagnostics(): Promise<void> {
   }
 }
 
-const renderProviderCard = (provider: ProviderId, name: string, description: string, status: string, tone: string, enabled = true) => `
-  <button class="provider-card ${enabled ? "" : "provider-card-planned"}" type="button" data-provider="${provider}">
+const renderProviderCard = (provider: ProviderId, name: string, description: string, status: string, tone: string) => `
+  <button class="provider-card" type="button" data-provider="${provider}">
     <span class="provider-card-main">${providerGlyph(provider)}<span class="provider-copy"><strong>${name}</strong><small>${description}</small></span></span>
     <span class="provider-card-state"><span class="provider-status provider-status-${tone}"><i></i>${status}</span><span class="provider-chevron">›</span></span>
   </button>`;
+
+const localProviderCopy = (provider: LocalProviderId) => ({
+  claude: { name: "Claude", vendor: "Anthropic", description: lang("Claude Code · local CLI", "Claude Code · lokale CLI") },
+  gemini: { name: "Gemini", vendor: "Google", description: lang("Gemini CLI · local CLI", "Gemini CLI · lokale CLI") },
+  custom: { name: lang("Custom connection", "Eigene Verbindung"), vendor: lang("Advanced", "Erweitert"), description: lang("Local Livariant provider bridge", "Lokale Livariant-Provider-Bridge") },
+})[provider];
+
+const localProviderState = (provider: LocalProviderId) => {
+  const status = localProviders[provider];
+  if (localProviderAction?.provider === provider) return { label: lang("Working", "Wird verarbeitet"), tone: "checking" };
+  if (status?.connected) return { label: t("connections.connected"), tone: "connected" };
+  if (status?.installationState === "available" && status.authState !== "unavailable") return { label: t("common.ready"), tone: "ready" };
+  if (status?.installationState === "unusable" || status?.authState === "unavailable") return { label: t("connections.needsAttention"), tone: "warning" };
+  if (status?.installationState === "not-found") return { label: t("connections.setupNeeded"), tone: "warning" };
+  return { label: t("connections.notChecked"), tone: "muted" };
+};
 
 const renderCodexModal = () => {
   const state = codexState();
@@ -236,40 +282,72 @@ const renderCodexModal = () => {
     </div>`;
 };
 
-const renderPlannedProviderModal = (provider: Exclude<ProviderId, "codex">) => {
-  const copy = {
-    claude: { name: "Claude", vendor: "Anthropic" },
-    gemini: { name: "Gemini", vendor: "Google" },
-    custom: { name: lang("Custom connection", "Eigene Verbindung"), vendor: lang("Advanced", "Erweitert") },
-  }[provider];
+const renderLocalProviderModal = (provider: LocalProviderId) => {
+  const copy = localProviderCopy(provider);
+  const status = localProviders[provider];
+  const state = localProviderState(provider);
+  const connected = status?.connected === true;
+  const available = status?.installationState === "available" && status.authState !== "unavailable";
+  const busy = localProviderAction?.provider === provider;
+  const errorCopy = localProviderErrors[provider];
   return `
     <div class="provider-modal-backdrop" data-close-provider>
-      <section class="provider-modal provider-modal-compact" role="dialog" aria-modal="true" data-provider-modal>
+      <section class="provider-modal provider-modal-codex" role="dialog" aria-modal="true" data-provider-modal data-local-provider="${provider}">
         <button class="provider-modal-close" type="button" data-close-provider aria-label="${lang("Close provider details", "Anbieterdetails schließen")}">×</button>
-        <header class="provider-modal-header provider-modal-hero">${providerGlyph(provider)}<div><span class="eyebrow">${copy.vendor}</span><h2>${copy.name}</h2></div><span class="provider-status provider-status-muted"><i></i>${lang("Planned", "Geplant")}</span></header>
-        <section class="provider-setup-card"><span class="provider-setup-icon">i</span><div><strong>${lang("Not available in this preview", "In dieser Vorschau nicht verfügbar")}</strong><p>${lang("This provider is visible so the layout can scale without pretending unsupported functionality exists.", "Dieser Anbieter ist sichtbar, damit das Layout skalieren kann, ohne nicht unterstützte Funktionen vorzutäuschen.")}</p></div></section>
+        <header class="provider-modal-header provider-modal-hero">
+          ${providerGlyph(provider)}
+          <div><span class="eyebrow">${copy.vendor}</span><h2>${copy.name}</h2><p>${copy.description}</p></div>
+          <span class="provider-status provider-status-${state.tone}"><i></i>${state.label}</span>
+        </header>
+        ${errorCopy ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${t("connections.needsAttention")}</strong><p>${esc(errorCopy)}</p></div></div>` : ""}
+        <section class="provider-primary-card provider-primary-card-emphasis">
+          <div><span class="provider-card-kicker">${lang("Local connection", "Lokale Verbindung")}</span><h3>${connected ? lang("Provider is connected", "Anbieter ist verbunden") : available ? lang("Ready to connect", "Bereit zum Verbinden") : lang("Local setup required", "Lokale Einrichtung erforderlich")}</h3><p>${esc(status?.detail ?? lang("Inspect the local provider installation.", "Prüfe die lokale Provider-Installation."))}</p></div>
+          <div class="provider-primary-actions">
+            <button class="button secondary local-provider-refresh" type="button" ${busy ? "disabled" : ""}>${lang("Refresh", "Aktualisieren")}</button>
+            ${connected
+              ? `<button class="button secondary local-provider-disconnect" type="button" ${busy ? "disabled" : ""}>${localProviderAction?.action === "disconnect" ? lang("Disconnecting…", "Trenne…") : t("connections.disconnect")}</button>`
+              : `<button class="button primary local-provider-connect" type="button" ${busy || (provider !== "custom" && !available) ? "disabled" : ""}>${localProviderAction?.action === "connect" ? lang("Connecting…", "Verbinde…") : lang("Connect", "Verbinden")}</button>`}
+          </div>
+        </section>
+        ${provider === "custom" ? `<section class="provider-detail-section"><div class="provider-section-heading"><span>${lang("Executable", "Programmdatei")}</span><small>${lang("No shell scripts", "Keine Shell-Skripte")}</small></div><input class="provider-custom-path" type="text" value="${esc(status?.configuredPath ?? "")}" placeholder="${lang("Path to local provider executable", "Pfad zur lokalen Provider-Programmdatei")}" autocomplete="off" spellcheck="false"></section>` : ""}
+        <section class="provider-detail-section">
+          <div class="provider-section-heading"><span>${lang("Connection details", "Verbindungsdetails")}</span><small>${lang("Observed locally", "Lokal beobachtet")}</small></div>
+          <div class="provider-detail-grid">
+            <div class="provider-detail"><small>${lang("Installation", "Installation")}</small><strong>${status?.installationState ?? lang("Not checked", "Nicht geprüft")}</strong></div>
+            <div class="provider-detail"><small>${lang("Authentication", "Authentifizierung")}</small><strong>${status?.authState ?? lang("Unknown", "Unbekannt")}</strong></div>
+            <div class="provider-detail"><small>${lang("Version", "Version")}</small><strong>${esc(status?.version ?? "—")}</strong></div>
+            <div class="provider-detail"><small>${lang("Connection method", "Verbindungsmethode")}</small><strong>${status?.connectionMode === "manual" ? lang("Explicit local executable", "Explizite lokale Programmdatei") : lang("Local CLI discovery", "Lokale CLI-Erkennung")}</strong></div>
+          </div>
+        </section>
+        <footer class="provider-boundary provider-boundary-panel"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("This connection stores only local connection intent. Livariant does not import provider API keys or grant file, command, merge or release authority.", "Diese Verbindung speichert nur die lokale Verbindungsabsicht. Livariant importiert keine Provider-API-Schlüssel und erteilt keine Datei-, Befehls-, Merge- oder Release-Authority.")}</p></footer>
       </section>
     </div>`;
 };
+
 const renderProviderModal = () => selectedProvider
-  ? selectedProvider === "codex" ? renderCodexModal() : renderPlannedProviderModal(selectedProvider)
+  ? selectedProvider === "codex" ? renderCodexModal() : renderLocalProviderModal(selectedProvider)
   : "";
 
 export function renderConnectionsSettingsView(): string {
   const state = codexState();
-  const connectedCount = connector?.connected ? 1 : 0;
+  const connectedCount = (connector?.connected ? 1 : 0) + (["claude", "gemini", "custom"] as LocalProviderId[]).filter((provider) => localProviders[provider]?.connected).length;
+  const connectedLabel = connectedCount === 1
+    ? lang("1 provider connected", "1 Anbieter verbunden")
+    : lang(`${connectedCount} providers connected`, `${connectedCount} Anbieter verbunden`);
   return `
     <section class="settings-panel connections-settings" data-surface="connections">
       <div class="connections-heading">
         <div><span class="eyebrow">${t("connections.llmsAgents")}</span><h2>${t("connections.title")}</h2><p>${t("connections.description")}</p></div>
         <div class="connections-overview"><strong>${connectedCount}</strong><span>${lang("connected", "verbunden")}</span></div>
       </div>
-      <div class="connection-summary-row"><span><i class="summary-dot ${connector?.connected ? "connected" : ""}"></i><strong>${connector?.connected ? lang("1 provider connected", "1 Anbieter verbunden") : t("connections.noProviders")}</strong></span></div>
+      <div class="connection-summary-row"><span><i class="summary-dot ${connectedCount > 0 ? "connected" : ""}"></i><strong>${connectedCount > 0 ? connectedLabel : t("connections.noProviders")}</strong></span></div>
       <div class="provider-grid" aria-label="${lang("Available LLM and agent connections", "Verfügbare LLM- und Agent-Verbindungen")}">
         ${renderProviderCard("codex", "Codex", lang("OpenAI · local App Server", "OpenAI · lokaler App Server"), state.label, state.tone)}
-        ${renderProviderCard("claude", "Claude", lang("Anthropic · provider support", "Anthropic · Anbieter-Unterstützung"), lang("Planned", "Geplant"), "muted", false)}
-        ${renderProviderCard("gemini", "Gemini", lang("Google · provider support", "Google · Anbieter-Unterstützung"), lang("Planned", "Geplant"), "muted", false)}
-        ${renderProviderCard("custom", lang("Custom connection", "Eigene Verbindung"), lang("Advanced provider setup", "Erweiterte Anbieter-Einrichtung"), lang("Planned", "Geplant"), "muted", false)}
+        ${(["claude", "gemini", "custom"] as LocalProviderId[]).map((provider) => {
+          const copy = localProviderCopy(provider);
+          const providerState = localProviderState(provider);
+          return renderProviderCard(provider, copy.name, copy.description, providerState.label, providerState.tone);
+        }).join("")}
       </div>
       ${renderProjectConnectionsSettings()}
       ${renderProviderModal()}
@@ -416,7 +494,21 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
       if (provider !== "codex" && provider !== "claude" && provider !== "gemini" && provider !== "custom") return;
       selectedProvider = provider;
       rerender();
-      if (provider === "codex" && !connector) { await refreshConnector(); rerenderConnectionsSurface(rerender); }
+      if (provider === "codex" && !connector) {
+        await refreshConnector();
+        rerenderConnectionsSurface(rerender);
+      } else if (provider !== "codex" && !localProviders[provider]) {
+        try {
+          localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_status", { provider });
+          delete localProviderErrors[provider];
+        } catch (_cause) {
+          localProviderErrors[provider] = lang(
+            "The local provider could not be inspected. Check its local installation and try again.",
+            "Der lokale Anbieter konnte nicht geprüft werden. Prüfe die lokale Installation und versuche es erneut.",
+          );
+        }
+        rerenderConnectionsSurface(rerender);
+      }
     });
   });
 
@@ -455,6 +547,58 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); }
     catch (_cause) { error = connectionSurfaceError("connector"); }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
+  });
+
+  const activeLocalProvider = (): LocalProviderId | null =>
+    selectedProvider === "claude" || selectedProvider === "gemini" || selectedProvider === "custom"
+      ? selectedProvider
+      : null;
+
+  document.querySelector<HTMLButtonElement>(".local-provider-refresh")?.addEventListener("click", async () => {
+    const provider = activeLocalProvider();
+    if (!provider) return;
+    localProviderAction = { provider, action: null };
+    delete localProviderErrors[provider];
+    rerenderConnectionsSurface(rerender);
+    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_status", { provider }); }
+    catch (_cause) {
+      localProviderErrors[provider] = lang(
+        "The local provider could not be inspected. Check its local installation and try again.",
+        "Der lokale Anbieter konnte nicht geprüft werden. Prüfe die lokale Installation und versuche es erneut.",
+      );
+    }
+    finally { localProviderAction = null; rerenderConnectionsSurface(rerender); }
+  });
+
+  document.querySelector<HTMLButtonElement>(".local-provider-connect")?.addEventListener("click", async () => {
+    const provider = activeLocalProvider();
+    if (!provider) return;
+    const manualPath = provider === "custom"
+      ? document.querySelector<HTMLInputElement>(".provider-custom-path")?.value.trim() || null
+      : null;
+    localProviderAction = { provider, action: "connect" };
+    delete localProviderErrors[provider];
+    rerenderConnectionsSurface(rerender);
+    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_connect", { provider, manualPath }); }
+    catch (_cause) {
+      localProviderErrors[provider] = provider === "custom"
+        ? lang("Custom provider connection failed. Verify the executable path and Livariant probe contract.", "Die eigene Provider-Verbindung ist fehlgeschlagen. Prüfe Programmdatei und Livariant-Probevertrag.")
+        : lang("Provider connection failed. Verify the local CLI installation and provider authentication.", "Die Provider-Verbindung ist fehlgeschlagen. Prüfe lokale CLI-Installation und Provider-Authentifizierung.");
+    }
+    finally { localProviderAction = null; rerenderConnectionsSurface(rerender); }
+  });
+
+  document.querySelector<HTMLButtonElement>(".local-provider-disconnect")?.addEventListener("click", async () => {
+    const provider = activeLocalProvider();
+    if (!provider) return;
+    localProviderAction = { provider, action: "disconnect" };
+    delete localProviderErrors[provider];
+    rerenderConnectionsSurface(rerender);
+    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_disconnect", { provider }); }
+    catch (_cause) {
+      localProviderErrors[provider] = lang("Provider disconnect failed. Try again.", "Das Trennen des Providers ist fehlgeschlagen. Versuche es erneut.");
+    }
+    finally { localProviderAction = null; rerenderConnectionsSurface(rerender); }
   });
 
   const changePreset = async (next: string) => {
