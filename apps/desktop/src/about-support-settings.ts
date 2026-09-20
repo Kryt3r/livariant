@@ -6,6 +6,7 @@ type DesktopPublicIdentity = {
   version: string;
   releaseChannel: string;
   repository: string;
+  privacyNoticeConfigured: boolean;
 };
 
 type RuntimeHealth = {
@@ -122,11 +123,16 @@ export function renderAboutSupportSettingsView(): string {
 
         <div class="about-legal-list">
           <article>
-            <div><strong>${text("Privacy", "Datenschutz")}</strong><p>${text(
-              "Livariant currently has no usage telemetry or automatic Project Brain upload. The Desktop does perform bounded operator-safety polling; GitHub and AI-provider traffic only occurs through their documented connection paths.",
-              "Livariant besitzt derzeit keine Nutzungstelemetrie und keinen automatischen Project-Brain-Upload. Der Desktop führt einen begrenzten Operator-Sicherheitsabruf aus; GitHub- und KI-Provider-Verkehr erfolgt nur über die dokumentierten Verbindungspfade.",
+            <div><strong>${text("Privacy notice", "Datenschutzerklärung")}</strong><p>${text(
+              "The formal privacy notice is separate from the technical Privacy & Network description. It is enabled only when an operator-reviewed HTTPS destination is configured.",
+              "Die formale Datenschutzerklärung ist von der technischen Beschreibung des Datenschutz- und Netzwerkverhaltens getrennt. Sie wird nur aktiviert, wenn ein vom Betreiber geprüftes HTTPS-Ziel konfiguriert ist.",
             )}</p></div>
-            ${resourceButton("privacy", "Privacy details", "Datenschutzdetails")}
+            <div class="about-card-actions">
+              ${identity?.privacyNoticeConfigured
+                ? resourceButton("privacy-notice", "Open privacy notice", "Datenschutzerklärung öffnen")
+                : `<button class="button secondary about-resource-button" type="button" disabled aria-disabled="true">${text("Privacy notice not configured", "Datenschutzerklärung noch nicht konfiguriert")}</button>`}
+              ${resourceButton("privacy-network", "Privacy & network behavior", "Datenschutz- & Netzwerkverhalten")}
+            </div>
           </article>
 
           <article>
