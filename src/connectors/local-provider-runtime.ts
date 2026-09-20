@@ -82,7 +82,7 @@ function inspectVersion(
       command: launch.command,
       argsPrefix: launch.argsPrefix,
       launchSource: launch.source,
-      detail: result.errorMessage ?? result.stderr.trim() || result.stdout.trim() || `exit ${String(result.status)}`,
+      detail: result.errorMessage ?? (result.stderr.trim() || result.stdout.trim() || `exit ${String(result.status)}`),
     };
   }
   const version = versionFrom(`${result.stdout}\n${result.stderr}`);
@@ -139,7 +139,7 @@ export function inspectBundledLocalProvider(options: InspectBundledProviderOptio
       authState: auth.status === 0 && auth.errorCode === undefined ? "authenticated" : "unavailable",
       ...(auth.status === 0 && auth.errorCode === undefined
         ? {}
-        : { detail: auth.errorMessage ?? auth.stderr.trim() || auth.stdout.trim() || "Claude Code is installed but not authenticated." }),
+        : { detail: auth.errorMessage ?? (auth.stderr.trim() || auth.stdout.trim() || "Claude Code is installed but not authenticated.") }),
     };
   }
 
