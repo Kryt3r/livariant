@@ -345,7 +345,13 @@ const addMeasureAction = () => {
         );
       }, 180);
     } catch (cause) {
-      showMeasureNotice(surface, `${isGerman() ? "Messung fehlgeschlagen" : "Measurement failed"}: ${String(cause)}`, "error");
+      showMeasureNotice(
+        surface,
+        isGerman()
+          ? "Messung konnte nicht abgeschlossen werden. Bestehende Evidence wurde beibehalten; versuche es erneut."
+          : "Measurement could not be completed. Existing evidence was kept; try again.",
+        "error",
+      );
     } finally {
       measuring = false;
       if (button.isConnected) {
