@@ -44,7 +44,7 @@ Das Release enthält zusätzlich die Tauri-Updater-Signaturdatei für den unters
 
 ## Windows-Publisher-Warnung
 
-Das aktuelle Preview besitzt noch nicht den finalen Authenticode-Publisher-Signing-Pfad, der für das erste offizielle öffentliche Release vorgesehen ist. Windows kann deshalb eine **Unknown publisher / SmartScreen**-Warnung anzeigen, obwohl die heruntergeladenen Bytes dem veröffentlichten Digest entsprechen.
+Livariants direkter GitHub-Vertrieb kann ohne Windows-Authenticode-Publisher-Identität veröffentlicht werden. Windows kann deshalb eine **Unknown publisher / SmartScreen**-Warnung anzeigen, obwohl die heruntergeladenen Bytes dem veröffentlichten Digest entsprechen. Die separate kryptografische Updater-Signatur von Livariant bleibt dabei verpflichtend; Windows-Publisher-Signing kann später ergänzt werden, ohne den direkten Download-Vertrieb zu ändern.
 
 Updater-Signaturprüfung und Windows-Publisher-Identität sind getrennte Vertrauensschichten.
 
