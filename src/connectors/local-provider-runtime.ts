@@ -127,11 +127,11 @@ export function inspectBundledLocalProvider(options: InspectBundledProviderOptio
         npmPackages: options.provider === "claude"
           ? [{ packagePath: ["@anthropic-ai", "claude-code"], entrypoints: ["dist\\cli.js", "cli.js", "dist\\index.js"] }]
           : [{ packagePath: ["@google", "gemini-cli"], entrypoints: ["bundle\\gemini.js", "dist\\index.js", "dist\\gemini.js"] }],
+        ...options.resolveOptions,
         additionalWindowsCandidates: [
           ...defaultWindowsProviderCandidates(options.provider),
           ...(options.resolveOptions?.additionalWindowsCandidates ?? []),
         ],
-        ...options.resolveOptions,
       });
 
   if (!launch) {
