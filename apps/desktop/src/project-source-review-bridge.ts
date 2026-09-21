@@ -175,7 +175,7 @@ const presentationFromFirstRunLifecycle = (snapshot: FirstRunLifecycleSnapshot):
       identity: { provider, repositoryId, displayName, ...(remoteUrl ? { remoteUrl } : {}) },
       description: typeof row.description === "string" && row.description.trim() ? row.description.trim() : null,
       localPath,
-      remoteState: remoteUrl ? "recorded" : "not-recorded",
+      remoteState: "recorded",
       localState: localPath ? "linked" : "not-linked",
       reachability: "unknown",
       branch: null,
