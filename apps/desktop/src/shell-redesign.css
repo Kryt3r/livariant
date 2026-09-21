@@ -773,3 +773,72 @@ body {
     max-width: none;
   }
 }
+
+
+/* Project activation transition: block interaction and soften the previous project
+   until the host-confirmed project switch has been published and painted. */
+html[data-project-activation-pending="true"] .desktop-frame.shell-redesign-active {
+  filter: blur(5px);
+  transform: scale(.997);
+  pointer-events: none;
+  user-select: none;
+  transition: filter .12s ease, transform .12s ease;
+}
+
+.project-activation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 5, 14, .42);
+  backdrop-filter: blur(3px);
+}
+
+.project-activation-overlay-card {
+  min-width: min(360px, calc(100vw - 48px));
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 28px;
+  border: 1px solid rgba(173, 123, 255, .32);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 0, rgba(151, 72, 255, .16), transparent 58%),
+    rgba(10, 10, 25, .96);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .48), 0 0 36px rgba(128, 61, 255, .12);
+  color: #f5f0ff;
+  text-align: center;
+}
+
+.project-activation-overlay-card strong {
+  font-size: 15px;
+  letter-spacing: -.01em;
+}
+
+.project-activation-overlay-card small {
+  color: #a9a1bb;
+  font-size: 11px;
+}
+
+.project-activation-spinner {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 4px;
+  border: 2px solid rgba(190, 153, 255, .2);
+  border-top-color: #bd82ff;
+  border-radius: 50%;
+  animation: projectActivationSpin .8s linear infinite;
+}
+
+@keyframes projectActivationSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-activation-spinner { animation: none; }
+  html[data-project-activation-pending="true"] .desktop-frame.shell-redesign-active {
+    transition: none;
+  }
+}
