@@ -220,9 +220,10 @@ jobs:
           $node = Join-Path $installDir "livariant-node.exe"
           $runtimeManifestPath = Join-Path $installDir "runtime\manifest.json"
           $coreCli = Join-Path $installDir "runtime\core\dist\src\cli\index.js"
+          $firstRunLifecycle = Join-Path $installDir "runtime\core\dist\src\project\desktop-first-run-lifecycle-cli.js"
           $nodeLicense = Join-Path $installDir "runtime\third-party\NODE-LICENSE.txt"
 
-          foreach ($required in @($app, $node, $runtimeManifestPath, $coreCli, $nodeLicense)) {
+          foreach ($required in @($app, $node, $runtimeManifestPath, $coreCli, $firstRunLifecycle, $nodeLicense)) {
             if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
               throw "Required installed Livariant runtime material not found: $required"
             }
