@@ -147,7 +147,7 @@ fn run_lifecycle_runtime(app: &tauri::AppHandle, action: Option<Value>) -> Resul
     let executable = std::env::current_exe().map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
     let install_root = executable.parent().ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
     let node = bundled_node_path(install_root);
-    let script = install_root.join("runtime").join("core").join("dist").join("src").join("project").join("desktop-first-run-lifecycle.js");
+    let script = install_root.join("runtime").join("core").join("dist").join("src").join("project").join("desktop-first-run-lifecycle-cli.js");
     let manifest_path = install_root.join("runtime").join("manifest.json");
     if !node.is_file() || !script.is_file() || !manifest_path.is_file() {
         return Err("Bundled first-run lifecycle runtime is not present in this Desktop build.".to_owned());
