@@ -77,9 +77,14 @@ export function resolveCodexCommand(options: CodexCommandResolutionOptions = {})
       win32.join(binRoot, "node_modules", "@openai", "codex"),
     ];
     for (const packageRoot of packageRoots) {
-      const native = win32.join(packageRoot, "vendor", target.triple, "bin", "codex.exe");
-      if (fileExists(native)) {
-        return { command: native, source: "npm-native-package", shimPath };
+      const nativeCandidates = [
+        win32.join(packageRoot, "vendor", target.triple, "bin", "codex.exe"),
+        win32.join(packageRoot, "vendor", target.triple, "codex", "codex.exe"),
+      ];
+      for (const native of nativeCandidates) {
+        if (fileExists(native)) {
+          return { command: native, source: "npm-native-package", shimPath };
+        }
       }
     }
   }

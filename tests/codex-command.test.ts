@@ -48,6 +48,22 @@ test("Windows resolves the official npm Codex cmd shim to its native optional-de
   });
 });
 
+test("Windows resolves the legacy Codex npm native binary layout without a shell", () => {
+  const shim = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\codex.cmd";
+  const native = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex\\codex.exe";
+  const resolution = resolveCodexCommand({
+    platform: "win32",
+    arch: "x64",
+    pathCandidates: [shim],
+    fileExists: (path) => path.toLowerCase() === native.toLowerCase(),
+  });
+  assert.deepEqual(resolution, {
+    command: native,
+    source: "npm-native-package",
+    shimPath: shim,
+  });
+});
+
 test("Windows resolves an extensionless npm Codex shim to the nested native package without a shell", () => {
   const shim = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\codex";
   const native = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe";

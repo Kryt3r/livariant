@@ -290,7 +290,7 @@ async function persistedState(path: string): Promise<{ state: FirstRunOnboarding
   return { state: parsePersistedFirstRunOnboardingState(wrapper.onboardingState), persisted: true };
 }
 
-async function main() {
+export async function runDesktopFirstRunLifecycleCli() {
   const statePath = process.env.LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH?.trim();
   if (!statePath) throw new Error("LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH is required.");
   const loaded = await persistedState(statePath);
@@ -301,9 +301,3 @@ async function main() {
   process.stdout.write(`${JSON.stringify(desktopFirstRunLifecycleSnapshot(state, loaded.persisted || Boolean(actionPath)))}\n`);
 }
 
-if (process.argv[1] && new URL(import.meta.url).pathname.replace(/^\/(.:\/)/, "$1") === process.argv[1].replace(/\\/g, "/")) {
-  main().catch((error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
-  });
-}

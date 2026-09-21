@@ -22,6 +22,7 @@ function withProject<T>(run: (root: string) => T): T {
   }
 }
 
+
 test("fresh Desktop lifecycle begins at canonical welcome without fabricated project state", () => {
   const state = createDesktopFirstRunInitialState();
   const snapshot = desktopFirstRunLifecycleSnapshot(state, false);

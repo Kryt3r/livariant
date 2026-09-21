@@ -205,7 +205,7 @@ jobs:
         shell: pwsh
         run: |
           $installer = "${{ steps.installer.outputs.path }}"
-          $installDir = Join-Path $env:RUNNER_TEMP "LivariantInstallerSmoke"
+          $installDir = Join-Path $env:RUNNER_TEMP "Livariant Installer Smoke"
 
           if (Test-Path -LiteralPath $installDir) {
             Remove-Item -LiteralPath $installDir -Recurse -Force
@@ -220,9 +220,10 @@ jobs:
           $node = Join-Path $installDir "livariant-node.exe"
           $runtimeManifestPath = Join-Path $installDir "runtime\manifest.json"
           $coreCli = Join-Path $installDir "runtime\core\dist\src\cli\index.js"
+          $firstRunLifecycle = Join-Path $installDir "runtime\core\dist\src\project\desktop-first-run-lifecycle-cli.js"
           $nodeLicense = Join-Path $installDir "runtime\third-party\NODE-LICENSE.txt"
 
-          foreach ($required in @($app, $node, $runtimeManifestPath, $coreCli, $nodeLicense)) {
+          foreach ($required in @($app, $node, $runtimeManifestPath, $coreCli, $firstRunLifecycle, $nodeLicense)) {
             if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
               throw "Required installed Livariant runtime material not found: $required"
             }
@@ -255,6 +256,36 @@ jobs:
           } finally {
             $env:PBF_RUNTIME_DELEGATION_BYPASS = $previousBypass
           }
+
+          $firstRunStateRoot = Join-Path $env:RUNNER_TEMP "Livariant First Run State"
+          Remove-Item -LiteralPath $firstRunStateRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $firstRunStateRoot -Force | Out-Null
+          $firstRunStatePath = Join-Path $firstRunStateRoot "missing-state.json"
+          $previousFirstRunStatePath = $env:LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH
+          $previousFirstRunActionPath = $env:LIVARIANT_FIRST_RUN_ACTION_PATH
+          $env:LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH = $firstRunStatePath
+          Remove-Item Env:LIVARIANT_FIRST_RUN_ACTION_PATH -ErrorAction SilentlyContinue
+          try {
+            $firstRunJson = (& $node $firstRunLifecycle 2>&1 | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) {
+              throw "Bundled first-run lifecycle failed: $firstRunJson"
+            }
+            if (-not $firstRunJson) {
+              throw "Bundled first-run lifecycle returned no snapshot."
+            }
+            $firstRun = $firstRunJson | ConvertFrom-Json
+            if ($firstRun.status -ne "required" -or $firstRun.onboardingState.currentStep -ne "welcome") {
+              throw "Bundled first-run lifecycle did not produce the canonical fresh-install welcome snapshot."
+            }
+          } finally {
+            $env:LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH = $previousFirstRunStatePath
+            if ($null -eq $previousFirstRunActionPath) {
+              Remove-Item Env:LIVARIANT_FIRST_RUN_ACTION_PATH -ErrorAction SilentlyContinue
+            } else {
+              $env:LIVARIANT_FIRST_RUN_ACTION_PATH = $previousFirstRunActionPath
+            }
+          }
+          Write-Host "Fresh-install first-run lifecycle smoke passed from a path containing spaces."
 
           $process = Start-Process -FilePath $app -PassThru
           Start-Sleep -Seconds 8
