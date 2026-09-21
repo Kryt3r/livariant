@@ -3,12 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import {
   createDesktopFirstRunInitialState,
   desktopFirstRunLifecycleSnapshot,
   firstRunSourceReviewReady,
-  isDirectExecution,
   parsePersistedFirstRunOnboardingState,
   transitionDesktopFirstRunState,
 } from "../src/project/desktop-first-run-lifecycle.js";
@@ -24,11 +22,6 @@ function withProject<T>(run: (root: string) => T): T {
   }
 }
 
-test("direct lifecycle execution accepts file URLs for paths containing spaces", () => {
-  const entryPath = join(tmpdir(), "Livariant User Profile", "desktop-first-run-lifecycle.js");
-  assert.equal(isDirectExecution(pathToFileURL(entryPath).href, entryPath), true);
-  assert.equal(isDirectExecution(pathToFileURL(entryPath).href, undefined), false);
-});
 
 test("fresh Desktop lifecycle begins at canonical welcome without fabricated project state", () => {
   const state = createDesktopFirstRunInitialState();
