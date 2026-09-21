@@ -7,7 +7,7 @@ export interface DesktopProjectEntry {
   projectId: string | null;
   stableProjectIdentity: string | null;
   state: "registered" | "detached";
-  availability: "available" | "unavailable";
+  availability: "available" | "unavailable" | "detached";
 }
 
 export interface ActiveDesktopProject {
@@ -79,7 +79,7 @@ function isRegistrySnapshot(value: unknown): value is DesktopProjectRegistrySnap
       && typeof row.localRoot === "string"
       && !!row.localRoot.trim()
       && (row.state === "registered" || row.state === "detached")
-      && (row.availability === "available" || row.availability === "unavailable");
+      && (row.availability === "available" || row.availability === "unavailable" || row.availability === "detached");
   });
 }
 
