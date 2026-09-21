@@ -631,20 +631,35 @@ fn register_at(
     let project_id = normalized_optional(input.project_id.as_deref(), "projectId", 240)?;
     let mut registry = load_registry(projects_root)?;
 
-    if let Some(existing) = registry
+    if let Some(existing_index) = registry
         .projects
         .iter()
-        .find(|project| path_key(project.local_root.trim()) == path_key(&stored_root))
+        .position(|project| path_key(project.local_root.trim()) == path_key(&stored_root))
     {
-        if existing.state == DesktopProjectRegistrationState::Detached {
-            return Err("This local project is detached from Livariant; explicit re-adoption is required.".to_owned());
-        }
+        let existing = registry.projects[existing_index].clone();
         if let (Some(existing_project_id), Some(requested_project_id)) =
             (existing.project_id.as_deref(), project_id.as_deref())
         {
             if existing_project_id != requested_project_id {
                 return Err("This local project is already registered with a different logical projectId.".to_owned());
             }
+        }
+        if existing.state == DesktopProjectRegistrationState::Detached {
+            let display_name = normalized_display_name(input.display_name.as_deref(), &canonical_root)?;
+            let project = &mut registry.projects[existing_index];
+            project.state = DesktopProjectRegistrationState::Registered;
+            project.display_name = display_name;
+            if project.project_id.is_none() {
+                project.project_id = project_id;
+            }
+            real_state_directory(projects_root, &project.desktop_project_id, false)?;
+            write_registry(projects_root, &registry)?;
+            return Ok(DesktopProjectMutationResult {
+                state: "registered",
+                created: false,
+                snapshot: registry_snapshot(&registry, runtime)?,
+                boundaries: boundaries(),
+            });
         }
         return Ok(DesktopProjectMutationResult {
             state: "existing",
@@ -1451,6 +1466,29 @@ mod tests {
         assert!(first.created);
         assert!(!second.created);
         assert_eq!(load_registry(&projects).expect("registry").projects.len(), 1);
+        fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn detached_project_can_be_explicitly_readopted_without_new_identity() {
+        let root = test_root("readopt");
+        let projects = root.join("app-data").join("projects");
+        let local = project(&root, "one");
+        let mut runtime = ActiveProjectRuntime::default();
+
+        let first = register_at(&projects, &runtime, register_input(&local, Some("Before"))).expect("register");
+        let project_id = first.snapshot.projects[0].desktop_project_id.clone();
+        detach_at(&projects, &mut runtime, &project_id).expect("detach");
+
+        let readopted = register_at(&projects, &runtime, register_input(&local, Some("After"))).expect("readopt");
+        assert!(!readopted.created);
+        assert_eq!(readopted.state, "registered");
+        let registry = load_registry(&projects).expect("registry");
+        assert_eq!(registry.projects.len(), 1);
+        assert_eq!(registry.projects[0].desktop_project_id, project_id);
+        assert_eq!(registry.projects[0].display_name, "After");
+        assert_eq!(registry.projects[0].state, DesktopProjectRegistrationState::Registered);
+
         fs::remove_dir_all(&root).expect("cleanup");
     }
 
