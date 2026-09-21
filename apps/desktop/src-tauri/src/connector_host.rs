@@ -10,7 +10,7 @@ use std::{
 use tauri::{AppHandle, Manager, State};
 
 use crate::desktop_project_registry::{
-    active_diagnostics_project_id, DesktopProjectRegistryState,
+    active_diagnostics_project_id, active_project_scope, ActiveProjectScope, DesktopProjectRegistryState,
 };
 
 #[cfg(target_os = "windows")]
@@ -153,6 +153,7 @@ struct RuntimeManifest {
 }
 
 struct ConnectorHostProcess {
+    desktop_project_id: String,
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
@@ -231,9 +232,80 @@ fn hidden_command(program: &Path) -> Command {
     command
 }
 
-fn spawn_host(app: &AppHandle) -> Result<ConnectorHostProcess, String> {
-    let executable = std::env::current_exe().map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
-    let install_root = executable.parent().ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
+fn ensure_real_child_directory(parent: &Path, child: &str) -> Result<PathBuf, String> {
+    let path = parent.join(child);
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) => {
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err(format!("Project {child} directory must be a real non-symbolic-link directory."));
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if let Err(error) = fs::create_dir(&path) {
+                if error.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(format!("Project {child} directory could not be created: {error}"));
+                }
+            }
+            let metadata = fs::symlink_metadata(&path)
+                .map_err(|error| format!("Project {child} directory could not be inspected: {error}"))?;
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err(format!("Project {child} directory must be a real non-symbolic-link directory."));
+            }
+        }
+        Err(error) => return Err(format!("Project {child} directory could not be inspected: {error}")),
+    }
+    Ok(path)
+}
+
+fn legacy_codex_intent_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_root = app.path().app_data_dir()
+        .map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?;
+    Ok(app_data_root.join("connections").join("codex.json"))
+}
+
+fn project_codex_intent_path(
+    app: &AppHandle,
+    scope: &ActiveProjectScope,
+    migrate_legacy: bool,
+) -> Result<PathBuf, String> {
+    let connections = ensure_real_child_directory(&scope.state_root, "connections")?;
+    let target = connections.join("codex.json");
+    if !migrate_legacy || target.exists() {
+        return Ok(target);
+    }
+
+    let legacy = legacy_codex_intent_path(app)?;
+    let metadata = match fs::symlink_metadata(&legacy) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(target),
+        Err(error) => return Err(format!("Legacy Codex connection intent could not be inspected: {error}")),
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err("Legacy Codex connection intent must be a real non-symbolic-link file.".to_owned());
+    }
+    let raw = fs::read(&legacy)
+        .map_err(|error| format!("Legacy Codex connection intent could not be read: {error}"))?;
+    persisted_connection_desired(&raw)?;
+
+    let claimed = legacy.with_extension(format!("json.migrating-{}", std::process::id()));
+    fs::rename(&legacy, &claimed)
+        .map_err(|error| format!("Legacy Codex connection intent could not be claimed for migration: {error}"))?;
+    let temporary = target.with_extension(format!("json.tmp-{}", std::process::id()));
+    if let Err(error) = fs::write(&temporary, &raw).and_then(|_| fs::rename(&temporary, &target)) {
+        let _ = fs::remove_file(&temporary);
+        let _ = fs::rename(&claimed, &legacy);
+        return Err(format!("Codex connection intent could not be migrated into the active project: {error}"));
+    }
+    let _ = fs::remove_file(&claimed);
+    Ok(target)
+}
+
+fn spawn_host(app: &AppHandle, scope: &ActiveProjectScope) -> Result<ConnectorHostProcess, String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
+    let install_root = executable
+        .parent()
+        .ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
     let node = bundled_node_path(install_root);
     let host = install_root.join("runtime").join("core").join("dist").join("src").join("connectors").join("desktop-connector-host.js");
     let manifest_path = install_root.join("runtime").join("manifest.json");
@@ -241,16 +313,15 @@ fn spawn_host(app: &AppHandle) -> Result<ConnectorHostProcess, String> {
         return Err("Bundled connector runtime is not present in this Desktop build.".to_owned());
     }
 
-    let manifest: RuntimeManifest = serde_json::from_slice(&fs::read(&manifest_path).map_err(|error| format!("Runtime manifest could not be read: {error}"))?)
-        .map_err(|error| format!("Runtime manifest is invalid: {error}"))?;
+    let manifest: RuntimeManifest = serde_json::from_slice(
+        &fs::read(&manifest_path).map_err(|error| format!("Runtime manifest could not be read: {error}"))?
+    ).map_err(|error| format!("Runtime manifest is invalid: {error}"))?;
     if manifest.authority_issued {
         return Err("Ordinary bundled runtime material must never claim Authority.".to_owned());
     }
 
-    let app_data_root = app.path().app_data_dir().map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?;
-    let diagnostics_root = app_data_root.join("diagnostics");
-    let connection_intent_path = app_data_root.join("connections").join("codex.json");
-    fs::create_dir_all(&diagnostics_root).map_err(|error| format!("Diagnostics directory could not be created: {error}"))?;
+    let diagnostics_root = ensure_real_child_directory(&scope.state_root, "diagnostics")?;
+    let connection_intent_path = project_codex_intent_path(app, scope, true)?;
 
     let mut child = hidden_command(&node)
         .arg(&host)
@@ -274,6 +345,7 @@ fn spawn_host(app: &AppHandle) -> Result<ConnectorHostProcess, String> {
     let stdin = child.stdin.take().ok_or_else(|| "Connector host stdin was unavailable.".to_owned())?;
     let stdout = child.stdout.take().ok_or_else(|| "Connector host stdout was unavailable.".to_owned())?;
     Ok(ConnectorHostProcess {
+        desktop_project_id: scope.desktop_project_id.clone(),
         child,
         stdin,
         stdout: BufReader::new(stdout),
@@ -285,14 +357,21 @@ fn spawn_host(app: &AppHandle) -> Result<ConnectorHostProcess, String> {
 fn request(
     app: &AppHandle,
     state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
     method: &'static str,
     manual_path: Option<&str>,
     diagnostics_preset: Option<&str>,
     diagnostics_project_id: Option<&str>,
 ) -> Result<Value, String> {
-    let mut guard = state.process.lock().map_err(|_| "Connector host state lock is poisoned.".to_owned())?;
+    let scope = active_project_scope(app, registry)?;
+    let mut guard = state.process
+        .lock()
+        .map_err(|_| "Connector host state lock is poisoned.".to_owned())?;
+    if guard.as_ref().is_some_and(|process| process.desktop_project_id != scope.desktop_project_id) {
+        *guard = None;
+    }
     if guard.is_none() {
-        *guard = Some(spawn_host(app)?);
+        *guard = Some(spawn_host(app, &scope)?);
     }
     let result = guard
         .as_mut()
@@ -341,18 +420,25 @@ fn persisted_connection_desired(raw: &[u8]) -> Result<bool, String> {
     Ok(desired)
 }
 
-pub fn restore_persistent_connection(app: &AppHandle, state: &ConnectorHostState) -> Result<(), String> {
-    let app_data_root = app.path().app_data_dir().map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?;
-    let intent_path = app_data_root.join("connections").join("codex.json");
+pub fn restore_persistent_connection(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
+) -> Result<(), String> {
+    let scope = match active_project_scope(app, registry) {
+        Ok(scope) => scope,
+        Err(_) => return Ok(()),
+    };
+    let intent_path = project_codex_intent_path(app, &scope, true)?;
     let desired = match fs::read(&intent_path) {
         Ok(raw) => persisted_connection_desired(&raw)?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-        Err(error) => return Err(format!("Persisted Codex connection intent could not be read: {error}")),
+        Err(error) => return Err(format!("Project Codex connection intent could not be read: {error}")),
     };
     if !desired {
         return Ok(());
     }
-    request(app, state, "inspect", None, None, None).map(|_| ())
+    request(app, state, registry, "inspect", None, None, None).map(|_| ())
 }
 
 fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, String> {
@@ -364,18 +450,31 @@ fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, Str
 }
 
 #[tauri::command]
-pub fn codex_connector_status(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "inspect", None, None, None)
+pub fn codex_connector_status(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    request(&app, &state, registry.inner(), "inspect", None, None, None)
 }
 
 #[tauri::command]
-pub fn codex_connector_connect(app: AppHandle, state: State<'_, ConnectorHostState>, manual_path: Option<String>) -> Result<Value, String> {
-    request(&app, &state, "connect", manual_path.as_deref(), None, None)
+pub fn codex_connector_connect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+    manual_path: Option<String>,
+) -> Result<Value, String> {
+    request(&app, &state, registry.inner(), "connect", manual_path.as_deref(), None, None)
 }
 
 #[tauri::command]
-pub fn codex_connector_disconnect(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "disconnect", None, None, None)
+pub fn codex_connector_disconnect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    request(&app, &state, registry.inner(), "disconnect", None, None, None)
 }
 
 #[tauri::command]
@@ -387,7 +486,7 @@ pub fn codex_diagnostics_summary(
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
     let project_id = active_diagnostics_project_id(&app, registry.inner())?;
-    request(&app, &state, "diagnostics", None, preset, Some(&project_id))
+    request(&app, &state, registry.inner(), "diagnostics", None, preset, Some(&project_id))
 }
 
 #[tauri::command]
@@ -399,7 +498,7 @@ pub fn codex_diagnostics_export(
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
     let project_id = active_diagnostics_project_id(&app, registry.inner())?;
-    request(&app, &state, "export", None, preset, Some(&project_id))
+    request(&app, &state, registry.inner(), "export", None, preset, Some(&project_id))
 }
 
 #[tauri::command]
@@ -411,7 +510,7 @@ pub fn codex_diagnostics_measure(
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
     let project_id = active_diagnostics_project_id(&app, registry.inner())?;
-    request(&app, &state, "measure", None, preset, Some(&project_id))
+    request(&app, &state, registry.inner(), "measure", None, preset, Some(&project_id))
 }
 
 #[cfg(test)]
