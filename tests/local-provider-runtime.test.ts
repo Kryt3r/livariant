@@ -48,6 +48,25 @@ test("windows package-manager shim can resolve a provider entry outside the shim
   });
 });
 
+test("windows provider discovery finds a standard global npm install even when PATH has no provider shim", () => {
+  const entry = "C:\\Users\\Robin\\AppData\\Roaming\\npm\\node_modules\\@google\\gemini-cli\\bundle\\gemini.js";
+  const node = "C:\\Program Files\\Livariant\\livariant-node.exe";
+  const resolved = resolveLocalCli({
+    commandName: "gemini",
+    platform: "win32",
+    pathCandidates: [],
+    npmPackages: [{ packagePath: ["@google", "gemini-cli"], entrypoints: ["bundle\\gemini.js"] }],
+    nodeExecutable: node,
+    env: { APPDATA: "C:\\Users\\Robin\\AppData\\Roaming" },
+    fileExists: (path) => path.toLowerCase() === entry.toLowerCase(),
+  });
+  assert.deepEqual(resolved, {
+    command: node,
+    argsPrefix: [entry],
+    source: "npm-package",
+  });
+});
+
 test("manual shell shims fail closed", () => {
   assert.throws(() => launchWithManualPath("C:\\Users\\Robin\\bin\\provider.cmd"), /shell script shims/i);
 });
