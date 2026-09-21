@@ -306,3 +306,17 @@ h1 { margin: 7px 0 8px; font-size: clamp(32px, 4vw, 44px); font-weight: 680; let
   .settings-nav-item span { display: none; }
   .settings-content { padding: 28px 20px 36px; }
 }
+
+
+.settings-card-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.settings-card-action > div { min-width: 0; }
+.settings-card-action .button { flex: 0 0 auto; }
+@media (max-width: 720px) {
+  .settings-card-action { align-items: stretch; flex-direction: column; }
+  .settings-card-action .button { width: 100%; }
+}
