@@ -305,5 +305,5 @@ onDesktopProjectActivated(() => {
   state.error = null;
   state.notice = null;
   const surface = document.querySelector<HTMLElement>("[data-surface='diagnostics']");
-  if (surface?.dataset.diagnosticsCockpit === "mounted") void load(surface);
+  if (surface?.dataset.diagnosticsCockpit === "mounted") return load(surface);
 });
