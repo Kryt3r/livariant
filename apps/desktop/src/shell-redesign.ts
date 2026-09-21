@@ -1,6 +1,7 @@
 import "./shell-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 import {
   ensureShellProjectRegistryLoaded,
   syncShellProjectSwitcher,
@@ -52,7 +53,7 @@ type HealthState = "healthy" | "degraded" | "failed" | "unknown";
 let connectorStatus: ConnectorStatus | null = null;
 let localProviderStatuses: Partial<Record<LocalProviderId, LocalProviderStatus>> = {};
 let connectorStatusLoaded = false;
-let healthRefreshInFlight = false;
+let healthRefreshInFlight: Promise<void> | null = null;
 let healthRefreshPending = false;
 let navObserver: MutationObserver | null = null;
 let observedNav: HTMLElement | null = null;
@@ -285,13 +286,18 @@ const bindManageConnections = () => {
   });
 };
 
-const refreshHealth = async () => {
+const refreshHealth = async (): Promise<void> => {
   if (healthRefreshInFlight) {
     healthRefreshPending = true;
+    await healthRefreshInFlight;
+    if (healthRefreshPending) {
+      healthRefreshPending = false;
+      await refreshHealth();
+    }
     return;
   }
-  healthRefreshInFlight = true;
-  try {
+
+  const run = (async () => {
     const [codex, claude, gemini, custom] = await Promise.allSettled([
       invoke<ConnectorStatus>("codex_connector_status"),
       invoke<LocalProviderStatus>("local_provider_status", { provider: "claude" }),
@@ -304,14 +310,20 @@ const refreshHealth = async () => {
       ...(gemini.status === "fulfilled" ? { gemini: gemini.value } : {}),
       ...(custom.status === "fulfilled" ? { custom: custom.value } : {}),
     };
+  })();
+
+  healthRefreshInFlight = run;
+  try {
+    await run;
   } finally {
+    if (healthRefreshInFlight === run) healthRefreshInFlight = null;
     connectorStatusLoaded = true;
-    healthRefreshInFlight = false;
     scheduleEnhance();
-    if (healthRefreshPending) {
-      healthRefreshPending = false;
-      void refreshHealth();
-    }
+  }
+
+  if (healthRefreshPending) {
+    healthRefreshPending = false;
+    await refreshHealth();
   }
 };
 
@@ -497,6 +509,14 @@ if (appRoot) {
 
 document.addEventListener("livariant:shell-rendered", () => enhance());
 document.addEventListener("livariant:connections-changed", () => { void refreshHealth(); });
+
+onDesktopProjectActivated(async () => {
+  connectorStatusLoaded = false;
+  connectorStatus = null;
+  localProviderStatuses = {};
+  scheduleEnhance();
+  await refreshHealth();
+});
 
 document.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
