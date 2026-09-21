@@ -73,6 +73,7 @@ let enhancing = false;
 let overviewRefreshInFlight: Promise<void> | null = null;
 let productTourAutoStartChecked = false;
 let productTourIndex = -1;
+let initialLandingApplied = false;
 
 const localProviderIds: readonly LocalProviderId[] = ["claude", "gemini", "custom"];
 const providerName = (provider: LocalProviderId) => ({
@@ -709,6 +710,10 @@ const enhance = () => {
     syncShellProjectSwitcher();
     ensureShellProjectRegistryLoaded();
     ensureSidebar(frame);
+    if (!initialLandingApplied) {
+      initialLandingApplied = true;
+      window.setTimeout(() => document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click(), 0);
+    }
     moveOperatorNotices(frame);
     syncWindowControls(frame);
     syncNotificationProxy();
