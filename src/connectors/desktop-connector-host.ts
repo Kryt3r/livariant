@@ -129,12 +129,12 @@ function inspectResolvedCodex(candidatePath?: string): ResolvedCodexInspection {
       },
     };
   }
-  return { resolution, inspection: inspectCodexInstallation(resolution.command) };
+  return { resolution, inspection: inspectCodexInstallation(resolution.command, undefined, resolution.argsPrefix) };
 }
 
 function activeInspection(): ResolvedCodexInspection {
   if (selectedResolution) {
-    return { resolution: selectedResolution, inspection: inspectCodexInstallation(selectedResolution.command) };
+    return { resolution: selectedResolution, inspection: inspectCodexInstallation(selectedResolution.command, undefined, selectedResolution.argsPrefix) };
   }
   return inspectResolvedCodex();
 }
@@ -159,7 +159,7 @@ function connectionFingerprint(): string {
   const { resolution, inspection } = activeInspection();
   if (!resolution || !inspection.version) throw new Error("Codex connection identity is incomplete; diagnostics measurement cannot be scoped safely.");
   return createHash("sha256")
-    .update(`${MEASUREMENT_PROVIDER}\u0000${resolution.command}\u0000${inspection.version}`)
+    .update(`${MEASUREMENT_PROVIDER}\u0000${resolution.command}\u0000${resolution.argsPrefix.join("\u0000")}\u0000${inspection.version}`)
     .digest("hex");
 }
 
@@ -188,7 +188,7 @@ async function connectSession(options: ConnectSessionOptions = {}) {
 
   selectedResolution = resolution;
   selectedMode = manualPath ? "manual" : "auto";
-  session = await connectCodexAppServer({ clientVersion, command: resolution.command });
+  session = await connectCodexAppServer({ clientVersion, command: resolution.command, argsPrefix: resolution.argsPrefix });
   workflow = new CodexWorkflowClient(session, { appServerVersion: inspection.version });
   unsubscribeWorkflow = workflow.onEvent((event) => {
     if (event.kind === "approval-request") {
@@ -227,7 +227,9 @@ async function connect(manualPath?: string) {
     desiredConnected: true,
     mode: manualPath ? "manual" : "auto",
     ...(manualPath ? { manualPath } : {}),
-    ...(!manualPath && selectedResolution?.command ? { resolvedCommand: selectedResolution.command } : {}),
+    ...(!manualPath && selectedResolution?.command && selectedResolution.argsPrefix.length === 0
+      ? { resolvedCommand: selectedResolution.command }
+      : {}),
   };
   try {
     await writeConnectionIntent(connectionIntentPath, intent);
@@ -270,7 +272,7 @@ async function restoreDesiredConnection(): Promise<void> {
         ? { resolvedAutoCommand: intent.resolvedCommand }
         : {});
 
-    if (intent.mode === "auto" && !intent.resolvedCommand && selectedResolution?.command) {
+    if (intent.mode === "auto" && !intent.resolvedCommand && selectedResolution?.command && selectedResolution.argsPrefix.length === 0) {
       try {
         await writeConnectionIntent(connectionIntentPath, {
           ...intent,
