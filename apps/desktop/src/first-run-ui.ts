@@ -312,7 +312,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     busy = false;
     error = null;
     inspection = null;
-    void loadFirstRunLifecycle()
+    return loadFirstRunLifecycle()
       .then(async (next) => {
         if (generation !== projectActivationGeneration || !root.isConnected) return;
         snapshot = next;
