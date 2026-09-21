@@ -105,6 +105,10 @@ let selectedDiagnosticsPreset: DiagnosticPreset = "30d";
 let diagnosticsProjectGeneration = 0;
 let activeDiagnosticsRerender: (() => void) | null = null;
 
+const notifyConnectionHealthChanged = () => {
+  document.dispatchEvent(new Event("livariant:connections-changed"));
+};
+
 const esc = (value: string) => value.replace(/[&<>'\"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '\"': "&quot;",
 })[character] ?? character);
@@ -543,7 +547,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     const previousError = error;
     checkingConnector = true;
     setRefreshVisualState(true);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_status"); error = null; }
+    try { connector = await invoke<ConnectorStatus>("codex_connector_status"); error = null; notifyConnectionHealthChanged(); }
     catch (_cause) { error = connectionSurfaceError("connector"); }
     finally {
       checkingConnector = false;
@@ -554,14 +558,14 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
 
   document.querySelector<HTMLButtonElement>(".connector-connect")?.addEventListener("click", async () => {
     connectorAction = "connect"; error = null; rerenderConnectionsSurface(rerender);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); }
+    try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); notifyConnectionHealthChanged(); }
     catch (_cause) { error = connectionSurfaceError("connector"); }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
 
   document.querySelector<HTMLButtonElement>(".connector-disconnect")?.addEventListener("click", async () => {
     connectorAction = "disconnect"; error = null; rerenderConnectionsSurface(rerender);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); }
+    try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); notifyConnectionHealthChanged(); }
     catch (_cause) { error = connectionSurfaceError("connector"); }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
@@ -577,7 +581,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     localProviderAction = { provider, action: null };
     delete localProviderErrors[provider];
     rerenderConnectionsSurface(rerender);
-    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_status", { provider }); }
+    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_status", { provider }); notifyConnectionHealthChanged(); }
     catch (_cause) {
       localProviderErrors[provider] = lang(
         "The local provider could not be inspected. Check its local installation and try again.",
@@ -596,7 +600,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     localProviderAction = { provider, action: "connect" };
     delete localProviderErrors[provider];
     rerenderConnectionsSurface(rerender);
-    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_connect", { provider, manualPath }); }
+    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_connect", { provider, manualPath }); notifyConnectionHealthChanged(); }
     catch (_cause) {
       localProviderErrors[provider] = provider === "custom"
         ? lang("Custom provider connection failed. Verify the executable path and Livariant probe contract.", "Die eigene Provider-Verbindung ist fehlgeschlagen. Prüfe Programmdatei und Livariant-Probevertrag.")
@@ -611,7 +615,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     localProviderAction = { provider, action: "disconnect" };
     delete localProviderErrors[provider];
     rerenderConnectionsSurface(rerender);
-    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_disconnect", { provider }); }
+    try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_disconnect", { provider }); notifyConnectionHealthChanged(); }
     catch (_cause) {
       localProviderErrors[provider] = lang("Provider disconnect failed. Try again.", "Das Trennen des Providers ist fehlgeschlagen. Versuche es erneut.");
     }
