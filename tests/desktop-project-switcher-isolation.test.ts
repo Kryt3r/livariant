@@ -24,6 +24,9 @@ test("activation is published only from a host-confirmed active snapshot", async
   assert.match(registry, /active\.desktopProjectId !== desktopProjectId/);
   assert.match(registry, /publishRegistry\(snapshot\)/);
   assert.match(registry, /livariant:desktop-project-activated/);
+  assert.match(registry, /showProjectActivationOverlay\(\)/);
+  assert.match(registry, /await settleProjectActivationFrame\(\)/);
+  assert.match(registry, /hideProjectActivationOverlay\(\)/);
 });
 
 test("Source Review clears project-scoped renderer state and rejects late results", async () => {
@@ -37,6 +40,9 @@ test("Source Review clears project-scoped renderer state and rejects late result
   assert.match(navigation, /onDesktopProjectActivated\(\(\) => \{/);
   assert.match(navigation, /renderGeneration \+= 1/);
   assert.match(navigation, /if \(sourceReviewActive\) void renderIntoContent\(\)/);
+  assert.match(bridge, /loadFirstRunLifecycle\(\)/);
+  assert.match(bridge, /presentationFromFirstRunLifecycle/);
+  assert.match(bridge, /No repository scan was performed/);
 });
 
 test("First Run and project connection caches are rebound on activation", async () => {
@@ -62,4 +68,6 @@ test("project switcher contrast and popover states are explicit", async () => {
   assert.match(css, /\.global-project-option\.active/);
   assert.match(css, /\.global-project small \{[^}]*color: #b9b2cc/s);
   assert.match(css, /\.global-project strong \{[^}]*color: #fbf9ff/s);
+  assert.match(css, /\.project-activation-overlay/);
+  assert.match(css, /data-project-activation-pending="true"/);
 });
