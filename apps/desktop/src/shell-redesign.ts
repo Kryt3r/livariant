@@ -225,7 +225,7 @@ const ensureHeader = (frame: HTMLElement) => {
     header.dataset.shellRedesign = "true";
     header.classList.add("livariant-global-header");
     header.innerHTML = `
-      <div class="global-header-left" data-tauri-drag-region>
+      <div class="global-header-left">
         <div class="global-brand" data-tauri-drag-region>${logo ? `<img src="${esc(logo)}" alt="" aria-hidden="true"/>` : ""}<strong data-tauri-drag-region>Livariant</strong></div>
         <div data-shell-project-host></div>
       </div>
