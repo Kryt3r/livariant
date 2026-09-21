@@ -104,7 +104,7 @@ const installNavigation = () => {
 onDesktopProjectActivated(() => {
   renderGeneration += 1;
   teardownHeavySection();
-  if (sourceReviewActive) void renderIntoContent();
+  if (sourceReviewActive) return renderIntoContent();
 });
 
 const appRoot = document.querySelector<HTMLElement>("#app");

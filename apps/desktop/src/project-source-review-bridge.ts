@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
 import { onDesktopProjectActivated } from "./desktop-project-registry.js";
+import { loadFirstRunLifecycle, type FirstRunLifecycleSnapshot } from "./first-run-lifecycle.js";
 import {
   renderProjectSourceReviewUnavailable,
   renderProjectSourceReviewView,
@@ -138,6 +139,77 @@ onDesktopProjectActivated(() => {
   resetProjectScopedRendererState();
 });
 
+const presentationFromFirstRunLifecycle = (snapshot: FirstRunLifecycleSnapshot): DesktopSourceReviewPresentation | null => {
+  const onboarding = snapshot.onboardingState;
+  if (!onboarding || typeof onboarding !== "object" || Array.isArray(onboarding)) return null;
+  const project = (onboarding as Record<string, unknown>).project;
+  if (!project || typeof project !== "object" || Array.isArray(project)) return null;
+  const registry = (project as Record<string, unknown>).sourceRegistry;
+  if (!registry || typeof registry !== "object" || Array.isArray(registry)) return null;
+  const record = registry as Record<string, unknown>;
+  const projectId = typeof record.projectId === "string" ? record.projectId.trim() : "";
+  const primary = record.primary;
+  const additional = Array.isArray(record.additional) ? record.additional : [];
+  if (!projectId || !primary || typeof primary !== "object" || Array.isArray(primary)) return null;
+
+  const toSource = (value: unknown, kind: "primary" | "additional"): DesktopSourceReviewPresentation["sources"][number] | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const row = value as Record<string, unknown>;
+    const identity = row.identity;
+    if (!identity || typeof identity !== "object" || Array.isArray(identity)) return null;
+    const identityRow = identity as Record<string, unknown>;
+    const provider = typeof identityRow.provider === "string" ? identityRow.provider.trim() : "";
+    const repositoryId = typeof identityRow.repositoryId === "string" ? identityRow.repositoryId.trim() : "";
+    const displayName = typeof identityRow.displayName === "string" ? identityRow.displayName.trim() : "";
+    if (!provider || !repositoryId || !displayName) return null;
+    const local = row.local;
+    const localPath = local && typeof local === "object" && !Array.isArray(local)
+      && typeof (local as Record<string, unknown>).localPath === "string"
+      ? ((local as Record<string, unknown>).localPath as string).trim() || null
+      : null;
+    const remoteUrl = typeof identityRow.remoteUrl === "string" && identityRow.remoteUrl.trim()
+      ? identityRow.remoteUrl.trim()
+      : undefined;
+    return {
+      kind,
+      identity: { provider, repositoryId, displayName, ...(remoteUrl ? { remoteUrl } : {}) },
+      description: typeof row.description === "string" && row.description.trim() ? row.description.trim() : null,
+      localPath,
+      remoteState: "recorded",
+      localState: localPath ? "linked" : "not-linked",
+      reachability: "unknown",
+      branch: null,
+      revision: null,
+      observedAt: null,
+      stale: false,
+      attention: [],
+    };
+  };
+
+  const primarySource = toSource(primary, "primary");
+  if (!primarySource) return null;
+  const additionalSources = additional.map((item) => toSource(item, "additional")).filter((item): item is DesktopSourceReviewPresentation["sources"][number] => !!item);
+  const sources = [primarySource, ...additionalSources];
+  const localCheckoutCount = sources.filter((source) => source.localState === "linked").length;
+  const remoteOnlyCount = sources.filter((source) => source.remoteState === "recorded" && source.localState === "not-linked").length;
+
+  return {
+    projectId,
+    sources,
+    review: null,
+    summary: {
+      sourceCount: sources.length,
+      additionalSourceCount: additionalSources.length,
+      remoteOnlyCount,
+      localCheckoutCount,
+      unavailableCount: 0,
+      staleCount: 0,
+      reviewAttentionCount: 0,
+      reviewBlockerCount: 0,
+    },
+  };
+};
+
 const isPresentation = (value: unknown): value is DesktopSourceReviewPresentation => {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
@@ -214,7 +286,21 @@ export async function loadProjectSourceReviewPresentation(): Promise<void> {
   try {
     const result = await invoke<ProjectSourceReviewBridgeResult>("project_source_review_presentation");
     if (generation !== rendererProjectGeneration) return;
-    applyPresentationResult(result);
+    if (applyPresentationResult(result)) return;
+
+    const lifecycle = await loadFirstRunLifecycle();
+    if (generation !== rendererProjectGeneration) return;
+    const fallback = presentationFromFirstRunLifecycle(lifecycle);
+    if (fallback) {
+      bridgeState = {
+        state: "ready",
+        presentation: fallback,
+        detail: text(
+          "Configured project sources loaded from the active project's bounded onboarding state. No repository scan was performed.",
+          "Konfigurierte Projektquellen wurden aus dem begrenzten Onboarding-Zustand des aktiven Projekts geladen. Es wurde kein Repository-Scan ausgeführt.",
+        ),
+      };
+    }
   } catch {
     if (generation !== rendererProjectGeneration) return;
     bridgeState = {

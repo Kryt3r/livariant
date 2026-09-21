@@ -87,9 +87,8 @@ onDesktopProjectActivated(() => {
   notice = null;
   pendingConfirmation = null;
   activeRerender?.();
-  if (activeRerender) {
-    void refreshProjectConnectionsSettings().then(() => activeRerender?.());
-  }
+  if (!activeRerender) return;
+  return refreshProjectConnectionsSettings().then(() => activeRerender?.());
 });
 
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;

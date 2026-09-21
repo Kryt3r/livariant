@@ -24,6 +24,11 @@ test("activation is published only from a host-confirmed active snapshot", async
   assert.match(registry, /active\.desktopProjectId !== desktopProjectId/);
   assert.match(registry, /publishRegistry\(snapshot\)/);
   assert.match(registry, /livariant:desktop-project-activated/);
+  assert.match(registry, /showProjectActivationOverlay\(\)/);
+  assert.match(registry, /await publishDesktopProjectActivated\(/);
+  assert.match(registry, /await Promise\.all\(results\)/);
+  assert.match(registry, /await settleProjectActivationFrame\(\)/);
+  assert.match(registry, /hideProjectActivationOverlay\(\)/);
 });
 
 test("Source Review clears project-scoped renderer state and rejects late results", async () => {
@@ -36,7 +41,10 @@ test("Source Review clears project-scoped renderer state and rejects late result
   assert.match(bridge, /generation !== rendererProjectGeneration/);
   assert.match(navigation, /onDesktopProjectActivated\(\(\) => \{/);
   assert.match(navigation, /renderGeneration \+= 1/);
-  assert.match(navigation, /if \(sourceReviewActive\) void renderIntoContent\(\)/);
+  assert.match(navigation, /if \(sourceReviewActive\) return renderIntoContent\(\)/);
+  assert.match(bridge, /loadFirstRunLifecycle\(\)/);
+  assert.match(bridge, /presentationFromFirstRunLifecycle/);
+  assert.match(bridge, /No repository scan was performed/);
 });
 
 test("First Run and project connection caches are rebound on activation", async () => {
@@ -46,12 +54,24 @@ test("First Run and project connection caches are rebound on activation", async 
   assert.match(firstRun, /onDesktopProjectActivated\(\(\) => \{/);
   assert.match(firstRun, /projectActivationGeneration/);
   assert.match(firstRun, /generation !== projectActivationGeneration/);
-  assert.match(firstRun, /loadFirstRunLifecycle\(\)/);
+  assert.match(firstRun, /return loadFirstRunLifecycle\(\)/);
 
   assert.match(settings, /onDesktopProjectActivated\(\(\) => \{/);
   assert.match(settings, /sourceRegistry = null/);
   assert.match(settings, /transitionForCurrentProject/);
   assert.match(settings, /generation !== projectActivationGeneration/);
+  assert.match(settings, /return refreshProjectConnectionsSettings\(\)/);
+});
+
+test("project transition waits for project-scoped provider and diagnostics rehydration", async () => {
+  const shell = await read("apps/desktop/src/shell-redesign.ts");
+  const connections = await read("apps/desktop/src/connections-diagnostics.ts");
+  const cockpit = await read("apps/desktop/src/diagnostics-cockpit.ts");
+
+  assert.match(shell, /onDesktopProjectActivated\(async \(\) => \{/);
+  assert.match(shell, /await refreshHealth\(\)/);
+  assert.match(connections, /return Promise\.all\(\[providerRefresh, diagnosticsRefresh\]\)/);
+  assert.match(cockpit, /return load\(surface\)/);
 });
 
 test("project switcher contrast and popover states are explicit", async () => {
@@ -62,4 +82,6 @@ test("project switcher contrast and popover states are explicit", async () => {
   assert.match(css, /\.global-project-option\.active/);
   assert.match(css, /\.global-project small \{[^}]*color: #b9b2cc/s);
   assert.match(css, /\.global-project strong \{[^}]*color: #fbf9ff/s);
+  assert.match(css, /\.project-activation-overlay/);
+  assert.match(css, /data-project-activation-pending="true"/);
 });
