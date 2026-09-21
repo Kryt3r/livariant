@@ -246,7 +246,8 @@ pub fn run() {
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let state = handle.state::<connector_host::ConnectorHostState>();
-                let _ = connector_host::restore_persistent_connection(&handle, state.inner());
+                let registry = handle.state::<desktop_project_registry::DesktopProjectRegistryState>();
+                let _ = connector_host::restore_persistent_connection(&handle, state.inner(), registry.inner());
             });
             Ok(())
         })

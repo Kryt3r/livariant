@@ -1,3 +1,4 @@
+use crate::desktop_project_registry::{active_project_scope, DesktopProjectRegistryState};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -5,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 
 const PROVIDERS: [&str; 3] = ["claude", "gemini", "custom"];
 
@@ -48,22 +49,8 @@ fn validate_manual_path(path: Option<String>) -> Result<Option<String>, String> 
     Ok(Some(trimmed.to_owned()))
 }
 
-fn intent_path(app: &AppHandle, provider: &str) -> Result<PathBuf, String> {
-    let root = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?;
-    Ok(root.join("connections").join(format!("{provider}.json")))
-}
-
-fn read_intent(app: &AppHandle, provider: &str) -> Result<ProviderIntent, String> {
-    let path = intent_path(app, provider)?;
-    let raw = match fs::read(&path) {
-        Ok(value) => value,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(disconnected_intent()),
-        Err(error) => return Err(format!("Local provider connection preference could not be read: {error}")),
-    };
-    let intent: ProviderIntent = serde_json::from_slice(&raw)
+fn decode_intent(raw: &[u8], provider: &str) -> Result<ProviderIntent, String> {
+    let intent: ProviderIntent = serde_json::from_slice(raw)
         .map_err(|error| format!("Local provider connection preference is invalid: {error}"))?;
     if intent.schema_version != 1 {
         return Err("Local provider connection preference schema is unsupported.".to_owned());
@@ -77,23 +64,122 @@ fn read_intent(app: &AppHandle, provider: &str) -> Result<ProviderIntent, String
     Ok(intent)
 }
 
-fn write_intent(app: &AppHandle, provider: &str, intent: &ProviderIntent) -> Result<(), String> {
-    let path = intent_path(app, provider)?;
-    let parent = path.parent().ok_or_else(|| "Local provider connection path has no parent.".to_owned())?;
-    fs::create_dir_all(parent)
-        .map_err(|error| format!("Local provider connection directory could not be created: {error}"))?;
+fn project_intent_path(
+    app: &AppHandle,
+    registry: &DesktopProjectRegistryState,
+    provider: &str,
+    create_parent: bool,
+) -> Result<PathBuf, String> {
+    let scope = active_project_scope(app, registry)?;
+    let dir = scope.state_root.join("connections");
+    match fs::symlink_metadata(&dir) {
+        Ok(metadata) => {
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("Project connection directory must be a real non-symbolic-link directory.".to_owned());
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound && create_parent => {
+            if let Err(error) = fs::create_dir(&dir) {
+                if error.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(format!("Project connection directory could not be created: {error}"));
+                }
+            }
+            let metadata = fs::symlink_metadata(&dir)
+                .map_err(|error| format!("Project connection directory could not be inspected: {error}"))?;
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("Project connection directory must be a real non-symbolic-link directory.".to_owned());
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("Project connection directory could not be inspected: {error}")),
+    }
+    Ok(dir.join(format!("{provider}.json")))
+}
+
+fn legacy_intent_path(app: &AppHandle, provider: &str) -> Result<PathBuf, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?;
+    Ok(root.join("connections").join(format!("{provider}.json")))
+}
+
+fn write_intent_to_path(path: &Path, intent: &ProviderIntent) -> Result<(), String> {
+    let parent = path.parent().ok_or_else(|| "Project provider connection path has no parent.".to_owned())?;
+    let metadata = fs::symlink_metadata(parent)
+        .map_err(|error| format!("Project provider connection directory could not be inspected: {error}"))?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err("Project provider connection directory must be a real non-symbolic-link directory.".to_owned());
+    }
     let temporary = path.with_extension(format!("json.tmp-{}", std::process::id()));
     let bytes = serde_json::to_vec(intent)
-        .map_err(|error| format!("Local provider connection preference could not be encoded: {error}"))?;
+        .map_err(|error| format!("Project provider connection preference could not be encoded: {error}"))?;
     fs::write(&temporary, bytes)
-        .map_err(|error| format!("Local provider connection preference could not be written: {error}"))?;
+        .map_err(|error| format!("Project provider connection preference could not be written: {error}"))?;
     if path.exists() {
-        fs::remove_file(&path)
-            .map_err(|error| format!("Previous local provider connection preference could not be replaced: {error}"))?;
+        fs::remove_file(path)
+            .map_err(|error| format!("Previous project provider connection preference could not be replaced: {error}"))?;
     }
-    fs::rename(&temporary, &path)
-        .map_err(|error| format!("Local provider connection preference could not be committed: {error}"))?;
+    fs::rename(&temporary, path)
+        .map_err(|error| format!("Project provider connection preference could not be committed: {error}"))?;
     Ok(())
+}
+
+fn migrate_legacy_intent_if_needed(
+    app: &AppHandle,
+    registry: &DesktopProjectRegistryState,
+    provider: &str,
+) -> Result<PathBuf, String> {
+    let target = project_intent_path(app, registry, provider, false)?;
+    if target.exists() {
+        return Ok(target);
+    }
+    let legacy = legacy_intent_path(app, provider)?;
+    let metadata = match fs::symlink_metadata(&legacy) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(target),
+        Err(error) => return Err(format!("Legacy local provider connection preference could not be inspected: {error}")),
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err("Legacy local provider connection preference must be a real non-symbolic-link file.".to_owned());
+    }
+    let raw = fs::read(&legacy)
+        .map_err(|error| format!("Legacy local provider connection preference could not be read: {error}"))?;
+    let intent = decode_intent(&raw, provider)?;
+    let target = project_intent_path(app, registry, provider, true)?;
+    let claimed = legacy.with_extension(format!("json.migrating-{}", std::process::id()));
+    fs::rename(&legacy, &claimed)
+        .map_err(|error| format!("Legacy local provider connection preference could not be claimed for migration: {error}"))?;
+    if let Err(error) = write_intent_to_path(&target, &intent) {
+        let _ = fs::rename(&claimed, &legacy);
+        return Err(error);
+    }
+    let _ = fs::remove_file(&claimed);
+    Ok(target)
+}
+
+fn read_intent(
+    app: &AppHandle,
+    registry: &DesktopProjectRegistryState,
+    provider: &str,
+) -> Result<ProviderIntent, String> {
+    let path = migrate_legacy_intent_if_needed(app, registry, provider)?;
+    let raw = match fs::read(&path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(disconnected_intent()),
+        Err(error) => return Err(format!("Project provider connection preference could not be read: {error}")),
+    };
+    decode_intent(&raw, provider)
+}
+
+fn write_intent(
+    app: &AppHandle,
+    registry: &DesktopProjectRegistryState,
+    provider: &str,
+    intent: &ProviderIntent,
+) -> Result<(), String> {
+    let path = project_intent_path(app, registry, provider, true)?;
+    write_intent_to_path(&path, intent)
 }
 
 fn bundled_node_path(install_root: &Path) -> PathBuf {
@@ -199,14 +285,14 @@ fn public_status(app: &AppHandle, provider: &str, intent: &ProviderIntent) -> Re
 }
 
 #[tauri::command]
-pub fn local_provider_status(app: AppHandle, provider: String) -> Result<Value, String> {
+pub fn local_provider_status(app: AppHandle, registry: State<'_, DesktopProjectRegistryState>, provider: String) -> Result<Value, String> {
     let provider = validate_provider(provider.trim())?;
-    let intent = read_intent(&app, provider)?;
+    let intent = read_intent(&app, registry.inner(), provider)?;
     public_status(&app, provider, &intent)
 }
 
 #[tauri::command]
-pub fn local_provider_connect(app: AppHandle, provider: String, manual_path: Option<String>) -> Result<Value, String> {
+pub fn local_provider_connect(app: AppHandle, registry: State<'_, DesktopProjectRegistryState>, provider: String, manual_path: Option<String>) -> Result<Value, String> {
     let provider = validate_provider(provider.trim())?;
     let manual_path = validate_manual_path(manual_path)?;
     if provider == "custom" && manual_path.is_none() {
@@ -227,16 +313,16 @@ pub fn local_provider_connect(app: AppHandle, provider: String, manual_path: Opt
         mode: if manual_path.is_some() { "manual" } else { "auto" }.to_owned(),
         manual_path,
     };
-    write_intent(&app, provider, &intent)?;
+    write_intent(&app, registry.inner(), provider, &intent)?;
     public_status(&app, provider, &intent)
 }
 
 #[tauri::command]
-pub fn local_provider_disconnect(app: AppHandle, provider: String) -> Result<Value, String> {
+pub fn local_provider_disconnect(app: AppHandle, registry: State<'_, DesktopProjectRegistryState>, provider: String) -> Result<Value, String> {
     let provider = validate_provider(provider.trim())?;
-    let mut intent = read_intent(&app, provider)?;
+    let mut intent = read_intent(&app, registry.inner(), provider)?;
     intent.desired_connected = false;
-    write_intent(&app, provider, &intent)?;
+    write_intent(&app, registry.inner(), provider, &intent)?;
     public_status(&app, provider, &intent)
 }
 
