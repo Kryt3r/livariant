@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join, win32 } from "node:path";
+import { win32 } from "node:path";
 import { resolveLocalCli } from "./local-cli-command.js";
 
 export interface CodexCommandResolution {
@@ -34,11 +34,11 @@ function officialWindowsCandidates(env: NodeJS.ProcessEnv): string[] {
   const result: string[] = [];
   const localAppData = env.LOCALAPPDATA?.trim();
   const codexInstallDir = env.CODEX_INSTALL_DIR?.trim();
-  const codexHome = env.CODEX_HOME?.trim() || (env.USERPROFILE?.trim() ? join(env.USERPROFILE.trim(), ".codex") : undefined);
+  const codexHome = env.CODEX_HOME?.trim() || (env.USERPROFILE?.trim() ? win32.join(env.USERPROFILE.trim(), ".codex") : undefined);
 
-  if (codexInstallDir) result.push(join(codexInstallDir, "codex.exe"));
-  if (localAppData) result.push(join(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe"));
-  if (codexHome) result.push(join(codexHome, "packages", "standalone", "current", "codex.exe"));
+  if (codexInstallDir) result.push(win32.join(codexInstallDir, "codex.exe"));
+  if (localAppData) result.push(win32.join(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe"));
+  if (codexHome) result.push(win32.join(codexHome, "packages", "standalone", "current", "codex.exe"));
   return result;
 }
 
