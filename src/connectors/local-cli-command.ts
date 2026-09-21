@@ -23,6 +23,8 @@ export interface ResolveLocalCliOptions {
   platform?: NodeJS.Platform;
   pathCandidates?: readonly string[];
   additionalWindowsCandidates?: readonly string[];
+  additionalPackageRoots?: readonly string[];
+  env?: NodeJS.ProcessEnv;
   fileExists?: (path: string) => boolean;
   readTextFile?: (path: string) => string;
   nodeExecutable?: string;
@@ -60,6 +62,50 @@ function uniquePaths(values: readonly string[]): string[] {
     result.push(trimmed);
   }
   return result;
+}
+
+function defaultWindowsDiscovery(commandName: string, env: NodeJS.ProcessEnv): {
+  candidates: string[];
+  packageRoots: string[];
+} {
+  const candidates: string[] = [];
+  const packageRoots: string[] = [];
+  const appData = env.APPDATA?.trim();
+  const userProfile = env.USERPROFILE?.trim() || env.HOME?.trim();
+  const pnpmHome = env.PNPM_HOME?.trim();
+  const voltaHome = env.VOLTA_HOME?.trim();
+  const npmPrefix = env.NPM_CONFIG_PREFIX?.trim();
+  const nvmSymlink = env.NVM_SYMLINK?.trim();
+
+  const addBinForms = (root: string) => {
+    candidates.push(
+      win32.join(root, `${commandName}.exe`),
+      win32.join(root, `${commandName}.cmd`),
+      win32.join(root, commandName),
+    );
+  };
+
+  if (appData) {
+    const npmRoot = win32.join(appData, "npm");
+    addBinForms(npmRoot);
+    packageRoots.push(npmRoot);
+  }
+  if (pnpmHome) addBinForms(pnpmHome);
+  if (voltaHome) addBinForms(win32.join(voltaHome, "bin"));
+  if (npmPrefix) {
+    addBinForms(npmPrefix);
+    packageRoots.push(npmPrefix);
+  }
+  if (nvmSymlink) {
+    addBinForms(nvmSymlink);
+    packageRoots.push(nvmSymlink);
+  }
+  if (userProfile) addBinForms(win32.join(userProfile, ".local", "bin"));
+
+  return {
+    candidates: uniquePaths(candidates),
+    packageRoots: uniquePaths(packageRoots),
+  };
 }
 
 function packageMarker(target: LocalCliPackageTarget): string {
@@ -111,8 +157,18 @@ export function resolveLocalCli(options: ResolveLocalCliOptions): LocalCliLaunch
 
   const fileExists = options.fileExists ?? existsSync;
   const readTextFile = options.readTextFile ?? ((path: string) => readFileSync(path, "utf8"));
+  const env = options.env ?? process.env;
+  const defaults = defaultWindowsDiscovery(commandName, env);
   const discovered = options.pathCandidates ?? windowsPathCandidates(commandName);
-  const candidates = uniquePaths([...(options.additionalWindowsCandidates ?? []), ...discovered]);
+  const candidates = uniquePaths([
+    ...(options.additionalWindowsCandidates ?? []),
+    ...defaults.candidates,
+    ...discovered,
+  ]);
+  const packageRoots = uniquePaths([
+    ...(options.additionalPackageRoots ?? []),
+    ...defaults.packageRoots,
+  ]);
   const nativeNames = new Set(
     (options.nativeWindowsBasenames ?? [`${commandName}.exe`]).map((value) => value.toLowerCase()),
   );
@@ -124,6 +180,23 @@ export function resolveLocalCli(options: ResolveLocalCliOptions): LocalCliLaunch
   }
 
   const packageTargets = options.npmPackages ?? [];
+
+  for (const packageBinRoot of packageRoots) {
+    for (const target of packageTargets) {
+      const packageRoot = win32.join(packageBinRoot, "node_modules", ...target.packagePath);
+      for (const entrypoint of target.entrypoints) {
+        const entry = win32.join(packageRoot, entrypoint);
+        if (fileExists(entry)) {
+          return {
+            command: options.nodeExecutable ?? process.execPath,
+            argsPrefix: [entry],
+            source: "npm-package",
+          };
+        }
+      }
+    }
+  }
+
   for (const shimPath of candidates) {
     if (!isWindowsShim(shimPath) || !fileExists(shimPath)) continue;
 
