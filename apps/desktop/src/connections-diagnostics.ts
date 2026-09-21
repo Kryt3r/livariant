@@ -358,7 +358,7 @@ export function renderConnectionsSettingsView(): string {
   return `
     <section class="settings-panel connections-settings" data-surface="connections">
       <div class="connections-heading">
-        <div><span class="eyebrow">${t("connections.llmsAgents")}</span><h2>${t("connections.title")}</h2><p>${t("connections.description")}</p></div>
+        <div><span class="eyebrow">${lang("AI tools available to this project", "KI-Werkzeuge für dieses Projekt")}</span><h2>${t("connections.title")}</h2><p>${lang("Connect the AI tools you want Livariant to work alongside. A connection only makes a provider available; it does not give that provider permission to change files, run commands, merge or release anything.", "Verbinde die KI-Werkzeuge, mit denen Livariant zusammenarbeiten soll. Eine Verbindung macht einen Anbieter nur verfügbar; sie gibt ihm keine Erlaubnis, Dateien zu ändern, Befehle auszuführen, zu mergen oder etwas zu veröffentlichen.")}</p></div>
         <div class="connections-overview"><strong>${connectedCount}</strong><span>${lang("connected", "verbunden")}</span></div>
       </div>
       <div class="connection-summary-row"><span><i class="summary-dot ${connectedCount > 0 ? "connected" : ""}"></i><strong>${connectedCount > 0 ? connectedLabel : t("connections.noProviders")}</strong></span></div>
