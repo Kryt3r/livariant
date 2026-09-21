@@ -20,6 +20,7 @@ const projectIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h6
 let loaded = false;
 let loading = false;
 let error: string | null = null;
+const renderedMarkup = new WeakMap<HTMLElement, string>();
 
 const stateLabel = (state: string, availability: string) => {
   if (state === "detached") return text("Detached", "Getrennt");
@@ -71,11 +72,19 @@ function markup(): string {
 
 export function syncShellProjectSwitcher(): void {
   document.querySelectorAll<HTMLElement>("[data-shell-project-host]").forEach((host) => {
-    host.innerHTML = markup();
+    const nextMarkup = markup();
+    if (renderedMarkup.get(host) === nextMarkup) return;
+    const wasOpen = host.querySelector<HTMLElement>(".global-project-wrap")?.dataset.open === "true";
+    host.innerHTML = nextMarkup;
+    renderedMarkup.set(host, nextMarkup);
     const wrap = host.querySelector<HTMLElement>(".global-project-wrap");
     const button = host.querySelector<HTMLButtonElement>("[data-shell-project]");
     const popover = host.querySelector<HTMLElement>(".global-project-popover");
     if (!wrap || !button || !popover) return;
+    if (wasOpen) {
+      wrap.dataset.open = "true";
+      button.setAttribute("aria-expanded", "true");
+    }
 
     button.addEventListener("click", (event) => {
       event.preventDefault();
