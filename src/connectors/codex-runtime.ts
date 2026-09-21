@@ -14,7 +14,6 @@ export type CodexInstallationState = "available" | "not-found" | "unusable";
 export interface CodexInstallationInspection {
   state: CodexInstallationState;
   command: string;
-  argsPrefix: readonly string[];
   version?: string;
   evidence: "codex --version";
   detail?: string;
@@ -62,7 +61,6 @@ export function inspectCodexInstallation(
     return {
       state: "not-found",
       command,
-      argsPrefix,
       evidence: "codex --version",
       detail: result.errorMessage ?? "Codex executable was not found.",
     };
@@ -78,7 +76,6 @@ export function inspectCodexInstallation(
   return {
     state: "available",
     command,
-    argsPrefix,
     evidence: "codex --version",
     ...(version === undefined ? {} : { version }),
     ...(version === undefined ? { detail: "Codex responded, but no semantic version could be identified." } : {}),
