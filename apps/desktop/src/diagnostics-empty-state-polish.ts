@@ -41,7 +41,7 @@ onDesktopProjectActivated(() => {
     delete hero.dataset.availabilityChecked;
     hero.classList.remove("empty");
   });
-  void reconcileEmptyHero();
+  return reconcileEmptyHero();
 });
 
 const observer = new MutationObserver(() => void reconcileEmptyHero());
