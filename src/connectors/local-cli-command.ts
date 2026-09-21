@@ -198,17 +198,19 @@ export function resolveLocalCli(options: ResolveLocalCliOptions): LocalCliLaunch
   }
 
   for (const shimPath of candidates) {
-    if (!isWindowsShim(shimPath) || !fileExists(shimPath)) continue;
+    if (!isWindowsShim(shimPath)) continue;
 
-    for (const target of packageTargets) {
-      for (const entry of shimEntrypointCandidates(shimPath, target, readTextFile)) {
-        if (fileExists(entry)) {
-          return {
-            command: options.nodeExecutable ?? process.execPath,
-            argsPrefix: [entry],
-            source: "npm-package",
-            shimPath,
-          };
+    if (fileExists(shimPath)) {
+      for (const target of packageTargets) {
+        for (const entry of shimEntrypointCandidates(shimPath, target, readTextFile)) {
+          if (fileExists(entry)) {
+            return {
+              command: options.nodeExecutable ?? process.execPath,
+              argsPrefix: [entry],
+              source: "npm-package",
+              shimPath,
+            };
+          }
         }
       }
     }
