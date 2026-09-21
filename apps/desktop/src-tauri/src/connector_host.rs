@@ -241,8 +241,11 @@ fn ensure_real_child_directory(parent: &Path, child: &str) -> Result<PathBuf, St
             }
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            fs::create_dir(&path)
-                .map_err(|error| format!("Project {child} directory could not be created: {error}"))?;
+            if let Err(error) = fs::create_dir(&path) {
+                if error.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(format!("Project {child} directory could not be created: {error}"));
+                }
+            }
             let metadata = fs::symlink_metadata(&path)
                 .map_err(|error| format!("Project {child} directory could not be inspected: {error}"))?;
             if !metadata.is_dir() || metadata.file_type().is_symlink() {
