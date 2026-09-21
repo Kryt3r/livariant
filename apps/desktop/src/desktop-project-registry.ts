@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getLanguage } from "./i18n/runtime.js";
 
 export interface DesktopProjectEntry {
   desktopProjectId: string;
@@ -53,6 +54,36 @@ const REGISTRY_EVENT = "livariant:desktop-project-registry-changed";
 let registrySnapshot: DesktopProjectRegistrySnapshot | null = null;
 let refreshInFlight: Promise<DesktopProjectRegistrySnapshot> | null = null;
 let activationInFlight: Promise<DesktopProjectRegistrySnapshot> | null = null;
+let activationOverlayDepth = 0;
+
+const transitionText = (en: string, de: string) => getLanguage() === "de" ? de : en;
+
+function showProjectActivationOverlay(): void {
+  activationOverlayDepth += 1;
+  if (activationOverlayDepth > 1) return;
+  let overlay = document.querySelector<HTMLElement>("[data-project-activation-overlay]");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "project-activation-overlay";
+    overlay.dataset.projectActivationOverlay = "true";
+    overlay.setAttribute("role", "status");
+    overlay.setAttribute("aria-live", "polite");
+    overlay.innerHTML = `<div class="project-activation-overlay-card"><span class="project-activation-spinner" aria-hidden="true"></span><strong>${transitionText("Switching project", "Projekt wird gewechselt")}</strong><small>${transitionText("Loading project-specific state…", "Projektspezifischer Zustand wird geladen…")}</small></div>`;
+    document.body.appendChild(overlay);
+  }
+  document.documentElement.dataset.projectActivationPending = "true";
+}
+
+function hideProjectActivationOverlay(): void {
+  activationOverlayDepth = Math.max(0, activationOverlayDepth - 1);
+  if (activationOverlayDepth > 0) return;
+  document.documentElement.dataset.projectActivationPending = "false";
+  document.querySelector<HTMLElement>("[data-project-activation-overlay]")?.remove();
+}
+
+async function settleProjectActivationFrame(): Promise<void> {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
 
 function isRegistrySnapshot(value: unknown): value is DesktopProjectRegistrySnapshot {
   if (!value || typeof value !== "object") return false;
@@ -124,6 +155,7 @@ export async function activateDesktopProject(desktopProjectId: string): Promise<
   if (!desktopProjectId.trim()) throw new Error("Desktop project identity is required.");
   if (activationInFlight) return activationInFlight;
 
+  showProjectActivationOverlay();
   activationInFlight = (async () => {
     const result = await invoke<DesktopProjectMutationResult>("desktop_project_activate", {
       desktopProjectId,
@@ -144,6 +176,7 @@ export async function activateDesktopProject(desktopProjectId: string): Promise<
         generation: active.generation,
       },
     }));
+    await settleProjectActivationFrame();
     return snapshot;
   })();
 
@@ -151,6 +184,7 @@ export async function activateDesktopProject(desktopProjectId: string): Promise<
     return await activationInFlight;
   } finally {
     activationInFlight = null;
+    hideProjectActivationOverlay();
   }
 }
 
