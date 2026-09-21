@@ -234,18 +234,25 @@ fn persisted_connection_desired(raw: &[u8]) -> Result<bool, String> {
     Ok(desired)
 }
 
-pub fn restore_persistent_connection(app: &AppHandle, state: &ConnectorHostState) -> Result<(), String> {
-    let app_data_root = app.path().app_data_dir().map_err(|error| format!("Desktop app-data directory could not be resolved: {error}"))?;
-    let intent_path = app_data_root.join("connections").join("codex.json");
+pub fn restore_persistent_connection(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
+) -> Result<(), String> {
+    let scope = match active_project_scope(app, registry) {
+        Ok(scope) => scope,
+        Err(_) => return Ok(()),
+    };
+    let intent_path = project_codex_intent_path(app, &scope, true)?;
     let desired = match fs::read(&intent_path) {
         Ok(raw) => persisted_connection_desired(&raw)?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-        Err(error) => return Err(format!("Persisted Codex connection intent could not be read: {error}")),
+        Err(error) => return Err(format!("Project Codex connection intent could not be read: {error}")),
     };
     if !desired {
         return Ok(());
     }
-    request(app, state, "inspect", None, None, None).map(|_| ())
+    request(app, state, registry, "inspect", None, None, None).map(|_| ())
 }
 
 fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, String> {
@@ -257,18 +264,31 @@ fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, Str
 }
 
 #[tauri::command]
-pub fn codex_connector_status(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "inspect", None, None, None)
+pub fn codex_connector_status(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    request(&app, &state, registry.inner(), "inspect", None, None, None)
 }
 
 #[tauri::command]
-pub fn codex_connector_connect(app: AppHandle, state: State<'_, ConnectorHostState>, manual_path: Option<String>) -> Result<Value, String> {
-    request(&app, &state, "connect", manual_path.as_deref(), None, None)
+pub fn codex_connector_connect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+    manual_path: Option<String>,
+) -> Result<Value, String> {
+    request(&app, &state, registry.inner(), "connect", manual_path.as_deref(), None, None)
 }
 
 #[tauri::command]
-pub fn codex_connector_disconnect(app: AppHandle, state: State<'_, ConnectorHostState>) -> Result<Value, String> {
-    request(&app, &state, "disconnect", None, None, None)
+pub fn codex_connector_disconnect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    request(&app, &state, registry.inner(), "disconnect", None, None, None)
 }
 
 #[tauri::command]
@@ -280,7 +300,7 @@ pub fn codex_diagnostics_summary(
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
     let project_id = active_diagnostics_project_id(&app, registry.inner())?;
-    request(&app, &state, "diagnostics", None, preset, Some(&project_id))
+    request(&app, &state, registry.inner(), "diagnostics", None, preset, Some(&project_id))
 }
 
 #[tauri::command]
@@ -292,7 +312,7 @@ pub fn codex_diagnostics_export(
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
     let project_id = active_diagnostics_project_id(&app, registry.inner())?;
-    request(&app, &state, "export", None, preset, Some(&project_id))
+    request(&app, &state, registry.inner(), "export", None, preset, Some(&project_id))
 }
 
 #[tauri::command]
@@ -304,7 +324,7 @@ pub fn codex_diagnostics_measure(
 ) -> Result<Value, String> {
     let preset = validate_diagnostics_preset(preset.as_deref())?;
     let project_id = active_diagnostics_project_id(&app, registry.inner())?;
-    request(&app, &state, "measure", None, preset, Some(&project_id))
+    request(&app, &state, registry.inner(), "measure", None, preset, Some(&project_id))
 }
 
 #[cfg(test)]
