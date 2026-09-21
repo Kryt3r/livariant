@@ -154,6 +154,49 @@ export async function activateDesktopProject(desktopProjectId: string): Promise<
   }
 }
 
+
+export async function registerDesktopProject(localRoot: string, displayName?: string): Promise<DesktopProjectRegistrySnapshot> {
+  const root = localRoot.trim();
+  if (!root) throw new Error("Project local root is required.");
+  const result = await invoke<DesktopProjectMutationResult>("desktop_project_register", {
+    input: {
+      localRoot: root,
+      ...(displayName?.trim() ? { displayName: displayName.trim() } : {}),
+      projectId: null,
+    },
+  });
+  const snapshot = validateSnapshot(result.snapshot);
+  publishRegistry(snapshot);
+  return snapshot;
+}
+
+export async function renameDesktopProject(desktopProjectId: string, displayName: string): Promise<DesktopProjectRegistrySnapshot> {
+  if (!desktopProjectId.trim()) throw new Error("Desktop project identity is required.");
+  if (!displayName.trim()) throw new Error("Project display name is required.");
+  const result = await invoke<DesktopProjectMutationResult>("desktop_project_rename", {
+    desktopProjectId,
+    displayName: displayName.trim(),
+  });
+  if (result.state !== "renamed") throw new Error("The Desktop project host did not confirm rename.");
+  const snapshot = validateSnapshot(result.snapshot);
+  publishRegistry(snapshot);
+  return snapshot;
+}
+
+export async function detachDesktopProject(desktopProjectId: string): Promise<DesktopProjectRegistrySnapshot> {
+  if (!desktopProjectId.trim()) throw new Error("Desktop project identity is required.");
+  const result = await invoke<DesktopProjectMutationResult>("desktop_project_detach", { desktopProjectId });
+  if (result.state !== "detached") throw new Error("The Desktop project host did not confirm removal.");
+  const snapshot = validateSnapshot(result.snapshot);
+  publishRegistry(snapshot);
+  return snapshot;
+}
+
+export async function pickDesktopProjectFolder(): Promise<string | null> {
+  const selected = await invoke<string | null>("pick_first_run_folder");
+  return typeof selected === "string" && selected.trim() ? selected.trim() : null;
+}
+
 export function onDesktopProjectActivated(listener: (detail: DesktopProjectActivatedDetail) => void): () => void {
   const handler = (event: Event) => listener((event as CustomEvent<DesktopProjectActivatedDetail>).detail);
   document.addEventListener(ACTIVATED_EVENT, handler);
