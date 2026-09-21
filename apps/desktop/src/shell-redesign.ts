@@ -53,6 +53,7 @@ let connectorStatus: ConnectorStatus | null = null;
 let localProviderStatuses: Partial<Record<LocalProviderId, LocalProviderStatus>> = {};
 let connectorStatusLoaded = false;
 let healthRefreshInFlight = false;
+let healthRefreshPending = false;
 let navObserver: MutationObserver | null = null;
 let observedNav: HTMLElement | null = null;
 let scheduled = false;
@@ -260,6 +261,10 @@ const bindConnectionPopover = (button: HTMLButtonElement) => {
     const wrap = button.closest<HTMLElement>(".global-health-wrap");
     if (!wrap) return;
     const nextOpen = wrap.dataset.open !== "true";
+    document.querySelectorAll<HTMLElement>(".global-project-wrap[data-open='true']").forEach((item) => {
+      item.dataset.open = "false";
+      item.querySelector<HTMLButtonElement>("[data-shell-project]")?.setAttribute("aria-expanded", "false");
+    });
     document.querySelectorAll<HTMLElement>(".global-health-wrap[data-open='true']").forEach((item) => {
       item.dataset.open = "false";
       item.querySelector<HTMLButtonElement>("[data-shell-health]")?.setAttribute("aria-expanded", "false");
@@ -281,7 +286,10 @@ const bindManageConnections = () => {
 };
 
 const refreshHealth = async () => {
-  if (healthRefreshInFlight) return;
+  if (healthRefreshInFlight) {
+    healthRefreshPending = true;
+    return;
+  }
   healthRefreshInFlight = true;
   try {
     const [codex, claude, gemini, custom] = await Promise.allSettled([
@@ -300,6 +308,10 @@ const refreshHealth = async () => {
     connectorStatusLoaded = true;
     healthRefreshInFlight = false;
     scheduleEnhance();
+    if (healthRefreshPending) {
+      healthRefreshPending = false;
+      void refreshHealth();
+    }
   }
 };
 
