@@ -702,7 +702,7 @@ onDesktopProjectActivated(() => {
   notifyConnectionHealthChanged();
 
   const rerender = activeDiagnosticsRerender;
-  void Promise.all([refreshConnector(), refreshLocalProviders()])
+  const providerRefresh = Promise.all([refreshConnector(), refreshLocalProviders()])
     .then(() => {
       notifyConnectionHealthChanged();
       if (rerender) rerenderConnectionsSurface(rerender);
@@ -712,5 +712,9 @@ onDesktopProjectActivated(() => {
       if (rerender) rerenderConnectionsSurface(rerender);
     });
 
-  if (rerender) void refreshDiagnostics().then(() => syncDiagnosticsSurface(rerender));
+  const diagnosticsRefresh = rerender
+    ? refreshDiagnostics().then(() => syncDiagnosticsSurface(rerender))
+    : Promise.resolve();
+
+  return Promise.all([providerRefresh, diagnosticsRefresh]).then(() => undefined);
 });
