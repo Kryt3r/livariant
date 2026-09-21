@@ -1,10 +1,11 @@
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { win32 } from "node:path";
+import { resolveLocalCli } from "./local-cli-command.js";
 
 export interface CodexCommandResolution {
   command: string;
-  source: "path-command" | "native-executable" | "npm-native-package";
+  argsPrefix: readonly string[];
+  source: "path-command" | "native-executable" | "npm-package" | "npm-native-package";
   shimPath?: string;
 }
 
@@ -13,19 +14,9 @@ export interface CodexCommandResolutionOptions {
   arch?: string;
   pathCandidates?: readonly string[];
   fileExists?: (path: string) => boolean;
-}
-
-function windowsPathCandidates(): string[] {
-  const result = spawnSync("where.exe", ["codex"], {
-    encoding: "utf8",
-    shell: false,
-    windowsHide: true,
-  });
-  if (result.error || result.status !== 0) return [];
-  return (result.stdout ?? "")
-    .split(/\r?\n/)
-    .map((value) => value.trim())
-    .filter(Boolean);
+  readTextFile?: (path: string) => string;
+  nodeExecutable?: string;
+  env?: NodeJS.ProcessEnv;
 }
 
 function windowsTarget(arch: string): { packageName: string; triple: string } | undefined {
@@ -39,36 +30,63 @@ function isWindowsNpmShim(path: string): boolean {
   return extension === ".cmd" || extension === "";
 }
 
-function isNativeCodexExecutable(path: string): boolean {
-  return win32.basename(path).toLowerCase() === "codex.exe";
+function officialWindowsCandidates(env: NodeJS.ProcessEnv): string[] {
+  const result: string[] = [];
+  const localAppData = env.LOCALAPPDATA?.trim();
+  const codexInstallDir = env.CODEX_INSTALL_DIR?.trim();
+  const codexHome = env.CODEX_HOME?.trim() || (env.USERPROFILE?.trim() ? win32.join(env.USERPROFILE.trim(), ".codex") : undefined);
+
+  if (codexInstallDir) result.push(win32.join(codexInstallDir, "codex.exe"));
+  if (localAppData) result.push(win32.join(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe"));
+  if (codexHome) result.push(win32.join(codexHome, "packages", "standalone", "current", "codex.exe"));
+  return result;
 }
 
 /**
- * Resolves the actual Codex executable without invoking an npm command shim.
+ * Resolves a local Codex installation without executing command shims through a shell.
  *
- * The official `@openai/codex` package exposes `bin/codex.js`, which in turn
- * launches the platform-specific native package. npm commonly exposes that
- * entrypoint as both an extensionless `codex` shim and `codex.cmd` on Windows.
- * Livariant deliberately never executes either shim through cmd.exe; for
- * standard npm/NVM layouts it derives the native optional-dependency binary
- * and launches that executable directly.
+ * Resolution order:
+ * 1. official standalone/native locations;
+ * 2. native executables already exposed through PATH;
+ * 3. the actual @openai/codex JS entry referenced by an npm-style shim, run through
+ *    Livariant's bundled Node runtime;
+ * 4. older known npm optional-dependency native layouts.
  */
 export function resolveCodexCommand(options: CodexCommandResolutionOptions = {}): CodexCommandResolution | undefined {
   const platform = options.platform ?? process.platform;
-  if (platform !== "win32") return { command: "codex", source: "path-command" };
+  if (platform !== "win32") {
+    return { command: "codex", argsPrefix: [], source: "path-command" };
+  }
 
   const fileExists = options.fileExists ?? existsSync;
-  const candidates = options.pathCandidates ?? windowsPathCandidates();
-  for (const candidate of candidates) {
-    if (isNativeCodexExecutable(candidate) && fileExists(candidate)) {
-      return { command: candidate, source: "native-executable" };
-    }
+  const readTextFile = options.readTextFile ?? ((path: string) => readFileSync(path, "utf8"));
+  const env = options.env ?? process.env;
+
+  const generic = resolveLocalCli({
+    commandName: "codex",
+    nativeWindowsBasenames: ["codex.exe"],
+    npmPackages: [{ packagePath: ["@openai", "codex"], entrypoints: ["bin\\codex.js"] }],
+    platform,
+    pathCandidates: options.pathCandidates,
+    additionalWindowsCandidates: officialWindowsCandidates(env),
+    fileExists,
+    readTextFile,
+    nodeExecutable: options.nodeExecutable ?? process.execPath,
+    env,
+  });
+  if (generic) {
+    return {
+      command: generic.command,
+      argsPrefix: generic.argsPrefix,
+      source: generic.source,
+      ...(generic.shimPath ? { shimPath: generic.shimPath } : {}),
+    };
   }
 
   const target = windowsTarget(options.arch ?? process.arch);
   if (!target) return undefined;
 
-  for (const shimPath of candidates) {
+  for (const shimPath of options.pathCandidates ?? []) {
     if (!isWindowsNpmShim(shimPath)) continue;
     const binRoot = win32.dirname(shimPath);
     const packageRoots = [
@@ -83,7 +101,7 @@ export function resolveCodexCommand(options: CodexCommandResolutionOptions = {})
       ];
       for (const native of nativeCandidates) {
         if (fileExists(native)) {
-          return { command: native, source: "npm-native-package", shimPath };
+          return { command: native, argsPrefix: [], source: "npm-native-package", shimPath };
         }
       }
     }

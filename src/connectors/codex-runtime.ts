@@ -27,12 +27,12 @@ export interface CodexVersionProbeResult {
   errorMessage?: string;
 }
 
-export type CodexVersionProbe = (command: string) => CodexVersionProbeResult;
+export type CodexVersionProbe = (command: string, argsPrefix?: readonly string[]) => CodexVersionProbeResult;
 
 const VERSION_PATTERN = /\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/;
 
-function defaultVersionProbe(command: string): CodexVersionProbeResult {
-  const result = spawnSync(command, ["--version"], {
+function defaultVersionProbe(command: string, argsPrefix: readonly string[] = []): CodexVersionProbeResult {
+  const result = spawnSync(command, [...argsPrefix, "--version"], {
     encoding: "utf8",
     shell: false,
     windowsHide: true,
@@ -52,10 +52,11 @@ function defaultVersionProbe(command: string): CodexVersionProbeResult {
 export function inspectCodexInstallation(
   command = "codex",
   probe: CodexVersionProbe = defaultVersionProbe,
+  argsPrefix: readonly string[] = [],
 ): CodexInstallationInspection {
   if (command.trim().length === 0) throw new Error("Codex command must not be blank.");
 
-  const result = probe(command);
+  const result = probe(command, argsPrefix);
   if (result.errorCode === "ENOENT") {
     return {
       state: "not-found",
@@ -207,10 +208,10 @@ export interface CodexLineTransport {
   close(): void;
 }
 
-export type CodexTransportFactory = (command: string) => CodexLineTransport;
+export type CodexTransportFactory = (command: string, argsPrefix?: readonly string[]) => CodexLineTransport;
 
-function defaultTransportFactory(command: string): CodexLineTransport {
-  const child = spawn(command, [...CODEX_APP_SERVER_LAUNCH.args], {
+function defaultTransportFactory(command: string, argsPrefix: readonly string[] = []): CodexLineTransport {
+  const child = spawn(command, [...argsPrefix, ...CODEX_APP_SERVER_LAUNCH.args], {
     shell: false,
     windowsHide: true,
     stdio: ["pipe", "pipe", "pipe"],
@@ -255,6 +256,7 @@ export interface CodexAppServerSession {
 export interface ConnectCodexAppServerOptions {
   clientVersion: string;
   command?: string;
+  argsPrefix?: readonly string[];
   requestId?: number;
   timeoutMs?: number;
   versionProbe?: CodexVersionProbe;
@@ -264,7 +266,8 @@ export interface ConnectCodexAppServerOptions {
 
 export async function connectCodexAppServer(options: ConnectCodexAppServerOptions): Promise<CodexAppServerSession> {
   const command = options.command ?? CODEX_APP_SERVER_LAUNCH.command;
-  const installation = inspectCodexInstallation(command, options.versionProbe ?? defaultVersionProbe);
+  const argsPrefix = options.argsPrefix ?? [];
+  const installation = inspectCodexInstallation(command, options.versionProbe ?? defaultVersionProbe, argsPrefix);
   if (installation.state !== "available") throw new Error(`Codex is not connectable: ${installation.state}.`);
 
   const timeoutMs = options.timeoutMs ?? 5000;
@@ -273,7 +276,7 @@ export async function connectCodexAppServer(options: ConnectCodexAppServerOption
   }
 
   const handshake = new CodexAppServerHandshake(installation, options.requestId ?? 0);
-  const transport = (options.transportFactory ?? defaultTransportFactory)(command);
+  const transport = (options.transportFactory ?? defaultTransportFactory)(command, argsPrefix);
   const messageListeners = new Set<(message: Record<string, unknown>) => void>();
   const disconnectListeners = new Set<(reason: string) => void>();
 
