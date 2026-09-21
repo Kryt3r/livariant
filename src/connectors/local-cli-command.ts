@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { win32 } from "node:path";
 
 export type LocalCliLaunchSource = "path-command" | "native-executable" | "npm-package";
@@ -22,9 +22,13 @@ export interface ResolveLocalCliOptions {
   npmPackages?: readonly LocalCliPackageTarget[];
   platform?: NodeJS.Platform;
   pathCandidates?: readonly string[];
+  additionalWindowsCandidates?: readonly string[];
   fileExists?: (path: string) => boolean;
+  readTextFile?: (path: string) => string;
   nodeExecutable?: string;
 }
+
+const MAX_SHIM_BYTES = 128 * 1024;
 
 function windowsPathCandidates(commandName: string): string[] {
   const result = spawnSync("where.exe", [commandName], {
@@ -44,6 +48,58 @@ function isWindowsShim(path: string): boolean {
   return extension === ".cmd" || extension === "";
 }
 
+function uniquePaths(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = win32.normalize(trimmed).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+function packageMarker(target: LocalCliPackageTarget): string {
+  return win32.join("node_modules", ...target.packagePath).toLowerCase();
+}
+
+function shimEntrypointCandidates(
+  shimPath: string,
+  target: LocalCliPackageTarget,
+  readTextFile: (path: string) => string,
+): string[] {
+  let content: string;
+  try {
+    content = readTextFile(shimPath);
+  } catch {
+    return [];
+  }
+  if (Buffer.byteLength(content, "utf8") > MAX_SHIM_BYTES || content.includes("\0")) return [];
+
+  const root = win32.dirname(shimPath);
+  const marker = packageMarker(target);
+  const candidates: string[] = [];
+  const patterns = [
+    /%~?dp0%?[\\/]([^"\r\n]*?node_modules[\\/][^"\r\n]*?\.(?:mjs|cjs|js))/gi,
+    /\$basedir[\\/]([^"'\r\n]*?node_modules[\\/][^"'\r\n]*?\.(?:mjs|cjs|js))/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of content.matchAll(pattern)) {
+      const relative = match[1]?.trim();
+      if (!relative) continue;
+      const resolved = win32.resolve(root, relative.replace(/\//g, "\\"));
+      const normalized = win32.normalize(resolved).toLowerCase();
+      if (!normalized.includes(marker)) continue;
+      candidates.push(resolved);
+    }
+  }
+  return uniquePaths(candidates);
+}
+
 export function resolveLocalCli(options: ResolveLocalCliOptions): LocalCliLaunch | undefined {
   const commandName = options.commandName.trim();
   if (!commandName) throw new Error("Local CLI command name must not be blank.");
@@ -54,7 +110,9 @@ export function resolveLocalCli(options: ResolveLocalCliOptions): LocalCliLaunch
   }
 
   const fileExists = options.fileExists ?? existsSync;
-  const candidates = options.pathCandidates ?? windowsPathCandidates(commandName);
+  const readTextFile = options.readTextFile ?? ((path: string) => readFileSync(path, "utf8"));
+  const discovered = options.pathCandidates ?? windowsPathCandidates(commandName);
+  const candidates = uniquePaths([...(options.additionalWindowsCandidates ?? []), ...discovered]);
   const nativeNames = new Set(
     (options.nativeWindowsBasenames ?? [`${commandName}.exe`]).map((value) => value.toLowerCase()),
   );
@@ -67,7 +125,21 @@ export function resolveLocalCli(options: ResolveLocalCliOptions): LocalCliLaunch
 
   const packageTargets = options.npmPackages ?? [];
   for (const shimPath of candidates) {
-    if (!isWindowsShim(shimPath)) continue;
+    if (!isWindowsShim(shimPath) || !fileExists(shimPath)) continue;
+
+    for (const target of packageTargets) {
+      for (const entry of shimEntrypointCandidates(shimPath, target, readTextFile)) {
+        if (fileExists(entry)) {
+          return {
+            command: options.nodeExecutable ?? process.execPath,
+            argsPrefix: [entry],
+            source: "npm-package",
+            shimPath,
+          };
+        }
+      }
+    }
+
     const binRoot = win32.dirname(shimPath);
     for (const target of packageTargets) {
       const packageRoot = win32.join(binRoot, "node_modules", ...target.packagePath);
