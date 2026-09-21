@@ -103,6 +103,19 @@ export interface InspectBundledProviderOptions {
   probe?: LocalProviderProbe;
   resolveOptions?: Partial<Omit<ResolveLocalCliOptions, "commandName">>;
 }
+function defaultWindowsProviderCandidates(provider: "claude" | "gemini"): string[] {
+  if (process.platform !== "win32") return [];
+  const result: string[] = [];
+  const userProfile = process.env.USERPROFILE?.trim() || process.env.HOME?.trim();
+  const localAppData = process.env.LOCALAPPDATA?.trim();
+
+  if (provider === "claude") {
+    if (userProfile) result.push(`${userProfile}\\.local\\bin\\claude.exe`);
+    if (localAppData) result.push(`${localAppData}\\Programs\\Claude Code\\claude.exe`);
+  }
+  return result;
+}
+
 
 export function inspectBundledLocalProvider(options: InspectBundledProviderOptions): LocalProviderInspection {
   const probe = options.probe ?? defaultProbe;
@@ -114,6 +127,10 @@ export function inspectBundledLocalProvider(options: InspectBundledProviderOptio
         npmPackages: options.provider === "claude"
           ? [{ packagePath: ["@anthropic-ai", "claude-code"], entrypoints: ["dist\\cli.js", "cli.js", "dist\\index.js"] }]
           : [{ packagePath: ["@google", "gemini-cli"], entrypoints: ["bundle\\gemini.js", "dist\\index.js", "dist\\gemini.js"] }],
+        additionalWindowsCandidates: [
+          ...defaultWindowsProviderCandidates(options.provider),
+          ...(options.resolveOptions?.additionalWindowsCandidates ?? []),
+        ],
         ...options.resolveOptions,
       });
 
