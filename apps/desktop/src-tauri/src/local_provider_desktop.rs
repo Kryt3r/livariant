@@ -79,8 +79,11 @@ fn project_intent_path(
             }
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound && create_parent => {
-            fs::create_dir(&dir)
-                .map_err(|error| format!("Project connection directory could not be created: {error}"))?;
+            if let Err(error) = fs::create_dir(&dir) {
+                if error.kind() != std::io::ErrorKind::AlreadyExists {
+                    return Err(format!("Project connection directory could not be created: {error}"));
+                }
+            }
             let metadata = fs::symlink_metadata(&dir)
                 .map_err(|error| format!("Project connection directory could not be inspected: {error}"))?;
             if !metadata.is_dir() || metadata.file_type().is_symlink() {
