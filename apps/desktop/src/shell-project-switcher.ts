@@ -1,6 +1,8 @@
 import { getLanguage } from "./i18n/runtime.js";
 import {
   activateDesktopProject,
+  registerDesktopProject,
+  pickDesktopProjectFolder,
   getActiveDesktopProject,
   getDesktopProjectRegistrySnapshot,
   onDesktopProjectActivated,
@@ -28,7 +30,7 @@ const stateLabel = (state: string, availability: string) => {
 function markup(): string {
   const snapshot = getDesktopProjectRegistrySnapshot();
   const active = getActiveDesktopProject();
-  const projects = snapshot?.projects ?? [];
+  const projects = (snapshot?.projects ?? []).filter((project) => project.state === "registered");
   const recovery = snapshot?.startupRecovery
     ?? (snapshot?.legacyMigration.state === "recovery-required"
       ? snapshot.legacyMigration.detail ?? text("Project recovery is required.", "Projekt-Wiederherstellung ist erforderlich.")
@@ -58,6 +60,10 @@ function markup(): string {
       <div class="global-project-popover-head"><strong>${text("Projects", "Projekte")}</strong><span>${projects.length}</span></div>
       ${recovery ? `<div class="global-project-recovery">${esc(recovery)}</div>` : ""}
       <div class="global-project-options">${options}</div>
+      <div class="global-project-popover-actions">
+        <button type="button" data-project-add>+ ${text("Add project", "Projekt hinzufügen")}</button>
+        <button type="button" data-project-manage>${text("Manage projects", "Projekte verwalten")}</button>
+      </div>
       <div class="global-project-status" data-project-switch-status>${error ? esc(error) : ""}</div>
     </div>
   </div>`;
@@ -81,6 +87,43 @@ export function syncShellProjectSwitcher(): void {
       });
       wrap.dataset.open = nextOpen ? "true" : "false";
       button.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+    });
+
+    popover.querySelector<HTMLButtonElement>("[data-project-add]")?.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (wrap.dataset.switching === "true") return;
+      wrap.dataset.switching = "true";
+      error = null;
+      const status = popover.querySelector<HTMLElement>("[data-project-switch-status]");
+      if (status) status.textContent = text("Select a local project folder…", "Wähle einen lokalen Projektordner…");
+      try {
+        const folder = await pickDesktopProjectFolder();
+        if (!folder) return;
+        const snapshot = await registerDesktopProject(folder);
+        const project = snapshot.projects.find((item) => item.state === "registered" && item.localRoot.toLowerCase() === folder.toLowerCase())
+          ?? snapshot.projects.filter((item) => item.state === "registered").at(-1);
+        if (project?.availability === "available") await activateDesktopProject(project.desktopProjectId);
+        wrap.dataset.open = "false";
+        button.setAttribute("aria-expanded", "false");
+      } catch {
+        error = text(
+          "The project could not be added. No project files were changed.",
+          "Das Projekt konnte nicht hinzugefügt werden. Es wurden keine Projektdateien verändert.",
+        );
+        if (status) status.textContent = error;
+      } finally {
+        wrap.dataset.switching = "false";
+        syncShellProjectSwitcher();
+      }
+    });
+
+    popover.querySelector<HTMLButtonElement>("[data-project-manage]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      wrap.dataset.open = "false";
+      button.setAttribute("aria-expanded", "false");
+      document.dispatchEvent(new Event("livariant:open-project-settings"));
     });
 
     popover.querySelectorAll<HTMLButtonElement>("[data-project-switch-id]").forEach((option) => {
