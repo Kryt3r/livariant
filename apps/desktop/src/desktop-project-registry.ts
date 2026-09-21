@@ -50,6 +50,8 @@ export interface DesktopProjectActivatedDetail {
 
 const ACTIVATED_EVENT = "livariant:desktop-project-activated";
 const REGISTRY_EVENT = "livariant:desktop-project-registry-changed";
+type DesktopProjectActivationListener = (detail: DesktopProjectActivatedDetail) => void | Promise<void>;
+const activationListeners = new Set<DesktopProjectActivationListener>();
 
 let registrySnapshot: DesktopProjectRegistrySnapshot | null = null;
 let refreshInFlight: Promise<DesktopProjectRegistrySnapshot> | null = null;
@@ -83,6 +85,20 @@ function hideProjectActivationOverlay(): void {
 
 async function settleProjectActivationFrame(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
+
+async function publishDesktopProjectActivated(detail: DesktopProjectActivatedDetail): Promise<void> {
+  document.dispatchEvent(new CustomEvent<DesktopProjectActivatedDetail>(ACTIVATED_EVENT, { detail }));
+  const results = [...activationListeners].map(async (listener) => {
+    try {
+      await listener(detail);
+    } catch {
+      // Project activation is already host-confirmed at this point. A renderer
+      // rehydration failure must fail closed in its own surface, not roll back
+      // or ambiguously report the active project.
+    }
+  });
+  await Promise.all(results);
 }
 
 function isRegistrySnapshot(value: unknown): value is DesktopProjectRegistrySnapshot {
@@ -170,12 +186,10 @@ export async function activateDesktopProject(desktopProjectId: string): Promise<
     }
 
     publishRegistry(snapshot);
-    document.dispatchEvent(new CustomEvent<DesktopProjectActivatedDetail>(ACTIVATED_EVENT, {
-      detail: {
-        desktopProjectId: active.desktopProjectId,
-        generation: active.generation,
-      },
-    }));
+    await publishDesktopProjectActivated({
+      desktopProjectId: active.desktopProjectId,
+      generation: active.generation,
+    });
     await settleProjectActivationFrame();
     return snapshot;
   })();
@@ -231,10 +245,9 @@ export async function pickDesktopProjectFolder(): Promise<string | null> {
   return typeof selected === "string" && selected.trim() ? selected.trim() : null;
 }
 
-export function onDesktopProjectActivated(listener: (detail: DesktopProjectActivatedDetail) => void): () => void {
-  const handler = (event: Event) => listener((event as CustomEvent<DesktopProjectActivatedDetail>).detail);
-  document.addEventListener(ACTIVATED_EVENT, handler);
-  return () => document.removeEventListener(ACTIVATED_EVENT, handler);
+export function onDesktopProjectActivated(listener: DesktopProjectActivationListener): () => void {
+  activationListeners.add(listener);
+  return () => activationListeners.delete(listener);
 }
 
 export function onDesktopProjectRegistryChanged(listener: (snapshot: DesktopProjectRegistrySnapshot) => void): () => void {
