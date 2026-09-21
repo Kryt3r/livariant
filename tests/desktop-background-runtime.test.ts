@@ -44,6 +44,6 @@ test("Existing persisted Codex reconnect remains the single startup reconnect pa
   assert.match(lib, /std::thread::spawn[\s\S]*restore_persistent_connection\(&handle, state\.inner\(\), registry\.inner\(\)\)/);
   assert.match(connector, /pub fn restore_persistent_connection/);
   assert.match(connector, /persisted_connection_desired/);
-  assert.match(connector, /request\(app, state, "inspect", None, None, None\)\.map\(\|_\| \(\)\)/);
+  assert.match(connector, /request\(app, state, registry, "inspect", None, None, None\)\.map\(\|_\| \(\)\)/);
   assert.doesNotMatch(await text("apps/desktop/src-tauri/src/background_runtime.rs"), /restore_persistent_connection|codex_connector_connect|desiredConnected/);
 });
