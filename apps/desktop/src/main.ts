@@ -16,13 +16,18 @@ import {
   refreshAboutSupportSettings,
   renderAboutSupportSettingsView,
 } from "./about-support-settings.js";
+import {
+  bindProjectSettingsEvents,
+  refreshProjectSettings,
+  renderProjectSettingsView,
+} from "./project-settings.js";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
 const appWindow = getCurrentWindow();
 const uiText = (en: string, de: string) => getLanguage() === "de" ? de : en;
 
 type View = "steps" | "updates" | "connections" | "diagnostics";
-type SettingsSection = "general" | "connections" | "updates" | "system" | "about";
+type SettingsSection = "general" | "projects" | "connections" | "updates" | "system" | "about";
 type NoticeKind = "info" | "success" | "warning" | "error";
 type AreaState = "open" | "deferred" | "review" | "confirmed";
 type TruthFilter = "all" | "review" | "open" | "conflicts";
@@ -425,6 +430,7 @@ const renderUpdatesSettingsView = () => {
 };
 
 const renderSettingsContent = () => {
+  if (settingsSection === "projects") return renderProjectSettingsView();
   if (settingsSection === "connections") return renderConnectionsSettingsView();
   if (settingsSection === "updates") return renderUpdatesSettingsView();
   if (settingsSection === "about") return renderAboutSupportSettingsView();
@@ -449,6 +455,7 @@ const renderSettingsModal = () => settingsOpen ? `
         <div class="settings-heading"><span class="eyebrow">${uiText("Settings", "Einstellungen")}</span><h2 id="settings-title">${uiText("Settings", "Einstellungen")}</h2><p>${uiText("Livariant, connections and desktop lifecycle.", "Livariant, Verbindungen und Desktop-Lebenszyklus.")}</p></div>
         <div class="settings-nav-group"><small>${uiText("Workspace", "Arbeitsbereich")}</small>
           <button class="settings-nav-item ${settingsSection === "general" ? "active" : ""}" data-settings-section="general" type="button">${icon("settings")}<span>${uiText("General", "Allgemein")}</span></button>
+          <button class="settings-nav-item ${settingsSection === "projects" ? "active" : ""}" data-settings-section="projects" type="button">${icon("home")}<span>${uiText("Projects", "Projekte")}</span></button>
         </div>
         <div class="settings-nav-group"><small>${uiText("Integrations", "Integrationen")}</small>
           <button class="settings-nav-item ${settingsSection === "connections" ? "active" : ""}" data-settings-section="connections" type="button">${icon("diagnostics")}<span>${uiText("Connections", "Verbindungen")}</span></button>
@@ -524,6 +531,7 @@ const renderSettingsSectionOnly = () => {
   bindUpdateCheckEvent();
   bindConnectionDiagnosticsEvents(renderSettingsSectionOnly);
   bindAboutSupportSettingsEvents(renderSettingsSectionOnly);
+  bindProjectSettingsEvents(renderSettingsSectionOnly, closeSettings);
 };
 
 const archiveCurrentTruth = (area: TruthArea, reason: TruthRevision["reason"]) => {
@@ -606,9 +614,13 @@ const bindEvents = () => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
       const section = button.dataset.settingsSection;
-      if (section !== "general" && section !== "connections" && section !== "updates" && section !== "system" && section !== "about") return;
+      if (section !== "general" && section !== "projects" && section !== "connections" && section !== "updates" && section !== "system" && section !== "about") return;
       settingsSection = section;
       renderSettingsSectionOnly();
+      if (section === "projects") {
+        await refreshProjectSettings();
+        renderSettingsSectionOnly();
+      }
       if (section === "connections") {
         await refreshConnectionsSettings();
         renderSettingsSectionOnly();
@@ -733,5 +745,14 @@ const bindEvents = () => {
     await appWindow.toggleMaximize();
   });
 };
+
+document.addEventListener("livariant:open-project-settings", () => {
+  settingsOpen = true;
+  settingsSection = "projects";
+  selectedReviewAreaId = null;
+  selectedSourceAreaId = null;
+  render();
+  void refreshProjectSettings().then(() => renderSettingsSectionOnly()).catch(() => renderSettingsSectionOnly());
+});
 
 render();
