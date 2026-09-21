@@ -35,7 +35,7 @@ test("normal-user surfaces explain meaning before technical detail", () => {
   const diagnostics = readFileSync("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
   const connections = readFileSync("apps/desktop/src/connections-diagnostics.ts", "utf8");
 
-  assert.match(main, /what Livariant should understand about the project/i);
+  assert.match(main, /purpose, direction and rules Livariant should use/i);
   assert.match(main, /current Desktop editor is still a review preview/i);
   assert.match(sources, /Where your project information comes from/);
   assert.match(sources, /Nothing is treated as project truth automatically/);
