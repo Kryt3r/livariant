@@ -1,13 +1,24 @@
 import "./shell-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
-import { onDesktopProjectActivated } from "./desktop-project-registry.js";
+import {
+  getActiveDesktopProject,
+  onDesktopProjectActivated,
+  onDesktopProjectRegistryChanged,
+} from "./desktop-project-registry.js";
+import {
+  getCurrentProjectSourceReviewPresentation,
+  loadProjectSourceReviewPresentation,
+} from "./project-source-review-bridge.js";
+import { loadFirstRunLifecycle } from "./first-run-lifecycle.js";
 import {
   ensureShellProjectRegistryLoaded,
   syncShellProjectSwitcher,
 } from "./shell-project-switcher.js";
 
 const SIDEBAR_STORAGE_KEY = "livariant.desktop.sidebar.collapsed";
+const PRODUCT_TOUR_STORAGE_KEY = "livariant.desktop.product-tour.v1";
+const PRODUCT_TOUR_EVENT = "livariant:start-product-tour";
 const appRoot = document.querySelector<HTMLElement>("#app");
 
 const text = (en: string, de: string) => getLanguage() === "de" ? de : en;
@@ -59,6 +70,9 @@ let navObserver: MutationObserver | null = null;
 let observedNav: HTMLElement | null = null;
 let scheduled = false;
 let enhancing = false;
+let overviewRefreshInFlight: Promise<void> | null = null;
+let productTourAutoStartChecked = false;
+let productTourIndex = -1;
 
 const localProviderIds: readonly LocalProviderId[] = ["claude", "gemini", "custom"];
 const providerName = (provider: LocalProviderId) => ({
@@ -161,41 +175,172 @@ const syncHealthProviderRows = (header: HTMLElement) => {
   host.innerHTML = healthRowsMarkup();
 };
 
-const renderOverview = () => `
+const overviewState = () => {
+  const project = getActiveDesktopProject();
+  const sources = getCurrentProjectSourceReviewPresentation();
+  const providerCount = connectedProviderCount();
+  const sourceCount = sources?.summary.sourceCount ?? 0;
+  const sourceAttention = (sources?.summary.unavailableCount ?? 0) + (sources?.summary.staleCount ?? 0) + (sources?.summary.reviewAttentionCount ?? 0);
+
+  let next = {
+    target: "steps",
+    eyebrow: text("Start here", "Hier anfangen"),
+    title: text("Clarify what this project is trying to achieve", "Kläre, was dieses Projekt erreichen soll"),
+    detail: text(
+      "Project knowledge gives Livariant the purpose, direction and rules it needs to interpret later work.",
+      "Projektwissen gibt Livariant Zweck, Richtung und Regeln, damit spätere Arbeit richtig eingeordnet werden kann.",
+    ),
+  };
+  if (!project) {
+    next = {
+      target: "projects",
+      eyebrow: text("Project needed", "Projekt erforderlich"),
+      title: text("Add or select a project first", "Wähle oder füge zuerst ein Projekt hinzu"),
+      detail: text(
+        "Livariant keeps project-specific state separate. Choose the project you want to work with before reviewing anything else.",
+        "Livariant hält projektspezifische Zustände getrennt. Wähle zuerst das Projekt, mit dem du arbeiten möchtest.",
+      ),
+    };
+  } else if (sourceCount === 0) {
+    next = {
+      target: "source-review",
+      eyebrow: text("Next useful step", "Nächster sinnvoller Schritt"),
+      title: text("Connect the sources Livariant should rely on", "Verbinde die Quellen, auf die sich Livariant stützen soll"),
+      detail: text(
+        "Sources show where project information comes from. Missing sources mean Livariant has less evidence to work with.",
+        "Quellen zeigen, woher Projektinformationen stammen. Fehlende Quellen bedeuten, dass Livariant weniger belastbare Grundlage hat.",
+      ),
+    };
+  } else if (sourceAttention > 0) {
+    next = {
+      target: "source-review",
+      eyebrow: text("Needs attention", "Braucht Aufmerksamkeit"),
+      title: text("Review source information that may be stale or incomplete", "Prüfe Quellen, die veraltet oder unvollständig sein könnten"),
+      detail: text(
+        "Livariant keeps uncertainty visible instead of treating old or unavailable source material as current.",
+        "Livariant lässt Unsicherheit sichtbar, statt alte oder nicht verfügbare Quellen als aktuell auszugeben.",
+      ),
+    };
+  } else if (providerCount === 0) {
+    next = {
+      target: "connections",
+      eyebrow: text("Optional connection", "Optionale Verbindung"),
+      title: text("Connect an AI provider when you want to work with one", "Verbinde einen KI-Anbieter, wenn du mit ihm arbeiten möchtest"),
+      detail: text(
+        "A connection makes the provider available to Livariant. It does not give the provider automatic permission to change your project.",
+        "Eine Verbindung macht den Anbieter für Livariant verfügbar. Sie gibt ihm keine automatische Erlaubnis, dein Projekt zu verändern.",
+      ),
+    };
+  }
+
+  return { project, sources, providerCount, sourceCount, sourceAttention, next };
+};
+
+const renderOverview = () => {
+  const state = overviewState();
+  const projectName = state.project?.displayName ?? text("No project selected", "Kein Projekt ausgewählt");
+  const sourceStatus = state.sourceCount > 0
+    ? text(`${state.sourceCount} configured`, `${state.sourceCount} eingerichtet`)
+    : text("Not configured", "Nicht eingerichtet");
+  const providerStatus = connectorStatusLoaded
+    ? (state.providerCount > 0 ? text(`${state.providerCount} connected`, `${state.providerCount} verbunden`) : text("None connected", "Keine verbunden"))
+    : text("Checking…", "Wird geprüft…");
+  const sourceTone = state.sourceAttention > 0 ? "attention" : state.sourceCount > 0 ? "ready" : "unknown";
+
+  return `
   <section class="shell-overview" data-shell-overview>
-    <div class="shell-overview-hero">
+    <div class="shell-overview-hero shell-overview-hero-human">
       <div>
-        <span class="eyebrow">${text("PROJECT OVERVIEW", "PROJEKTÜBERSICHT")}</span>
-        <h1>${text("Your project in focus.", "Dein Projekt im Fokus.")}</h1>
+        <span class="eyebrow">${text("YOUR PROJECT WITH CONTEXT", "DEIN PROJEKT MIT KONTEXT")}</span>
+        <h1>${text("Know what matters before the next AI acts.", "Wisse, was zählt, bevor die nächste KI handelt.")}</h1>
         <p>${text(
-          "Understand what matters, continue where you left off and keep your project under control.",
-          "Verstehen, was wichtig ist. Dort weitermachen, wo du aufgehört hast. Dein Projekt unter Kontrolle behalten.",
+          "Livariant keeps the important facts, sources and open questions around your project visible. It helps you separate what is known from what still needs review, so AI work does not quietly become project truth.",
+          "Livariant hält wichtige Fakten, Quellen und offene Fragen rund um dein Projekt sichtbar. So bleibt getrennt, was wirklich bekannt ist und was noch geprüft werden muss – damit KI-Arbeit nicht stillschweigend zur Projektwahrheit wird.",
         )}</p>
       </div>
-      <div class="shell-overview-orbit" aria-hidden="true"><span></span></div>
+      <div class="shell-overview-project-card">
+        <small>${text("Current project", "Aktuelles Projekt")}</small>
+        <strong>${esc(projectName)}</strong>
+        <span>${state.project
+          ? text("Project-specific state is active and isolated.", "Der projektspezifische Zustand ist aktiv und getrennt.")
+          : text("Select a project to load its own state.", "Wähle ein Projekt, um seinen eigenen Zustand zu laden.")}</span>
+      </div>
     </div>
-    <div class="shell-overview-grid">
-      <button class="shell-overview-card" type="button" data-shell-shortcut="steps">
-        <span class="shell-card-icon">${svg("brain")}</span><span><small>${text("Project knowledge", "Projektwissen")}</small><strong>${text("Open Project Brain", "Projektwissen öffnen")}</strong></span><i>›</i>
-      </button>
-      <button class="shell-overview-card" type="button" data-shell-shortcut="source-review">
-        <span class="shell-card-icon">${svg("sources")}</span><span><small>${text("Sources", "Quellen")}</small><strong>${text("Manage sources & review", "Quellen & Prüfung öffnen")}</strong></span><i>›</i>
-      </button>
-      <button class="shell-overview-card" type="button" data-shell-shortcut="diagnostics">
-        <span class="shell-card-icon">${svg("diagnostics")}</span><span><small>${text("Diagnostics", "Diagnose")}</small><strong>${text("Check project health", "Projektzustand prüfen")}</strong></span><i>›</i>
-      </button>
+
+    <div class="shell-overview-status-grid" aria-label="${text("Project status", "Projektstatus")}">
+      <article class="shell-overview-status">
+        <span class="shell-card-icon">${svg("brain")}</span>
+        <div><small>${text("Project knowledge", "Projektwissen")}</small><strong>${text("Purpose, direction and rules", "Zweck, Richtung und Regeln")}</strong><p>${text("Review what Livariant should understand about the project.", "Prüfe, was Livariant über das Projekt verstehen soll.")}</p></div>
+      </article>
+      <article class="shell-overview-status" data-tone="${sourceTone}">
+        <span class="shell-card-icon">${svg("sources")}</span>
+        <div><small>${text("Sources", "Quellen")}</small><strong>${esc(sourceStatus)}</strong><p>${state.sourceAttention > 0 ? text("Some source information needs attention.", "Einige Quellenangaben brauchen Aufmerksamkeit.") : text("See where Livariant's project information comes from.", "Sieh, woher Livariants Projektinformationen stammen.")}</p></div>
+      </article>
+      <article class="shell-overview-status" data-tone="${state.providerCount > 0 ? "ready" : "unknown"}">
+        <span class="shell-card-icon">${svg("diagnostics")}</span>
+        <div><small>${text("AI connections", "KI-Verbindungen")}</small><strong>${esc(providerStatus)}</strong><p>${text("Connections provide capability, not automatic permission to change the project.", "Verbindungen schaffen Möglichkeiten, aber keine automatische Änderungsberechtigung.")}</p></div>
+      </article>
+    </div>
+
+    <section class="shell-next-action">
+      <div><span class="eyebrow">${esc(state.next.eyebrow)}</span><h2>${esc(state.next.title)}</h2><p>${esc(state.next.detail)}</p></div>
+      <button class="button primary" type="button" data-shell-next-action="${esc(state.next.target)}">${text("Go there", "Dorthin")}</button>
+    </section>
+
+    <div class="shell-overview-explain">
+      <div><span>1</span><strong>${text("Understand", "Verstehen")}</strong><p>${text("Livariant keeps project goals, rules and open questions explicit.", "Livariant hält Ziele, Regeln und offene Fragen ausdrücklich fest.")}</p></div>
+      <div><span>2</span><strong>${text("Check the basis", "Grundlage prüfen")}</strong><p>${text("Sources show what information Livariant can actually point back to.", "Quellen zeigen, worauf Livariant Informationen tatsächlich zurückführen kann.")}</p></div>
+      <div><span>3</span><strong>${text("Keep decisions human", "Entscheidungen bleiben menschlich")}</strong><p>${text("Evidence and AI output can inform changes, but they do not become accepted project truth by themselves.", "Evidence und KI-Ausgaben können Änderungen begründen, werden aber nicht von allein zu bestätigter Projektwahrheit.")}</p></div>
+    </div>
+
+    <div class="shell-overview-grid shell-overview-links">
+      <button class="shell-overview-card" type="button" data-shell-shortcut="steps"><span class="shell-card-icon">${svg("brain")}</span><span><small>${text("Understand the project", "Projekt verstehen")}</small><strong>${text("Open project knowledge", "Projektwissen öffnen")}</strong></span><i>›</i></button>
+      <button class="shell-overview-card" type="button" data-shell-shortcut="source-review"><span class="shell-card-icon">${svg("sources")}</span><span><small>${text("Check the basis", "Grundlage prüfen")}</small><strong>${text("Open sources", "Quellen öffnen")}</strong></span><i>›</i></button>
+      <button class="shell-overview-card" type="button" data-shell-shortcut="diagnostics"><span class="shell-card-icon">${svg("diagnostics")}</span><span><small>${text("See what was observed", "Beobachtungen ansehen")}</small><strong>${text("Open diagnostics", "Diagnose öffnen")}</strong></span><i>›</i></button>
     </div>
   </section>`;
+};
+
+const openSettingsSection = (section: "projects" | "connections") => {
+  document.querySelector<HTMLButtonElement>("[data-open-settings]")?.click();
+  window.setTimeout(() => document.querySelector<HTMLButtonElement>(`[data-settings-section='${section}']`)?.click(), 0);
+};
+
+const navigateFromOverview = (target: string | undefined) => {
+  if (!target) return;
+  if (target === "projects" || target === "connections") {
+    openSettingsSection(target);
+    return;
+  }
+  document.querySelector<HTMLButtonElement>(`nav.nav [data-view='${target}']`)?.click();
+};
 
 const syncOverviewShortcuts = () => {
   document.querySelectorAll<HTMLButtonElement>("[data-shell-shortcut]").forEach((button) => {
     if (button.dataset.shellBound === "true") return;
     button.dataset.shellBound = "true";
-    button.addEventListener("click", () => {
-      const target = button.dataset.shellShortcut;
-      document.querySelector<HTMLButtonElement>(`nav.nav [data-view='${target}']`)?.click();
-    });
+    button.addEventListener("click", () => navigateFromOverview(button.dataset.shellShortcut));
   });
+  document.querySelector<HTMLButtonElement>("[data-shell-next-action]")?.addEventListener("click", (event) => {
+    navigateFromOverview((event.currentTarget as HTMLButtonElement).dataset.shellNextAction);
+  });
+};
+
+const refreshOverview = async (): Promise<void> => {
+  if (overviewRefreshInFlight) return overviewRefreshInFlight;
+  overviewRefreshInFlight = (async () => {
+    await Promise.allSettled([loadProjectSourceReviewPresentation(), refreshHealth()]);
+    const content = document.querySelector<HTMLElement>("main.content");
+    if (!content?.querySelector("[data-shell-overview]")) return;
+    content.innerHTML = renderOverview();
+    setOverviewActive();
+    syncOverviewShortcuts();
+  })();
+  try {
+    await overviewRefreshInFlight;
+  } finally {
+    overviewRefreshInFlight = null;
+  }
 };
 
 const setOverviewActive = () => {
@@ -213,8 +358,90 @@ const bindOverview = (button: HTMLButtonElement) => {
     content.innerHTML = renderOverview();
     setOverviewActive();
     syncOverviewShortcuts();
+    void refreshOverview();
   });
 };
+
+type ProductTourStep = {
+  target: string;
+  title: readonly [string, string];
+  detail: readonly [string, string];
+};
+
+const PRODUCT_TOUR_STEPS: readonly ProductTourStep[] = [
+  { target: "[data-view='overview']", title: ["Overview", "Übersicht"], detail: ["This is your starting point. It summarizes what Livariant can currently tell you about the active project and points to the next useful action.", "Das ist dein Startpunkt. Hier fasst Livariant zusammen, was es über das aktive Projekt sagen kann, und zeigt den nächsten sinnvollen Schritt."] },
+  { target: "[data-view='steps']", title: ["Project knowledge", "Projektwissen"], detail: ["Here you review the project's purpose, direction and rules. Livariant keeps proposed information separate from accepted project truth.", "Hier prüfst du Zweck, Richtung und Regeln des Projekts. Livariant hält vorgeschlagene Informationen von bestätigter Projektwahrheit getrennt."] },
+  { target: "[data-view='source-review']", title: ["Sources", "Quellen"], detail: ["Sources show where project information comes from and where that basis is incomplete, unavailable or needs review.", "Quellen zeigen, woher Projektinformationen stammen und wo diese Grundlage unvollständig, nicht verfügbar oder prüfbedürftig ist."] },
+  { target: "[data-view='diagnostics']", title: ["Diagnostics", "Diagnose"], detail: ["Diagnostics shows what Livariant actually observed. Missing or unknown data stays visible instead of being turned into a false zero or success.", "Die Diagnose zeigt, was Livariant tatsächlich beobachtet hat. Fehlende oder unbekannte Daten bleiben sichtbar, statt zu einer falschen Null oder einem falschen Erfolg zu werden."] },
+  { target: "[data-open-settings]", title: ["Connections and settings", "Verbindungen und Einstellungen"], detail: ["Connect providers and GitHub in Settings. A connection gives capability, but never automatic permission to change, merge or release your project.", "In den Einstellungen verbindest du Provider und GitHub. Eine Verbindung schafft Möglichkeiten, aber niemals automatisch die Berechtigung, dein Projekt zu ändern, zu mergen oder zu veröffentlichen."] },
+];
+
+const clearTourHighlight = () => {
+  document.querySelectorAll<HTMLElement>(".product-tour-highlight").forEach((element) => element.classList.remove("product-tour-highlight"));
+};
+
+const closeProductTour = (completed: boolean) => {
+  clearTourHighlight();
+  document.querySelector<HTMLElement>("[data-product-tour]")?.remove();
+  if (completed) localStorage.setItem(PRODUCT_TOUR_STORAGE_KEY, "complete");
+  productTourIndex = -1;
+};
+
+const renderProductTour = () => {
+  clearTourHighlight();
+  document.querySelector<HTMLElement>("[data-product-tour]")?.remove();
+  if (productTourIndex < 0 || productTourIndex >= PRODUCT_TOUR_STEPS.length) return;
+  const step = PRODUCT_TOUR_STEPS[productTourIndex];
+  const target = document.querySelector<HTMLElement>(step.target);
+  target?.classList.add("product-tour-highlight");
+
+  const overlay = document.createElement("div");
+  overlay.className = "product-tour-overlay";
+  overlay.dataset.productTour = "true";
+  overlay.innerHTML = `
+    <section class="product-tour-card" role="dialog" aria-modal="true" aria-labelledby="product-tour-title">
+      <div class="product-tour-progress"><span>${productTourIndex + 1} / ${PRODUCT_TOUR_STEPS.length}</span><button type="button" data-product-tour-skip>${text("Skip tour", "Tour überspringen")}</button></div>
+      <span class="eyebrow">${text("Quick tour", "Kurze Tour")}</span>
+      <h2 id="product-tour-title">${text(step.title[0], step.title[1])}</h2>
+      <p>${text(step.detail[0], step.detail[1])}</p>
+      <div class="product-tour-actions">
+        <button class="button secondary" type="button" data-product-tour-back ${productTourIndex === 0 ? "disabled" : ""}>${text("Back", "Zurück")}</button>
+        <button class="button primary" type="button" data-product-tour-next>${productTourIndex === PRODUCT_TOUR_STEPS.length - 1 ? text("Finish", "Fertig") : text("Next", "Weiter")}</button>
+      </div>
+    </section>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector<HTMLButtonElement>("[data-product-tour-skip]")?.addEventListener("click", () => closeProductTour(true));
+  overlay.querySelector<HTMLButtonElement>("[data-product-tour-back]")?.addEventListener("click", () => { productTourIndex -= 1; renderProductTour(); });
+  overlay.querySelector<HTMLButtonElement>("[data-product-tour-next]")?.addEventListener("click", () => {
+    if (productTourIndex >= PRODUCT_TOUR_STEPS.length - 1) {
+      closeProductTour(true);
+      return;
+    }
+    productTourIndex += 1;
+    renderProductTour();
+  });
+};
+
+const startProductTour = () => {
+  closeProductTour(false);
+  productTourIndex = 0;
+  renderProductTour();
+};
+
+const maybeStartProductTour = () => {
+  if (productTourAutoStartChecked) return;
+  productTourAutoStartChecked = true;
+  if (localStorage.getItem(PRODUCT_TOUR_STORAGE_KEY) === "complete") return;
+  void loadFirstRunLifecycle().then((snapshot) => {
+    if (snapshot.status !== "complete") return;
+    window.setTimeout(() => {
+      if (!document.querySelector(".desktop-frame.shell-redesign-active")) return;
+      startProductTour();
+    }, 450);
+  }).catch(() => {});
+};
+
+document.addEventListener(PRODUCT_TOUR_EVENT, () => startProductTour());
 
 const syncNotificationProxy = () => {
   const source = document.querySelector<HTMLButtonElement>("nav.nav [data-view='notifications']");
@@ -488,6 +715,7 @@ const enhance = () => {
     syncNavObserver();
     bindManageConnections();
     syncOverviewShortcuts();
+    maybeStartProductTour();
   } finally {
     enhancing = false;
   }
@@ -516,6 +744,10 @@ onDesktopProjectActivated(async () => {
   localProviderStatuses = {};
   scheduleEnhance();
   await refreshHealth();
+  if (document.querySelector("[data-shell-overview]")) await refreshOverview();
+});
+onDesktopProjectRegistryChanged(() => {
+  if (document.querySelector("[data-shell-overview]")) void refreshOverview();
 });
 
 document.addEventListener("click", (event) => {
