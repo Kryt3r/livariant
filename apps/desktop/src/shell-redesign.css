@@ -237,6 +237,33 @@ body {
   margin-top: 8px;
   color: #ff9eb5;
 }
+.global-project-popover-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(143, 126, 207, .12);
+}
+.global-project-popover-actions button {
+  min-height: 34px;
+  border: 1px solid rgba(154, 118, 232, .18);
+  border-radius: 9px;
+  background: rgba(255,255,255,.025);
+  color: #d8d0e8;
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.global-project-popover-actions button:first-child {
+  border-color: rgba(164, 101, 255, .28);
+  color: #d6bcff;
+  background: rgba(125, 65, 225, .08);
+}
+.global-project-popover-actions button:hover {
+  border-color: rgba(177, 132, 255, .42);
+  background: rgba(121, 65, 229, .12);
+}
 .global-project-wrap[data-switching="true"] .global-project { cursor: wait; }
 
 .global-notice-slot {
