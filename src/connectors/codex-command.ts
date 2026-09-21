@@ -72,6 +72,7 @@ export function resolveCodexCommand(options: CodexCommandResolutionOptions = {})
     fileExists,
     readTextFile,
     nodeExecutable: options.nodeExecutable ?? process.execPath,
+    env,
   });
   if (generic) {
     return {
