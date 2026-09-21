@@ -103,8 +103,8 @@ export interface InspectBundledProviderOptions {
   probe?: LocalProviderProbe;
   resolveOptions?: Partial<Omit<ResolveLocalCliOptions, "commandName">>;
 }
-function defaultWindowsProviderCandidates(provider: "claude" | "gemini"): string[] {
-  if (process.platform !== "win32") return [];
+function defaultWindowsProviderCandidates(provider: "claude" | "gemini", platform: NodeJS.Platform): string[] {
+  if (platform !== "win32") return [];
   const result: string[] = [];
   const userProfile = process.env.USERPROFILE?.trim() || process.env.HOME?.trim();
   const localAppData = process.env.LOCALAPPDATA?.trim();
@@ -129,7 +129,7 @@ export function inspectBundledLocalProvider(options: InspectBundledProviderOptio
           : [{ packagePath: ["@google", "gemini-cli"], entrypoints: ["bundle\\gemini.js", "dist\\index.js", "dist\\gemini.js"] }],
         ...options.resolveOptions,
         additionalWindowsCandidates: [
-          ...defaultWindowsProviderCandidates(options.provider),
+          ...defaultWindowsProviderCandidates(options.provider, options.resolveOptions?.platform ?? process.platform),
           ...(options.resolveOptions?.additionalWindowsCandidates ?? []),
         ],
       });
