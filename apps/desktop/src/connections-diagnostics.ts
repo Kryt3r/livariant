@@ -695,8 +695,22 @@ onDesktopProjectActivated(() => {
   diagnostics = null;
   diagnosticsBusy = null;
   diagnosticsNotice = null;
+  connector = null;
+  localProviders = {};
+  localProviderErrors = {};
   error = null;
+  notifyConnectionHealthChanged();
+
   const rerender = activeDiagnosticsRerender;
-  if (!rerender) return;
-  void refreshDiagnostics().then(() => syncDiagnosticsSurface(rerender));
+  void Promise.all([refreshConnector(), refreshLocalProviders()])
+    .then(() => {
+      notifyConnectionHealthChanged();
+      if (rerender) rerenderConnectionsSurface(rerender);
+    })
+    .catch(() => {
+      notifyConnectionHealthChanged();
+      if (rerender) rerenderConnectionsSurface(rerender);
+    });
+
+  if (rerender) void refreshDiagnostics().then(() => syncDiagnosticsSurface(rerender));
 });
