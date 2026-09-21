@@ -1,7 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { buildBootstrapDiscovery } from "./bootstrap-discovery.js";
 import { discoverProject } from "./discovery.js";
 import {
@@ -292,16 +290,7 @@ async function persistedState(path: string): Promise<{ state: FirstRunOnboarding
   return { state: parsePersistedFirstRunOnboardingState(wrapper.onboardingState), persisted: true };
 }
 
-export function isDirectExecution(moduleUrl: string, entryPath: string | undefined, platform = process.platform): boolean {
-  if (!entryPath) return false;
-  const modulePath = resolve(fileURLToPath(moduleUrl));
-  const resolvedEntryPath = resolve(entryPath);
-  return platform === "win32"
-    ? modulePath.toLowerCase() === resolvedEntryPath.toLowerCase()
-    : modulePath === resolvedEntryPath;
-}
-
-async function main() {
+export async function runDesktopFirstRunLifecycleCli() {
   const statePath = process.env.LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH?.trim();
   if (!statePath) throw new Error("LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH is required.");
   const loaded = await persistedState(statePath);
@@ -312,9 +301,3 @@ async function main() {
   process.stdout.write(`${JSON.stringify(desktopFirstRunLifecycleSnapshot(state, loaded.persisted || Boolean(actionPath)))}\n`);
 }
 
-if (isDirectExecution(import.meta.url, process.argv[1])) {
-  main().catch((error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
-  });
-}
