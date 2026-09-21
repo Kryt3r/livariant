@@ -38,8 +38,19 @@ type ConnectorStatus = {
   detail: string;
 };
 
+type LocalProviderId = "claude" | "gemini" | "custom";
+type LocalProviderStatus = {
+  provider: LocalProviderId;
+  installationState: "available" | "not-found" | "unusable";
+  authState: "authenticated" | "configured" | "unknown" | "unavailable";
+  version: string | null;
+  connected: boolean;
+  detail: string;
+};
+
 type HealthState = "healthy" | "degraded" | "failed" | "unknown";
 let connectorStatus: ConnectorStatus | null = null;
+let localProviderStatuses: Partial<Record<LocalProviderId, LocalProviderStatus>> = {};
 let connectorStatusLoaded = false;
 let healthRefreshInFlight = false;
 let navObserver: MutationObserver | null = null;
@@ -47,11 +58,25 @@ let observedNav: HTMLElement | null = null;
 let scheduled = false;
 let enhancing = false;
 
+const localProviderIds: readonly LocalProviderId[] = ["claude", "gemini", "custom"];
+const providerName = (provider: LocalProviderId) => ({
+  claude: "Claude",
+  gemini: "Gemini",
+  custom: text("Custom", "Eigene Verbindung"),
+})[provider];
+
+const connectedProviderCount = () =>
+  (connectorStatus?.connected ? 1 : 0)
+  + localProviderIds.filter((provider) => localProviderStatuses[provider]?.connected).length;
+
+const anyProviderAvailable = () =>
+  connectorStatus?.installationState === "available"
+  || localProviderIds.some((provider) => localProviderStatuses[provider]?.installationState === "available");
+
 const healthState = (): HealthState => {
   if (!connectorStatusLoaded) return "unknown";
-  if (!connectorStatus) return "failed";
-  if (connectorStatus.connected) return "healthy";
-  if (connectorStatus.installationState === "available") return "degraded";
+  if (connectedProviderCount() > 0) return "healthy";
+  if (anyProviderAvailable()) return "degraded";
   return "failed";
 };
 
@@ -59,25 +84,79 @@ const healthLabel = () => {
   const state = healthState();
   if (state === "healthy") return text("Connections stable", "Verbindungen stabil");
   if (state === "degraded") return text("Connections need attention", "Verbindungen prüfen");
-  if (state === "failed") return text("Connection unavailable", "Verbindung ausgefallen");
+  if (state === "failed") return text("No provider connection available", "Keine Provider-Verbindung verfügbar");
   return text("Checking connections", "Verbindungen werden geprüft");
 };
 
 const healthCompactLabel = () => {
+  if (!connectorStatusLoaded) return text("Checking…", "Prüfe…");
+  const connected = connectedProviderCount();
+  if (connected > 0) return text(
+    `${connected} connected`,
+    `${connected} verbunden`,
+  );
   const state = healthState();
-  if (state === "healthy") return text("Stable", "Stabil");
   if (state === "degraded") return text("Check", "Prüfen");
-  if (state === "failed") return text("Unavailable", "Ausgefallen");
-  return text("Checking…", "Prüfe…");
+  return text("Unavailable", "Nicht verfügbar");
 };
 
-const connectorDetail = () => {
+const providerDetail = (provider: "codex" | LocalProviderId): string => {
   if (!connectorStatusLoaded) return text("Checking…", "Wird geprüft…");
-  if (!connectorStatus) return text("Unavailable", "Nicht verfügbar");
-  if (connectorStatus.connected) return text("Connected", "Verbunden");
-  if (connectorStatus.installationState === "available") return text("Ready, not connected", "Bereit, nicht verbunden");
-  if (connectorStatus.installationState === "not-found") return text("Not installed", "Nicht installiert");
+  if (provider === "codex") {
+    if (!connectorStatus) return text("Unavailable", "Nicht verfügbar");
+    if (connectorStatus.connected) return text("Connected", "Verbunden");
+    if (connectorStatus.installationState === "available") return text("Ready, not connected", "Bereit, nicht verbunden");
+    if (connectorStatus.installationState === "not-found") return text("Not installed", "Nicht installiert");
+    return text("Needs attention", "Benötigt Aufmerksamkeit");
+  }
+  const status = localProviderStatuses[provider];
+  if (!status) return text("Unavailable", "Nicht verfügbar");
+  if (status.connected) return text("Connected", "Verbunden");
+  if (status.installationState === "available" && status.authState !== "unavailable") {
+    return text("Ready, not connected", "Bereit, nicht verbunden");
+  }
+  if (status.installationState === "not-found") {
+    return provider === "custom" ? text("Not configured", "Nicht konfiguriert") : text("Not installed", "Nicht installiert");
+  }
   return text("Needs attention", "Benötigt Aufmerksamkeit");
+};
+
+const connectedProviderRows = () => {
+  const rows: Array<{ id: string; name: string; detail: string }> = [];
+  if (connectorStatus?.connected) rows.push({ id: "codex", name: "Codex", detail: providerDetail("codex") });
+  for (const provider of localProviderIds) {
+    if (localProviderStatuses[provider]?.connected) {
+      rows.push({ id: provider, name: providerName(provider), detail: providerDetail(provider) });
+    }
+  }
+  return rows;
+};
+
+const healthRowsMarkup = () => {
+  const rows = connectedProviderRows();
+  if (!connectorStatusLoaded) {
+    return `<div class="global-health-row"><span>${text("Providers", "Provider")}</span><strong data-health-tone="unknown">${text("Checking…", "Wird geprüft…")}</strong></div>`;
+  }
+  if (!rows.length) {
+    return `<div class="global-health-row"><span>${text("Providers", "Provider")}</span><strong data-health-tone="${healthState()}">${text("No active connection", "Keine aktive Verbindung")}</strong></div>`;
+  }
+  return rows.map((row) =>
+    `<div class="global-health-row" data-health-provider="${row.id}"><span>${esc(row.name)}</span><strong data-health-tone="healthy">${esc(row.detail)}</strong></div>`
+  ).join("");
+};
+
+const syncHealthProviderRows = (header: HTMLElement) => {
+  const host = header.querySelector<HTMLElement>("[data-health-provider-rows]");
+  if (!host) return;
+  const signature = JSON.stringify({
+    loaded: connectorStatusLoaded,
+    codex: connectorStatus,
+    local: localProviderStatuses,
+    language: getLanguage(),
+  });
+  if (host.dataset.healthSignature === signature) return;
+  host.dataset.healthSignature = signature;
+  host.innerHTML = healthRowsMarkup();
 };
 
 const renderOverview = () => `
@@ -187,6 +266,7 @@ const bindConnectionPopover = (button: HTMLButtonElement) => {
     });
     wrap.dataset.open = nextOpen ? "true" : "false";
     button.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+    if (nextOpen) void refreshHealth();
   });
 };
 
@@ -204,9 +284,18 @@ const refreshHealth = async () => {
   if (healthRefreshInFlight) return;
   healthRefreshInFlight = true;
   try {
-    connectorStatus = await invoke<ConnectorStatus>("codex_connector_status");
-  } catch {
-    connectorStatus = null;
+    const [codex, claude, gemini, custom] = await Promise.allSettled([
+      invoke<ConnectorStatus>("codex_connector_status"),
+      invoke<LocalProviderStatus>("local_provider_status", { provider: "claude" }),
+      invoke<LocalProviderStatus>("local_provider_status", { provider: "gemini" }),
+      invoke<LocalProviderStatus>("local_provider_status", { provider: "custom" }),
+    ]);
+    connectorStatus = codex.status === "fulfilled" ? codex.value : null;
+    localProviderStatuses = {
+      ...(claude.status === "fulfilled" ? { claude: claude.value } : {}),
+      ...(gemini.status === "fulfilled" ? { gemini: gemini.value } : {}),
+      ...(custom.status === "fulfilled" ? { custom: custom.value } : {}),
+    };
   } finally {
     connectorStatusLoaded = true;
     healthRefreshInFlight = false;
@@ -237,9 +326,9 @@ const ensureHeader = (frame: HTMLElement) => {
             <span class="global-health-indicator">${svg("health")}</span><span class="global-health-label">${esc(healthCompactLabel())}</span><span class="global-health-chevron">⌄</span>
           </button>
           <div class="global-health-popover" role="dialog" aria-label="${text("Connection status", "Verbindungsstatus")}">
-            <div class="global-health-popover-head"><strong>${text("Connections", "Verbindungen")}</strong><span data-health-tone="${healthState()}">${esc(healthLabel())}</span></div>
-            <div class="global-health-group"><small>${text("LLMs & agents", "LLMs & Agents")}</small><div class="global-health-row"><span>Codex</span><strong data-health-tone="${healthState()}">${esc(connectorDetail())}</strong></div></div>
-            <p>${text("Additional configured connections will appear here as their global health signals become available.", "Weitere eingerichtete Verbindungen erscheinen hier, sobald ihre globalen Statussignale verfügbar sind.")}</p>
+            <div class="global-health-popover-head"><strong>${text("Connections", "Verbindungen")}</strong><span data-health-summary-tone="${healthState()}">${esc(healthLabel())}</span></div>
+            <div class="global-health-group"><small>${text("Connected LLMs & agents", "Verbundene LLMs & Agents")}</small><div data-health-provider-rows>${healthRowsMarkup()}</div></div>
+            <p>${text("Connected local providers are shown here from the same host state used by Connections settings.", "Verbundene lokale Provider werden hier aus demselben Host-Status wie in den Verbindungseinstellungen angezeigt.")}</p>
             <button class="global-health-manage" type="button" data-shell-manage-connections>${text("Manage connections", "Verbindungen verwalten")}</button>
           </div>
         </div>
@@ -262,11 +351,13 @@ const ensureHeader = (frame: HTMLElement) => {
     if (label) label.textContent = healthCompactLabel();
     bindConnectionPopover(healthButton);
   }
-  header.querySelectorAll<HTMLElement>("[data-health-tone]").forEach((element) => {
-    element.dataset.healthTone = healthState();
-    if (element.closest(".global-health-popover-head")) element.textContent = healthLabel();
-    else element.textContent = connectorDetail();
-  });
+  const healthSummary = header.querySelector<HTMLElement>("[data-health-summary-tone]");
+  if (healthSummary) {
+    healthSummary.dataset.healthSummaryTone = healthState();
+    healthSummary.dataset.healthTone = healthState();
+    healthSummary.textContent = healthLabel();
+  }
+  syncHealthProviderRows(header);
 };
 
 const ensureSidebar = (frame: HTMLElement) => {
@@ -393,6 +484,7 @@ if (appRoot) {
 }
 
 document.addEventListener("livariant:shell-rendered", () => enhance());
+document.addEventListener("livariant:connections-changed", () => { void refreshHealth(); });
 
 document.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
