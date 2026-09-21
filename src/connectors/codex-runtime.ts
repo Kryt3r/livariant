@@ -68,7 +68,7 @@ export function inspectCodexInstallation(
 
   if (result.errorCode !== undefined || result.status !== 0) {
     const detail = result.errorMessage ?? (result.stderr.trim() || result.stdout.trim() || `exit ${String(result.status)}`);
-    return { state: "unusable", command, argsPrefix, evidence: "codex --version", detail };
+    return { state: "unusable", command, evidence: "codex --version", detail };
   }
 
   const output = `${result.stdout}\n${result.stderr}`;
