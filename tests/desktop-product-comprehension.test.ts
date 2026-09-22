@@ -62,3 +62,16 @@ test("maintainer review follow-up keeps primary work surfaces aligned and tour c
   assert.doesNotMatch(emptyPolish, /codex_diagnostics_summary/);
   assert.doesNotMatch(projectPolish, /PROJECT-BRAIN-ARBEITSBEREICH/);
 });
+
+
+test("Block-A review follow-up does not leave duplicated function declarations or nested language binding", () => {
+  const shell = readFileSync("apps/desktop/src/shell-redesign.ts", "utf8");
+  const main = readFileSync("apps/desktop/src/main.ts", "utf8");
+  const polish = readFileSync("apps/desktop/src/wp056-redesign-polish.ts", "utf8");
+
+  assert.doesNotMatch(shell, /const syncNotificationProxy = \(\) => \{const syncNotificationProxy/);
+  assert.doesNotMatch(polish, /const localizeNotificationCopy = \(\) => \{const localizeNotificationCopy/);
+  assert.doesNotMatch(polish, /const removeDuplicateOverviewComposition = \(\) => \{const removeDuplicateOverviewComposition/);
+  assert.match(shell, /target: "\.connections-settings"/);
+  assert.match(main, /\}\);\n\nonLanguageChange\(\(\) => \{/);
+});

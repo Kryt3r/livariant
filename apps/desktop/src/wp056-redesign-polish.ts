@@ -69,7 +69,7 @@ const localizeProjectKnowledge = () => {
   // with the older one-way German post-processing that caused mixed-language UI.
 };
 
-const localizeNotificationCopy = () => {const localizeNotificationCopy = () => {
+const localizeNotificationCopy = () => {
   if (!isGerman()) return;
   document.querySelectorAll<HTMLElement>(".notification-drawer-item").forEach((item) => {
     const category = item.querySelector<HTMLElement>(".notification-drawer-category")?.textContent?.trim();
@@ -103,7 +103,7 @@ const localizeDiagnosticsTerms = () => {
   });
 };
 
-const removeDuplicateOverviewComposition = () => {const removeDuplicateOverviewComposition = () => {
+const removeDuplicateOverviewComposition = () => {
   document.querySelector<HTMLElement>(".dc-overview .dc-composition")?.remove();
 };
 

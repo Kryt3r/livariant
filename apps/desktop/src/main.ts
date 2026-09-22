@@ -762,12 +762,12 @@ document.addEventListener("livariant:open-project-settings", () => {
   settingsSection = "projects";
   selectedReviewAreaId = null;
   selectedSourceAreaId = null;
-  onLanguageChange(() => {
-  if (document.querySelector(".truth-workspace") || settingsOpen) render();
+  render();
+  void refreshProjectSettings().then(() => renderSettingsSectionOnly()).catch(() => renderSettingsSectionOnly());
 });
 
-render();
-  void refreshProjectSettings().then(() => renderSettingsSectionOnly()).catch(() => renderSettingsSectionOnly());
+onLanguageChange(() => {
+  if (document.querySelector(".truth-workspace") || settingsOpen) render();
 });
 
 render();

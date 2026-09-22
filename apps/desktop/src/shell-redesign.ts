@@ -414,7 +414,7 @@ const PRODUCT_TOUR_STEPS: readonly ProductTourStep[] = [
   },
   {
     route: "settings-connections",
-    target: ".settings-content-body",
+    target: ".connections-settings",
     title: ["Connections are capability, not permission", "Verbindungen sind Fähigkeit, keine Berechtigung"],
     detail: [
       "Settings is where you connect providers and GitHub. A connection makes a tool available to Livariant, but does not authorize file changes, merges or releases.",
@@ -532,7 +532,7 @@ const maybeStartProductTour = () => {
 
 document.addEventListener(PRODUCT_TOUR_EVENT, () => startProductTour());
 
-const syncNotificationProxy = () => {const syncNotificationProxy = () => {
+const syncNotificationProxy = () => {
   const source = document.querySelector<HTMLButtonElement>("nav.nav [data-view='notifications']");
   const proxy = document.querySelector<HTMLButtonElement>("[data-shell-notifications]");
   if (!proxy) return;
