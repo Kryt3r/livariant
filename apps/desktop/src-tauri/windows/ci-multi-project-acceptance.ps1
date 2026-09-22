@@ -40,7 +40,7 @@ try {
   }
 
   $root = Join-Path $env:RUNNER_TEMP 'LivariantMultiProjectInstalledAcceptance'
-  $installDir = Join-Path $root 'install'
+  $installDir = Join-Path $env:ProgramFiles 'Livariant\Desktop'
   $appData = Join-Path $root 'appdata'
   $localAppData = Join-Path $root 'localappdata'
   $projectA = Join-Path $root 'project-a'
@@ -48,6 +48,7 @@ try {
   $resultPath = Join-Path $root 'result.json'
 
   Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
   New-Item -ItemType Directory -Path $root, $appData, $localAppData, $projectA, $projectB -Force | Out-Null
   foreach ($project in @($projectA, $projectB)) {
     Set-Content -LiteralPath (Join-Path $project 'ci-project-root-marker.txt') -Value 'preserve-root' -Encoding utf8
@@ -56,7 +57,7 @@ try {
     Set-Content -LiteralPath (Join-Path $brain 'ci-preserve-marker.txt') -Value 'preserve-project-brain' -Encoding utf8
   }
 
-  $install = Start-Process -FilePath $installers[0].FullName -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+  $install = Start-Process -FilePath $installers[0].FullName -ArgumentList '/S' -Wait -PassThru
   if ($install.ExitCode -ne 0) {
     throw "CI acceptance silent NSIS install failed with exit code $($install.ExitCode)."
   }
