@@ -194,6 +194,14 @@ pub async fn launch_project_knowledge_protection_setup(
     registry: State<'_, DesktopProjectRegistryState>,
 ) -> Result<ProjectKnowledgeProtectionLaunchResult, String> {
     let scope = active_project_scope(&app, registry.inner())?;
+    let protection = {
+        let state = app.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app, state.inner(), json!({ "method": "protection" }))?
+    };
+    if protection.get("state").and_then(Value::as_str) != Some("guardian-bootstrap-required") {
+        return Err("Protected Guardian setup may launch only when exact protected Stage A is verified and Guardian bootstrap is the next required step.".to_owned());
+    }
+
     let launcher = fixed_desktop_guardian_launcher();
     if !launcher.is_file() {
         return Err("Protected Guardian Stage-B launcher is not available from the fixed protected source. Repair or reinstall Livariant Stage-A material first.".to_owned());
