@@ -90,3 +90,21 @@ test("canonical reads are blocked until protected integrity and initial acceptan
   assert.match(main, /acceptProjectKnowledgeIntegrity\(digest\)/);
   assert.doesNotMatch(main, /projectKnowledgeProtection\.protectedSource/);
 });
+
+
+test("Desktop Project Brain initialization preserves protected lifecycle phases", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+
+  assert.match(core, /project-brain-initialization-required/);
+  assert.match(core, /issueLifecycleGuardianAuthority/);
+  assert.match(core, /consumeLifecycleGuardianAuthority/);
+  assert.match(core, /initializeProject\(project\.root, \{ authorized: true \}\)/);
+  assert.match(core, /Project Brain initialization requires matching protected lifecycle authorization before apply/);
+  assert.match(rust, /authorize_project_knowledge_initialization/);
+  assert.match(rust, /apply_project_knowledge_initialization/);
+  assert.match(main, /Authorize creation/);
+  assert.match(main, /Create Project Brain/);
+  assert.match(main, /existing project files remain untouched/i);
+});
