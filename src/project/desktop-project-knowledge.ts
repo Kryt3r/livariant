@@ -252,6 +252,10 @@ export async function prepareDesktopProjectKnowledgeProposal(
   input: { areaId: unknown; value: unknown },
 ): Promise<DesktopProjectKnowledgePreparedProposal> {
   const project = discoverProject(projectPath);
+  const protection = await projectKnowledgeProtectionStatus(project.root);
+  if (!protection.canonicalReadReady) {
+    throw new Error(`Project Knowledge proposal preparation requires protected canonical state; current protection state is ${protection.state}.`);
+  }
   const id = areaId(input.areaId);
   const displayValue = normalizedValue(input.value);
   const { records } = await projectRecords(project.root);
