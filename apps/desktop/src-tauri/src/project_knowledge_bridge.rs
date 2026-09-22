@@ -246,3 +246,28 @@ pub async fn launch_project_knowledge_protection_setup(
         }),
     })
 }
+
+
+#[tauri::command]
+pub async fn accept_project_knowledge_integrity(
+    app: tauri::AppHandle,
+    registry: State<'_, DesktopProjectRegistryState>,
+    confirmed_digest: String,
+) -> Result<Value, String> {
+    let scope = active_project_scope(&app, registry.inner())?;
+    let expected_generation = scope.generation;
+    let expected_project = scope.desktop_project_id.clone();
+    let app_for_worker = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_worker.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app_for_worker, state.inner(), json!({
+            "method": "accept-integrity",
+            "confirmedDigest": confirmed_digest,
+        }))
+    }).await.map_err(|error| format!("Project Knowledge integrity worker failed: {error}"))??;
+    let current = active_project_scope(&app, registry.inner())?;
+    if current.generation != expected_generation || current.desktop_project_id != expected_project {
+        return Err("Active Desktop project changed while protected Project Brain integrity was being accepted; stale result rejected.".to_owned());
+    }
+    Ok(result)
+}
