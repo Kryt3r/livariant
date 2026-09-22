@@ -633,14 +633,6 @@ const renderSettingsSectionOnly = () => {
   });
 };
 
-const archiveCurrentTruth = (area: TruthArea, reason: TruthRevision["reason"]) => {
-  const current = area.confirmedValue.trim();
-  if (!current) return;
-  const latest = area.history.at(-1)?.value ?? "";
-  if (normalizeTruth(latest) === normalizeTruth(current)) return;
-  area.history.push({ value: current, reason });
-};
-
 const closeSettings = () => { settingsOpen = false; render(); };
 const closeTruthReview = () => { selectedReviewAreaId = null; render(); };
 const closeTruthSource = () => { selectedSourceAreaId = null; render(); };
