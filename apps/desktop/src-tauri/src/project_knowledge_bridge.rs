@@ -210,8 +210,8 @@ pub async fn launch_project_knowledge_protection_setup(
     #[cfg(target_os = "windows")]
     {
         let powershell = PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
-        let escaped_launcher = launcher.display().to_string().replace(''', "''");
-        let escaped_powershell = powershell.display().to_string().replace(''', "''");
+        let escaped_launcher = launcher.display().to_string().replace('\'', "''");
+        let escaped_powershell = powershell.display().to_string().replace('\'', "''");
         let script = format!(
             "$p=Start-Process -FilePath '{}' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File','{}') -Verb RunAs -PassThru; exit 0",
             escaped_powershell,

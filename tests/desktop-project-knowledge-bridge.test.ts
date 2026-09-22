@@ -108,3 +108,10 @@ test("Desktop Project Brain initialization preserves protected lifecycle phases"
   assert.match(main, /Create Project Brain/);
   assert.match(main, /existing project files remain untouched/i);
 });
+
+
+test("Rust bridge keeps PowerShell quoting syntactically valid", async () => {
+  const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  assert.match(rust, /replace\('\\\\'', "''"\)/);
+  assert.doesNotMatch(rust, /replace\(''', "''"\)/);
+});
