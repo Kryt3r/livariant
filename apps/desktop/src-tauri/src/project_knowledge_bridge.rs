@@ -3,7 +3,7 @@ use crate::desktop_project_registry::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{io::Write, path::Path, process::{Command, Stdio}};
+use std::{io::Write, path::{Path, PathBuf}, process::{Command, Stdio}};
 use tauri::{Manager, State};
 
 #[derive(Debug, Deserialize)]
@@ -147,4 +147,94 @@ pub async fn apply_project_knowledge_proposal(
         return Err("Active Desktop project changed while Project Knowledge was being applied. The operation remained bound to the original project; stale renderer result rejected.".to_owned());
     }
     Ok(result)
+}
+
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectKnowledgeProtectionLaunchResult {
+    state: &'static str,
+    detail: String,
+    boundaries: Value,
+}
+
+#[tauri::command]
+pub async fn project_knowledge_protection_status(
+    app: tauri::AppHandle,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    let scope = active_project_scope(&app, registry.inner())?;
+    let expected_generation = scope.generation;
+    let expected_project = scope.desktop_project_id.clone();
+    let app_for_worker = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_worker.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app_for_worker, state.inner(), json!({ "method": "protection" }))
+    }).await.map_err(|error| format!("Project Knowledge protection worker failed: {error}"))??;
+    let current = active_project_scope(&app, registry.inner())?;
+    if current.generation != expected_generation || current.desktop_project_id != expected_project {
+        return Err("Active Desktop project changed while protection readiness was inspected; stale result rejected.".to_owned());
+    }
+    Ok(result)
+}
+
+#[cfg(target_os = "windows")]
+fn fixed_desktop_guardian_launcher() -> PathBuf {
+    PathBuf::from(r"C:\Program Files\Livariant\Bootstrap\v1\guardian-bootstrap-desktop.ps1")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn fixed_desktop_guardian_launcher() -> PathBuf {
+    PathBuf::from("/opt/livariant/bootstrap/v1/guardian-bootstrap")
+}
+
+#[tauri::command]
+pub async fn launch_project_knowledge_protection_setup(
+    app: tauri::AppHandle,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<ProjectKnowledgeProtectionLaunchResult, String> {
+    let scope = active_project_scope(&app, registry.inner())?;
+    let launcher = fixed_desktop_guardian_launcher();
+    if !launcher.is_file() {
+        return Err("Protected Guardian Stage-B launcher is not available from the fixed protected source. Repair or reinstall Livariant Stage-A material first.".to_owned());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let powershell = PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
+        let escaped_launcher = launcher.display().to_string().replace(''', "''");
+        let escaped_powershell = powershell.display().to_string().replace(''', "''");
+        let script = format!(
+            "$p=Start-Process -FilePath '{}' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File','{}') -Verb RunAs -PassThru; exit 0",
+            escaped_powershell,
+            escaped_launcher
+        );
+        hidden_command(&powershell)
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .spawn()
+            .map_err(|error| format!("Protected Guardian setup window could not be started: {error}"))?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Desktop protected Guardian setup launcher is currently implemented for Windows only.".to_owned());
+    }
+
+    let current = active_project_scope(&app, registry.inner())?;
+    if current.generation != scope.generation || current.desktop_project_id != scope.desktop_project_id {
+        return Err("Active Desktop project changed while protected Guardian setup was launched; stale result rejected.".to_owned());
+    }
+
+    Ok(ProjectKnowledgeProtectionLaunchResult {
+        state: "launched",
+        detail: "A protected Stage-B setup window was opened from the fixed OS-protected Livariant bootstrap source. Complete the UAC and exact bootstrap confirmation there, then re-check protection readiness.".to_owned(),
+        boundaries: json!({
+            "rendererSuppliesExecutable": false,
+            "rendererSuppliesPath": false,
+            "fixedProtectedLauncher": true,
+            "uacRequired": true,
+            "bootstrapGrantsMutationAuthority": false,
+            "projectFilesChanged": false
+        }),
+    })
 }
