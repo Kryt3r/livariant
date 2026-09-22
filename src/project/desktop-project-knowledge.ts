@@ -10,7 +10,12 @@ import { authorizeActionableProposal } from "../runtime/authorization.js";
 import { applyActionableProposal } from "../runtime/semantic-apply.js";
 import { issueSemanticGuardianAuthority } from "../guardian/semantic-authority-transition.js";
 import { runProtectedDoctor } from "../runtime/protected-doctor.js";
+import { runDoctor as runLocalEvidenceDoctor } from "../runtime/doctor.js";
 import { inspectGuardianMachineReadiness } from "../guardian/readiness.js";
+import {
+  establishProtectedProjectBrainIntegrityState,
+  inspectProtectedProjectBrainIntegrity,
+} from "../project-brain/protected-integrity.js";
 
 export type DesktopProjectKnowledgeAreaId = "purpose" | "direction" | "rules";
 
@@ -20,6 +25,25 @@ export interface DesktopProjectKnowledgeAreaSnapshot {
   confirmedValue: string;
   activeDecisionId: string | null;
   history: Array<{ decisionId: string; value: string; status: "superseded" }>;
+}
+
+export interface DesktopProjectKnowledgeProtectionStatus {
+  schemaVersion: 1;
+  state:
+    | "ready"
+    | "protected-source-required"
+    | "guardian-bootstrap-required"
+    | "integrity-acceptance-required"
+    | "integrity-recovery-required"
+    | "unsafe"
+    | "unsupported-platform";
+  canonicalReadReady: boolean;
+  guardian: Awaited<ReturnType<typeof inspectGuardianMachineReadiness>>;
+  integrity: {
+    state: string;
+    digest: string | null;
+    reason: string | null;
+  };
 }
 
 export interface DesktopProjectKnowledgeSnapshot {
@@ -118,7 +142,7 @@ function areaSnapshot(id: DesktopProjectKnowledgeAreaId, records: DecisionRecord
   };
 }
 
-export async function readDesktopProjectKnowledge(projectPath: string): Promise<DesktopProjectKnowledgeSnapshot> {
+async function localProjectKnowledgeSnapshot(projectPath: string): Promise<DesktopProjectKnowledgeSnapshot> {
   const project = discoverProject(projectPath);
   const { stableProjectIdentity, records } = await projectRecords(project.root);
   return {
@@ -134,6 +158,93 @@ export async function readDesktopProjectKnowledge(projectPath: string): Promise<
       performsSemanticApply: false,
     },
   };
+}
+
+export async function projectKnowledgeProtectionStatus(projectPath: string): Promise<DesktopProjectKnowledgeProtectionStatus> {
+  const project = discoverProject(projectPath);
+  const guardian = await inspectGuardianMachineReadiness(project.root, process.platform, process.execPath);
+  let integrity;
+  try {
+    integrity = await inspectProtectedProjectBrainIntegrity(project.root);
+  } catch (error) {
+    return {
+      schemaVersion: 1,
+      state: guardian.state === "ready" ? "integrity-recovery-required" : guardian.state,
+      canonicalReadReady: false,
+      guardian,
+      integrity: {
+        state: "invalid",
+        digest: null,
+        reason: error instanceof Error ? error.message : "Project Brain integrity inspection failed.",
+      },
+    };
+  }
+
+  const digest = "current" in integrity.local ? integrity.local.current?.digest ?? null : null;
+  const reason = integrity.state === "mismatch"
+    ? integrity.local.reason
+    : integrity.state === "unprotected" || integrity.state === "invalid"
+      ? integrity.reason
+      : null;
+
+  let state: DesktopProjectKnowledgeProtectionStatus["state"];
+  if (guardian.state !== "ready") state = guardian.state;
+  else if (integrity.state === "match") state = "ready";
+  else if (integrity.state === "missing" || integrity.state === "unprotected") state = "integrity-acceptance-required";
+  else state = "integrity-recovery-required";
+
+  return {
+    schemaVersion: 1,
+    state,
+    canonicalReadReady: state === "ready",
+    guardian,
+    integrity: { state: integrity.state, digest, reason },
+  };
+}
+
+export async function readDesktopProjectKnowledge(projectPath: string): Promise<DesktopProjectKnowledgeSnapshot> {
+  const status = await projectKnowledgeProtectionStatus(projectPath);
+  if (!status.canonicalReadReady) {
+    throw new Error(`Canonical Project Knowledge is blocked until protected Project Brain integrity is ready; current protection state is ${status.state}.`);
+  }
+  return localProjectKnowledgeSnapshot(projectPath);
+}
+
+export async function establishDesktopProjectKnowledgeIntegrity(
+  projectPath: string,
+  confirmedDigest: string,
+): Promise<DesktopProjectKnowledgeProtectionStatus> {
+  const project = discoverProject(projectPath);
+  const before = await projectKnowledgeProtectionStatus(project.root);
+  if (before.guardian.state !== "ready") {
+    throw new Error(`Protected Guardian must be ready before Project Brain integrity acceptance; current state is ${before.guardian.state}.`);
+  }
+  if (before.state === "ready") return before;
+  if (before.state !== "integrity-acceptance-required" || !before.integrity.digest) {
+    throw new Error(`Project Brain integrity cannot be accepted from state ${before.state}; recovery is required instead.`);
+  }
+  if (confirmedDigest !== before.integrity.digest) {
+    throw new Error("Project Brain integrity confirmation does not match the exact current managed material digest.");
+  }
+
+  const doctor = await runLocalEvidenceDoctor(project.root);
+  if (before.integrity.state === "missing") {
+    const disallowed = doctor.findings.filter((finding) => finding.code !== "project-brain-integrity-unestablished");
+    if (doctor.state !== "drift-detected" || disallowed.length > 0) {
+      const detail = doctor.findings.map((finding) => `${finding.code}: ${finding.message}`).join("; ");
+      throw new Error(`Initial integrity acceptance requires an otherwise healthy Project Brain: ${detail}`);
+    }
+  } else if (doctor.state !== "healthy") {
+    const detail = doctor.findings.map((finding) => `${finding.code}: ${finding.message}`).join("; ");
+    throw new Error(`Protected integrity acceptance requires coherent local Project Brain evidence: ${detail}`);
+  }
+
+  await establishProtectedProjectBrainIntegrityState(project.root, "manual-bootstrap");
+  const after = await projectKnowledgeProtectionStatus(project.root);
+  if (!after.canonicalReadReady) {
+    throw new Error(`Protected Project Brain integrity did not become ready after acceptance; current state is ${after.state}.`);
+  }
+  return after;
 }
 
 export async function prepareDesktopProjectKnowledgeProposal(
@@ -216,6 +327,7 @@ export async function applyDesktopProjectKnowledgeProposal(
   if (applied.state !== "completed" || applied.actionableProposalId !== proposal.actionableProposalId) {
     throw new Error("Desktop Project Knowledge apply did not complete for the exact reviewed proposal.");
   }
+  await establishProtectedProjectBrainIntegrityState(project.root, "semantic-apply");
   const snapshot = await readDesktopProjectKnowledge(project.root);
   const area = snapshot.areas.find((candidate) => candidate.id === id);
   const expected = taggedValue(id, {
@@ -239,6 +351,7 @@ export async function applyDesktopProjectKnowledgeProposal(
 type HostRequest =
   | { method: "read" }
   | { method: "protection" }
+  | { method: "accept-integrity"; confirmedDigest: unknown }
   | { method: "prepare"; areaId: unknown; value: unknown }
   | { method: "apply"; areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown };
 
@@ -256,7 +369,11 @@ async function main(): Promise<void> {
   const request = JSON.parse(raw) as HostRequest;
   let result: unknown;
   if (request.method === "read") result = await readDesktopProjectKnowledge(projectRoot);
-  else if (request.method === "protection") result = await inspectGuardianMachineReadiness(projectRoot, process.platform, process.execPath);
+  else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectRoot);
+  else if (request.method === "accept-integrity") {
+    if (typeof request.confirmedDigest !== "string") throw new Error("Project Brain integrity confirmation digest is invalid.");
+    result = await establishDesktopProjectKnowledgeIntegrity(projectRoot, request.confirmedDigest);
+  }
   else if (request.method === "prepare") result = await prepareDesktopProjectKnowledgeProposal(projectRoot, request);
   else if (request.method === "apply") result = await applyDesktopProjectKnowledgeProposal(projectRoot, request);
   else throw new Error("Desktop Project Knowledge method is unsupported.");
