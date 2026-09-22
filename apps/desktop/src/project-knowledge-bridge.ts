@@ -62,10 +62,15 @@ export const applyProjectKnowledgeProposal = (
 
 export type ProjectKnowledgeProtectionStatus = {
   schemaVersion: 1;
-  state: "ready" | "protected-source-required" | "guardian-bootstrap-required" | "unsafe" | "unsupported-platform";
-  protectedSource: { state: "ready" | "missing" | "unsafe" | "unsupported-platform"; reason: string };
-  guardian: { state: string; ready: boolean; reason: string };
-  lifecycleAuthorizationReady: boolean;
+  state: "ready" | "protected-source-required" | "guardian-bootstrap-required" | "integrity-acceptance-required" | "integrity-recovery-required" | "unsafe" | "unsupported-platform";
+  canonicalReadReady: boolean;
+  guardian: {
+    state: "ready" | "protected-source-required" | "guardian-bootstrap-required" | "unsafe" | "unsupported-platform";
+    protectedSource: { state: "ready" | "missing" | "unsafe" | "unsupported-platform"; reason: string };
+    guardian: { state: string; ready: boolean; reason: string };
+    lifecycleAuthorizationReady: boolean;
+  };
+  integrity: { state: string; digest: string | null; reason: string | null };
 };
 
 export const loadProjectKnowledgeProtectionStatus = () =>
@@ -73,3 +78,7 @@ export const loadProjectKnowledgeProtectionStatus = () =>
 
 export const launchProjectKnowledgeProtectionSetup = () =>
   invoke<{ state: "launched"; detail: string }>("launch_project_knowledge_protection_setup");
+
+
+export const acceptProjectKnowledgeIntegrity = (confirmedDigest: string) =>
+  invoke<ProjectKnowledgeProtectionStatus>("accept_project_knowledge_integrity", { confirmedDigest });
