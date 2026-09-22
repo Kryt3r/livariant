@@ -5,6 +5,23 @@
   ClearErrors
   ${GetOptions} $CMDLINE "/UPDATE" $0
 
+  ; Automatic updates must not replace the user's first-install language seed.
+  ; Keep this check immediately after GetOptions so later installer work cannot
+  ; overwrite the NSIS error flag that distinguishes first install from update.
+  ${If} ${Errors}
+    CreateDirectory "$APPDATA\Livariant"
+
+    ${If} $LANGUAGE == ${LANG_GERMAN}
+      FileOpen $0 "$APPDATA\Livariant\installer-language.txt" w
+      FileWrite $0 "de"
+      FileClose $0
+    ${Else}
+      FileOpen $0 "$APPDATA\Livariant\installer-language.txt" w
+      FileWrite $0 "en"
+      FileClose $0
+    ${EndIf}
+  ${EndIf}
+
   ; The Desktop installer is also the release-bound Stage-A carrier. Stage A is
   ; allowed only from the fixed per-machine installation root.
   StrCmp "$INSTDIR" "$PROGRAMFILES64\Livariant" stage_a_root_ok 0
@@ -23,19 +40,4 @@
       Abort "Protected Stage-A setup failed."
   stage_a_done:
 
-  ; Automatic updates must not replace the user's first-install language seed.
-  ; The in-app language preference remains authoritative once it exists.
-  ${If} ${Errors}
-    CreateDirectory "$APPDATA\Livariant"
-
-    ${If} $LANGUAGE == ${LANG_GERMAN}
-      FileOpen $0 "$APPDATA\Livariant\installer-language.txt" w
-      FileWrite $0 "de"
-      FileClose $0
-    ${Else}
-      FileOpen $0 "$APPDATA\Livariant\installer-language.txt" w
-      FileWrite $0 "en"
-      FileClose $0
-    ${EndIf}
-  ${EndIf}
 !macroend
