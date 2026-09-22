@@ -1,5 +1,5 @@
 use crate::desktop_project_registry::{
-    active_project_scope, ensure_project_persistence_scope_current, DesktopProjectRegistryState,
+    active_project_scope, DesktopProjectRegistryState,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -70,7 +70,10 @@ fn run_project_knowledge(
     }
     let output = child.wait_with_output()
         .map_err(|error| format!("Project Knowledge runtime could not be read: {error}"))?;
-    ensure_project_persistence_scope_current(app, registry, &scope)?;
+    let current = active_project_scope(app, registry)?;
+    if current.generation != scope.generation || current.desktop_project_id != scope.desktop_project_id {
+        return Err("Active Desktop project changed while Project Knowledge was loading; stale result rejected.".to_owned());
+    }
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
         return Err(if stderr.is_empty() { "Project Knowledge request failed closed.".to_owned() } else { stderr });
@@ -89,7 +92,6 @@ pub async fn project_knowledge_snapshot(
         let state = app_for_worker.state::<DesktopProjectRegistryState>();
         run_project_knowledge(&app_for_worker, state.inner(), json!({ "method": "read" }))
     }).await.map_err(|error| format!("Project Knowledge worker failed: {error}"))??;
-    ensure_project_persistence_scope_current(&app, registry.inner(), &active_project_scope(&app, registry.inner())?)?;
     Ok(result)
 }
 

@@ -21,6 +21,13 @@ import {
   refreshProjectSettings,
   renderProjectSettingsView,
 } from "./project-settings.js";
+import {
+  loadProjectKnowledge,
+  prepareProjectKnowledgeProposal,
+  type ProjectKnowledgePreparedProposal,
+  type ProjectKnowledgeSnapshot,
+} from "./project-knowledge-bridge.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
 const appWindow = getCurrentWindow();
@@ -46,6 +53,8 @@ type TruthArea = {
   confirmedValue: string;
   history: TruthRevision[];
   sourceHints: string[];
+  activeDecisionId: string | null;
+  preparedProposal: ProjectKnowledgePreparedProposal["proposal"] | null;
 };
 type Notice = { kind: NoticeKind; title: string; detail?: string };
 type UpdateCheckResult = {
@@ -73,6 +82,8 @@ const areas: TruthArea[] = [
     confirmedValue: "",
     history: [],
     sourceHints: ["Project Brain · project identity and intent"],
+    activeDecisionId: null,
+    preparedProposal: null,
   },
   {
     id: "direction",
@@ -85,6 +96,8 @@ const areas: TruthArea[] = [
     confirmedValue: "",
     history: [],
     sourceHints: ["Project Brain · accepted goals and decisions"],
+    activeDecisionId: null,
+    preparedProposal: null,
   },
   {
     id: "rules",
@@ -97,6 +110,8 @@ const areas: TruthArea[] = [
     confirmedValue: "",
     history: [],
     sourceHints: ["Project Brain · protected properties and constraints"],
+    activeDecisionId: null,
+    preparedProposal: null,
   },
 ];
 
@@ -109,6 +124,8 @@ let selectedReviewAreaId: string | null = null;
 let selectedSourceAreaId: string | null = null;
 let sourceMode: SourceMode = "rendered";
 let notice: Notice | null = null;
+let projectKnowledgeLoading = false;
+let projectKnowledgeError: string | null = null;
 let updateState: UpdateState = "idle";
 let updateResult: UpdateCheckResult | null = null;
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -120,6 +137,35 @@ const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => (
 
 const normalizeTruth = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 const renderTruthText = (value: string) => value.split(/\n+/).map((line) => line.trim()).filter(Boolean).map((line) => `<p>${escapeHtml(line)}</p>`).join("");
+
+const applyProjectKnowledgeSnapshot = (snapshot: ProjectKnowledgeSnapshot) => {
+  for (const area of areas) {
+    const canonical = snapshot.areas.find((candidate) => candidate.id === area.id);
+    if (!canonical) continue;
+    area.confirmedValue = canonical.confirmedValue;
+    area.activeDecisionId = canonical.activeDecisionId;
+    area.history = canonical.history.map((entry) => ({ value: entry.value, reason: "accepted" as const }));
+    area.pendingValue = "";
+    area.preparedProposal = null;
+    area.state = canonical.state;
+  }
+};
+
+const refreshProjectKnowledge = async (renderAfter = true) => {
+  projectKnowledgeLoading = true;
+  projectKnowledgeError = null;
+  if (renderAfter && currentView === "steps") render();
+  try {
+    const snapshot = await loadProjectKnowledge();
+    applyProjectKnowledgeSnapshot(snapshot);
+  } catch (error) {
+    projectKnowledgeError = error instanceof Error ? error.message : String(error);
+  } finally {
+    projectKnowledgeLoading = false;
+    if (renderAfter && currentView === "steps") render();
+  }
+};
+
 
 const icon = (name: "home" | "steps" | "updates" | "settings" | "diagnostics") => {
   const paths = {
@@ -329,13 +375,13 @@ const renderTruthSourceModal = () => {
       <section class="truth-source-modal" role="dialog" aria-modal="true" aria-labelledby="truth-source-title" data-truth-source-modal>
         <button class="truth-review-close" type="button" data-close-truth-source aria-label="Close source view">×</button>
         <header class="truth-source-modal-head"><div><span class="eyebrow">Existing Project Brain</span><h2 id="truth-source-title">${escapeHtml(area.title)} source</h2><p>Project Truth does not own another copy. This view is reserved for the existing canonical Project Brain source that backs this area.</p></div><span class="truth-source-origin">Project Brain</span></header>
-        <div class="truth-source-warning"><span>i</span><p><strong>Renderer preview:</strong> the persistent Project Brain read bridge is not connected in PR #124 yet. The content below is a session projection only so the interaction and Markdown presentation can be reviewed without inventing a second source of truth.</p></div>
+        <div class="truth-source-warning"><span>i</span><p><strong>${uiText("Canonical source:", "Kanonische Quelle:")}</strong> ${uiText("This content was read from the active project's Project Brain. The Desktop keeps no separate confirmed copy.", "Dieser Inhalt wurde aus dem Project Brain des aktiven Projekts gelesen. Der Desktop hält keine separate bestätigte Kopie.")}</p></div>
         <div class="truth-source-meta">${area.sourceHints.map((hint) => `<span>${escapeHtml(hint)}</span>`).join("")}</div>
         <div class="truth-source-tabs" role="group" aria-label="Source display mode"><button class="truth-source-tab ${sourceMode === "rendered" ? "active" : ""}" data-source-mode="rendered" type="button">Rendered</button><button class="truth-source-tab ${sourceMode === "raw" ? "active" : ""}" data-source-mode="raw" type="button">Raw Markdown</button></div>
         ${sourceMode === "raw"
           ? `<pre class="truth-source-raw"><code>${escapeHtml(markdown)}</code></pre>`
           : `<article class="truth-source-rendered"><h1>${escapeHtml(area.title)}</h1>${area.confirmedValue ? renderTruthText(area.confirmedValue) : '<p><em>No canonical Project Brain content is loaded for this area in the renderer preview.</em></p>'}</article>`}
-        ${area.history.length ? `<details class="truth-source-history"><summary>Session revision preview · ${area.history.length}</summary>${[...area.history].reverse().map((revision, index) => `<div><small>Previous session revision ${area.history.length - index}</small>${renderTruthText(revision.value)}</div>`).join("")}</details>` : ""}
+        ${area.history.length ? `<details class="truth-source-history"><summary>${uiText("Project Brain history", "Project-Brain-Verlauf")} · ${area.history.length}</summary>${[...area.history].reverse().map((revision, index) => `<div><small>${uiText("Previous canonical revision", "Vorherige kanonische Revision")} ${area.history.length - index}</small>${renderTruthText(revision.value)}</div>`).join("")}</details>` : ""}
       </section>
     </div>`;
 };
@@ -372,7 +418,8 @@ const renderProjectTruthView = () => {
         <div class="truth-area-list">${areas.map(renderAreaCard).join("")}<div class="truth-empty" data-truth-empty hidden><strong>${uiText("Nothing matches this view", "Keine Treffer in dieser Ansicht")}</strong><p>${uiText("Try another search or filter.", "Versuche eine andere Suche oder einen anderen Filter.")}</p></div></div>
       </section>
 
-      <div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("Suggestions are not automatically project truth.", "Vorschläge werden nicht automatisch zur Projektwahrheit.")}</strong> ${uiText("Livariant keeps observations, AI suggestions and your accepted project knowledge separate. The current Desktop editor is still a review preview and does not yet claim a durable Project Brain write.", "Livariant hält Beobachtungen, KI-Vorschläge und dein bestätigtes Projektwissen getrennt. Der aktuelle Desktop-Editor ist noch eine Prüf-Vorschau und beansprucht noch keine dauerhafte Speicherung im Project Brain.")}</p></div>
+      ${projectKnowledgeLoading ? `<div class="truth-boundary-card truth-boundary-card-redesign"><span>…</span><p><strong>${uiText("Loading Project Brain", "Project Brain wird geladen")}</strong> ${uiText("Livariant is reading the active project's canonical Project Brain before showing confirmed knowledge.", "Livariant liest zuerst den kanonischen Project Brain des aktiven Projekts, bevor bestätigtes Wissen angezeigt wird.")}</p></div>` : ""}
+      ${projectKnowledgeError ? `<div class="truth-boundary-card truth-boundary-card-redesign"><span>!</span><p><strong>${uiText("Project Brain is not available", "Project Brain ist nicht verfügbar")}</strong> ${escapeHtml(projectKnowledgeError)}</p></div>` : `<div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("Suggestions are not automatically project truth.", "Vorschläge werden nicht automatisch zur Projektwahrheit.")}</strong> ${uiText("Confirmed values on this page now come from the active project's canonical Project Brain. A proposal remains non-canonical until the protected authorization and apply path completes.", "Bestätigte Werte auf dieser Seite stammen jetzt aus dem kanonischen Project Brain des aktiven Projekts. Ein Vorschlag bleibt nicht-kanonisch, bis der geschützte Autorisierungs- und Apply-Pfad abgeschlossen ist.")}</p></div>`}
       ${renderTruthReviewModal()}
       ${renderTruthSourceModal()}
     </div>`;
@@ -598,6 +645,9 @@ const activateView = async (view: View) => {
   // A second connector/diagnostics refresh here used to trigger another full app render and remount
   // the cockpit, producing the visible double reload/twitch reported by the maintainer.
   if (view === "connections") await refreshConnectionsSettings();
+  if (view === "steps") {
+    await refreshProjectKnowledge(false);
+  }
   render();
 };
 
@@ -662,13 +712,23 @@ const bindEvents = () => {
     const area = areas.find((candidate) => candidate.id === card.dataset.area);
     if (!area) return;
     const composer = card.querySelector<HTMLTextAreaElement>(".truth-composer-input");
-    card.querySelector(".analyze-truth-input")?.addEventListener("click", () => {
+    card.querySelector(".analyze-truth-input")?.addEventListener("click", async () => {
       const value = composer?.value.trim() ?? "";
       if (!value) return;
-      area.pendingValue = value;
-      area.state = "review";
-      selectedReviewAreaId = area.id;
       notice = null;
+      try {
+        const prepared = await prepareProjectKnowledgeProposal(area.id as "purpose" | "direction" | "rules", value);
+        area.pendingValue = prepared.displayValue;
+        area.preparedProposal = prepared.proposal;
+        area.state = "review";
+        selectedReviewAreaId = area.id;
+      } catch (error) {
+        notice = {
+          kind: "error",
+          title: uiText("Proposal could not be prepared", "Vorschlag konnte nicht vorbereitet werden"),
+          detail: error instanceof Error ? error.message : String(error),
+        };
+      }
       render();
     });
     card.querySelector(".review-truth")?.addEventListener("click", () => { selectedReviewAreaId = area.id; render(); });
@@ -706,14 +766,15 @@ const bindEvents = () => {
 
   document.querySelector<HTMLButtonElement>(".accept-truth-review")?.addEventListener("click", () => {
     const area = areas.find((candidate) => candidate.id === selectedReviewAreaId);
-    const proposal = document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.value.trim() ?? "";
-    if (!area || !proposal) return;
-    if (area.confirmedValue && normalizeTruth(area.confirmedValue) !== normalizeTruth(proposal)) archiveCurrentTruth(area, "accepted");
-    area.confirmedValue = proposal;
-    area.pendingValue = "";
-    area.state = "confirmed";
-    selectedReviewAreaId = null;
-    notice = { kind: "success", title: "Project Truth updated", detail: `${area.title} was accepted in the renderer preview. Persistent Project Brain mutation is intentionally not claimed by this UI slice.` };
+    if (!area?.preparedProposal) return;
+    notice = {
+      kind: "info",
+      title: uiText("Proposal is ready for protected apply", "Vorschlag ist für geschützten Apply vorbereitet"),
+      detail: uiText(
+        "The proposal is now bound to the current Project Brain baseline. The protected authorization/apply bridge is the remaining Block-B step; no canonical write has happened yet.",
+        "Der Vorschlag ist jetzt an den aktuellen Project-Brain-Ausgangszustand gebunden. Die geschützte Autorisierungs-/Apply-Bridge ist der verbleibende Block-B-Schritt; es wurde noch nichts kanonisch geschrieben.",
+      ),
+    };
     render();
   });
 
@@ -721,6 +782,7 @@ const bindEvents = () => {
     const area = areas.find((candidate) => candidate.id === selectedReviewAreaId);
     if (!area) return;
     area.pendingValue = "";
+    area.preparedProposal = null;
     area.state = area.confirmedValue ? "confirmed" : "open";
     selectedReviewAreaId = null;
     notice = { kind: "info", title: "Existing Project Truth kept", detail: `${area.title} was not changed.` };
@@ -764,6 +826,19 @@ document.addEventListener("livariant:open-project-settings", () => {
   selectedSourceAreaId = null;
   render();
   void refreshProjectSettings().then(() => renderSettingsSectionOnly()).catch(() => renderSettingsSectionOnly());
+});
+
+onDesktopProjectActivated(async () => {
+  for (const area of areas) {
+    area.confirmedValue = "";
+    area.pendingValue = "";
+    area.activeDecisionId = null;
+    area.preparedProposal = null;
+    area.history = [];
+    area.state = "open";
+  }
+  projectKnowledgeError = null;
+  if (currentView === "steps") await refreshProjectKnowledge();
 });
 
 onLanguageChange(() => {

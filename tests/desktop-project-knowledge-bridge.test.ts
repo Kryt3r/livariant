@@ -51,3 +51,13 @@ test("Desktop Project Knowledge prepares add then supersede proposals without mu
     await rm(path, { recursive: true, force: true });
   }
 });
+
+
+test("Desktop renderer no longer promotes session-only values into confirmed Project Knowledge", async () => {
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+  assert.match(main, /loadProjectKnowledge/);
+  assert.match(main, /prepareProjectKnowledgeProposal/);
+  assert.match(main, /Confirmed values on this page now come from the active project's canonical Project Brain/);
+  assert.doesNotMatch(main, /area\.confirmedValue = proposal/);
+  assert.match(main, /no canonical write has happened yet/i);
+});
