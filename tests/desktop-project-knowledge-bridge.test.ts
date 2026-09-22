@@ -1,13 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { initializeProject } from "../src/project/initialization.js";
 import {
   projectKnowledgeAreasFromDecisionRecords,
 } from "../src/project/desktop-project-knowledge.js";
-import { recordAcceptedDecision } from "../src/project-brain/decisions-write.js";
 
 test("Desktop Project Knowledge projection reads only tagged active Project Brain decisions", () => {
   const areas = projectKnowledgeAreasFromDecisionRecords([
