@@ -197,14 +197,22 @@ fn runtime_health() -> RuntimeHealth {
 fn installer_language() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
-        let appdata = env::var_os("APPDATA")?;
-        let path = PathBuf::from(appdata).join("Livariant").join("installer-language.txt");
-        let raw = fs::read_to_string(path).ok()?;
-        return match raw.trim().to_ascii_lowercase().as_str() {
-            "de" | "german" => Some("de".to_owned()),
-            "en" | "english" => Some("en".to_owned()),
-            _ => None,
-        };
+        let mut candidates = Vec::new();
+        if let Some(appdata) = env::var_os("APPDATA") {
+            candidates.push(PathBuf::from(appdata).join("Livariant").join("installer-language.txt"));
+        }
+        if let Some(program_data) = env::var_os("PROGRAMDATA") {
+            candidates.push(PathBuf::from(program_data).join("Livariant").join("installer-language.txt"));
+        }
+        for path in candidates {
+            let Ok(raw) = fs::read_to_string(path) else { continue; };
+            match raw.trim().to_ascii_lowercase().as_str() {
+                "de" | "german" => return Some("de".to_owned()),
+                "en" | "english" => return Some("en".to_owned()),
+                _ => continue,
+            }
+        }
+        None
     }
 
     #[cfg(not(target_os = "windows"))]
