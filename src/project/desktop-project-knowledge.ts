@@ -1,7 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import { discoverProject } from "./discovery.js";
+import { initializeProject, inspectInitialization, type InitializationPlan } from "../runtime/initialization.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { parseDecisionsMarkdown, type DecisionRecord } from "../project-brain/decisions.js";
 import { buildActionableProposal, parseActionableProposal, type ActionableProposal } from "../runtime/actionable-proposal.js";
@@ -12,6 +13,16 @@ import { issueSemanticGuardianAuthority } from "../guardian/semantic-authority-t
 import { runProtectedDoctor } from "../runtime/protected-doctor.js";
 import { runDoctor as runLocalEvidenceDoctor } from "../runtime/doctor.js";
 import { inspectGuardianMachineReadiness } from "../guardian/readiness.js";
+import {
+  buildLifecycleGuardianAuthorityRequest,
+  lifecycleMaterialSha256,
+  type LifecycleGuardianAuthorityMaterial,
+} from "../guardian/lifecycle-authority.js";
+import {
+  consumeLifecycleGuardianAuthority,
+  issueLifecycleGuardianAuthority,
+} from "../guardian/lifecycle-authority-transition.js";
+import { findMatchingActiveGuardianAuthority } from "../guardian/authority-client.js";
 import {
   establishProtectedProjectBrainIntegrityState,
   inspectProtectedProjectBrainIntegrity,
@@ -33,6 +44,7 @@ export interface DesktopProjectKnowledgeProtectionStatus {
     | "ready"
     | "protected-source-required"
     | "guardian-bootstrap-required"
+    | "project-brain-initialization-required"
     | "integrity-acceptance-required"
     | "integrity-recovery-required"
     | "unsafe"
@@ -44,6 +56,14 @@ export interface DesktopProjectKnowledgeProtectionStatus {
     digest: string | null;
     reason: string | null;
   };
+  initialization: {
+    action: string;
+    projectState: string;
+    materialSha256: string | null;
+    authorized: boolean;
+    filesToCreate: string[];
+    reason: string | null;
+  } | null;
 }
 
 export interface DesktopProjectKnowledgeSnapshot {
@@ -164,16 +184,125 @@ async function localProjectKnowledgeSnapshot(projectPath: string): Promise<Deskt
   };
 }
 
+async function desktopInitializationMaterial(plan: InitializationPlan): Promise<LifecycleGuardianAuthorityMaterial> {
+  const stablePlan = {
+    projectState: plan.projectState,
+    projectBrainHealth: plan.projectBrainHealth,
+    evidence: plan.evidence,
+    filesToCreate: plan.filesToCreate,
+    projectFilesToModify: plan.projectFilesToModify,
+    unknowns: plan.unknowns,
+    action: plan.action,
+    confirmedProjectName: plan.confirmedProjectName ?? null,
+    reason: plan.reason ?? null,
+    discovery: plan.discovery,
+  };
+  return buildLifecycleGuardianAuthorityRequest({
+    operation: "initialize",
+    physicalProjectRoot: await realpath(plan.projectRoot),
+    materialFields: [
+      { label: "project-state", value: plan.projectState },
+      { label: "project-brain-health", value: plan.projectBrainHealth },
+      { label: "initialization-action", value: plan.action },
+      { label: "plan-sha256", value: lifecycleMaterialSha256(stablePlan) },
+    ],
+  });
+}
+
+async function initializationStatus(projectRoot: string) {
+  const plan = await inspectInitialization(projectRoot);
+  if (plan.action !== "initialize") {
+    return {
+      plan,
+      material: null,
+      authorized: false,
+    };
+  }
+  const material = await desktopInitializationMaterial(plan);
+  const active = await findMatchingActiveGuardianAuthority({
+    consumer: "lifecycle-mutation",
+    mode: "one-shot",
+    materialSha256: material.materialSha256,
+    projectPath: projectRoot,
+  });
+  return {
+    plan,
+    material,
+    authorized: active !== null,
+  };
+}
+
 export async function projectKnowledgeProtectionStatus(projectPath: string): Promise<DesktopProjectKnowledgeProtectionStatus> {
   const project = discoverProject(projectPath);
   const guardian = await inspectGuardianMachineReadiness(project.root, process.platform, process.execPath);
+  const store = new ProjectBrainStore(project.root);
+  const brain = await store.inspect();
+
+  if (guardian.state !== "ready") {
+    return {
+      schemaVersion: 1,
+      state: guardian.state,
+      canonicalReadReady: false,
+      guardian,
+      integrity: { state: "unavailable", digest: null, reason: null },
+      initialization: null,
+    };
+  }
+
+  if (brain.health === "not-found") {
+    const initialization = await initializationStatus(project.root);
+    if (initialization.plan.action !== "initialize" || !initialization.material) {
+      return {
+        schemaVersion: 1,
+        state: "integrity-recovery-required",
+        canonicalReadReady: false,
+        guardian,
+        integrity: { state: "unavailable", digest: null, reason: initialization.plan.reason ?? "Project Brain initialization is blocked." },
+        initialization: {
+          action: initialization.plan.action,
+          projectState: initialization.plan.projectState,
+          materialSha256: null,
+          authorized: false,
+          filesToCreate: initialization.plan.filesToCreate,
+          reason: initialization.plan.reason ?? null,
+        },
+      };
+    }
+    return {
+      schemaVersion: 1,
+      state: "project-brain-initialization-required",
+      canonicalReadReady: false,
+      guardian,
+      integrity: { state: "missing-project-brain", digest: null, reason: null },
+      initialization: {
+        action: initialization.plan.action,
+        projectState: initialization.plan.projectState,
+        materialSha256: initialization.material.materialSha256,
+        authorized: initialization.authorized,
+        filesToCreate: initialization.plan.filesToCreate,
+        reason: initialization.plan.reason ?? null,
+      },
+    };
+  }
+
+  if (brain.health !== "valid") {
+    return {
+      schemaVersion: 1,
+      state: "integrity-recovery-required",
+      canonicalReadReady: false,
+      guardian,
+      integrity: { state: brain.health, digest: null, reason: brain.reason ?? "Project Brain requires diagnosis before canonical use." },
+      initialization: null,
+    };
+  }
+
   let integrity;
   try {
     integrity = await inspectProtectedProjectBrainIntegrity(project.root);
   } catch (error) {
     return {
       schemaVersion: 1,
-      state: guardian.state === "ready" ? "integrity-recovery-required" : guardian.state,
+      state: "integrity-recovery-required",
       canonicalReadReady: false,
       guardian,
       integrity: {
@@ -181,10 +310,11 @@ export async function projectKnowledgeProtectionStatus(projectPath: string): Pro
         digest: null,
         reason: error instanceof Error ? error.message : "Project Brain integrity inspection failed.",
       },
+      initialization: null,
     };
   }
 
-  const digest = "current" in integrity.local ? integrity.local.current?.digest ?? null : null;
+  const digest = integrity.local.current?.digest ?? null;
   const reason = integrity.state === "mismatch"
     ? integrity.local.reason
     : integrity.state === "unprotected" || integrity.state === "invalid"
@@ -192,8 +322,7 @@ export async function projectKnowledgeProtectionStatus(projectPath: string): Pro
       : null;
 
   let state: DesktopProjectKnowledgeProtectionStatus["state"];
-  if (guardian.state !== "ready") state = guardian.state;
-  else if (integrity.state === "match") state = "ready";
+  if (integrity.state === "match") state = "ready";
   else if (integrity.state === "missing" || integrity.state === "unprotected") state = "integrity-acceptance-required";
   else state = "integrity-recovery-required";
 
@@ -203,7 +332,55 @@ export async function projectKnowledgeProtectionStatus(projectPath: string): Pro
     canonicalReadReady: state === "ready",
     guardian,
     integrity: { state: integrity.state, digest, reason },
+    initialization: null,
   };
+}
+
+export async function authorizeDesktopProjectKnowledgeInitialization(
+  projectPath: string,
+  confirmedMaterialSha256: string,
+): Promise<DesktopProjectKnowledgeProtectionStatus> {
+  const project = discoverProject(projectPath);
+  const before = await projectKnowledgeProtectionStatus(project.root);
+  if (before.state !== "project-brain-initialization-required" || !before.initialization?.materialSha256) {
+    throw new Error(`Project Brain initialization authorization is not available from state ${before.state}.`);
+  }
+  if (confirmedMaterialSha256 !== before.initialization.materialSha256) {
+    throw new Error("Project Brain initialization confirmation does not match the exact reviewed lifecycle material.");
+  }
+  const current = await initializationStatus(project.root);
+  if (current.plan.action !== "initialize" || !current.material || current.material.materialSha256 !== confirmedMaterialSha256) {
+    throw new Error("Project Brain initialization plan changed before protected authorization; review the current plan again.");
+  }
+  if (!current.authorized) {
+    await issueLifecycleGuardianAuthority(current.material, project.root);
+  }
+  const after = await projectKnowledgeProtectionStatus(project.root);
+  if (after.state !== "project-brain-initialization-required" || after.initialization?.authorized !== true) {
+    throw new Error("Protected lifecycle authorization was not verified for the exact Project Brain initialization plan.");
+  }
+  return after;
+}
+
+export async function applyDesktopProjectKnowledgeInitialization(
+  projectPath: string,
+  confirmedMaterialSha256: string,
+): Promise<DesktopProjectKnowledgeProtectionStatus> {
+  const project = discoverProject(projectPath);
+  const current = await initializationStatus(project.root);
+  if (current.plan.action !== "initialize" || !current.material || current.material.materialSha256 !== confirmedMaterialSha256) {
+    throw new Error("Project Brain initialization plan changed before apply; stale lifecycle authorization cannot be consumed.");
+  }
+  if (!current.authorized) {
+    throw new Error("Project Brain initialization requires matching protected lifecycle authorization before apply.");
+  }
+  await consumeLifecycleGuardianAuthority(current.material, project.root);
+  await initializeProject(project.root, { authorized: true });
+  const after = await projectKnowledgeProtectionStatus(project.root);
+  if (after.state !== "integrity-acceptance-required") {
+    throw new Error(`Project Brain initialization completed, but expected protected-integrity acceptance state was not observed; current state is ${after.state}.`);
+  }
+  return after;
 }
 
 export async function readDesktopProjectKnowledge(projectPath: string): Promise<DesktopProjectKnowledgeSnapshot> {
@@ -359,6 +536,8 @@ export async function applyDesktopProjectKnowledgeProposal(
 type HostRequest =
   | { method: "read" }
   | { method: "protection" }
+  | { method: "authorize-initialization"; confirmedMaterialSha256: unknown }
+  | { method: "apply-initialization"; confirmedMaterialSha256: unknown }
   | { method: "accept-integrity"; confirmedDigest: unknown }
   | { method: "prepare"; areaId: unknown; value: unknown }
   | { method: "apply"; areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown };
@@ -378,6 +557,14 @@ async function main(): Promise<void> {
   let result: unknown;
   if (request.method === "read") result = await readDesktopProjectKnowledge(projectRoot);
   else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectRoot);
+  else if (request.method === "authorize-initialization") {
+    if (typeof request.confirmedMaterialSha256 !== "string") throw new Error("Project Brain initialization material digest is invalid.");
+    result = await authorizeDesktopProjectKnowledgeInitialization(projectRoot, request.confirmedMaterialSha256);
+  }
+  else if (request.method === "apply-initialization") {
+    if (typeof request.confirmedMaterialSha256 !== "string") throw new Error("Project Brain initialization material digest is invalid.");
+    result = await applyDesktopProjectKnowledgeInitialization(projectRoot, request.confirmedMaterialSha256);
+  }
   else if (request.method === "accept-integrity") {
     if (typeof request.confirmedDigest !== "string") throw new Error("Project Brain integrity confirmation digest is invalid.");
     result = await establishDesktopProjectKnowledgeIntegrity(projectRoot, request.confirmedDigest);
