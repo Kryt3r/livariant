@@ -15,14 +15,19 @@
   ; Keep this check immediately after GetOptions so later installer work cannot
   ; overwrite the NSIS error flag that distinguishes first install from update.
   ${If} ${Errors}
-    CreateDirectory "$APPDATA\Livariant"
+    ReadEnvStr $R0 "ProgramData"
+    ${If} $R0 == ""
+      MessageBox MB_ICONSTOP "Livariant could not resolve the Windows ProgramData directory for the installer language seed."
+      Abort "ProgramData is unavailable."
+    ${EndIf}
+    CreateDirectory "$R0\Livariant"
 
     ${If} $LANGUAGE == ${LANG_GERMAN}
-      FileOpen $0 "$APPDATA\Livariant\installer-language.txt" w
+      FileOpen $0 "$R0\Livariant\installer-language.txt" w
       FileWrite $0 "de"
       FileClose $0
     ${Else}
-      FileOpen $0 "$APPDATA\Livariant\installer-language.txt" w
+      FileOpen $0 "$R0\Livariant\installer-language.txt" w
       FileWrite $0 "en"
       FileClose $0
     ${EndIf}
