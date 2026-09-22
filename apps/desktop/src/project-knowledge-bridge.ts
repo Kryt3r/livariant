@@ -58,3 +58,18 @@ export const applyProjectKnowledgeProposal = (
   proposal,
   confirmedProposalDigest: proposal.materialDigest.digest,
 });
+
+
+export type ProjectKnowledgeProtectionStatus = {
+  schemaVersion: 1;
+  state: "ready" | "protected-source-required" | "guardian-bootstrap-required" | "unsafe" | "unsupported-platform";
+  protectedSource: { state: "ready" | "missing" | "unsafe" | "unsupported-platform"; reason: string };
+  guardian: { state: string; ready: boolean; reason: string };
+  lifecycleAuthorizationReady: boolean;
+};
+
+export const loadProjectKnowledgeProtectionStatus = () =>
+  invoke<ProjectKnowledgeProtectionStatus>("project_knowledge_protection_status");
+
+export const launchProjectKnowledgeProtectionSetup = () =>
+  invoke<{ state: "launched"; detail: string }>("launch_project_knowledge_protection_setup");
