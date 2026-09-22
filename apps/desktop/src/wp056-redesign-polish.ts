@@ -39,14 +39,6 @@ const setTextIfDifferent = (element: Element | null, value: string) => {
   if (element && element.textContent !== value) element.textContent = value;
 };
 
-const translateExactText = (root: ParentNode, translations: ReadonlyMap<string, string>) => {
-  root.querySelectorAll<HTMLElement>("span, small, strong, p, h1, h2, h3, button, label").forEach((element) => {
-    const source = element.textContent?.trim() ?? "";
-    const translated = translations.get(source);
-    if (translated && element.textContent !== translated) element.textContent = translated;
-  });
-};
-
 const localizeRevisitCard = () => {
   const button = document.querySelector<HTMLButtonElement>("[data-reopen-first-run]");
   const card = button?.closest<HTMLElement>(".settings-card");
