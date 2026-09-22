@@ -40,7 +40,7 @@ try {
 
   $root = Join-Path $env:RUNNER_TEMP 'LivariantUpdaterAcceptance'
   $feedDir = Join-Path $root 'feed'
-  $installDir = Join-Path $root 'install'
+  $installDir = Join-Path $env:ProgramFiles 'Livariant\Desktop'
   $resultPath = Join-Path $root 'result.json'
   $privateKeyPath = Join-Path $root 'ci-updater.key'
   $publicKeyPath = "$privateKeyPath.pub"
@@ -49,6 +49,7 @@ try {
   $port = 18765
 
   Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
   New-Item -ItemType Directory -Path $root, $feedDir -Force | Out-Null
 
   $password = 'livariant-ci-updater-acceptance-only'
@@ -138,7 +139,7 @@ try {
   }
 
   Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
-  $install = Start-Process -FilePath $oldInstallers[0].FullName -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+  $install = Start-Process -FilePath $oldInstallers[0].FullName -ArgumentList '/S' -Wait -PassThru
   if ($install.ExitCode -ne 0) {
     throw "Older CI fixture install failed with exit code $($install.ExitCode)."
   }
