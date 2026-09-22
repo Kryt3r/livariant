@@ -23,9 +23,12 @@ import {
 } from "./project-settings.js";
 import {
   applyProjectKnowledgeProposal,
+  launchProjectKnowledgeProtectionSetup,
   loadProjectKnowledge,
+  loadProjectKnowledgeProtectionStatus,
   prepareProjectKnowledgeProposal,
   type ProjectKnowledgePreparedProposal,
+  type ProjectKnowledgeProtectionStatus,
   type ProjectKnowledgeSnapshot,
 } from "./project-knowledge-bridge.js";
 import { onDesktopProjectActivated } from "./desktop-project-registry.js";
@@ -127,6 +130,7 @@ let sourceMode: SourceMode = "rendered";
 let notice: Notice | null = null;
 let projectKnowledgeLoading = false;
 let projectKnowledgeApplying = false;
+let projectKnowledgeProtection: ProjectKnowledgeProtectionStatus | null = null;
 let projectKnowledgeError: string | null = null;
 let updateState: UpdateState = "idle";
 let updateResult: UpdateCheckResult | null = null;
@@ -158,8 +162,12 @@ const refreshProjectKnowledge = async (renderAfter = true) => {
   projectKnowledgeError = null;
   if (renderAfter && currentView === "steps") render();
   try {
-    const snapshot = await loadProjectKnowledge();
+    const [snapshot, protection] = await Promise.all([
+      loadProjectKnowledge(),
+      loadProjectKnowledgeProtectionStatus(),
+    ]);
     applyProjectKnowledgeSnapshot(snapshot);
+    projectKnowledgeProtection = protection;
   } catch (error) {
     projectKnowledgeError = error instanceof Error ? error.message : String(error);
   } finally {
@@ -421,6 +429,7 @@ const renderProjectTruthView = () => {
       </section>
 
       ${projectKnowledgeLoading ? `<div class="truth-boundary-card truth-boundary-card-redesign"><span>…</span><p><strong>${uiText("Loading Project Brain", "Project Brain wird geladen")}</strong> ${uiText("Livariant is reading the active project's canonical Project Brain before showing confirmed knowledge.", "Livariant liest zuerst den kanonischen Project Brain des aktiven Projekts, bevor bestätigtes Wissen angezeigt wird.")}</p></div>` : ""}
+      ${projectKnowledgeProtection && projectKnowledgeProtection.state !== "ready" ? `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>🛡</span><p><strong>${uiText("Protected Project Brain setup required", "Geschütztes Project-Brain-Setup erforderlich")}</strong> ${escapeHtml(projectKnowledgeProtection.state === "guardian-bootstrap-required" ? uiText("Stage A is installed. Complete the one-time Guardian bootstrap before canonical Project Knowledge can be changed.", "Stage A ist installiert. Schließe den einmaligen Guardian-Bootstrap ab, bevor kanonisches Projektwissen geändert werden kann.") : projectKnowledgeProtection.protectedSource.reason)}</p>${projectKnowledgeProtection.state === "guardian-bootstrap-required" ? `<button class="button secondary" type="button" data-project-knowledge-protection-setup>${uiText("Set up protection", "Schutz einrichten")}</button>` : ""}<button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>` : ""}
       ${projectKnowledgeError ? `<div class="truth-boundary-card truth-boundary-card-redesign"><span>!</span><p><strong>${uiText("Project Brain is not available", "Project Brain ist nicht verfügbar")}</strong> ${escapeHtml(projectKnowledgeError)}</p></div>` : `<div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("Suggestions are not automatically project truth.", "Vorschläge werden nicht automatisch zur Projektwahrheit.")}</strong> ${uiText("Confirmed values on this page now come from the active project's canonical Project Brain. A proposal remains non-canonical until the protected authorization and apply path completes.", "Bestätigte Werte auf dieser Seite stammen jetzt aus dem kanonischen Project Brain des aktiven Projekts. Ein Vorschlag bleibt nicht-kanonisch, bis der geschützte Autorisierungs- und Apply-Pfad abgeschlossen ist.")}</p></div>`}
       ${renderTruthReviewModal()}
       ${renderTruthSourceModal()}
@@ -828,6 +837,19 @@ const bindEvents = () => {
     render();
   });
 
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-setup]")?.addEventListener("click", async () => {
+    try {
+      const launched = await launchProjectKnowledgeProtectionSetup();
+      notice = { kind: "info", title: uiText("Protected setup opened", "Geschütztes Setup geöffnet"), detail: launched.detail };
+    } catch (error) {
+      notice = { kind: "error", title: uiText("Protected setup could not start", "Geschütztes Setup konnte nicht gestartet werden"), detail: error instanceof Error ? error.message : String(error) };
+    }
+    render();
+  });
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")?.addEventListener("click", async () => {
+    await refreshProjectKnowledge();
+  });
+
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });
 
   bindUpdateCheckEvent();
@@ -867,6 +889,7 @@ onDesktopProjectActivated(async () => {
     area.state = "open";
   }
   projectKnowledgeError = null;
+  projectKnowledgeProtection = null;
   if (currentView === "steps") await refreshProjectKnowledge();
 });
 
