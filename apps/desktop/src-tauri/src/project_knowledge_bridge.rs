@@ -119,3 +119,32 @@ pub async fn prepare_project_knowledge_proposal(
     }
     Ok(result)
 }
+
+
+#[tauri::command]
+pub async fn apply_project_knowledge_proposal(
+    app: tauri::AppHandle,
+    registry: State<'_, DesktopProjectRegistryState>,
+    area_id: String,
+    proposal: Value,
+    confirmed_proposal_digest: String,
+) -> Result<Value, String> {
+    let scope = active_project_scope(&app, registry.inner())?;
+    let expected_generation = scope.generation;
+    let expected_project = scope.desktop_project_id.clone();
+    let app_for_worker = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_worker.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app_for_worker, state.inner(), json!({
+            "method": "apply",
+            "areaId": area_id,
+            "proposal": proposal,
+            "confirmedProposalDigest": confirmed_proposal_digest,
+        }))
+    }).await.map_err(|error| format!("Project Knowledge apply worker failed: {error}"))??;
+    let current = active_project_scope(&app, registry.inner())?;
+    if current.generation != expected_generation || current.desktop_project_id != expected_project {
+        return Err("Active Desktop project changed while Project Knowledge was being applied. The operation remained bound to the original project; stale renderer result rejected.".to_owned());
+    }
+    Ok(result)
+}

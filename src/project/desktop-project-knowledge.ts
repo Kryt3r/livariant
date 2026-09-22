@@ -4,8 +4,12 @@ import { stdin, stdout } from "node:process";
 import { discoverProject } from "./discovery.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { parseDecisionsMarkdown, type DecisionRecord } from "../project-brain/decisions.js";
-import { buildActionableProposal, type ActionableProposal } from "../runtime/actionable-proposal.js";
+import { buildActionableProposal, parseActionableProposal, type ActionableProposal } from "../runtime/actionable-proposal.js";
 import { parseSemanticProposalCandidate } from "../runtime/semantic-proposal.js";
+import { authorizeActionableProposal } from "../runtime/authorization.js";
+import { applyActionableProposal } from "../runtime/semantic-apply.js";
+import { issueSemanticGuardianAuthority } from "../guardian/semantic-authority-transition.js";
+import { runProtectedDoctor } from "../runtime/protected-doctor.js";
 
 export type DesktopProjectKnowledgeAreaId = "purpose" | "direction" | "rules";
 
@@ -29,6 +33,14 @@ export interface DesktopProjectKnowledgeSnapshot {
     grantsAuthority: false;
     performsSemanticApply: false;
   };
+}
+
+export interface DesktopProjectKnowledgeApplyResult {
+  schemaVersion: 1;
+  state: "completed";
+  areaId: DesktopProjectKnowledgeAreaId;
+  appliedProposalId: string;
+  snapshot: DesktopProjectKnowledgeSnapshot;
 }
 
 export interface DesktopProjectKnowledgePreparedProposal {
@@ -164,9 +176,69 @@ export async function prepareDesktopProjectKnowledgeProposal(
   };
 }
 
+function assertAreaProposal(area: DesktopProjectKnowledgeAreaId, proposal: ActionableProposal): void {
+  if (proposal.mutationScope.domain !== "project-decision") {
+    throw new Error("Desktop Project Knowledge apply requires a project-decision proposal.");
+  }
+  const prefix = AREA_PREFIX[area];
+  if (!proposal.mutationScope.proposedStatement.startsWith(`${prefix} `)) {
+    throw new Error("Desktop Project Knowledge proposal does not match the selected curated area.");
+  }
+}
+
+export async function applyDesktopProjectKnowledgeProposal(
+  projectPath: string,
+  input: { areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown },
+): Promise<DesktopProjectKnowledgeApplyResult> {
+  const project = discoverProject(projectPath);
+  const id = areaId(input.areaId);
+  const proposal = parseActionableProposal(input.proposal);
+  assertAreaProposal(id, proposal);
+  if (typeof input.confirmedProposalDigest !== "string" || input.confirmedProposalDigest !== proposal.materialDigest.digest) {
+    throw new Error("Desktop Project Knowledge confirmation does not match the exact reviewed proposal.");
+  }
+
+  const protectedState = await runProtectedDoctor(project.root);
+  if (protectedState.state !== "healthy") {
+    const detail = protectedState.findings.map((finding) => finding.message).join("; ");
+    throw new Error(`Protected Project Brain integrity is not ready for canonical apply.${detail ? ` ${detail}` : ""}`);
+  }
+
+  const authorization = await authorizeActionableProposal(proposal, project.root, {
+    localUserConfirmation: {
+      source: "desktop-local-ui",
+      proposalDigest: proposal.materialDigest.digest,
+    },
+  });
+  await issueSemanticGuardianAuthority(authorization.authorization.authorizationId, proposal, project.root);
+  const applied = await applyActionableProposal(authorization.authorization.authorizationId, proposal, project.root);
+  if (applied.state !== "completed" || applied.actionableProposalId !== proposal.actionableProposalId) {
+    throw new Error("Desktop Project Knowledge apply did not complete for the exact reviewed proposal.");
+  }
+  const snapshot = await readDesktopProjectKnowledge(project.root);
+  const area = snapshot.areas.find((candidate) => candidate.id === id);
+  const expected = taggedValue(id, {
+    id: "expected",
+    status: "active",
+    text: proposal.mutationScope.proposedStatement,
+    legacy: false,
+  });
+  if (!area || area.state !== "confirmed" || !expected || area.confirmedValue !== expected) {
+    throw new Error("Desktop Project Knowledge post-apply re-read did not prove the expected canonical value.");
+  }
+  return {
+    schemaVersion: 1,
+    state: "completed",
+    areaId: id,
+    appliedProposalId: proposal.actionableProposalId,
+    snapshot,
+  };
+}
+
 type HostRequest =
   | { method: "read" }
-  | { method: "prepare"; areaId: unknown; value: unknown };
+  | { method: "prepare"; areaId: unknown; value: unknown }
+  | { method: "apply"; areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown };
 
 async function readStdin(): Promise<string> {
   let data = "";
@@ -183,6 +255,7 @@ async function main(): Promise<void> {
   let result: unknown;
   if (request.method === "read") result = await readDesktopProjectKnowledge(projectRoot);
   else if (request.method === "prepare") result = await prepareDesktopProjectKnowledgeProposal(projectRoot, request);
+  else if (request.method === "apply") result = await applyDesktopProjectKnowledgeProposal(projectRoot, request);
   else throw new Error("Desktop Project Knowledge method is unsupported.");
   stdout.write(JSON.stringify(result));
 }

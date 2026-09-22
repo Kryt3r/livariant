@@ -22,6 +22,7 @@ import {
   renderProjectSettingsView,
 } from "./project-settings.js";
 import {
+  applyProjectKnowledgeProposal,
   loadProjectKnowledge,
   prepareProjectKnowledgeProposal,
   type ProjectKnowledgePreparedProposal,
@@ -125,6 +126,7 @@ let selectedSourceAreaId: string | null = null;
 let sourceMode: SourceMode = "rendered";
 let notice: Notice | null = null;
 let projectKnowledgeLoading = false;
+let projectKnowledgeApplying = false;
 let projectKnowledgeError: string | null = null;
 let updateState: UpdateState = "idle";
 let updateResult: UpdateCheckResult | null = null;
@@ -360,7 +362,7 @@ const renderTruthReviewModal = () => {
 
         <footer class="truth-review-actions">
           <div class="truth-decision-copy"><span class="eyebrow">${uiText("Decision", "Entscheidung")}</span><strong>${uiText("Choose what should become canonical knowledge.", "Entscheide, was kanonisches Wissen werden soll.")}</strong></div>
-          <div class="truth-decision-buttons"><button class="text-button reject-truth-review" type="button">${uiText("Reject evidence", "Evidence ablehnen")}</button>${existing ? `<button class="button secondary keep-truth-review" type="button">${uiText("Keep existing", "Bestehendes behalten")}</button>` : ""}<button class="button primary accept-truth-review" type="button">${uiText("Accept into Project Truth", "In Project Brain übernehmen")}</button></div>
+          <div class="truth-decision-buttons"><button class="text-button reject-truth-review" type="button">${uiText("Reject evidence", "Evidence ablehnen")}</button>${existing ? `<button class="button secondary keep-truth-review" type="button">${uiText("Keep existing", "Bestehendes behalten")}</button>` : ""}<button class="button primary accept-truth-review" type="button" ${projectKnowledgeApplying ? "disabled" : ""}>${projectKnowledgeApplying ? uiText("Applying…", "Wird übernommen…") : uiText("Accept into Project Truth", "In Project Brain übernehmen")}</button></div>
         </footer>
       </section>
     </div>`;
@@ -761,21 +763,48 @@ const bindEvents = () => {
   });
 
   document.querySelector<HTMLButtonElement>(".edit-review-proposal")?.addEventListener("click", () => {
-    document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.focus();
+    const area = areas.find((candidate) => candidate.id === selectedReviewAreaId);
+    if (!area) return;
+    selectedReviewAreaId = null;
+    area.preparedProposal = null;
+    area.state = area.confirmedValue ? "confirmed" : "open";
+    render();
+    const card = document.querySelector<HTMLElement>(`[data-truth-area="${area.id}"]`);
+    const composer = card?.querySelector<HTMLTextAreaElement>(".truth-composer-input");
+    if (composer) {
+      composer.value = area.pendingValue;
+      composer.focus();
+    }
   });
 
-  document.querySelector<HTMLButtonElement>(".accept-truth-review")?.addEventListener("click", () => {
+  document.querySelector<HTMLButtonElement>(".accept-truth-review")?.addEventListener("click", async () => {
     const area = areas.find((candidate) => candidate.id === selectedReviewAreaId);
-    if (!area?.preparedProposal) return;
-    notice = {
-      kind: "info",
-      title: uiText("Proposal is ready for protected apply", "Vorschlag ist für geschützten Apply vorbereitet"),
-      detail: uiText(
-        "The proposal is now bound to the current Project Brain baseline. The protected authorization/apply bridge is the remaining Block-B step; no canonical write has happened yet.",
-        "Der Vorschlag ist jetzt an den aktuellen Project-Brain-Ausgangszustand gebunden. Die geschützte Autorisierungs-/Apply-Bridge ist der verbleibende Block-B-Schritt; es wurde noch nichts kanonisch geschrieben.",
-      ),
-    };
+    if (!area?.preparedProposal || projectKnowledgeApplying) return;
+    projectKnowledgeApplying = true;
+    notice = null;
     render();
+    try {
+      const applied = await applyProjectKnowledgeProposal(area.id as "purpose" | "direction" | "rules", area.preparedProposal);
+      applyProjectKnowledgeSnapshot(applied.snapshot);
+      selectedReviewAreaId = null;
+      notice = {
+        kind: "success",
+        title: uiText("Project Brain updated", "Project Brain aktualisiert"),
+        detail: uiText(
+          "The exact reviewed proposal was authorized, applied, verified and re-read from the canonical Project Brain.",
+          "Der exakt geprüfte Vorschlag wurde autorisiert, angewendet, verifiziert und erneut aus dem kanonischen Project Brain gelesen.",
+        ),
+      };
+    } catch (error) {
+      notice = {
+        kind: "error",
+        title: uiText("Project Brain was not changed", "Project Brain wurde nicht geändert"),
+        detail: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      projectKnowledgeApplying = false;
+      render();
+    }
   });
 
   document.querySelector<HTMLButtonElement>(".keep-truth-review")?.addEventListener("click", () => {

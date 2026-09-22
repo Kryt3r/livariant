@@ -61,3 +61,21 @@ test("Desktop renderer no longer promotes session-only values into confirmed Pro
   assert.doesNotMatch(main, /area\.confirmedValue = proposal/);
   assert.match(main, /no canonical write has happened yet/i);
 });
+
+
+test("Desktop Project Knowledge protected apply remains Guardian-backed and re-reads canonical state", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const authorization = await readFile("src/runtime/authorization.ts", "utf8");
+  const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+
+  assert.match(core, /runProtectedDoctor/);
+  assert.match(core, /authorizeActionableProposal/);
+  assert.match(core, /issueSemanticGuardianAuthority/);
+  assert.match(core, /applyActionableProposal/);
+  assert.match(core, /readDesktopProjectKnowledge/);
+  assert.match(authorization, /same-principal local audit\/recovery intent only/);
+  assert.match(rust, /operation remained bound to the original project; stale renderer result rejected/);
+  assert.match(main, /applyProjectKnowledgeSnapshot\(applied\.snapshot\)/);
+  assert.doesNotMatch(main, /area\.confirmedValue = proposal/);
+});

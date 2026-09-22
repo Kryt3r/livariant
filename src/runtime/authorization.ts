@@ -67,6 +67,10 @@ export interface AuthorizationResult {
 
 export interface AuthorizationOptions {
   beforeCommit?: () => void | Promise<void>;
+  localUserConfirmation?: {
+    source: "desktop-local-ui";
+    proposalDigest: string;
+  };
 }
 
 function errno(error: unknown, code: string): boolean {
@@ -123,6 +127,15 @@ function sameBinding(left: AuthorizationBinding, right: AuthorizationBinding): b
 
 function displaySafe(value: string): string {
   return value.replace(/[\r\n\u0000-\u001f\u007f]/g, " ");
+}
+
+function assertExplicitLocalUserConfirmation(
+  proposal: ActionableProposal,
+  confirmation: NonNullable<AuthorizationOptions["localUserConfirmation"]>,
+): void {
+  if (confirmation.source !== "desktop-local-ui" || confirmation.proposalDigest !== proposal.materialDigest.digest) {
+    throw new Error("Explicit local user confirmation does not match the exact actionable proposal.");
+  }
 }
 
 async function requireInteractiveAuthorizationConfirmation(proposal: ActionableProposal): Promise<void> {
@@ -451,7 +464,13 @@ export async function authorizeActionableProposal(
   if (inspection.health !== "valid") throw new Error("Authorization requires a valid Project Brain.");
 
   const fresh = await rebuildAndVerifyProposal(input, project.root);
-  await requireInteractiveAuthorizationConfirmation(fresh);
+  if (options.localUserConfirmation) {
+    // This is same-principal local audit/recovery intent only. It never substitutes
+    // for protected Guardian Semantic Authority, which remains a separate OS-bound step.
+    assertExplicitLocalUserConfirmation(fresh, options.localUserConfirmation);
+  } else {
+    await requireInteractiveAuthorizationConfirmation(fresh);
+  }
   await options.beforeCommit?.();
   const revalidated = await rebuildAndVerifyProposal(input, project.root);
   assertProposalMatchesFresh(fresh, revalidated);

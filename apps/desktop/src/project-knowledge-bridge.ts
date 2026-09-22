@@ -40,3 +40,21 @@ export const loadProjectKnowledge = () =>
 
 export const prepareProjectKnowledgeProposal = (areaId: ProjectKnowledgeAreaId, value: string) =>
   invoke<ProjectKnowledgePreparedProposal>("prepare_project_knowledge_proposal", { areaId, value });
+
+
+export type ProjectKnowledgeApplyResult = {
+  schemaVersion: 1;
+  state: "completed";
+  areaId: ProjectKnowledgeAreaId;
+  appliedProposalId: string;
+  snapshot: ProjectKnowledgeSnapshot;
+};
+
+export const applyProjectKnowledgeProposal = (
+  areaId: ProjectKnowledgeAreaId,
+  proposal: ProjectKnowledgePreparedProposal["proposal"],
+) => invoke<ProjectKnowledgeApplyResult>("apply_project_knowledge_proposal", {
+  areaId,
+  proposal,
+  confirmedProposalDigest: proposal.materialDigest.digest,
+});
