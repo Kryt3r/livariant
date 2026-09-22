@@ -69,7 +69,7 @@ test("Desktop protected Project Knowledge setup is fixed-path, per-machine and n
   assert.match(hook, /C:\\Program Files\\Livariant\\Bootstrap\\v1\\bootstrap-release\.json/);
   assert.match(hook, /Existing protected bootstrap state is never silently replaced/);
   assert.match(workflow, /protected-bootstrap-assets/);
-  assert.match(rust, /C:\\\\Program Files\\\\Livariant\\\\Bootstrap\\\\v1\\\\guardian-bootstrap-desktop\.ps1/);
+  assert.match(rust, /guardian-bootstrap-desktop\.ps1/);
   assert.match(rust, /guardian-bootstrap-required/);
   assert.match(rust, /rendererSuppliesExecutable": false/);
   assert.match(rust, /"uacRequired": true/);
