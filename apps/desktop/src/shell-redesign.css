@@ -783,8 +783,8 @@ body {
   inset: 0;
   z-index: 12000;
   pointer-events: none;
-  background: rgba(3, 3, 10, .28);
-  backdrop-filter: blur(1.5px);
+  background: rgba(3, 3, 10, .16);
+  backdrop-filter: none;
 }
 .product-tour-card {
   position: fixed;
@@ -819,9 +819,10 @@ body {
 .product-tour-highlight {
   position: relative !important;
   z-index: 12001 !important;
-  outline: 3px solid rgba(190,120,255,.78) !important;
+  outline: 3px solid rgba(190,120,255,.88) !important;
   outline-offset: 5px !important;
-  box-shadow: 0 0 0 8px rgba(128,72,226,.16), 0 0 42px rgba(161,82,255,.5) !important;
+  box-shadow: 0 0 0 10px rgba(128,72,226,.11), 0 0 34px rgba(161,82,255,.42) !important;
+  filter: none !important;
 }
 .shell-redesign-active main.content > .truth-workspace-redesign,
 .shell-redesign-active main.content > .diagnostics-surface {
