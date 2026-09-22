@@ -73,5 +73,5 @@ test("Block-A review follow-up does not leave duplicated function declarations o
   assert.doesNotMatch(polish, /const localizeNotificationCopy = \(\) => \{const localizeNotificationCopy/);
   assert.doesNotMatch(polish, /const removeDuplicateOverviewComposition = \(\) => \{const removeDuplicateOverviewComposition/);
   assert.match(shell, /target: "\.connections-settings"/);
-  assert.match(main, /\}\);\n\nonLanguageChange\(\(\) => \{/);
+  assert.match(main, /\}\);\r?\n\r?\nonLanguageChange\(\(\) => \{/);
 });
