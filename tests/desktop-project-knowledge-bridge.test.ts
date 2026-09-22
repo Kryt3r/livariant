@@ -79,3 +79,25 @@ test("Desktop Project Knowledge protected apply remains Guardian-backed and re-r
   assert.match(main, /applyProjectKnowledgeSnapshot\(applied\.snapshot\)/);
   assert.doesNotMatch(main, /area\.confirmedValue = proposal/);
 });
+
+
+test("Desktop protected Project Knowledge setup is fixed-path, per-machine and non-silent", async () => {
+  const builder = await readFile("scripts/build-protected-bootstrap-assets.mjs", "utf8");
+  const config = await readFile("apps/desktop/src-tauri/tauri.conf.json", "utf8");
+  const hook = await readFile("apps/desktop/src-tauri/windows/language-hooks.nsh", "utf8");
+  const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  const workflow = await readFile(".github/workflows/desktop-windows-installer.yml", "utf8");
+
+  assert.match(builder, /guardian-bootstrap-desktop\.ps1/);
+  assert.match(builder, /C:\\\\Program Files\\\\Livariant\\\\Desktop\\\\livariant-node\.exe/);
+  assert.match(builder, /desktop-stage-a\.ps1/);
+  assert.match(config, /"installMode": "perMachine"/);
+  assert.match(hook, /StrCpy \$INSTDIR "\$PROGRAMFILES64\\Livariant\\Desktop"/);
+  assert.match(hook, /C:\\Program Files\\Livariant\\Bootstrap\\v1\\bootstrap-release\.json/);
+  assert.match(hook, /Existing protected bootstrap state is never silently replaced/);
+  assert.match(workflow, /protected-bootstrap-assets/);
+  assert.match(rust, /C:\\\\Program Files\\\\Livariant\\\\Bootstrap\\\\v1\\\\guardian-bootstrap-desktop\.ps1/);
+  assert.match(rust, /guardian-bootstrap-required/);
+  assert.match(rust, /rendererSuppliesExecutable": false/);
+  assert.match(rust, /"uacRequired": true/);
+});
