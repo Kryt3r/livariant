@@ -43,3 +43,22 @@ test("normal-user surfaces explain meaning before technical detail", () => {
   assert.match(diagnostics, /not project progress, quality or money saved/);
   assert.match(connections, /A connection only makes a provider available/);
 });
+
+
+test("maintainer review follow-up keeps primary work surfaces aligned and tour contextual", () => {
+  const shell = readFileSync("apps/desktop/src/shell-redesign.ts", "utf8");
+  const shellCss = readFileSync("apps/desktop/src/shell-redesign.css", "utf8");
+  const diagnostics = readFileSync("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const emptyPolish = readFileSync("apps/desktop/src/diagnostics-empty-state-polish.ts", "utf8");
+  const projectPolish = readFileSync("apps/desktop/src/wp056-redesign-polish.ts", "utf8");
+
+  assert.match(shell, /navigateProductTour/);
+  assert.match(shell, /scrollIntoView/);
+  assert.match(shell, /Show next area/);
+  assert.match(shell, /Try this:/);
+  assert.match(shellCss, /truth-workspace-redesign,[\s\S]*diagnostics-surface[\s\S]*1500px/);
+  assert.match(diagnostics, /if \(!data\.hasObservedData\)/);
+  assert.match(diagnostics, /Keine beobachteten Diagnosedaten/);
+  assert.doesNotMatch(emptyPolish, /codex_diagnostics_summary/);
+  assert.doesNotMatch(projectPolish, /PROJECT-BRAIN-ARBEITSBEREICH/);
+});

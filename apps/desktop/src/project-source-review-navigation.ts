@@ -1,7 +1,7 @@
 import "./project-source-review-view.css";
 import "./project-source-review-lazy-view.css";
 import "./github-project-telemetry.css";
-import { getLanguage } from "./i18n/runtime.js";
+import { getLanguage, onLanguageChange } from "./i18n/runtime.js";
 import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 import {
   getCurrentProjectSourceReviewPresentation,
@@ -105,6 +105,10 @@ onDesktopProjectActivated(() => {
   renderGeneration += 1;
   teardownHeavySection();
   if (sourceReviewActive) return renderIntoContent();
+});
+onLanguageChange(() => {
+  installNavigation();
+  if (sourceReviewActive) void renderIntoContent();
 });
 
 const appRoot = document.querySelector<HTMLElement>("#app");

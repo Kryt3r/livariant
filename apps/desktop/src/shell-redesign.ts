@@ -1,6 +1,6 @@
 import "./shell-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
-import { getLanguage } from "./i18n/runtime.js";
+import { getLanguage, onLanguageChange } from "./i18n/runtime.js";
 import {
   getActiveDesktopProject,
   onDesktopProjectActivated,
@@ -364,17 +364,64 @@ const bindOverview = (button: HTMLButtonElement) => {
 };
 
 type ProductTourStep = {
+  route: "overview" | "steps" | "source-review" | "diagnostics" | "settings-connections";
   target: string;
   title: readonly [string, string];
   detail: readonly [string, string];
+  action: readonly [string, string];
 };
 
 const PRODUCT_TOUR_STEPS: readonly ProductTourStep[] = [
-  { target: "[data-view='overview']", title: ["Overview", "Übersicht"], detail: ["This is your starting point. It summarizes what Livariant can currently tell you about the active project and points to the next useful action.", "Das ist dein Startpunkt. Hier fasst Livariant zusammen, was es über das aktive Projekt sagen kann, und zeigt den nächsten sinnvollen Schritt."] },
-  { target: "[data-view='steps']", title: ["Project knowledge", "Projektwissen"], detail: ["Here you review the project's purpose, direction and rules. Livariant keeps proposed information separate from accepted project truth.", "Hier prüfst du Zweck, Richtung und Regeln des Projekts. Livariant hält vorgeschlagene Informationen von bestätigter Projektwahrheit getrennt."] },
-  { target: "[data-view='source-review']", title: ["Sources", "Quellen"], detail: ["Sources show where project information comes from and where that basis is incomplete, unavailable or needs review.", "Quellen zeigen, woher Projektinformationen stammen und wo diese Grundlage unvollständig, nicht verfügbar oder prüfbedürftig ist."] },
-  { target: "[data-view='diagnostics']", title: ["Diagnostics", "Diagnose"], detail: ["Diagnostics shows what Livariant actually observed. Missing or unknown data stays visible instead of being turned into a false zero or success.", "Die Diagnose zeigt, was Livariant tatsächlich beobachtet hat. Fehlende oder unbekannte Daten bleiben sichtbar, statt zu einer falschen Null oder einem falschen Erfolg zu werden."] },
-  { target: "[data-open-settings]", title: ["Connections and settings", "Verbindungen und Einstellungen"], detail: ["Connect providers and GitHub in Settings. A connection gives capability, but never automatic permission to change, merge or release your project.", "In den Einstellungen verbindest du Provider und GitHub. Eine Verbindung schafft Möglichkeiten, aber niemals automatisch die Berechtigung, dein Projekt zu ändern, zu mergen oder zu veröffentlichen."] },
+  {
+    route: "overview",
+    target: ".shell-overview-hero",
+    title: ["Your starting point", "Dein Startpunkt"],
+    detail: [
+      "The Overview should answer the first question: what does Livariant currently know about this project, what needs attention and what is the next useful action?",
+      "Die Übersicht beantwortet die erste Frage: Was weiß Livariant gerade über dieses Projekt, was braucht Aufmerksamkeit und was ist der nächste sinnvolle Schritt?",
+    ],
+    action: ["Look at the highlighted project summary and next action.", "Sieh dir die hervorgehobene Projektzusammenfassung und die nächste Aktion an."],
+  },
+  {
+    route: "steps",
+    target: ".truth-main-card",
+    title: ["Project knowledge", "Projektwissen"],
+    detail: [
+      "This is where purpose, direction and rules are reviewed. Suggestions and observations stay separate from accepted project truth until a qualified write path exists.",
+      "Hier werden Zweck, Richtung und Regeln geprüft. Vorschläge und Beobachtungen bleiben von bestätigter Projektwahrheit getrennt, bis ein qualifizierter Schreibpfad besteht.",
+    ],
+    action: ["Open one area after the tour to see what is known and what is missing.", "Öffne nach der Tour einen Bereich, um zu sehen, was bekannt ist und was fehlt."],
+  },
+  {
+    route: "source-review",
+    target: ".source-review-subnav",
+    title: ["Check the basis", "Prüfe die Grundlage"],
+    detail: [
+      "Sources show where project information comes from, which repositories are configured and where review evidence is incomplete.",
+      "Quellen zeigen, woher Projektinformationen stammen, welche Repositories eingerichtet sind und wo Prüfnachweise noch unvollständig sind.",
+    ],
+    action: ["Use the highlighted tabs to move from the overview into files, findings or GitHub evidence.", "Nutze die hervorgehobenen Reiter, um von der Übersicht zu Dateien, Befunden oder GitHub-Nachweisen zu wechseln."],
+  },
+  {
+    route: "diagnostics",
+    target: ".dc-hero",
+    title: ["See what was actually observed", "Sieh, was tatsächlich beobachtet wurde"],
+    detail: [
+      "Diagnostics reports only measured or attributable activity. Missing data stays unknown instead of becoming a false zero, success or project score.",
+      "Die Diagnose zeigt nur gemessene oder zuordenbare Aktivität. Fehlende Daten bleiben unbekannt, statt zu einer falschen Null, einem Erfolg oder Projekt-Score zu werden.",
+    ],
+    action: ["Use the time range and tabs to inspect usage, attribution and details.", "Nutze Zeitraum und Reiter, um Nutzung, Zuordnung und Details zu prüfen."],
+  },
+  {
+    route: "settings-connections",
+    target: ".settings-content-body",
+    title: ["Connections are capability, not permission", "Verbindungen sind Fähigkeit, keine Berechtigung"],
+    detail: [
+      "Settings is where you connect providers and GitHub. A connection makes a tool available to Livariant, but does not authorize file changes, merges or releases.",
+      "In den Einstellungen verbindest du Provider und GitHub. Eine Verbindung macht ein Werkzeug für Livariant verfügbar, autorisiert aber keine Dateiänderungen, Merges oder Releases.",
+    ],
+    action: ["You can restart this tour later from Settings → General.", "Du kannst diese Tour später unter Einstellungen → Allgemein erneut starten."],
+  },
 ];
 
 const clearTourHighlight = () => {
@@ -388,45 +435,86 @@ const closeProductTour = (completed: boolean) => {
   productTourIndex = -1;
 };
 
-const renderProductTour = () => {
+const waitForTourTarget = async (selector: string): Promise<HTMLElement | null> => {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const target = document.querySelector<HTMLElement>(selector);
+    if (target) return target;
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  }
+  return null;
+};
+
+const navigateProductTour = async (step: ProductTourStep): Promise<void> => {
+  if (step.route === "settings-connections") {
+    openSettingsSection("connections");
+  } else if (step.route === "overview") {
+    document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
+  } else {
+    document.querySelector<HTMLButtonElement>(`nav.nav [data-view='${step.route}']`)?.click();
+  }
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+};
+
+const renderProductTour = async () => {
   clearTourHighlight();
   document.querySelector<HTMLElement>("[data-product-tour]")?.remove();
   if (productTourIndex < 0 || productTourIndex >= PRODUCT_TOUR_STEPS.length) return;
+
   const step = PRODUCT_TOUR_STEPS[productTourIndex];
-  const target = document.querySelector<HTMLElement>(step.target);
+  await navigateProductTour(step);
+  if (productTourIndex < 0) return;
+  const target = await waitForTourTarget(step.target);
   target?.classList.add("product-tour-highlight");
+  target?.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
 
   const overlay = document.createElement("div");
   overlay.className = "product-tour-overlay";
   overlay.dataset.productTour = "true";
-  overlay.innerHTML = `
-    <section class="product-tour-card" role="dialog" aria-modal="true" aria-labelledby="product-tour-title">
-      <div class="product-tour-progress"><span>${productTourIndex + 1} / ${PRODUCT_TOUR_STEPS.length}</span><button type="button" data-product-tour-skip>${text("Skip tour", "Tour überspringen")}</button></div>
-      <span class="eyebrow">${text("Quick tour", "Kurze Tour")}</span>
+  const card = document.createElement("section");
+  card.className = "product-tour-card";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-modal", "false");
+  card.setAttribute("aria-labelledby", "product-tour-title");
+  const progress = PRODUCT_TOUR_STEPS.map((_, index) => `<i class="${index === productTourIndex ? "active" : index < productTourIndex ? "done" : ""}"></i>`).join("");
+  card.innerHTML = `
+      <div class="product-tour-progress"><div class="product-tour-dots" aria-hidden="true">${progress}</div><span>${productTourIndex + 1} / ${PRODUCT_TOUR_STEPS.length}</span><button type="button" data-product-tour-skip>${text("Skip tour", "Tour überspringen")}</button></div>
+      <span class="eyebrow">${text("Guided tour", "Geführte Tour")}</span>
       <h2 id="product-tour-title">${text(step.title[0], step.title[1])}</h2>
       <p>${text(step.detail[0], step.detail[1])}</p>
+      <div class="product-tour-action-hint"><strong>${text("Try this:", "Probiere das:")}</strong><span>${text(step.action[0], step.action[1])}</span></div>
       <div class="product-tour-actions">
         <button class="button secondary" type="button" data-product-tour-back ${productTourIndex === 0 ? "disabled" : ""}>${text("Back", "Zurück")}</button>
-        <button class="button primary" type="button" data-product-tour-next>${productTourIndex === PRODUCT_TOUR_STEPS.length - 1 ? text("Finish", "Fertig") : text("Next", "Weiter")}</button>
-      </div>
-    </section>`;
+        <button class="button primary" type="button" data-product-tour-next>${productTourIndex === PRODUCT_TOUR_STEPS.length - 1 ? text("Finish tour", "Tour abschließen") : text("Show next area", "Nächsten Bereich zeigen")}</button>
+      </div>`;
+
+  const rect = target?.getBoundingClientRect();
+  if (rect) {
+    card.dataset.vertical = rect.top + rect.height / 2 > window.innerHeight / 2 ? "top" : "bottom";
+    card.dataset.horizontal = rect.left + rect.width / 2 > window.innerWidth / 2 ? "left" : "right";
+  }
+  overlay.appendChild(card);
   document.body.appendChild(overlay);
-  overlay.querySelector<HTMLButtonElement>("[data-product-tour-skip]")?.addEventListener("click", () => closeProductTour(true));
-  overlay.querySelector<HTMLButtonElement>("[data-product-tour-back]")?.addEventListener("click", () => { productTourIndex -= 1; renderProductTour(); });
-  overlay.querySelector<HTMLButtonElement>("[data-product-tour-next]")?.addEventListener("click", () => {
+
+  card.querySelector<HTMLButtonElement>("[data-product-tour-skip]")?.addEventListener("click", () => closeProductTour(true));
+  card.querySelector<HTMLButtonElement>("[data-product-tour-back]")?.addEventListener("click", () => {
+    productTourIndex -= 1;
+    void renderProductTour();
+  });
+  card.querySelector<HTMLButtonElement>("[data-product-tour-next]")?.addEventListener("click", () => {
     if (productTourIndex >= PRODUCT_TOUR_STEPS.length - 1) {
       closeProductTour(true);
+      document.querySelector<HTMLButtonElement>("nav.nav [data-view='overview']")?.click();
       return;
     }
     productTourIndex += 1;
-    renderProductTour();
+    void renderProductTour();
   });
 };
 
 const startProductTour = () => {
   closeProductTour(false);
   productTourIndex = 0;
-  renderProductTour();
+  void renderProductTour();
 };
 
 const maybeStartProductTour = () => {
@@ -444,7 +532,7 @@ const maybeStartProductTour = () => {
 
 document.addEventListener(PRODUCT_TOUR_EVENT, () => startProductTour());
 
-const syncNotificationProxy = () => {
+const syncNotificationProxy = () => {const syncNotificationProxy = () => {
   const source = document.querySelector<HTMLButtonElement>("nav.nav [data-view='notifications']");
   const proxy = document.querySelector<HTMLButtonElement>("[data-shell-notifications]");
   if (!proxy) return;
@@ -753,6 +841,18 @@ onDesktopProjectActivated(async () => {
 });
 onDesktopProjectRegistryChanged(() => {
   if (document.querySelector("[data-shell-overview]")) void refreshOverview();
+});
+onLanguageChange(() => {
+  if (document.querySelector("[data-shell-overview]")) {
+    const content = document.querySelector<HTMLElement>("main.content");
+    if (content) {
+      content.innerHTML = renderOverview();
+      setOverviewActive();
+      syncOverviewShortcuts();
+    }
+  }
+  ensureSidebar(document.querySelector<HTMLElement>(".desktop-frame") ?? document.body);
+  if (productTourIndex >= 0) void renderProductTour();
 });
 
 document.addEventListener("click", (event) => {

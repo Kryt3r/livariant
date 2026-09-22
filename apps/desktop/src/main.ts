@@ -4,7 +4,7 @@ import "./project-truth.css";
 import "./project-truth-workspace.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { getLanguage } from "./i18n/runtime.js";
+import { getLanguage, onLanguageChange } from "./i18n/runtime.js";
 import {
   bindConnectionDiagnosticsEvents,
   refreshConnectionsSettings,
@@ -762,7 +762,11 @@ document.addEventListener("livariant:open-project-settings", () => {
   settingsSection = "projects";
   selectedReviewAreaId = null;
   selectedSourceAreaId = null;
-  render();
+  onLanguageChange(() => {
+  if (document.querySelector(".truth-workspace") || settingsOpen) render();
+});
+
+render();
   void refreshProjectSettings().then(() => renderSettingsSectionOnly()).catch(() => renderSettingsSectionOnly());
 });
 

@@ -1,6 +1,6 @@
 import "./diagnostics-cockpit.css";
 import { invoke } from "@tauri-apps/api/core";
-import { getLanguage } from "./i18n/runtime.js";
+import { getLanguage, onLanguageChange } from "./i18n/runtime.js";
 import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 
 type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
@@ -185,6 +185,11 @@ const renderAttributionDimension = (title: string, dimension: ObservedAttributio
 };
 
 const renderOverview = (data: DiagnosticsSummary) => {
+  if (!data.hasObservedData) {
+    return `<section class="dc-view dc-overview">
+      <div class="dc-hero empty"><div class="dc-hero-icon">–</div><div class="dc-hero-copy"><span>${lang("No observed diagnostic evidence", "Keine beobachteten Diagnosedaten")}</span><h2>${lang("No observed activities in the selected period", "Keine beobachteten Aktivitäten im gewählten Zeitraum")}</h2><p>${lang("Livariant has no observed usage data for this period. Missing information stays unknown instead of being presented as a healthy state or a measured zero.", "Für diesen Zeitraum liegen keine beobachteten Nutzungsdaten vor. Fehlende Informationen bleiben unbekannt, statt als gesunder Zustand oder gemessene Null dargestellt zu werden.")}</p></div><div class="dc-hero-facts"><div><small>${lang("Known measurement data", "Bekannte Messdaten")}</small><strong>—</strong></div><div><small>${lang("Linked to a task", "Einer Aufgabe zugeordnet")}</small><strong>—</strong></div></div></div>
+    </section>`;
+  }
   const fieldTotal = data.observed.knownFieldCount + data.observed.unknownFieldCount;
   const measurementCoverage = percentage(data.observed.knownFieldCount, fieldTotal);
   const taskTotal = data.attribution.taskId.attributedEventCount + data.attribution.taskId.unattributedEventCount;
@@ -193,7 +198,7 @@ const renderOverview = (data: DiagnosticsSummary) => {
     <div class="dc-hero"><div class="dc-hero-icon">✓</div><div class="dc-hero-copy"><span>${lang("What Livariant actually observed", "Was Livariant tatsächlich beobachtet hat")}</span><h2>${number(data.observed.eventCount)} ${lang("recorded AI events in the selected period", "erfasste KI-Ereignisse im gewählten Zeitraum")}</h2><p>${lang("This page shows only what Livariant could really measure or attribute. Missing information stays unknown instead of being turned into a false success or zero.", "Diese Seite zeigt nur, was Livariant wirklich messen oder zuordnen konnte. Fehlende Informationen bleiben unbekannt, statt zu einem falschen Erfolg oder einer künstlichen Null zu werden.")}</p></div><div class="dc-hero-facts"><div><small>${lang("Known measurement data", "Bekannte Messdaten")}</small><strong>${pct(measurementCoverage)}</strong></div><div><small>${lang("Linked to a task", "Einer Aufgabe zugeordnet")}</small><strong>${pct(taskCoverage)}</strong></div></div></div>
     <div class="dc-metrics"><article><span>⌁</span><small>${lang("Recorded events", "Erfasste Ereignisse")}</small><strong>${number(data.observed.eventCount)}</strong></article><article><span>◇</span><small>${lang("Total tokens", "Gesamttokens")}</small><strong>${number(data.observed.totalTokens)}</strong></article><article><span>◎</span><small>${lang("Known data fields", "Bekannte Datenfelder")}</small><strong>${pct(measurementCoverage)}</strong></article><article><span>ↄ</span><small>${lang("Without task attribution", "Ohne Task-Zuordnung")}</small><strong>${number(data.attribution.taskId.unattributedEventCount)}</strong></article></div>
     <div class="dc-grid-main">${renderComposition(data)}<article class="dc-panel dc-evidence-summary"><div class="dc-panel-head"><div><h3>${lang("What kind of information is this?", "Welche Art von Information ist das?")}</h3><p>${lang("Measured, avoided and estimated values stay separate so you can see what is fact and what is only a modelled value.", "Gemessene, vermiedene und geschätzte Werte bleiben getrennt, damit erkennbar bleibt, was beobachtet wurde und was nur modelliert ist.")}</p></div></div>${renderEvidenceClasses(data)}</article></div>
-    <div class="dc-grid-2">${renderRankedBreakdown(lang("Usage by provider", "Nutzung nach Provider"), lang("Only providers present in retained evidence.", "Nur Provider aus der gespeicherten Evidence."), data.attribution.provider)}${renderRankedBreakdown(lang("Usage by project", "Nutzung nach Projekt"), lang("Top projects by measured attributed usage.", "Top-Projekte nach gemessener zugeordneter Nutzung."), data.attribution.projectId)}</div>
+    <div class="dc-grid-2">${renderRankedBreakdown(lang("Usage by provider", "Nutzung nach Provider"), lang("Only providers present in retained evidence.", "Nur Provider aus den gespeicherten Nachweisen."), data.attribution.provider)}${renderRankedBreakdown(lang("Usage by project", "Nutzung nach Projekt"), lang("Top projects by measured attributed usage.", "Top-Projekte nach gemessener zugeordneter Nutzung."), data.attribution.projectId)}</div>
     ${renderQuality(data)}
     ${renderFindings(data)}
   </section>`;
@@ -306,4 +311,8 @@ onDesktopProjectActivated(() => {
   state.notice = null;
   const surface = document.querySelector<HTMLElement>("[data-surface='diagnostics']");
   if (surface?.dataset.diagnosticsCockpit === "mounted") return load(surface);
+});
+onLanguageChange(() => {
+  const surface = document.querySelector<HTMLElement>("[data-surface='diagnostics']");
+  if (surface?.dataset.diagnosticsCockpit === "mounted" && state.data) renderCockpit(surface);
 });
