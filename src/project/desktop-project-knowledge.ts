@@ -10,6 +10,7 @@ import { authorizeActionableProposal } from "../runtime/authorization.js";
 import { applyActionableProposal } from "../runtime/semantic-apply.js";
 import { issueSemanticGuardianAuthority } from "../guardian/semantic-authority-transition.js";
 import { runProtectedDoctor } from "../runtime/protected-doctor.js";
+import { inspectGuardianMachineReadiness } from "../guardian/readiness.js";
 
 export type DesktopProjectKnowledgeAreaId = "purpose" | "direction" | "rules";
 
@@ -237,6 +238,7 @@ export async function applyDesktopProjectKnowledgeProposal(
 
 type HostRequest =
   | { method: "read" }
+  | { method: "protection" }
   | { method: "prepare"; areaId: unknown; value: unknown }
   | { method: "apply"; areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown };
 
@@ -254,6 +256,7 @@ async function main(): Promise<void> {
   const request = JSON.parse(raw) as HostRequest;
   let result: unknown;
   if (request.method === "read") result = await readDesktopProjectKnowledge(projectRoot);
+  else if (request.method === "protection") result = await inspectGuardianMachineReadiness(projectRoot, process.platform, process.execPath);
   else if (request.method === "prepare") result = await prepareDesktopProjectKnowledgeProposal(projectRoot, request);
   else if (request.method === "apply") result = await applyDesktopProjectKnowledgeProposal(projectRoot, request);
   else throw new Error("Desktop Project Knowledge method is unsupported.");
