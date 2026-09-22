@@ -53,7 +53,8 @@ test("diagnostics renderer state is invalidated on project activation", async ()
   assert.match(connections, /generation !== diagnosticsProjectGeneration/);
   assert.match(connections, /diagnostics = null/);
 
-  assert.match(empty, /onDesktopProjectActivated\(\(\) => \{/);
-  assert.match(empty, /generation \+= 1/);
-  assert.match(empty, /delete hero\.dataset\.availabilityChecked/);
+  // Empty-state semantics now belong to the cockpit's already project-scoped summary.
+  // The old polish module must not start a second project-sensitive request after paint.
+  assert.doesNotMatch(empty, /codex_diagnostics_summary/);
+  assert.match(empty, /DiagnosticsSummary\.hasObservedData/);
 });
