@@ -124,6 +124,10 @@ async function projectRecords(projectRoot: string): Promise<{ stableProjectIdent
   return { stableProjectIdentity, records: parsed.records };
 }
 
+export function projectKnowledgeAreasFromDecisionRecords(records: DecisionRecord[]): DesktopProjectKnowledgeAreaSnapshot[] {
+  return (["purpose", "direction", "rules"] as const).map((id) => areaSnapshot(id, records));
+}
+
 function areaSnapshot(id: DesktopProjectKnowledgeAreaId, records: DecisionRecord[]): DesktopProjectKnowledgeAreaSnapshot {
   const matching = records
     .map((record) => ({ record, value: taggedValue(id, record) }))
@@ -149,7 +153,7 @@ async function localProjectKnowledgeSnapshot(projectPath: string): Promise<Deskt
     schemaVersion: 1,
     state: "ready",
     stableProjectIdentity,
-    areas: (["purpose", "direction", "rules"] as const).map((id) => areaSnapshot(id, records)),
+    areas: projectKnowledgeAreasFromDecisionRecords(records),
     boundaries: {
       source: "project-brain",
       rendererOwnsTruth: false,
