@@ -62,7 +62,7 @@ export const applyProjectKnowledgeProposal = (
 
 export type ProjectKnowledgeProtectionStatus = {
   schemaVersion: 1;
-  state: "ready" | "protected-source-required" | "guardian-bootstrap-required" | "integrity-acceptance-required" | "integrity-recovery-required" | "unsafe" | "unsupported-platform";
+  state: "ready" | "protected-source-required" | "guardian-bootstrap-required" | "project-brain-initialization-required" | "integrity-acceptance-required" | "integrity-recovery-required" | "unsafe" | "unsupported-platform";
   canonicalReadReady: boolean;
   guardian: {
     state: "ready" | "protected-source-required" | "guardian-bootstrap-required" | "unsafe" | "unsupported-platform";
@@ -71,6 +71,14 @@ export type ProjectKnowledgeProtectionStatus = {
     lifecycleAuthorizationReady: boolean;
   };
   integrity: { state: string; digest: string | null; reason: string | null };
+  initialization: {
+    action: string;
+    projectState: string;
+    materialSha256: string | null;
+    authorized: boolean;
+    filesToCreate: string[];
+    reason: string | null;
+  } | null;
 };
 
 export const loadProjectKnowledgeProtectionStatus = () =>
@@ -82,3 +90,10 @@ export const launchProjectKnowledgeProtectionSetup = () =>
 
 export const acceptProjectKnowledgeIntegrity = (confirmedDigest: string) =>
   invoke<ProjectKnowledgeProtectionStatus>("accept_project_knowledge_integrity", { confirmedDigest });
+
+
+export const authorizeProjectKnowledgeInitialization = (confirmedMaterialSha256: string) =>
+  invoke<ProjectKnowledgeProtectionStatus>("authorize_project_knowledge_initialization", { confirmedMaterialSha256 });
+
+export const applyProjectKnowledgeInitialization = (confirmedMaterialSha256: string) =>
+  invoke<ProjectKnowledgeProtectionStatus>("apply_project_knowledge_initialization", { confirmedMaterialSha256 });
