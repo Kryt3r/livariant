@@ -60,7 +60,7 @@
     "longDescription": "Livariant Desktop keeps AI-assisted project work understandable and controlled through explicit project context, evidence, verification, connections, updates and diagnostics.",
     "windows": {
       "nsis": {
-        "installMode": "currentUser",
+        "installMode": "perMachine",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico",
         "headerImage": "windows/branding/installer-header.bmp",
