@@ -221,13 +221,13 @@ jobs:
         shell: pwsh
         run: |
           $installer = "${{ steps.installer.outputs.path }}"
-          $installDir = Join-Path $env:RUNNER_TEMP "Livariant Installer Smoke"
+          $installDir = Join-Path $env:ProgramFiles "Livariant\Desktop"
 
           if (Test-Path -LiteralPath $installDir) {
             Remove-Item -LiteralPath $installDir -Recurse -Force
           }
 
-          $install = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
+          $install = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
           if ($install.ExitCode -ne 0) {
             throw "Silent NSIS install failed with exit code $($install.ExitCode)."
           }
