@@ -88,6 +88,7 @@ try {
       "bootstrap-release.json",
       "guardian-bootstrap-entry.mjs",
       "guardian-bootstrap.ps1",
+      "guardian-bootstrap-desktop.ps1",
       "guardian-bootstrap",
       "guardian-recover-entry.mjs",
       "guardian-recover.ps1",
@@ -142,6 +143,10 @@ try {
     "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\nodejs\\node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Node executable is missing. Re-run the verified Stage-A installer after installing system-wide Node.js 20+.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n",
   );
   await writeFile(
+    resolve(staging, "guardian-bootstrap-desktop.ps1"),
+    "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\Livariant\\livariant-node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Livariant Desktop Node runtime is missing. Repair or reinstall Livariant before Guardian bootstrap.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n",
+  );
+  await writeFile(
     resolve(staging, "guardian-recover.ps1"),
     "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\nodejs\\node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Node executable is missing. Re-run the verified Stage-A installer after installing system-wide Node.js 20+.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-recover-entry.mjs')\nexit $LASTEXITCODE\n",
   );
@@ -184,8 +189,15 @@ try {
   const windowsTemplate = await readFile(resolve(root, "scripts", "installers", "install-livariant-bootstrap.ps1.template"), "utf8");
   const linuxTemplate = await readFile(resolve(root, "scripts", "installers", "install-livariant-bootstrap.sh.template"), "utf8");
   const windowsName = `install-livariant-bootstrap-${version}.ps1`;
+  const desktopWindowsName = "desktop-stage-a.ps1";
   const linuxName = `install-livariant-bootstrap-${version}.sh`;
-  await writeFile(resolve(output, windowsName), renderTemplate(windowsTemplate, templateValues));
+  const renderedWindows = renderTemplate(windowsTemplate, templateValues);
+  await writeFile(resolve(output, windowsName), renderedWindows);
+  const desktopWindows = renderedWindows
+    .replace("$ProtectedNode = 'C:\\Program Files\\nodejs\\node.exe'", "$ProtectedNode = 'C:\\Program Files\\Livariant\\livariant-node.exe'")
+    .replace("$ProtectedNodeParent = 'C:\\Program Files\\nodejs'", "$ProtectedNodeParent = 'C:\\Program Files\\Livariant'");
+  if (desktopWindows === renderedWindows) throw new Error("Desktop Stage-A protected Node specialization did not change the generated Windows installer.");
+  await writeFile(resolve(output, desktopWindowsName), desktopWindows);
   await writeFile(resolve(output, linuxName), renderTemplate(linuxTemplate, templateValues));
   await chmod(resolve(output, linuxName), 0o755);
 
@@ -199,6 +211,7 @@ try {
     archive: { filename: archive, sha256: archiveSha256 },
     installers: {
       win32: { filename: windowsName, sha256: sha256(await readFile(resolve(output, windowsName))) },
+      desktopWin32: { filename: desktopWindowsName, sha256: sha256(await readFile(resolve(output, desktopWindowsName))) },
       linux: { filename: linuxName, sha256: sha256(await readFile(resolve(output, linuxName))) },
     },
     authorityIssued: false,
