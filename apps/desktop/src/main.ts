@@ -23,7 +23,9 @@ import {
 } from "./project-settings.js";
 import {
   acceptProjectKnowledgeIntegrity,
+  applyProjectKnowledgeInitialization,
   applyProjectKnowledgeProposal,
+  authorizeProjectKnowledgeInitialization,
   launchProjectKnowledgeProtectionSetup,
   loadProjectKnowledge,
   loadProjectKnowledgeProtectionStatus,
@@ -417,6 +419,13 @@ const renderProjectKnowledgeProtection = () => {
 
   if (protection.state === "guardian-bootstrap-required") {
     return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>🛡</span><p><strong>${uiText("Protected Project Brain setup required", "Geschütztes Project-Brain-Setup erforderlich")}</strong> ${uiText("Stage A is installed. Complete the one-time Guardian bootstrap before Livariant reads or changes canonical Project Knowledge.", "Stage A ist installiert. Schließe den einmaligen Guardian-Bootstrap ab, bevor Livariant kanonisches Projektwissen liest oder ändert.")}</p><button class="button secondary" type="button" data-project-knowledge-protection-setup>${uiText("Set up protection", "Schutz einrichten")}</button><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
+  }
+
+  if (protection.state === "project-brain-initialization-required" && protection.initialization?.materialSha256) {
+    const files = protection.initialization.filesToCreate.map((file) => `<li><code>${escapeHtml(file)}</code></li>`).join("");
+    return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>＋</span><div><p><strong>${uiText("Create this project's Project Brain", "Project Brain für dieses Projekt anlegen")}</strong> ${uiText("This project does not have a Project Brain yet. Livariant can create only the dedicated .project-brain files shown below; existing project files remain untouched.", "Dieses Projekt besitzt noch keinen Project Brain. Livariant kann ausschließlich die unten gezeigten .project-brain-Dateien anlegen; bestehende Projektdateien bleiben unverändert.")}</p><ul>${files}</ul><small>${uiText("Exact lifecycle material", "Exaktes Lifecycle-Material")}: <code>${escapeHtml(protection.initialization.materialSha256)}</code></small></div>${protection.initialization.authorized
+      ? `<button class="button primary" type="button" data-project-knowledge-initialization-apply>${uiText("Create Project Brain", "Project Brain anlegen")}</button>`
+      : `<button class="button secondary" type="button" data-project-knowledge-initialization-authorize>${uiText("Authorize creation", "Anlegen autorisieren")}</button>`}<button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
   }
 
   if (protection.state === "integrity-acceptance-required" && protection.integrity.digest) {
@@ -880,6 +889,56 @@ const bindEvents = () => {
   });
   document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")?.addEventListener("click", async () => {
     await refreshProjectKnowledge();
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-initialization-authorize]")?.addEventListener("click", async () => {
+    const material = projectKnowledgeProtection?.initialization?.materialSha256;
+    if (!material || projectKnowledgeProtection?.state !== "project-brain-initialization-required") return;
+    projectKnowledgeLoading = true;
+    render();
+    try {
+      projectKnowledgeProtection = await authorizeProjectKnowledgeInitialization(material);
+      notice = {
+        kind: "success",
+        title: uiText("Project Brain creation authorized", "Project-Brain-Anlegen autorisiert"),
+        detail: uiText("Protected Guardian Lifecycle Authority now matches the exact reviewed initialization plan. No project files have been created yet.", "Die geschützte Guardian Lifecycle Authority entspricht jetzt exakt dem geprüften Initialisierungsplan. Es wurden noch keine Projektdateien angelegt."),
+      };
+    } catch (error) {
+      notice = {
+        kind: "error",
+        title: uiText("Project Brain creation was not authorized", "Project-Brain-Anlegen wurde nicht autorisiert"),
+        detail: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      projectKnowledgeLoading = false;
+      render();
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-initialization-apply]")?.addEventListener("click", async () => {
+    const material = projectKnowledgeProtection?.initialization?.materialSha256;
+    if (!material || projectKnowledgeProtection?.state !== "project-brain-initialization-required" || projectKnowledgeProtection.initialization?.authorized !== true) return;
+    projectKnowledgeLoading = true;
+    render();
+    try {
+      projectKnowledgeProtection = await applyProjectKnowledgeInitialization(material);
+      notice = {
+        kind: "success",
+        title: uiText("Project Brain created", "Project Brain angelegt"),
+        detail: uiText("The exact authorized .project-brain initialization was applied. Protect the resulting managed state before Livariant treats it as canonical.", "Die exakt autorisierte .project-brain-Initialisierung wurde angewendet. Schütze den entstandenen verwalteten Stand, bevor Livariant ihn als kanonisch behandelt."),
+      };
+      await refreshProjectKnowledge(false);
+    } catch (error) {
+      notice = {
+        kind: "error",
+        title: uiText("Project Brain creation needs attention", "Project-Brain-Anlegen benötigt Aufmerksamkeit"),
+        detail: error instanceof Error ? error.message : String(error),
+      };
+      await refreshProjectKnowledge(false);
+    } finally {
+      projectKnowledgeLoading = false;
+      render();
+    }
   });
 
   document.querySelector<HTMLButtonElement>("[data-project-knowledge-integrity-accept]")?.addEventListener("click", async () => {
