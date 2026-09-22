@@ -38,12 +38,12 @@ interface ReviewPathInventoryResult {
 
 export function renderProjectSourceReviewHub(presentation: DesktopSourceReviewPresentation | null): string {
   const summary = presentation?.summary;
-  return `<header class="topbar source-review-topbar"><div><span class="eyebrow">${text("Project operations", "Projektbetrieb")}</span><h1>${text("Project sources & review", "Projektquellen & Prüfung")}</h1><p>${text("Inspect repository sources, bounded review material, findings and GitHub evidence without silently loading the heavy sections.", "Prüfe Repository-Quellen, begrenztes Review-Material, Befunde und GitHub-Evidence, ohne umfangreiche Bereiche stillschweigend zu laden.")}</p></div></header>
+  return `<header class="topbar source-review-topbar"><div><span class="eyebrow">${text("Where your project information comes from", "Woher deine Projektinformationen stammen")}</span><h1>${text("Sources", "Quellen")}</h1><p>${text("See which repositories Livariant uses as a basis, what has actually been checked and where information is still missing or needs your attention.", "Sieh, welche Repositories Livariant als Grundlage nutzt, was tatsächlich geprüft wurde und wo Informationen noch fehlen oder deine Aufmerksamkeit brauchen.")}</p></div></header>
   <nav class="source-review-subnav" aria-label="${text("Sources and review sections", "Bereiche für Quellen und Prüfung")}">
     <button class="source-review-subnav-item active" type="button" data-source-review-section="overview" aria-current="page"><span>${text("Overview", "Übersicht")}</span></button>
     <button class="source-review-subnav-item" type="button" data-source-review-section="sources"><span>${text("Sources", "Quellen")}</span><b>${summary?.sourceCount ?? "–"}</b></button>
-    <button class="source-review-subnav-item" type="button" data-source-review-section="material"><span>${text("Review material", "Review-Material")}</span></button>
-    <button class="source-review-subnav-item" type="button" data-source-review-section="findings"><span>${text("Findings & evidence", "Befunde & Nachweise")}</span><b>${summary?.reviewAttentionCount ?? "–"}</b></button>
+    <button class="source-review-subnav-item" type="button" data-source-review-section="material"><span>${text("Files to review", "Zu prüfende Dateien")}</span></button>
+    <button class="source-review-subnav-item" type="button" data-source-review-section="findings"><span>${text("Needs attention", "Braucht Aufmerksamkeit")}</span><b>${summary?.reviewAttentionCount ?? "–"}</b></button>
     <button class="source-review-subnav-item" type="button" data-source-review-section="github"><span>GitHub</span></button>
   </nav>
   <section class="source-review-summary">
@@ -55,8 +55,8 @@ export function renderProjectSourceReviewHub(presentation: DesktopSourceReviewPr
   </section>
   <section class="source-review-selection source-review-lazy-hub">
     <div class="source-review-overview" data-source-review-overview>
-      <div><span class="eyebrow">${text("Safe by default", "Standardmäßig sicher")}</span><h2>${text("Open only what you need", "Öffne nur, was du brauchst")}</h2><p>${text("The overview uses the current safe snapshot. Repository material, findings and GitHub telemetry stay lazy until you select a section above.", "Die Übersicht verwendet nur den aktuellen sicheren Snapshot. Repository-Material, Befunde und GitHub-Telemetrie bleiben lazy, bis du oben einen Bereich auswählst.")}</p></div>
-      <span class="source-review-overview-state">${text("No automatic deep scan", "Kein automatischer Deep-Scan")}</span>
+      <div><span class="eyebrow">${text("Start with the basis", "Beginne mit der Grundlage")}</span><h2>${text("Understand what Livariant can actually rely on", "Verstehe, worauf sich Livariant tatsächlich stützen kann")}</h2><p>${text("This overview shows the configured sources without scanning everything in the background. Open a section when you want to inspect files, review findings or check GitHub information.", "Diese Übersicht zeigt die eingerichteten Quellen, ohne im Hintergrund alles zu durchsuchen. Öffne einen Bereich, wenn du Dateien, Prüfbefunde oder GitHub-Informationen genauer ansehen möchtest.")}</p></div>
+      <span class="source-review-overview-state">${text("Nothing is treated as project truth automatically", "Nichts wird automatisch zur Projektwahrheit")}</span>
     </div>
     <div data-source-review-heavy-root></div>
   </section>`;

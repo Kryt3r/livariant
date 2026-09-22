@@ -4,7 +4,7 @@ import "./project-truth.css";
 import "./project-truth-workspace.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { getLanguage } from "./i18n/runtime.js";
+import { getLanguage, onLanguageChange } from "./i18n/runtime.js";
 import {
   bindConnectionDiagnosticsEvents,
   refreshConnectionsSettings,
@@ -347,7 +347,7 @@ const renderProjectTruthView = () => {
   const conflicts = areas.filter((area) => area.state === "review" && classifyTruthProposal(area).conflict).length;
   return `
     <div class="truth-workspace truth-workspace-areas truth-workspace-redesign">
-      <header class="topbar truth-topbar-redesign"><div><span class="eyebrow">Project Brain</span><h1>${uiText("Project knowledge", "Projektwissen")}</h1><p>${uiText("See what Livariant currently knows, where knowledge is missing and which proposed changes still need your decision.", "Sieh, was Livariant aktuell weiß, wo Wissen fehlt und welche vorgeschlagenen Änderungen noch deine Entscheidung brauchen.")}</p></div></header>
+      <header class="topbar truth-topbar-redesign"><div><span class="eyebrow">${uiText("Understand your project", "Dein Projekt verstehen")}</span><h1>${uiText("Project knowledge", "Projektwissen")}</h1><p>${uiText("This is where you review the purpose, direction and rules Livariant should use when it helps with your project. Missing or proposed information stays separate until you decide what is valid.", "Hier prüfst du Zweck, Richtung und Regeln, die Livariant bei der Arbeit mit deinem Projekt berücksichtigen soll. Fehlende oder vorgeschlagene Informationen bleiben getrennt, bis du entscheidest, was gilt.")}</p></div></header>
 
       <section class="truth-control-band">
         <div class="truth-control-status">
@@ -361,7 +361,7 @@ const renderProjectTruthView = () => {
 
       <section class="truth-main-card truth-area-workspace">
         <div class="truth-main-head truth-main-head-redesign">
-          <div><span class="eyebrow">${uiText("Curated knowledge areas", "Kuratierte Wissensbereiche")}</span><h2>${uiText("The small set Livariant must understand correctly", "Die wenigen Bereiche, die Livariant korrekt verstehen muss")}</h2></div>
+          <div><span class="eyebrow">${uiText("What Livariant needs to understand", "Was Livariant verstehen muss")}</span><h2>${uiText("The few project facts that guide everything else", "Die wenigen Projektinformationen, an denen sich alles Weitere orientiert")}</h2></div>
           <div class="truth-filters" role="group" aria-label="${uiText("Filter project knowledge", "Projektwissen filtern")}">
             <button class="truth-filter ${truthFilter === "all" ? "active" : ""}" type="button" data-truth-filter="all">${uiText("All", "Alle")}</button>
             <button class="truth-filter ${truthFilter === "review" ? "active" : ""}" type="button" data-truth-filter="review">${uiText("Review", "Prüfung")}</button>
@@ -372,7 +372,7 @@ const renderProjectTruthView = () => {
         <div class="truth-area-list">${areas.map(renderAreaCard).join("")}<div class="truth-empty" data-truth-empty hidden><strong>${uiText("Nothing matches this view", "Keine Treffer in dieser Ansicht")}</strong><p>${uiText("Try another search or filter.", "Versuche eine andere Suche oder einen anderen Filter.")}</p></div></div>
       </section>
 
-      <div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("One canonical Project Brain.", "Ein kanonischer Project Brain.")}</strong> ${uiText("Desktop and connected providers may submit evidence and proposals, but nothing becomes durable project knowledge without the qualified review path.", "Desktop und verbundene Provider dürfen Evidence und Vorschläge liefern, aber nichts wird ohne den qualifizierten Prüfpfad zu dauerhaftem Projektwissen.")}</p></div>
+      <div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("Suggestions are not automatically project truth.", "Vorschläge werden nicht automatisch zur Projektwahrheit.")}</strong> ${uiText("Livariant keeps observations, AI suggestions and your accepted project knowledge separate. The current Desktop editor is still a review preview and does not yet claim a durable Project Brain write.", "Livariant hält Beobachtungen, KI-Vorschläge und dein bestätigtes Projektwissen getrennt. Der aktuelle Desktop-Editor ist noch eine Prüf-Vorschau und beansprucht noch keine dauerhafte Speicherung im Project Brain.")}</p></div>
       ${renderTruthReviewModal()}
       ${renderTruthSourceModal()}
     </div>`;
@@ -443,8 +443,9 @@ const renderSettingsContent = () => {
   return `
     <section class="settings-panel">
       <span class="eyebrow">Livariant</span><h2>${uiText("General", "Allgemein")}</h2>
-      <p>${uiText("Global behavior and low-frequency configuration belongs here instead of competing with project work.", "Globales Verhalten und selten benötigte Konfigurationen gehören hierher, statt mit der Projektarbeit zu konkurrieren.")}</p>
-      <div class="settings-card"><div><strong>${uiText("App settings", "App-Einstellungen")}</strong><span>${uiText("General preferences remain intentionally small while product behavior becomes configurable.", "Allgemeine Einstellungen bleiben bewusst kompakt, während weitere Produktfunktionen konfigurierbar werden.")}</span></div><span class="settings-badge">${uiText("Ready", "Bereit")}</span></div>
+      <p>${uiText("General app preferences and help for finding your way around Livariant.", "Allgemeine App-Einstellungen und Hilfe, um dich in Livariant zurechtzufinden.")}</p>
+      <div class="settings-card"><div><strong>${uiText("App settings", "App-Einstellungen")}</strong><span>${uiText("Livariant keeps general preferences separate from project-specific state.", "Livariant hält allgemeine Einstellungen getrennt vom projektspezifischen Zustand.")}</span></div><span class="settings-badge">${uiText("App-wide", "App-weit")}</span></div>
+      <div class="settings-card settings-card-action"><div><strong>${uiText("Quick product tour", "Kurze Produkttour")}</strong><span>${uiText("Review what Overview, Project knowledge, Sources, Diagnostics and Settings are for.", "Sieh dir noch einmal an, wofür Übersicht, Projektwissen, Quellen, Diagnose und Einstellungen da sind.")}</span></div><button class="button secondary" type="button" data-start-product-tour>${uiText("Start tour", "Tour starten")}</button></div>
     </section>`;
 };
 
@@ -532,6 +533,11 @@ const renderSettingsSectionOnly = () => {
   bindConnectionDiagnosticsEvents(renderSettingsSectionOnly);
   bindAboutSupportSettingsEvents(renderSettingsSectionOnly);
   bindProjectSettingsEvents(renderSettingsSectionOnly, closeSettings);
+  document.querySelector<HTMLButtonElement>("[data-start-product-tour]")?.addEventListener("click", () => {
+    settingsOpen = false;
+    render();
+    document.dispatchEvent(new Event("livariant:start-product-tour"));
+  });
 };
 
 const archiveCurrentTruth = (area: TruthArea, reason: TruthRevision["reason"]) => {
@@ -552,16 +558,16 @@ const render = () => {
     <div class="desktop-frame">
       <header class="window-titlebar" data-tauri-drag-region><div class="window-brand" data-tauri-drag-region><img src="${livariantLogo}" alt="" aria-hidden="true"/><span data-tauri-drag-region>Livariant</span></div><div class="window-controls" aria-label="Window controls"><button class="window-control" data-window-action="minimize" type="button" aria-label="Minimize">−</button><button class="window-control" data-window-action="maximize" type="button" aria-label="Maximize">□</button><button class="window-control close" data-window-action="close" type="button" aria-label="Close">×</button></div></header>
       <div class="app-shell"><aside class="sidebar">
-        <div class="brand"><div class="brand-mark" style="overflow:hidden;border:0;background:transparent;box-shadow:none;"><img src="${livariantLogo}" alt="Livariant logo" style="width:100%;height:100%;object-fit:contain;display:block;"/></div><div><strong>Livariant</strong><small>Desktop Foundation</small></div></div>
+        <div class="brand"><div class="brand-mark" style="overflow:hidden;border:0;background:transparent;box-shadow:none;"><img src="${livariantLogo}" alt="Livariant logo" style="width:100%;height:100%;object-fit:contain;display:block;"/></div><div><strong>Livariant</strong><small>${uiText("Project context", "Projektkontext")}</small></div></div>
         <nav class="nav" aria-label="Primary navigation">
           <button class="nav-item">${icon("home")}<span>Overview</span></button>
-          <button class="nav-item ${currentView === "steps" ? "active" : ""}" data-view="steps">${icon("steps")}<span>Project Truth</span><b>${attentionCount}</b></button>
+          <button class="nav-item ${currentView === "steps" ? "active" : ""}" data-view="steps">${icon("steps")}<span>${uiText("Project knowledge", "Projektwissen")}</span><b>${attentionCount}</b></button>
           <button class="nav-item ${currentView === "diagnostics" ? "active" : ""}" data-view="diagnostics">${icon("diagnostics")}<span>Diagnostics</span></button>
           <button class="nav-item ${currentView === "updates" ? "active" : ""}" data-view="updates">${icon("updates")}<span>Updates</span></button>
         </nav>
         <div class="sidebar-lower">
           <button class="nav-item settings-launcher ${settingsOpen ? "active" : ""}" type="button" data-open-settings>${icon("settings")}<span>Settings</span></button>
-          <div class="sidebar-footer"><div class="status-dot"></div><div><strong>Desktop preview</strong><small>Project context + diagnostics</small></div></div>
+          <div class="sidebar-footer"><div class="status-dot"></div><div><strong>Livariant Desktop</strong><small>${uiText("Project context under your control", "Projektkontext unter deiner Kontrolle")}</small></div></div>
         </div>
       </aside><main class="content">${renderContent()}</main></div>
       ${renderNotice()}
@@ -604,6 +610,11 @@ const bindEvents = () => {
   });
 
   document.querySelector<HTMLButtonElement>("[data-open-settings]")?.addEventListener("click", () => { settingsOpen = true; selectedReviewAreaId = null; selectedSourceAreaId = null; render(); });
+  document.querySelector<HTMLButtonElement>("[data-start-product-tour]")?.addEventListener("click", () => {
+    settingsOpen = false;
+    render();
+    document.dispatchEvent(new Event("livariant:start-product-tour"));
+  });
   document.querySelector<HTMLButtonElement>("[data-close-settings]")?.addEventListener("click", (event) => { event.stopPropagation(); closeSettings(); });
   document.querySelector<HTMLElement>("[data-settings-backdrop]")?.addEventListener("click", (event) => {
     if (event.target !== event.currentTarget) return;
@@ -753,6 +764,10 @@ document.addEventListener("livariant:open-project-settings", () => {
   selectedSourceAreaId = null;
   render();
   void refreshProjectSettings().then(() => renderSettingsSectionOnly()).catch(() => renderSettingsSectionOnly());
+});
+
+onLanguageChange(() => {
+  if (document.querySelector(".truth-workspace") || settingsOpen) render();
 });
 
 render();

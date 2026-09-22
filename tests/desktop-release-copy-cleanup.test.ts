@@ -13,8 +13,8 @@ test("normal Desktop surfaces do not expose stale Foundation preview wording", a
     assert.doesNotMatch(source, /Foundation preview|Foundation-Vorschau|Settings foundation|Einstellungs-Basis/);
   }
 
-  assert.match(main, /Desktop preview/);
-  assert.match(main, /Project context \+ diagnostics/);
+  assert.match(main, /Livariant Desktop/);
+  assert.match(main, /Project context under your control/);
   assert.match(settingsSync, /systemFoundation: "Desktop preview"/);
   assert.match(settingsSync, /systemFoundation: "Desktop-Vorschau"/);
   assert.match(settingsSync, /foundation: "App settings"/);
