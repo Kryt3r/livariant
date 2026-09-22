@@ -27,6 +27,7 @@ mod project_review_selection;
 mod project_scoped_persistence;
 mod public_resources;
 mod project_source_observation;
+mod project_knowledge_bridge;
 mod project_source_review_async;
 mod project_source_review_bridge;
 mod updater;
@@ -281,6 +282,8 @@ pub fn run() {
             operator_live_notice::operator_live_notice_list,
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
+            project_knowledge_bridge::project_knowledge_snapshot,
+            project_knowledge_bridge::prepare_project_knowledge_proposal,
             project_source_review_bridge::project_source_review_presentation,
             project_source_review_async::refresh_project_source_review_presentation_nonblocking,
             project_review_selection::inventory_project_source_review_paths,
