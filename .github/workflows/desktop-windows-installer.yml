@@ -327,7 +327,9 @@ jobs:
           Stop-Process -Id $process.Id -Force
           $process.WaitForExit()
 
-          $staleNode = Start-Process -FilePath $node -ArgumentList @("-e", "setInterval(() => {}, 1000)") -PassThru
+          $staleFixture = Join-Path $env:RUNNER_TEMP "livariant-stale-node-fixture.js"
+          Set-Content -LiteralPath $staleFixture -Value "setInterval(() => {}, 1000);" -Encoding utf8
+          $staleNode = Start-Process -FilePath $node -ArgumentList @($staleFixture) -PassThru
           Start-Sleep -Seconds 1
           $staleNode.Refresh()
           if ($staleNode.HasExited) {
