@@ -89,7 +89,7 @@ test("canonical reads are blocked until protected integrity and initial acceptan
   assert.match(core, /confirmedDigest !== before\.integrity\.digest/);
   assert.match(core, /establishProtectedProjectBrainIntegrityState/);
   assert.match(bridge, /accept_project_knowledge_integrity/);
-  assert.match(main, /Protect current Project Brain/);
+  assert.match(main, /Protect the current Project Brain/);
   assert.match(main, /acceptProjectKnowledgeIntegrity\(digest\)/);
   assert.doesNotMatch(main, /projectKnowledgeProtection\.protectedSource/);
 });
