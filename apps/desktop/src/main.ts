@@ -133,6 +133,9 @@ let selectedSourceAreaId: string | null = null;
 let sourceMode: SourceMode = "rendered";
 let notice: Notice | null = null;
 let projectKnowledgeLoading = false;
+let projectKnowledgeLoadedOnce = false;
+let projectKnowledgeLastRefreshAt = 0;
+let projectKnowledgeRefreshInFlight: Promise<void> | null = null;
 let projectKnowledgeApplying = false;
 let projectKnowledgeProtection: ProjectKnowledgeProtectionStatus | null = null;
 let projectKnowledgeError: string | null = null;
@@ -172,26 +175,37 @@ const clearProjectKnowledgeSnapshot = () => {
   }
 };
 
-const refreshProjectKnowledge = async (renderAfter = true) => {
+const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
+  if (projectKnowledgeRefreshInFlight) return projectKnowledgeRefreshInFlight;
+
   projectKnowledgeLoading = true;
   projectKnowledgeError = null;
   if (renderAfter && currentView === "steps") render();
-  try {
-    const protection = await loadProjectKnowledgeProtectionStatus();
-    projectKnowledgeProtection = protection;
-    if (!protection.canonicalReadReady) {
+
+  const refresh = (async () => {
+    try {
+      const protection = await loadProjectKnowledgeProtectionStatus();
+      projectKnowledgeProtection = protection;
+      if (!protection.canonicalReadReady) {
+        clearProjectKnowledgeSnapshot();
+        return;
+      }
+      const snapshot = await loadProjectKnowledge();
+      applyProjectKnowledgeSnapshot(snapshot);
+    } catch (error) {
       clearProjectKnowledgeSnapshot();
-      return;
+      projectKnowledgeError = error instanceof Error ? error.message : String(error);
+    } finally {
+      projectKnowledgeLoadedOnce = true;
+      projectKnowledgeLastRefreshAt = Date.now();
+      projectKnowledgeLoading = false;
+      projectKnowledgeRefreshInFlight = null;
+      if (renderAfter && currentView === "steps") render();
     }
-    const snapshot = await loadProjectKnowledge();
-    applyProjectKnowledgeSnapshot(snapshot);
-  } catch (error) {
-    clearProjectKnowledgeSnapshot();
-    projectKnowledgeError = error instanceof Error ? error.message : String(error);
-  } finally {
-    projectKnowledgeLoading = false;
-    if (renderAfter && currentView === "steps") render();
-  }
+  })();
+
+  projectKnowledgeRefreshInFlight = refresh;
+  return refresh;
 };
 
 
@@ -414,35 +428,132 @@ const renderTruthSourceModal = () => {
     </div>`;
 };
 
+const projectBrainSetupShell = (input: {
+  step: string;
+  title: string;
+  description: string;
+  icon: string;
+  detail?: string;
+  content?: string;
+  primary?: string;
+  secondary?: string;
+}) => `<section class="project-brain-setup-card">
+    <div class="project-brain-setup-icon" aria-hidden="true">${input.icon}</div>
+    <div class="project-brain-setup-main">
+      <div class="project-brain-setup-heading">
+        <span class="project-brain-setup-step">${escapeHtml(input.step)}</span>
+        <h3>${escapeHtml(input.title)}</h3>
+        <p>${escapeHtml(input.description)}</p>
+      </div>
+      ${input.detail ? `<div class="project-brain-setup-note"><span>✓</span><p>${escapeHtml(input.detail)}</p></div>` : ""}
+      ${input.content ?? ""}
+    </div>
+    <div class="project-brain-setup-actions">
+      ${input.primary ?? ""}
+      ${input.secondary ?? ""}
+    </div>
+  </section>`;
+
 const renderProjectKnowledgeProtection = () => {
   const protection = projectKnowledgeProtection;
   if (!protection || protection.state === "ready") return "";
 
+  const refresh = `<button class="text-button project-brain-setup-refresh" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button>`;
+
   if (protection.state === "protected-source-required") {
-    return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>🛡</span><p><strong>${uiText("Prepare protected Project Brain support", "Geschützten Project-Brain-Support vorbereiten")}</strong> ${uiText("Livariant is installed, but the release-bound protected source has not been established yet. This is a separate one-time UAC step and does not change project files or issue mutation Authority.", "Livariant ist installiert, aber die release-gebundene geschützte Quelle wurde noch nicht eingerichtet. Das ist ein separater einmaliger UAC-Schritt und ändert weder Projektdateien noch erteilt er Mutation Authority.")}</p><button class="button secondary" type="button" data-project-knowledge-stage-a-setup>${uiText("Prepare protected source", "Geschützte Quelle vorbereiten")}</button><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
+    return projectBrainSetupShell({
+      step: uiText("One-time setup · Step 1", "Einmalige Einrichtung · Schritt 1"),
+      title: uiText("Prepare protected Project Brain support", "Geschützten Project-Brain-Support vorbereiten"),
+      description: uiText(
+        "Livariant needs a release-bound protected source before it can safely manage canonical project knowledge.",
+        "Livariant benötigt eine release-gebundene geschützte Quelle, bevor kanonisches Projektwissen sicher verwaltet werden kann.",
+      ),
+      icon: "🛡",
+      detail: uiText(
+        "This UAC step does not change project files and does not issue mutation Authority.",
+        "Dieser UAC-Schritt ändert keine Projektdateien und erteilt keine Mutation Authority.",
+      ),
+      primary: `<button class="button primary" type="button" data-project-knowledge-stage-a-setup>${uiText("Prepare protected source", "Geschützte Quelle vorbereiten")}</button>`,
+      secondary: refresh,
+    });
   }
 
   if (protection.state === "guardian-bootstrap-required") {
-    return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>🛡</span><p><strong>${uiText("Protected Project Brain setup required", "Geschütztes Project-Brain-Setup erforderlich")}</strong> ${uiText("Stage A is installed. Complete the one-time Guardian bootstrap before Livariant reads or changes canonical Project Knowledge.", "Stage A ist installiert. Schließe den einmaligen Guardian-Bootstrap ab, bevor Livariant kanonisches Projektwissen liest oder ändert.")}</p><button class="button secondary" type="button" data-project-knowledge-protection-setup>${uiText("Set up protection", "Schutz einrichten")}</button><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
+    return projectBrainSetupShell({
+      step: uiText("One-time setup · Step 2", "Einmalige Einrichtung · Schritt 2"),
+      title: uiText("Activate Guardian protection", "Guardian-Schutz aktivieren"),
+      description: uiText(
+        "The protected source is ready. Complete the Guardian bootstrap before Livariant reads or changes canonical Project Knowledge.",
+        "Die geschützte Quelle ist bereit. Schließe den Guardian-Bootstrap ab, bevor Livariant kanonisches Projektwissen liest oder ändert.",
+      ),
+      icon: "◆",
+      primary: `<button class="button primary" type="button" data-project-knowledge-protection-setup>${uiText("Set up Guardian", "Guardian einrichten")}</button>`,
+      secondary: refresh,
+    });
   }
 
   if (protection.state === "project-brain-initialization-required" && protection.initialization?.materialSha256) {
-    const files = protection.initialization.filesToCreate.map((file) => `<li><code>${escapeHtml(file)}</code></li>`).join("");
-    return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>＋</span><div><p><strong>${uiText("Create this project's Project Brain", "Project Brain für dieses Projekt anlegen")}</strong> ${uiText("This project does not have a Project Brain yet. Livariant can create only the dedicated .project-brain files shown below; existing project files remain untouched.", "Dieses Projekt besitzt noch keinen Project Brain. Livariant kann ausschließlich die unten gezeigten .project-brain-Dateien anlegen; bestehende Projektdateien bleiben unverändert.")}</p><ul>${files}</ul><small>${uiText("Exact lifecycle material", "Exaktes Lifecycle-Material")}: <code>${escapeHtml(protection.initialization.materialSha256)}</code></small></div>${protection.initialization.authorized
-      ? `<button class="button primary" type="button" data-project-knowledge-initialization-apply>${uiText("Create Project Brain", "Project Brain anlegen")}</button>`
-      : `<button class="button secondary" type="button" data-project-knowledge-initialization-authorize>${uiText("Authorize creation", "Anlegen autorisieren")}</button>`}<button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
+    const files = protection.initialization.filesToCreate
+      .map((file) => `<span class="project-brain-file-chip">${escapeHtml(file.replace(/^\.project-brain\//, ""))}</span>`)
+      .join("");
+    const technical = `<details class="project-brain-setup-technical"><summary>${uiText("Technical details", "Technische Details")}</summary><div><span>${uiText("Files to create", "Dateien, die angelegt werden")}</span><div class="project-brain-file-grid">${files}</div><span>${uiText("Lifecycle digest", "Lifecycle-Digest")}</span><code>${escapeHtml(protection.initialization.materialSha256)}</code></div></details>`;
+    return projectBrainSetupShell({
+      step: uiText("Project setup · Project Brain", "Projekteinrichtung · Project Brain"),
+      title: uiText("Create the Project Brain for this project", "Project Brain für dieses Projekt anlegen"),
+      description: uiText(
+        "This project does not have a Project Brain yet. Livariant can create the dedicated knowledge store now.",
+        "Dieses Projekt besitzt noch keinen Project Brain. Livariant kann den dafür vorgesehenen Wissensspeicher jetzt anlegen.",
+      ),
+      icon: "＋",
+      detail: uiText(
+        "Only dedicated .project-brain files are created. Existing project files remain unchanged.",
+        "Es werden ausschließlich eigene .project-brain-Dateien angelegt. Bestehende Projektdateien bleiben unverändert.",
+      ),
+      content: technical,
+      primary: protection.initialization.authorized
+        ? `<button class="button primary" type="button" data-project-knowledge-initialization-apply>${uiText("Create Project Brain", "Project Brain anlegen")}</button>`
+        : `<button class="button primary" type="button" data-project-knowledge-initialization-authorize>${uiText("Authorize creation", "Anlegen autorisieren")}</button>`,
+      secondary: refresh,
+    });
   }
 
   if (protection.state === "integrity-acceptance-required" && protection.integrity.digest) {
-    return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>🛡</span><p><strong>${uiText("Confirm the current Project Brain", "Aktuellen Project Brain bestätigen")}</strong> ${uiText("Guardian is ready, but the exact current managed Project Brain state has not yet been accepted as canonical. Review the project state, then explicitly protect this exact digest.", "Guardian ist bereit, aber der exakte aktuelle verwaltete Project-Brain-Stand wurde noch nicht als kanonisch bestätigt. Prüfe den Projektstand und schütze anschließend ausdrücklich genau diesen Digest.")}</p><code>${escapeHtml(protection.integrity.digest)}</code><button class="button secondary" type="button" data-project-knowledge-integrity-accept>${uiText("Protect current Project Brain", "Aktuellen Project Brain schützen")}</button><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
+    const technical = `<details class="project-brain-setup-technical"><summary>${uiText("Technical details", "Technische Details")}</summary><div><span>${uiText("Managed-state digest", "Digest des verwalteten Stands")}</span><code>${escapeHtml(protection.integrity.digest)}</code></div></details>`;
+    return projectBrainSetupShell({
+      step: uiText("One-time setup · Final step", "Einmalige Einrichtung · Letzter Schritt"),
+      title: uiText("Protect the current Project Brain", "Aktuellen Project Brain schützen"),
+      description: uiText(
+        "Guardian is ready. Confirm the exact current managed state before Livariant treats it as canonical.",
+        "Guardian ist bereit. Bestätige den exakten aktuellen verwalteten Stand, bevor Livariant ihn als kanonisch behandelt.",
+      ),
+      icon: "✓",
+      content: technical,
+      primary: `<button class="button primary" type="button" data-project-knowledge-integrity-accept>${uiText("Protect current state", "Aktuellen Stand schützen")}</button>`,
+      secondary: refresh,
+    });
   }
 
   if (protection.state === "integrity-recovery-required") {
-    return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>!</span><p><strong>${uiText("Project Brain integrity needs recovery", "Project-Brain-Integrität muss wiederhergestellt werden")}</strong> ${escapeHtml(protection.integrity.reason ?? uiText("The current managed Project Brain state cannot be safely accepted from this screen.", "Der aktuelle verwaltete Project-Brain-Stand kann in dieser Ansicht nicht sicher bestätigt werden."))}</p><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
+    return projectBrainSetupShell({
+      step: uiText("Protection needs attention", "Schutz benötigt Aufmerksamkeit"),
+      title: uiText("Project Brain integrity needs recovery", "Project-Brain-Integrität muss wiederhergestellt werden"),
+      description: protection.integrity.reason ?? uiText(
+        "The current managed Project Brain state cannot be safely accepted from this screen.",
+        "Der aktuelle verwaltete Project-Brain-Stand kann in dieser Ansicht nicht sicher bestätigt werden.",
+      ),
+      icon: "!",
+      secondary: refresh,
+    });
   }
 
   const reason = protection.guardian.protectedSource.reason || protection.guardian.guardian.reason;
-  return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>!</span><p><strong>${uiText("Protected Project Brain is not ready", "Geschützter Project Brain ist nicht bereit")}</strong> ${escapeHtml(reason)}</p><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
+  return projectBrainSetupShell({
+    step: uiText("Protection not ready", "Schutz nicht bereit"),
+    title: uiText("Protected Project Brain is not ready", "Geschützter Project Brain ist nicht bereit"),
+    description: reason,
+    icon: "!",
+    secondary: refresh,
+  });
 };
 
 const renderProjectTruthView = () => {
@@ -456,10 +567,10 @@ const renderProjectTruthView = () => {
 
       <section class="truth-control-band">
         <div class="truth-control-status">
-          <div><small>${uiText("Confirmed", "Bestätigt")}</small><strong>${confirmed}</strong></div>
-          <div><small>${uiText("Review", "Prüfung")}</small><strong>${needsReview}</strong></div>
-          <div><small>${uiText("Gaps", "Lücken")}</small><strong>${openQuestions}</strong></div>
-          <div class="${conflicts > 0 ? "has-conflict" : ""}"><small>${uiText("Conflicts", "Konflikte")}</small><strong>${conflicts}</strong></div>
+          <div><small>${uiText("Confirmed", "Bestätigt")}</small><strong>${projectKnowledgeLoading && !projectKnowledgeLoadedOnce ? "—" : confirmed}</strong></div>
+          <div><small>${uiText("Review", "Prüfung")}</small><strong>${projectKnowledgeLoading && !projectKnowledgeLoadedOnce ? "—" : needsReview}</strong></div>
+          <div><small>${uiText("Gaps", "Lücken")}</small><strong>${projectKnowledgeLoading && !projectKnowledgeLoadedOnce ? "—" : openQuestions}</strong></div>
+          <div class="${conflicts > 0 ? "has-conflict" : ""}"><small>${uiText("Conflicts", "Konflikte")}</small><strong>${projectKnowledgeLoading && !projectKnowledgeLoadedOnce ? "—" : conflicts}</strong></div>
         </div>
         <label class="truth-search" aria-label="${uiText("Search Project Brain", "Project Brain durchsuchen")}"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><input type="search" value="${escapeHtml(truthSearch)}" placeholder="${uiText("Search project knowledge…", "Projektwissen durchsuchen…")}" data-truth-search /></label>
       </section>
@@ -696,10 +807,17 @@ const activateView = async (view: View) => {
   // Diagnostics is enhanced by diagnostics-cockpit.ts, which owns its own qualified summary load.
   // A second connector/diagnostics refresh here used to trigger another full app render and remount
   // the cockpit, producing the visible double reload/twitch reported by the maintainer.
-  if (view === "connections") await refreshConnectionsSettings();
   if (view === "steps") {
-    await refreshProjectKnowledge(false);
+    // Navigation must never wait for Project Brain / Guardian process work.
+    // Paint the route immediately, then refresh canonical state in the background.
+    const stale = !projectKnowledgeLoadedOnce || Date.now() - projectKnowledgeLastRefreshAt > 15_000;
+    if (!projectKnowledgeLoadedOnce) projectKnowledgeLoading = true;
+    render();
+    if (stale) window.requestAnimationFrame(() => { void refreshProjectKnowledge(true); });
+    return;
   }
+
+  if (view === "connections") await refreshConnectionsSettings();
   render();
 };
 
@@ -1011,7 +1129,7 @@ document.addEventListener("livariant:open-project-settings", () => {
   void refreshProjectSettings().then(() => renderSettingsSectionOnly()).catch(() => renderSettingsSectionOnly());
 });
 
-onDesktopProjectActivated(async () => {
+onDesktopProjectActivated(() => {
   for (const area of areas) {
     area.confirmedValue = "";
     area.pendingValue = "";
@@ -1022,7 +1140,14 @@ onDesktopProjectActivated(async () => {
   }
   projectKnowledgeError = null;
   projectKnowledgeProtection = null;
-  if (currentView === "steps") await refreshProjectKnowledge();
+  projectKnowledgeLoadedOnce = false;
+  projectKnowledgeLastRefreshAt = 0;
+  projectKnowledgeRefreshInFlight = null;
+  if (currentView === "steps") {
+    projectKnowledgeLoading = true;
+    render();
+    window.requestAnimationFrame(() => { void refreshProjectKnowledge(true); });
+  }
 });
 
 onLanguageChange(() => {

@@ -131,3 +131,21 @@ test("Desktop installer does not block on protected Stage A", async () => {
   assert.match(main, /Prepare protected source/);
   assert.match(main, /launchProjectKnowledgeStageASetup/);
 });
+
+
+test("Project Knowledge navigation paints before canonical refresh and setup UI hides raw detail", async () => {
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+  const css = await readFile("apps/desktop/src/project-truth-workspace.css", "utf8");
+
+  const route = main.slice(main.indexOf("const activateView"), main.indexOf("const bindEvents"));
+  const renderAt = route.indexOf("render();");
+  const refreshAt = route.indexOf("refreshProjectKnowledge(true)");
+  assert.ok(renderAt >= 0 && refreshAt > renderAt, "Project Knowledge route must paint before the async canonical refresh.");
+  assert.match(main, /projectKnowledgeRefreshInFlight/);
+  assert.match(main, /projectKnowledgeLoadedOnce/);
+  assert.match(main, /project-brain-setup-card/);
+  assert.match(main, /Technical details/);
+  assert.match(main, /Only dedicated \.project-brain files are created/);
+  assert.match(css, /\.project-brain-setup-card\{/);
+  assert.match(css, /\.project-brain-file-chip\{/);
+});
