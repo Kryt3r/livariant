@@ -109,7 +109,7 @@ test("Desktop Project Brain initialization preserves protected lifecycle phases"
   assert.match(rust, /apply_project_knowledge_initialization/);
   assert.match(main, /Authorize creation/);
   assert.match(main, /Create Project Brain/);
-  assert.match(main, /existing project files remain untouched/i);
+  assert.match(main, /Existing project files remain unchanged/i);
 });
 
 
