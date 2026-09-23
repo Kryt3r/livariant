@@ -40,7 +40,7 @@ try {
   }
 
   $root = Join-Path $env:RUNNER_TEMP 'LivariantMultiProjectInstalledAcceptance'
-  $installDir = Join-Path $env:ProgramFiles 'Livariant\Desktop'
+  $installDir = Join-Path $env:ProgramFiles 'Livariant'
   $appData = Join-Path $root 'appdata'
   $localAppData = Join-Path $root 'localappdata'
   $projectA = Join-Path $root 'project-a'

@@ -144,7 +144,7 @@ try {
   );
   await writeFile(
     resolve(staging, "guardian-bootstrap-desktop.ps1"),
-    "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\Livariant\\Desktop\\livariant-node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Livariant Desktop Node runtime is missing. Repair or reinstall Livariant before Guardian bootstrap.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n",
+    "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\Livariant\\livariant-node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Livariant Desktop Node runtime is missing. Repair or reinstall Livariant before Guardian bootstrap.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-bootstrap-entry.mjs')\nexit $LASTEXITCODE\n",
   );
   await writeFile(
     resolve(staging, "guardian-recover.ps1"),
@@ -194,8 +194,8 @@ try {
   const renderedWindows = renderTemplate(windowsTemplate, templateValues);
   await writeFile(resolve(output, windowsName), renderedWindows);
   const desktopWindows = renderedWindows
-    .replace("$ProtectedNode = 'C:\\Program Files\\nodejs\\node.exe'", "$ProtectedNode = 'C:\\Program Files\\Livariant\\Desktop\\livariant-node.exe'")
-    .replace("$ProtectedNodeParent = 'C:\\Program Files\\nodejs'", "$ProtectedNodeParent = 'C:\\Program Files\\Livariant\\Desktop'")
+    .replace("$ProtectedNode = 'C:\\Program Files\\nodejs\\node.exe'", "$ProtectedNode = 'C:\\Program Files\\Livariant\\livariant-node.exe'")
+    .replace("$ProtectedNodeParent = 'C:\\Program Files\\nodejs'", "$ProtectedNodeParent = 'C:\\Program Files\\Livariant'")
     .replace("$LivariantProgramFiles = 'C:\\Program Files\\Livariant'", "$LivariantProgramFiles = 'C:\\Program Files\\Livariant\\Bootstrap'");
   if (desktopWindows === renderedWindows) throw new Error("Desktop Stage-A protected Node specialization did not change the generated Windows installer.");
   await writeFile(resolve(output, desktopWindowsName), desktopWindows);

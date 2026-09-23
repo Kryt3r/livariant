@@ -188,7 +188,7 @@ pub async fn project_knowledge_protection_status(
 
 #[cfg(target_os = "windows")]
 fn fixed_desktop_install_root() -> PathBuf {
-    PathBuf::from(r"C:\Program Files\Livariant\Desktop")
+    PathBuf::from(r"C:\Program Files\Livariant")
 }
 
 #[cfg(not(target_os = "windows"))]

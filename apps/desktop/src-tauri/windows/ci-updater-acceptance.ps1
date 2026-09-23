@@ -40,7 +40,7 @@ try {
 
   $root = Join-Path $env:RUNNER_TEMP 'LivariantUpdaterAcceptance'
   $feedDir = Join-Path $root 'feed'
-  $installDir = Join-Path $env:ProgramFiles 'Livariant\Desktop'
+  $installDir = Join-Path $env:ProgramFiles 'Livariant'
   $resultPath = Join-Path $root 'result.json'
   $privateKeyPath = Join-Path $root 'ci-updater.key'
   $publicKeyPath = "$privateKeyPath.pub"

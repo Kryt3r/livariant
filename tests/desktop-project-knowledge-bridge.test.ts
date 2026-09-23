@@ -62,10 +62,10 @@ test("Desktop protected Project Knowledge setup is fixed-path, per-machine and n
   const workflow = await readFile(".github/workflows/desktop-windows-installer.yml", "utf8");
 
   assert.match(builder, /guardian-bootstrap-desktop\.ps1/);
-  assert.match(builder, /C:\\\\Program Files\\\\Livariant\\\\Desktop\\\\livariant-node\.exe/);
+  assert.match(builder, /C:\\\\Program Files\\\\Livariant\\\\livariant-node\.exe/);
   assert.match(builder, /desktop-stage-a\.ps1/);
   assert.match(config, /"installMode": "perMachine"/);
-  assert.match(hook, /StrCpy \$INSTDIR "\$PROGRAMFILES64\\Livariant\\Desktop"/);
+  assert.doesNotMatch(hook, /StrCpy \$INSTDIR/);
   assert.doesNotMatch(hook, /desktop-stage-a\.ps1/);
   assert.match(hook, /Stage A[\s\S]*NOT executed inside NSIS/);
   assert.match(workflow, /protected-bootstrap-assets/);
@@ -127,7 +127,7 @@ test("Desktop installer does not block on protected Stage A", async () => {
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
 
   assert.doesNotMatch(hook, /nsExec::ExecToStack[\s\S]*desktop-stage-a\.ps1/);
-  assert.match(builder, /Livariant\\\\Bootstrap'\)\;/);
+  assert.ok(builder.includes("$LivariantProgramFiles = 'C:\\\\Program Files\\\\Livariant\\\\Bootstrap'"));
   assert.match(main, /Prepare protected source/);
   assert.match(main, /launchProjectKnowledgeStageASetup/);
 });

@@ -221,7 +221,7 @@ jobs:
         shell: pwsh
         run: |
           $installer = "${{ steps.installer.outputs.path }}"
-          $installDir = Join-Path $env:ProgramFiles "Livariant\Desktop"
+          $installDir = Join-Path $env:ProgramFiles "Livariant"
 
           if (Test-Path -LiteralPath $installDir) {
             Remove-Item -LiteralPath $installDir -Recurse -Force
