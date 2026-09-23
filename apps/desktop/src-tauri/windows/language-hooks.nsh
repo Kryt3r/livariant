@@ -33,22 +33,12 @@
     ${EndIf}
   ${EndIf}
 
-  ; The Desktop installer is also the release-bound Stage-A carrier. Stage A is
-  ; allowed only from the fixed per-machine installation root.
+  ; Keep the installed Desktop at the fixed per-machine root. Protected Stage A
+  ; is intentionally NOT executed inside NSIS: it is a separate explicit UAC flow
+  ; started by Project Knowledge after installation so installer completion remains bounded.
   StrCmp "$INSTDIR" "$PROGRAMFILES64\Livariant\Desktop" stage_a_root_ok 0
-    MessageBox MB_ICONSTOP "Livariant protected setup requires the fixed per-machine path $PROGRAMFILES64\Livariant\Desktop."
-    Abort "Unsafe Livariant installation root for protected setup."
+    MessageBox MB_ICONSTOP "Livariant requires the fixed per-machine path $PROGRAMFILES64\Livariant\Desktop."
+    Abort "Unsafe Livariant installation root."
   stage_a_root_ok:
-
-  ; Existing protected bootstrap state is never silently replaced by normal app
-  ; install/update. Fresh machines get exact bundled Stage-A material once.
-  IfFileExists "C:\Program Files\Livariant\Bootstrap\v1\bootstrap-release.json" stage_a_done 0
-    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\protected-bootstrap-assets\desktop-stage-a.ps1"'
-    Pop $1
-    Pop $2
-    StrCmp $1 "0" stage_a_done 0
-      MessageBox MB_ICONSTOP "Livariant protected Stage-A setup failed.$\r$\n$\r$\n$2"
-      Abort "Protected Stage-A setup failed."
-  stage_a_done:
 
 !macroend

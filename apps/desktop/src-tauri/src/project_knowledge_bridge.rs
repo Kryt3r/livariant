@@ -10,6 +10,14 @@ use tauri::{Manager, State};
 #[serde(rename_all = "camelCase")]
 struct RuntimeManifest {
     authority_issued: bool,
+    core_source_sha: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProtectedBootstrapAssets {
+    source_sha: String,
+    authority_issued: bool,
 }
 
 fn bundled_node_path(install_root: &Path) -> std::path::PathBuf {
@@ -176,6 +184,95 @@ pub async fn project_knowledge_protection_status(
         return Err("Active Desktop project changed while protection readiness was inspected; stale result rejected.".to_owned());
     }
     Ok(result)
+}
+
+#[cfg(target_os = "windows")]
+fn fixed_desktop_install_root() -> PathBuf {
+    PathBuf::from(r"C:\Program Files\Livariant\Desktop")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn fixed_desktop_install_root() -> PathBuf {
+    PathBuf::from("/opt/livariant/desktop")
+}
+
+#[tauri::command]
+pub async fn launch_project_knowledge_stage_a_setup(
+    app: tauri::AppHandle,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<ProjectKnowledgeProtectionLaunchResult, String> {
+    let scope = active_project_scope(&app, registry.inner())?;
+    let protection = {
+        let state = app.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app, state.inner(), json!({ "method": "protection" }))?
+    };
+    if protection.get("state").and_then(Value::as_str) != Some("protected-source-required") {
+        return Err("Protected Stage A may launch only when the protected source is the next required readiness step.".to_owned());
+    }
+
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
+    let install_root = executable.parent().ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?.to_path_buf();
+    if install_root != fixed_desktop_install_root() {
+        return Err("Protected Stage A may launch only from the fixed per-machine Livariant Desktop installation root.".to_owned());
+    }
+
+    let runtime_manifest_path = install_root.join("runtime").join("manifest.json");
+    let assets_root = install_root.join("runtime").join("protected-bootstrap-assets");
+    let assets_manifest_path = assets_root.join("protected-bootstrap-assets.json");
+    let stage_a = assets_root.join("desktop-stage-a.ps1");
+    if !runtime_manifest_path.is_file() || !assets_manifest_path.is_file() || !stage_a.is_file() {
+        return Err("Exact protected Stage-A material is missing from this Desktop installation. Repair or reinstall Livariant.".to_owned());
+    }
+    let runtime_manifest: RuntimeManifest = serde_json::from_slice(
+        &std::fs::read(&runtime_manifest_path).map_err(|error| format!("Desktop runtime manifest could not be read: {error}"))?
+    ).map_err(|error| format!("Desktop runtime manifest is invalid: {error}"))?;
+    let assets: ProtectedBootstrapAssets = serde_json::from_slice(
+        &std::fs::read(&assets_manifest_path).map_err(|error| format!("Protected bootstrap assets manifest could not be read: {error}"))?
+    ).map_err(|error| format!("Protected bootstrap assets manifest is invalid: {error}"))?;
+    if runtime_manifest.authority_issued || assets.authority_issued || runtime_manifest.core_source_sha != assets.source_sha {
+        return Err("Protected Stage-A material does not match the exact ordinary Desktop runtime identity or incorrectly claims Authority.".to_owned());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let powershell = PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
+        let escaped_stage_a = stage_a.display().to_string().replace('\'', "''");
+        let escaped_powershell = powershell.display().to_string().replace('\'', "''");
+        let script = format!(
+            "$p=Start-Process -FilePath '{}' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File','{}') -Verb RunAs -PassThru; exit 0",
+            escaped_powershell,
+            escaped_stage_a
+        );
+        hidden_command(&powershell)
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .spawn()
+            .map_err(|error| format!("Protected Stage-A setup window could not be started: {error}"))?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Desktop protected Stage-A setup launcher is currently implemented for Windows only.".to_owned());
+    }
+
+    let current = active_project_scope(&app, registry.inner())?;
+    if current.generation != scope.generation || current.desktop_project_id != scope.desktop_project_id {
+        return Err("Active Desktop project changed while protected Stage A was launched; stale result rejected.".to_owned());
+    }
+
+    Ok(ProjectKnowledgeProtectionLaunchResult {
+        state: "launched",
+        detail: "A protected Stage-A setup window was opened from the exact fixed Livariant Desktop installation. Complete UAC and Stage A there, then check protection readiness again.".to_owned(),
+        boundaries: json!({
+            "rendererSuppliesExecutable": false,
+            "rendererSuppliesPath": false,
+            "fixedPerMachineInstall": true,
+            "exactSourceIdentityRequired": true,
+            "uacRequired": true,
+            "authorityIssued": false,
+            "projectFilesChanged": false
+        }),
+    })
 }
 
 #[cfg(target_os = "windows")]

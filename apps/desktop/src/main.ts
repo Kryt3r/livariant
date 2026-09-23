@@ -27,6 +27,7 @@ import {
   applyProjectKnowledgeProposal,
   authorizeProjectKnowledgeInitialization,
   launchProjectKnowledgeProtectionSetup,
+  launchProjectKnowledgeStageASetup,
   loadProjectKnowledge,
   loadProjectKnowledgeProtectionStatus,
   prepareProjectKnowledgeProposal,
@@ -416,6 +417,10 @@ const renderTruthSourceModal = () => {
 const renderProjectKnowledgeProtection = () => {
   const protection = projectKnowledgeProtection;
   if (!protection || protection.state === "ready") return "";
+
+  if (protection.state === "protected-source-required") {
+    return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>🛡</span><p><strong>${uiText("Prepare protected Project Brain support", "Geschützten Project-Brain-Support vorbereiten")}</strong> ${uiText("Livariant is installed, but the release-bound protected source has not been established yet. This is a separate one-time UAC step and does not change project files or issue mutation Authority.", "Livariant ist installiert, aber die release-gebundene geschützte Quelle wurde noch nicht eingerichtet. Das ist ein separater einmaliger UAC-Schritt und ändert weder Projektdateien noch erteilt er Mutation Authority.")}</p><button class="button secondary" type="button" data-project-knowledge-stage-a-setup>${uiText("Prepare protected source", "Geschützte Quelle vorbereiten")}</button><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
+  }
 
   if (protection.state === "guardian-bootstrap-required") {
     return `<div class="truth-boundary-card truth-boundary-card-redesign truth-protection-card"><span>🛡</span><p><strong>${uiText("Protected Project Brain setup required", "Geschütztes Project-Brain-Setup erforderlich")}</strong> ${uiText("Stage A is installed. Complete the one-time Guardian bootstrap before Livariant reads or changes canonical Project Knowledge.", "Stage A ist installiert. Schließe den einmaligen Guardian-Bootstrap ab, bevor Livariant kanonisches Projektwissen liest oder ändert.")}</p><button class="button secondary" type="button" data-project-knowledge-protection-setup>${uiText("Set up protection", "Schutz einrichten")}</button><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>`;
@@ -875,6 +880,16 @@ const bindEvents = () => {
     area.state = area.confirmedValue ? "confirmed" : "open";
     selectedReviewAreaId = null;
     notice = { kind: "info", title: "Evidence rejected", detail: `${area.title} was not changed.` };
+    render();
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-stage-a-setup]")?.addEventListener("click", async () => {
+    try {
+      const launched = await launchProjectKnowledgeStageASetup();
+      notice = { kind: "info", title: uiText("Protected Stage A opened", "Geschützte Stage A geöffnet"), detail: launched.detail };
+    } catch (error) {
+      notice = { kind: "error", title: uiText("Protected Stage A could not start", "Geschützte Stage A konnte nicht gestartet werden"), detail: error instanceof Error ? error.message : String(error) };
+    }
     render();
   });
 

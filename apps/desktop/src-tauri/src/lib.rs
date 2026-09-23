@@ -294,6 +294,7 @@ pub fn run() {
             project_knowledge_bridge::prepare_project_knowledge_proposal,
             project_knowledge_bridge::apply_project_knowledge_proposal,
             project_knowledge_bridge::project_knowledge_protection_status,
+            project_knowledge_bridge::launch_project_knowledge_stage_a_setup,
             project_knowledge_bridge::launch_project_knowledge_protection_setup,
             project_knowledge_bridge::accept_project_knowledge_integrity,
             project_knowledge_bridge::authorize_project_knowledge_initialization,

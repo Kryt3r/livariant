@@ -195,7 +195,8 @@ try {
   await writeFile(resolve(output, windowsName), renderedWindows);
   const desktopWindows = renderedWindows
     .replace("$ProtectedNode = 'C:\\Program Files\\nodejs\\node.exe'", "$ProtectedNode = 'C:\\Program Files\\Livariant\\Desktop\\livariant-node.exe'")
-    .replace("$ProtectedNodeParent = 'C:\\Program Files\\nodejs'", "$ProtectedNodeParent = 'C:\\Program Files\\Livariant\\Desktop'");
+    .replace("$ProtectedNodeParent = 'C:\\Program Files\\nodejs'", "$ProtectedNodeParent = 'C:\\Program Files\\Livariant\\Desktop'")
+    .replace("$LivariantProgramFiles = 'C:\\Program Files\\Livariant'", "$LivariantProgramFiles = 'C:\\Program Files\\Livariant\\Bootstrap'");
   if (desktopWindows === renderedWindows) throw new Error("Desktop Stage-A protected Node specialization did not change the generated Windows installer.");
   await writeFile(resolve(output, desktopWindowsName), desktopWindows);
   await writeFile(resolve(output, linuxName), renderTemplate(linuxTemplate, templateValues));

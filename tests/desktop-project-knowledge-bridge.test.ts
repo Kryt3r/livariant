@@ -66,9 +66,12 @@ test("Desktop protected Project Knowledge setup is fixed-path, per-machine and n
   assert.match(builder, /desktop-stage-a\.ps1/);
   assert.match(config, /"installMode": "perMachine"/);
   assert.match(hook, /StrCpy \$INSTDIR "\$PROGRAMFILES64\\Livariant\\Desktop"/);
-  assert.match(hook, /C:\\Program Files\\Livariant\\Bootstrap\\v1\\bootstrap-release\.json/);
-  assert.match(hook, /Existing protected bootstrap state is never silently replaced/);
+  assert.doesNotMatch(hook, /desktop-stage-a\.ps1/);
+  assert.match(hook, /Stage A[\s\S]*NOT executed inside NSIS/);
   assert.match(workflow, /protected-bootstrap-assets/);
+  assert.match(rust, /launch_project_knowledge_stage_a_setup/);
+  assert.match(rust, /protected-source-required/);
+  assert.match(rust, /runtime_manifest\.core_source_sha != assets\.source_sha/);
   assert.match(rust, /guardian-bootstrap-desktop\.ps1/);
   assert.match(rust, /guardian-bootstrap-required/);
   assert.match(rust, /rendererSuppliesExecutable": false/);
@@ -115,4 +118,16 @@ test("Rust bridge keeps PowerShell quoting syntactically valid", async () => {
   assert.match(rust, /escaped_launcher = launcher\.display\(\)\.to_string\(\)\.replace/);
   assert.match(rust, /escaped_powershell = powershell\.display\(\)\.to_string\(\)\.replace/);
   assert.doesNotMatch(rust, /replace\(''', "''"\)/);
+});
+
+
+test("Desktop installer does not block on protected Stage A", async () => {
+  const hook = await readFile("apps/desktop/src-tauri/windows/language-hooks.nsh", "utf8");
+  const builder = await readFile("scripts/build-protected-bootstrap-assets.mjs", "utf8");
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+
+  assert.doesNotMatch(hook, /nsExec::ExecToStack[\s\S]*desktop-stage-a\.ps1/);
+  assert.match(builder, /Livariant\\\\Bootstrap'\)\;/);
+  assert.match(main, /Prepare protected source/);
+  assert.match(main, /launchProjectKnowledgeStageASetup/);
 });
