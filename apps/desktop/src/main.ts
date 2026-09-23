@@ -1030,7 +1030,7 @@ const bindEvents = () => {
     projectKnowledgeLoading = true;
     render();
     try {
-      projectKnowledgeProtection = await authorizeProjectKnowledgeInitialization(material);
+      projectKnowledgeProtection = await authorizeProjectKnowledgeInitialization(material, getLanguage());
       notice = {
         kind: "success",
         title: uiText("Project Brain creation authorized", "Project-Brain-Anlegen autorisiert"),

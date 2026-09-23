@@ -62,6 +62,52 @@ export interface ProtectedGuardianAuthorityRecord {
   consumedAt?: string;
 }
 
+export interface WindowsLifecycleAuthorizationDialogModel {
+  language: "de" | "en";
+  projectName: string;
+  projectRoot: string;
+  filesToCreate: string[];
+  materialSha256: string;
+  authority: "lifecycle-mutation";
+}
+
+function requestField(request: ProtectedGuardianRequest, label: string): string {
+  const matches = request.materialFields.filter((field) => field.label === label);
+  if (matches.length !== 1) throw new Error(`Guardian native lifecycle review requires exactly one '${label}' field.`);
+  return matches[0].value;
+}
+
+function parseStringArrayField(request: ProtectedGuardianRequest, label: string): string[] {
+  let parsed: unknown;
+  try { parsed = JSON.parse(requestField(request, label)) as unknown; }
+  catch { throw new Error(`Guardian native lifecycle review field '${label}' is not valid JSON.`); }
+  if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "string" || !value || /[\r\n\u0000]/u.test(value))) {
+    throw new Error(`Guardian native lifecycle review field '${label}' is invalid.`);
+  }
+  return parsed;
+}
+
+export function buildWindowsLifecycleAuthorizationDialogModel(
+  request: ProtectedGuardianRequest,
+  materialSha256: string,
+  language: "de" | "en",
+): WindowsLifecycleAuthorizationDialogModel {
+  if (request.consumer !== "lifecycle-mutation" || request.mode !== "one-shot") throw new Error("Guardian native Desktop confirmation is restricted to one-shot lifecycle Authority.");
+  if (requestField(request, "lifecycle-operation") !== "initialize") throw new Error("Guardian native Desktop confirmation is restricted to Project Brain initialization.");
+  const filesToCreate = parseStringArrayField(request, "files-to-create-json");
+  const projectFilesToModify = parseStringArrayField(request, "project-files-to-modify-json");
+  if (filesToCreate.length === 0) throw new Error("Guardian native Desktop confirmation requires an explicit initialization write set.");
+  if (projectFilesToModify.length !== 0) throw new Error("Guardian native Desktop confirmation refuses initialization that would modify existing project files.");
+  return {
+    language,
+    projectName: requestField(request, "display-project-name"),
+    projectRoot: requestField(request, "physical-project-root"),
+    filesToCreate,
+    materialSha256,
+    authority: "lifecycle-mutation",
+  };
+}
+
 interface WindowsInterpreterProtection {
   ownerSid: string;
   ordinaryRequesterWritable: boolean;
@@ -357,7 +403,113 @@ function displaySafe(value: string): string {
   return value.replace(/[\r\n\u0000-\u001f\u007f]/gu, " ");
 }
 
+function windowsNativeConfirmationRequested(request: ProtectedGuardianRequest): boolean {
+  return process.platform === "win32"
+    && request.consumer === "lifecycle-mutation"
+    && request.mode === "one-shot"
+    && process.env.LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION === "1";
+}
+
+function windowsNativeConfirmationLanguage(): "de" | "en" {
+  return process.env.LIVARIANT_GUARDIAN_CONFIRM_LANGUAGE === "de" ? "de" : "en";
+}
+
+function requireWindowsNativeLifecycleIssuance(request: ProtectedGuardianRequest, materialSha256: string): void {
+  const model = buildWindowsLifecycleAuthorizationDialogModel(request, materialSha256, windowsNativeConfirmationLanguage());
+  const env = { ...process.env, LIVARIANT_GUARDIAN_DIALOG_PAYLOAD: Buffer.from(JSON.stringify(model), "utf8").toString("base64") };
+  const script = [
+    "Add-Type -AssemblyName System.Windows.Forms",
+    "Add-Type -AssemblyName System.Drawing",
+    "$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:LIVARIANT_GUARDIAN_DIALOG_PAYLOAD))",
+    "$m=$json | ConvertFrom-Json",
+    "$de=$m.language -eq 'de'",
+    "$form=New-Object Windows.Forms.Form",
+    "$form.Text=if($de){'Project Brain anlegen'}else{'Create Project Brain'}",
+    "$form.StartPosition='CenterScreen'",
+    "$form.Size=New-Object Drawing.Size(660,470)",
+    "$form.MinimumSize=New-Object Drawing.Size(660,470)",
+    "$form.MaximizeBox=$false",
+    "$form.MinimizeBox=$false",
+    "$form.TopMost=$true",
+    "$title=New-Object Windows.Forms.Label",
+    "$title.Location=New-Object Drawing.Point(24,20)",
+    "$title.Size=New-Object Drawing.Size(600,34)",
+    "$title.Font=New-Object Drawing.Font('Segoe UI',15,[Drawing.FontStyle]::Bold)",
+    "$title.Text=if($de){'Project Brain für dieses Projekt anlegen?'}else{'Create a Project Brain for this project?'}",
+    "$form.Controls.Add($title)",
+    "$body=New-Object Windows.Forms.Label",
+    "$body.Location=New-Object Drawing.Point(24,64)",
+    "$body.Size=New-Object Drawing.Size(600,64)",
+    "$body.Font=New-Object Drawing.Font('Segoe UI',9)",
+    "$body.Text=(if($de){'Livariant möchte den geschützten Project Brain für dieses Projekt anlegen. Bestehende Projektdateien bleiben unverändert.'}else{'Livariant wants to create the protected Project Brain for this project. Existing project files remain unchanged.'})",
+    "$form.Controls.Add($body)",
+    "$projectLabel=New-Object Windows.Forms.Label",
+    "$projectLabel.Location=New-Object Drawing.Point(24,136)",
+    "$projectLabel.Size=New-Object Drawing.Size(600,42)",
+    "$projectLabel.Font=New-Object Drawing.Font('Segoe UI',9,[Drawing.FontStyle]::Bold)",
+    "$projectLabel.Text=((if($de){'Projekt: '}else{'Project: '}) + $m.projectName + [Environment]::NewLine + $m.projectRoot)",
+    "$form.Controls.Add($projectLabel)",
+    "$filesTitle=New-Object Windows.Forms.Label",
+    "$filesTitle.Location=New-Object Drawing.Point(24,188)",
+    "$filesTitle.Size=New-Object Drawing.Size(600,20)",
+    "$filesTitle.Text=if($de){'Diese Dateien werden neu angelegt:'}else{'These files will be created:'}",
+    "$form.Controls.Add($filesTitle)",
+    "$files=New-Object Windows.Forms.TextBox",
+    "$files.Location=New-Object Drawing.Point(24,212)",
+    "$files.Size=New-Object Drawing.Size(600,92)",
+    "$files.Multiline=$true",
+    "$files.ReadOnly=$true",
+    "$files.ScrollBars='Vertical'",
+    "$files.Text=($m.filesToCreate -join [Environment]::NewLine)",
+    "$form.Controls.Add($files)",
+    "$details=New-Object Windows.Forms.Panel",
+    "$details.Location=New-Object Drawing.Point(24,342)",
+    "$details.Size=New-Object Drawing.Size(600,96)",
+    "$details.Visible=$false",
+    "$detailText=New-Object Windows.Forms.TextBox",
+    "$detailText.Dock='Fill'",
+    "$detailText.Multiline=$true",
+    "$detailText.ReadOnly=$true",
+    "$detailText.ScrollBars='Vertical'",
+    "$detailText.Text=('Authority: lifecycle-mutation' + [Environment]::NewLine + 'Material SHA-256: ' + $m.materialSha256)",
+    "$details.Controls.Add($detailText)",
+    "$form.Controls.Add($details)",
+    "$toggle=New-Object Windows.Forms.Button",
+    "$toggle.Location=New-Object Drawing.Point(24,314)",
+    "$toggle.Size=New-Object Drawing.Size(150,28)",
+    "$toggle.Text=if($de){'Technische Details'}else{'Technical details'}",
+    "$toggle.Add_Click({ $details.Visible=-not $details.Visible; if($details.Visible){$form.Height=570}else{$form.Height=470} })",
+    "$form.Controls.Add($toggle)",
+    "$cancel=New-Object Windows.Forms.Button",
+    "$cancel.Location=New-Object Drawing.Point(382,370)",
+    "$cancel.Size=New-Object Drawing.Size(110,32)",
+    "$cancel.Text=if($de){'Abbrechen'}else{'Cancel'}",
+    "$cancel.Add_Click({ [Console]::Write('CANCELLED'); $form.Tag='done'; $form.Close() })",
+    "$form.Controls.Add($cancel)",
+    "$authorize=New-Object Windows.Forms.Button",
+    "$authorize.Location=New-Object Drawing.Point(500,370)",
+    "$authorize.Size=New-Object Drawing.Size(124,32)",
+    "$authorize.Text=if($de){'Anlegen autorisieren'}else{'Authorize creation'}",
+    "$authorize.Add_Click({ [Console]::Write('AUTHORIZED'); $form.Tag='done'; $form.Close() })",
+    "$form.Controls.Add($authorize)",
+    "$form.AcceptButton=$authorize",
+    "$form.CancelButton=$cancel",
+    "$form.Add_FormClosing({ if($form.Tag -ne 'done'){ [Console]::Write('CANCELLED') } })",
+    "[void]$form.ShowDialog()",
+  ].join("; ");
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8", shell: false, windowsHide: true, env });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
+    throw new Error(`Guardian native lifecycle confirmation failed: ${String(detail).trim()}`);
+  }
+  if (result.stdout.trim() !== "AUTHORIZED") throw new Error("Guardian Authority confirmation was declined.");
+}
+
 async function requireInteractiveIssuance(request: ProtectedGuardianRequest, materialSha256: string): Promise<void> {
+  if (windowsNativeConfirmationRequested(request)) {
+    requireWindowsNativeLifecycleIssuance(request, materialSha256);
+    return;
+  }
   if (!stdin.isTTY || !stderr.isTTY) {
     throw new Error("Guardian Authority issuance requires a local interactive privileged terminal; requester-only, redirected, scripted, provider, and CI issuance is refused.");
   }
@@ -374,9 +526,7 @@ async function requireInteractiveIssuance(request: ProtectedGuardianRequest, mat
   try {
     const answer = await terminal.question("> ");
     if (answer !== phrase) throw new Error("Guardian Authority confirmation did not match the exact material challenge.");
-  } finally {
-    terminal.close();
-  }
+  } finally { terminal.close(); }
 }
 
 function consumerDirectory(recordsRoot: string, consumer: ProtectedGuardianConsumer): string {

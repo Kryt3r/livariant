@@ -94,7 +94,9 @@ function runWindows(interpreter: string, support: GuardianAuthoritySupport, args
     "$arguments=New-Object System.Collections.Generic.List[string]",
     "$arguments.Add($env:LIVARIANT_GUARDIAN_ELEVATED_HELPER)",
     "for($i=0;$i -lt $count;$i++){ $arguments.Add([Environment]::GetEnvironmentVariable(('LIVARIANT_GUARDIAN_ELEVATED_ARG_' + $i))) }",
-    "$p=Start-Process -FilePath $env:LIVARIANT_GUARDIAN_ELEVATED_NODE -ArgumentList $arguments.ToArray() -WorkingDirectory $env:LIVARIANT_GUARDIAN_ELEVATED_CWD -Verb RunAs -Wait -PassThru",
+    "$startArgs=@{FilePath=$env:LIVARIANT_GUARDIAN_ELEVATED_NODE;ArgumentList=$arguments.ToArray();WorkingDirectory=$env:LIVARIANT_GUARDIAN_ELEVATED_CWD;Verb='RunAs';Wait=$true;PassThru=$true}",
+    "if($env:LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION -eq '1'){ $startArgs.WindowStyle='Hidden' }",
+    "$p=Start-Process @startArgs",
     "exit $p.ExitCode",
   ].join("; ");
   const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script], {

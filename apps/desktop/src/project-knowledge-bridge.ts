@@ -95,8 +95,8 @@ export const acceptProjectKnowledgeIntegrity = (confirmedDigest: string) =>
   invoke<ProjectKnowledgeProtectionStatus>("accept_project_knowledge_integrity", { confirmedDigest });
 
 
-export const authorizeProjectKnowledgeInitialization = (confirmedMaterialSha256: string) =>
-  invoke<ProjectKnowledgeProtectionStatus>("authorize_project_knowledge_initialization", { confirmedMaterialSha256 });
+export const authorizeProjectKnowledgeInitialization = (confirmedMaterialSha256: string, uiLanguage: "de" | "en") =>
+  invoke<ProjectKnowledgeProtectionStatus>("authorize_project_knowledge_initialization", { confirmedMaterialSha256, uiLanguage });
 
 export const applyProjectKnowledgeInitialization = (confirmedMaterialSha256: string) =>
   invoke<ProjectKnowledgeProtectionStatus>("apply_project_knowledge_initialization", { confirmedMaterialSha256 });

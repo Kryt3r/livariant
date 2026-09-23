@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { guardianBootstrapHasInteractiveTerminal } from "../src/guardian/bootstrap.js";
 import {
+  buildWindowsLifecycleAuthorizationDialogModel,
   parseProtectedGuardianRequest,
   protectedGuardianMaterialDigest,
 } from "../src/guardian/protected-helper.js";
@@ -193,6 +194,33 @@ test("protected helper and requester-side authority model derive the same domain
     guardianAuthorityMaterialDigest(request.consumer, request.materialFields),
   );
   assert.throws(() => parseProtectedGuardianRequest({ ...request, attacker: true }), /unsupported field/u);
+});
+
+test("native Windows lifecycle review is exact-request-bound and refuses existing-file mutation", () => {
+  const base = parseProtectedGuardianRequest({
+    schemaVersion: 1,
+    kind: "livariant-guardian-authority-request",
+    consumer: "lifecycle-mutation",
+    mode: "one-shot",
+    materialFields: [
+      { label: "physical-project-root", value: "C:\\Projects\\Demo" },
+      { label: "lifecycle-operation", value: "initialize" },
+      { label: "display-project-name", value: "Demo" },
+      { label: "files-to-create-json", value: JSON.stringify([".project-brain/project.json", ".project-brain/decisions.md"]) },
+      { label: "project-files-to-modify-json", value: "[]" },
+    ],
+  });
+  const model = buildWindowsLifecycleAuthorizationDialogModel(base, "a".repeat(64), "de");
+  assert.equal(model.projectName, "Demo");
+  assert.deepEqual(model.filesToCreate, [".project-brain/project.json", ".project-brain/decisions.md"]);
+  assert.equal(model.authority, "lifecycle-mutation");
+  const modifying = parseProtectedGuardianRequest({
+    ...base,
+    materialFields: base.materialFields.map((field) => field.label === "project-files-to-modify-json" ? { ...field, value: JSON.stringify(["README.md"]) } : field),
+  });
+  assert.throws(() => buildWindowsLifecycleAuthorizationDialogModel(modifying, "b".repeat(64), "en"), /refuses initialization that would modify existing project files/u);
+  const semantic = parseProtectedGuardianRequest({ ...base, consumer: "semantic-mutation" });
+  assert.throws(() => buildWindowsLifecycleAuthorizationDialogModel(semantic, "c".repeat(64), "en"), /restricted to one-shot lifecycle Authority/u);
 });
 
 test("guardian command refuses unsupported mutating-looking subcommands", async () => {

@@ -113,6 +113,26 @@ test("Desktop Project Brain initialization preserves protected lifecycle phases"
 });
 
 
+test("Desktop Project Brain authorization uses protected native confirmation without moving Authority into the renderer", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const helper = await readFile("src/guardian/protected-helper.ts", "utf8");
+  const privileged = await readFile("src/guardian/privileged-helper.ts", "utf8");
+  const bridge = await readFile("apps/desktop/src/project-knowledge-bridge.ts", "utf8");
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+  assert.match(core, /LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION = "1"/);
+  assert.match(core, /files-to-create-json/);
+  assert.match(core, /project-files-to-modify-json/);
+  assert.match(helper, /buildWindowsLifecycleAuthorizationDialogModel/);
+  assert.match(helper, /request\.consumer !== "lifecycle-mutation"/);
+  assert.match(helper, /refuses initialization that would modify existing project files/);
+  assert.match(helper, /Anlegen autorisieren/);
+  assert.match(privileged, /LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION/);
+  assert.match(privileged, /WindowStyle='Hidden'/);
+  assert.match(bridge, /uiLanguage: "de" \| "en"/);
+  assert.match(main, /authorizeProjectKnowledgeInitialization\(material, getLanguage\(\)\)/);
+  assert.match(helper, /Type exactly: \$\{phrase\}/);
+});
+
 test("Rust bridge keeps PowerShell quoting syntactically valid", async () => {
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
   assert.match(rust, /escaped_launcher = launcher\.display\(\)\.to_string\(\)\.replace/);

@@ -375,7 +375,11 @@ pub async fn authorize_project_knowledge_initialization(
     app: tauri::AppHandle,
     registry: State<'_, DesktopProjectRegistryState>,
     confirmed_material_sha256: String,
+    ui_language: String,
 ) -> Result<Value, String> {
+    if ui_language != "de" && ui_language != "en" {
+        return Err("Project Brain authorization UI language is invalid.".to_owned());
+    }
     let scope = active_project_scope(&app, registry.inner())?;
     let expected_generation = scope.generation;
     let expected_project = scope.desktop_project_id.clone();
@@ -385,6 +389,7 @@ pub async fn authorize_project_knowledge_initialization(
         run_project_knowledge(&app_for_worker, state.inner(), json!({
             "method": "authorize-initialization",
             "confirmedMaterialSha256": confirmed_material_sha256,
+            "uiLanguage": ui_language,
         }))
     }).await.map_err(|error| format!("Project Brain initialization authorization worker failed: {error}"))??;
     let current = active_project_scope(&app, registry.inner())?;

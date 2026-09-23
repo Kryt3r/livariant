@@ -1,5 +1,5 @@
 import { readFile, realpath } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import { discoverProject } from "./discovery.js";
 import { initializeProject, inspectInitialization, type InitializationPlan } from "../runtime/initialization.js";
@@ -197,13 +197,17 @@ async function desktopInitializationMaterial(plan: InitializationPlan): Promise<
     reason: plan.reason ?? null,
     discovery: plan.discovery,
   };
+  const displayProjectName = plan.confirmedProjectName?.trim() || basename(plan.projectRoot);
   return buildLifecycleGuardianAuthorityRequest({
     operation: "initialize",
     physicalProjectRoot: await realpath(plan.projectRoot),
     materialFields: [
+      { label: "display-project-name", value: displayProjectName },
       { label: "project-state", value: plan.projectState },
       { label: "project-brain-health", value: plan.projectBrainHealth },
       { label: "initialization-action", value: plan.action },
+      { label: "files-to-create-json", value: JSON.stringify([...plan.filesToCreate].sort()) },
+      { label: "project-files-to-modify-json", value: JSON.stringify([...plan.projectFilesToModify].sort()) },
       { label: "plan-sha256", value: lifecycleMaterialSha256(stablePlan) },
     ],
   });
@@ -536,7 +540,7 @@ export async function applyDesktopProjectKnowledgeProposal(
 type HostRequest =
   | { method: "read" }
   | { method: "protection" }
-  | { method: "authorize-initialization"; confirmedMaterialSha256: unknown }
+  | { method: "authorize-initialization"; confirmedMaterialSha256: unknown; uiLanguage: unknown }
   | { method: "apply-initialization"; confirmedMaterialSha256: unknown }
   | { method: "accept-integrity"; confirmedDigest: unknown }
   | { method: "prepare"; areaId: unknown; value: unknown }
@@ -559,6 +563,9 @@ async function main(): Promise<void> {
   else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectRoot);
   else if (request.method === "authorize-initialization") {
     if (typeof request.confirmedMaterialSha256 !== "string") throw new Error("Project Brain initialization material digest is invalid.");
+    if (request.uiLanguage !== "de" && request.uiLanguage !== "en") throw new Error("Project Brain authorization UI language is invalid.");
+    process.env.LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION = "1";
+    process.env.LIVARIANT_GUARDIAN_CONFIRM_LANGUAGE = request.uiLanguage;
     result = await authorizeDesktopProjectKnowledgeInitialization(projectRoot, request.confirmedMaterialSha256);
   }
   else if (request.method === "apply-initialization") {
