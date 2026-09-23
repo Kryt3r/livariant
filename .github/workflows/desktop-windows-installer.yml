@@ -327,6 +327,28 @@ jobs:
           Stop-Process -Id $process.Id -Force
           $process.WaitForExit()
 
+          $staleNode = Start-Process -FilePath $node -ArgumentList @("-e", "setInterval(() => {}, 1000)") -PassThru
+          Start-Sleep -Seconds 1
+          $staleNode.Refresh()
+          if ($staleNode.HasExited) {
+            throw "Stale bundled Node fixture exited before overwrite acceptance could run."
+          }
+          $reinstall = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
+          if ($reinstall.ExitCode -ne 0) {
+            Stop-Process -Id $staleNode.Id -Force -ErrorAction SilentlyContinue
+            throw "Silent NSIS reinstall failed while exact installed livariant-node.exe was running; exit code $($reinstall.ExitCode)."
+          }
+          Start-Sleep -Milliseconds 500
+          $staleNode.Refresh()
+          if (-not $staleNode.HasExited) {
+            Stop-Process -Id $staleNode.Id -Force -ErrorAction SilentlyContinue
+            throw "NSIS preinstall did not terminate the stale exact-path Livariant Node runtime before replacement."
+          }
+          if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {
+            throw "Bundled Node runtime was not restored after exact-path overwrite acceptance."
+          }
+          Write-Host "Exact-path stale livariant-node.exe overwrite acceptance passed."
+
           $uninstallers = @(Get-ChildItem -LiteralPath $installDir -Filter "*uninstall*.exe" -File)
           if ($uninstallers.Count -ne 1) {
             throw "Expected exactly one uninstaller in $installDir; found $($uninstallers.Count)."
