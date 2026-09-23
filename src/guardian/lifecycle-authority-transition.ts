@@ -7,8 +7,13 @@ import type { LifecycleGuardianAuthorityMaterial } from "./lifecycle-authority.j
 export async function issueLifecycleGuardianAuthority(
   material: LifecycleGuardianAuthorityMaterial,
   projectPath: string = process.cwd(),
+  options: { nativeConfirmationLanguage?: "de" | "en" } = {},
 ) {
-  const record = await issueGuardianAuthority({ request: material.request, projectPath });
+  const record = await issueGuardianAuthority({
+    request: material.request,
+    projectPath,
+    nativeConfirmationLanguage: options.nativeConfirmationLanguage,
+  });
   if (record.consumer !== "lifecycle-mutation"
     || record.mode !== "one-shot"
     || record.materialSha256 !== material.materialSha256) {

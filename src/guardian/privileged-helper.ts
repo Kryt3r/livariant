@@ -80,12 +80,14 @@ function runWindows(interpreter: string, support: GuardianAuthoritySupport, args
   if (windowsProcessIsElevated()) {
     throw new Error("Guardian Authority transitions must be requested from an ordinary Windows terminal, not from an already-elevated Livariant process.");
   }
+  const nativeConfirmation = args.includes("--native-confirmation-language");
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     LIVARIANT_GUARDIAN_ELEVATED_NODE: interpreter,
     LIVARIANT_GUARDIAN_ELEVATED_HELPER: support.helper,
     LIVARIANT_GUARDIAN_ELEVATED_CWD: cwd ?? process.cwd(),
     LIVARIANT_GUARDIAN_ELEVATED_ARG_COUNT: String(args.length),
+    LIVARIANT_GUARDIAN_ELEVATED_HIDE_WINDOW: nativeConfirmation ? "1" : "0",
   };
   args.forEach((arg, index) => { env[`LIVARIANT_GUARDIAN_ELEVATED_ARG_${index}`] = arg; });
   const script = [
@@ -95,7 +97,7 @@ function runWindows(interpreter: string, support: GuardianAuthoritySupport, args
     "$arguments.Add($env:LIVARIANT_GUARDIAN_ELEVATED_HELPER)",
     "for($i=0;$i -lt $count;$i++){ $arguments.Add([Environment]::GetEnvironmentVariable(('LIVARIANT_GUARDIAN_ELEVATED_ARG_' + $i))) }",
     "$startArgs=@{FilePath=$env:LIVARIANT_GUARDIAN_ELEVATED_NODE;ArgumentList=$arguments.ToArray();WorkingDirectory=$env:LIVARIANT_GUARDIAN_ELEVATED_CWD;Verb='RunAs';Wait=$true;PassThru=$true}",
-    "if($env:LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION -eq '1'){ $startArgs.WindowStyle='Hidden' }",
+    "if($env:LIVARIANT_GUARDIAN_ELEVATED_HIDE_WINDOW -eq '1'){ $startArgs.WindowStyle='Hidden' }",
     "$p=Start-Process @startArgs",
     "exit $p.ExitCode",
   ].join("; ");

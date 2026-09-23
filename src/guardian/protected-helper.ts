@@ -403,19 +403,22 @@ function displaySafe(value: string): string {
   return value.replace(/[\r\n\u0000-\u001f\u007f]/gu, " ");
 }
 
-function windowsNativeConfirmationRequested(request: ProtectedGuardianRequest): boolean {
+function windowsNativeConfirmationRequested(
+  request: ProtectedGuardianRequest,
+  language: "de" | "en" | undefined,
+): boolean {
   return process.platform === "win32"
     && request.consumer === "lifecycle-mutation"
     && request.mode === "one-shot"
-    && process.env.LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION === "1";
+    && language !== undefined;
 }
 
-function windowsNativeConfirmationLanguage(): "de" | "en" {
-  return process.env.LIVARIANT_GUARDIAN_CONFIRM_LANGUAGE === "de" ? "de" : "en";
-}
-
-function requireWindowsNativeLifecycleIssuance(request: ProtectedGuardianRequest, materialSha256: string): void {
-  const model = buildWindowsLifecycleAuthorizationDialogModel(request, materialSha256, windowsNativeConfirmationLanguage());
+function requireWindowsNativeLifecycleIssuance(
+  request: ProtectedGuardianRequest,
+  materialSha256: string,
+  language: "de" | "en",
+): void {
+  const model = buildWindowsLifecycleAuthorizationDialogModel(request, materialSha256, language);
   const env = { ...process.env, LIVARIANT_GUARDIAN_DIALOG_PAYLOAD: Buffer.from(JSON.stringify(model), "utf8").toString("base64") };
   const script = [
     "Add-Type -AssemblyName System.Windows.Forms",
@@ -498,7 +501,7 @@ function requireWindowsNativeLifecycleIssuance(request: ProtectedGuardianRequest
     "$form.Add_FormClosing({ if($form.Tag -ne 'done'){ [Console]::Write('CANCELLED') } })",
     "[void]$form.ShowDialog()",
   ].join("; ");
-  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8", shell: false, windowsHide: true, env });
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Sta", "-Command", script], { encoding: "utf8", shell: false, windowsHide: true, env });
   if (result.error || result.status !== 0) {
     const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
     throw new Error(`Guardian native lifecycle confirmation failed: ${String(detail).trim()}`);
@@ -506,9 +509,13 @@ function requireWindowsNativeLifecycleIssuance(request: ProtectedGuardianRequest
   if (result.stdout.trim() !== "AUTHORIZED") throw new Error("Guardian Authority confirmation was declined.");
 }
 
-async function requireInteractiveIssuance(request: ProtectedGuardianRequest, materialSha256: string): Promise<void> {
-  if (windowsNativeConfirmationRequested(request)) {
-    requireWindowsNativeLifecycleIssuance(request, materialSha256);
+async function requireInteractiveIssuance(
+  request: ProtectedGuardianRequest,
+  materialSha256: string,
+  nativeConfirmationLanguage?: "de" | "en",
+): Promise<void> {
+  if (windowsNativeConfirmationRequested(request, nativeConfirmationLanguage)) {
+    requireWindowsNativeLifecycleIssuance(request, materialSha256, nativeConfirmationLanguage!);
     return;
   }
   if (!stdin.isTTY || !stderr.isTTY) {
@@ -551,13 +558,16 @@ async function ensureConsumerDirectory(recordsRoot: string, consumer: ProtectedG
   return directory;
 }
 
-async function issueAuthority(requestPath: string): Promise<void> {
+async function issueAuthority(
+  requestPath: string,
+  nativeConfirmationLanguage?: "de" | "en",
+): Promise<void> {
   const { records } = await assertProtectedSelf();
   requirePrivilegedProcess();
   await assertProtectedInterpreter();
   const request = parseProtectedGuardianRequest(JSON.parse(await readFile(requestPath, "utf8")) as unknown);
   const materialSha256 = protectedGuardianMaterialDigest(request.consumer, request.materialFields);
-  await requireInteractiveIssuance(request, materialSha256);
+  await requireInteractiveIssuance(request, materialSha256, nativeConfirmationLanguage);
 
   const issuedAt = new Date();
   const record: ProtectedGuardianAuthorityRecord = {
@@ -633,6 +643,21 @@ function parseConsumerArg(args: string[]): ProtectedGuardianConsumer {
   return value;
 }
 
+function optionalArgValue(args: string[], name: string): string | undefined {
+  const indexes = args.map((value, index) => value === name ? index : -1).filter((index) => index >= 0);
+  if (indexes.length === 0) return undefined;
+  if (indexes.length !== 1) throw new Error(`Guardian helper argument ${name} is duplicated.`);
+  const index = indexes[0];
+  if (index + 1 >= args.length || !args[index + 1]) throw new Error(`Guardian helper requires ${name} <value>.`);
+  return args[index + 1];
+}
+
+function parseNativeConfirmationLanguage(args: string[]): "de" | "en" | undefined {
+  const value = optionalArgValue(args, "--native-confirmation-language");
+  if (value === undefined || value === "de" || value === "en") return value;
+  throw new Error("Guardian native confirmation language is invalid.");
+}
+
 async function main(args: string[]): Promise<void> {
   const [command] = args;
   if (command === "version" && args.length === 1) {
@@ -646,7 +671,7 @@ async function main(args: string[]): Promise<void> {
     return;
   }
   if (command === "issue-authority") {
-    await issueAuthority(argValue(args, "--request"));
+    await issueAuthority(argValue(args, "--request"), parseNativeConfirmationLanguage(args));
     return;
   }
   if (command === "inspect-authority") {

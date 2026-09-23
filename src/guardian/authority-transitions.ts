@@ -18,6 +18,7 @@ import { runPrivilegedGuardianHelper } from "./privileged-helper.js";
 export async function issueGuardianAuthority(input: {
   request: GuardianAuthorityRequest;
   projectPath?: string;
+  nativeConfirmationLanguage?: "de" | "en";
 }): Promise<GuardianAuthorityRecord> {
   const projectPath = input.projectPath ?? process.cwd();
   const support = await assertGuardianAuthoritySupport(projectPath);
@@ -40,9 +41,12 @@ export async function issueGuardianAuthority(input: {
   const requestPath = resolve(directory, requestName);
   try {
     await writeFile(requestPath, `${JSON.stringify(input.request, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    const confirmationArgs = input.nativeConfirmationLanguage
+      ? ["--native-confirmation-language", input.nativeConfirmationLanguage] as const
+      : [];
     await runPrivilegedGuardianHelper(
       support,
-      ["issue-authority", "--request", requestName],
+      ["issue-authority", "--request", requestName, ...confirmationArgs],
       { cwd: directory },
     );
     const record = await findMatchingActiveGuardianAuthority({

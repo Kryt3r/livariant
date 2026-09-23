@@ -343,6 +343,7 @@ export async function projectKnowledgeProtectionStatus(projectPath: string): Pro
 export async function authorizeDesktopProjectKnowledgeInitialization(
   projectPath: string,
   confirmedMaterialSha256: string,
+  uiLanguage: "de" | "en",
 ): Promise<DesktopProjectKnowledgeProtectionStatus> {
   const project = discoverProject(projectPath);
   const before = await projectKnowledgeProtectionStatus(project.root);
@@ -357,7 +358,7 @@ export async function authorizeDesktopProjectKnowledgeInitialization(
     throw new Error("Project Brain initialization plan changed before protected authorization; review the current plan again.");
   }
   if (!current.authorized) {
-    await issueLifecycleGuardianAuthority(current.material, project.root);
+    await issueLifecycleGuardianAuthority(current.material, project.root, { nativeConfirmationLanguage: uiLanguage });
   }
   const after = await projectKnowledgeProtectionStatus(project.root);
   if (after.state !== "project-brain-initialization-required" || after.initialization?.authorized !== true) {
@@ -564,9 +565,7 @@ async function main(): Promise<void> {
   else if (request.method === "authorize-initialization") {
     if (typeof request.confirmedMaterialSha256 !== "string") throw new Error("Project Brain initialization material digest is invalid.");
     if (request.uiLanguage !== "de" && request.uiLanguage !== "en") throw new Error("Project Brain authorization UI language is invalid.");
-    process.env.LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION = "1";
-    process.env.LIVARIANT_GUARDIAN_CONFIRM_LANGUAGE = request.uiLanguage;
-    result = await authorizeDesktopProjectKnowledgeInitialization(projectRoot, request.confirmedMaterialSha256);
+    result = await authorizeDesktopProjectKnowledgeInitialization(projectRoot, request.confirmedMaterialSha256, request.uiLanguage);
   }
   else if (request.method === "apply-initialization") {
     if (typeof request.confirmedMaterialSha256 !== "string") throw new Error("Project Brain initialization material digest is invalid.");
