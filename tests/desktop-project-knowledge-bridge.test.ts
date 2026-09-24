@@ -131,6 +131,14 @@ test("legacy repository-local Project Brain migration is bounded and fail-closed
   assert.match(storage, /await rm\(source\.path, \{ recursive: true, force: false \}\)/);
 });
 
+test("Desktop bridge types protected setup as completed after the awaited host result", async () => {
+  const bridge = await readFile("apps/desktop/src/project-knowledge-bridge.ts", "utf8");
+  assert.match(bridge, /launchProjectKnowledgeStageASetup[\s\S]*state: "completed"/);
+  assert.match(bridge, /launchProjectKnowledgeProtectionSetup[\s\S]*state: "completed"/);
+  assert.doesNotMatch(bridge, /state: "launched"/);
+});
+
+
 test("Rust bridge launches protected setup through hidden awaited UAC without a console lifetime", async () => {
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
   const main = await readFile("apps/desktop/src/main.ts", "utf8");

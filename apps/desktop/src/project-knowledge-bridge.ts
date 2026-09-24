@@ -85,10 +85,10 @@ export const loadProjectKnowledgeProtectionStatus = () =>
   invoke<ProjectKnowledgeProtectionStatus>("project_knowledge_protection_status");
 
 export const launchProjectKnowledgeStageASetup = () =>
-  invoke<{ state: "launched"; detail: string }>("launch_project_knowledge_stage_a_setup");
+  invoke<{ state: "completed"; detail: string }>("launch_project_knowledge_stage_a_setup");
 
 export const launchProjectKnowledgeProtectionSetup = () =>
-  invoke<{ state: "launched"; detail: string }>("launch_project_knowledge_protection_setup");
+  invoke<{ state: "completed"; detail: string }>("launch_project_knowledge_protection_setup");
 
 
 export const acceptProjectKnowledgeIntegrity = (confirmedDigest: string) =>
