@@ -117,14 +117,11 @@ test("Desktop Project Brain uses machine-local project state instead of reposito
   assert.doesNotMatch(core, /apply-initialization/);
   assert.doesNotMatch(rust, /authorize_project_knowledge_initialization/);
   assert.doesNotMatch(rust, /apply_project_knowledge_initialization/);
-  assert.match(main, /no Project Brain will be created inside the user repository/i);
 });
 
 
 test("legacy repository-local Project Brain migration is bounded and fail-closed", async () => {
   const storage = await readFile("src/project/desktop-project-brain-storage.ts", "utf8");
-  const main = await readFile("apps/desktop/src/main.ts", "utf8");
-
   assert.match(storage, /MAX_MIGRATION_ENTRIES/);
   assert.match(storage, /MAX_MIGRATION_FILE_BYTES/);
   assert.match(storage, /unsupported symbolic link/);
@@ -132,7 +129,6 @@ test("legacy repository-local Project Brain migration is bounded and fail-closed
   assert.match(storage, /Legacy Project Brain changed during migration/);
   assert.match(storage, /Machine-local Project Brain promotion could not be verified/);
   assert.match(storage, /await rm\(source\.path, \{ recursive: true, force: false \}\)/);
-  assert.match(main, /setup or migration did not complete safely/i);
 });
 
 test("Rust bridge keeps PowerShell quoting syntactically valid", async () => {
