@@ -22,7 +22,11 @@ test("installed acceptance exercises A-B-A isolation through native scope guards
   assert.doesNotMatch(acceptance, /expect_err\("stale Project A commit/);
   assert.match(acceptance, /active_diagnostics_project_id/);
   assert.match(acceptance, /ci_detach_project/);
-  assert.match(acceptance, /project_brain_marker/);
+  assert.match(acceptance, /project_brain_path/);
+  assert.match(acceptance, /machine_brain_ready/);
+  assert.match(acceptance, /ensure_project_brain_storage_for_roots/);
+  assert.match(acceptance, /legacy_b_migrated_out_of_repository/);
+  assert.match(acceptance, /legacy_b_migration_idempotent/);
   assert.match(acceptance, /github-user-access-token\.dpapi/);
   assert.match(acceptance, /measurement-state\.json/);
 });
@@ -46,6 +50,11 @@ test("Windows installer workflow runs CI-only installed acceptance without repla
   assert.match(script, /projectBIsolated/);
   assert.match(script, /detachPreservedProjectRoot/);
   assert.match(script, /detachPreservedProjectBrain/);
+  assert.match(script, /freshProjectAHasNoRepositoryBrain/);
+  assert.match(script, /projectAMachineBrainReady/);
+  assert.match(script, /legacyBMigratedOutOfRepository/);
+  assert.match(script, /projectBMachineBrainReady/);
+  assert.match(script, /legacyBMigrationIdempotent/);
   assert.match(script, /projectStateContainsNoGlobalCredentials/);
   assert.match(script, /projectStateContainsNoGlobalMeasurementState/);
   assert.match(script, /generations/);
