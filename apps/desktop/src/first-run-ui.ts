@@ -66,6 +66,12 @@ const esc = (value: string) => value.replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[character] ?? character);
 const text = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
+const providerLogo = (provider: "codex" | LocalProviderId): string => {
+  if (provider === "codex") return '<svg class="provider-brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4.1a7.1 7.1 0 0 1 6.15 3.55 7.1 7.1 0 0 1 3.55 6.15 7.1 7.1 0 0 1 0 7.1 7.1 7.1 0 0 1-6.15 3.55A7.1 7.1 0 0 1 13.4 28a7.1 7.1 0 0 1-6.15-3.55A7.1 7.1 0 0 1 3.7 18.3a7.1 7.1 0 0 1 0-7.1A7.1 7.1 0 0 1 9.85 7.65 7.1 7.1 0 0 1 16 4.1Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m10.2 12.4 5.8-3.3 5.8 3.3v6.7L16 22.4l-5.8-3.3Z" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+  if (provider === "claude") return '<svg class="provider-brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M8 24 14.3 8h3.4L24 24h-4.2l-1.2-3.5h-5.4L12 24H8Zm6.4-7h3.1L16 12.4 14.4 17Z" fill="currentColor"/></svg>';
+  if (provider === "gemini") return '<svg class="provider-brand-logo provider-brand-logo-gemini" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="geminiBrandGradient" x1="5" y1="27" x2="27" y2="5" gradientUnits="userSpaceOnUse"><stop stop-color="#4F8DFF"/><stop offset=".52" stop-color="#8A67FF"/><stop offset="1" stop-color="#D36CFF"/></linearGradient></defs><path d="M16 3.5c1.4 7 5.5 11.1 12.5 12.5C21.5 17.4 17.4 21.5 16 28.5 14.6 21.5 10.5 17.4 3.5 16 10.5 14.6 14.6 10.5 16 3.5Z" fill="url(#geminiBrandGradient)"/></svg>';
+  return '<svg class="provider-brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M12.3 19.7 9.8 22.2a4.2 4.2 0 0 1-5.9-5.9l4.2-4.2a4.2 4.2 0 0 1 5.9 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="m19.7 12.3 2.5-2.5a4.2 4.2 0 0 1 5.9 5.9l-4.2 4.2a4.2 4.2 0 0 1-5.9 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="m11.5 20.5 9-9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
+};
 const friendlyLifecycleError = (cause: unknown): string => {
   const raw = String(cause);
   if (raw.includes("Additional repository identity is already associated with this project.")) {
@@ -179,34 +185,49 @@ function sources(state: FirstRunState, inspection: RepositoryInspection | null):
 }
 
 function providers(state: FirstRunState, codex: CodexStatus | null, localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>>): string {
-  const connected = codex?.connected === true; const available = codex?.installationState === "available";
+  const connected = codex?.connected === true;
+  const available = codex?.installationState === "available";
   const stateLabel = connected ? text("Connected", "Verbunden") : available ? text("Ready", "Bereit") : text("Not ready", "Nicht bereit");
   const connectedProviderIds = [
     ...(connected ? ["codex"] : []),
     ...(["claude", "gemini", "custom"] as LocalProviderId[]).filter((provider) => localProviders[provider]?.connected),
   ];
-  const localMeta: Record<LocalProviderId, { vendor: string; name: string; glyph: string }> = {
-    claude: { vendor: "Anthropic", name: "Claude", glyph: "A" },
-    gemini: { vendor: "Google", name: "Gemini", glyph: "G" },
-    custom: { vendor: text("Advanced", "Erweitert"), name: text("Custom connection", "Eigene Verbindung"), glyph: "+" },
+  const automaticallyConnectable = [
+    ...(!connected && available ? ["codex"] : []),
+    ...(["claude", "gemini"] as LocalProviderId[]).filter((provider) => {
+      const status = localProviders[provider];
+      return !status?.connected && status?.installationState === "available" && status.authState !== "unavailable";
+    }),
+  ];
+  const localMeta: Record<LocalProviderId, { vendor: string; name: string }> = {
+    claude: { vendor: "Anthropic", name: "Claude" },
+    gemini: { vendor: "Google", name: "Gemini" },
+    custom: { vendor: text("Advanced", "Erweitert"), name: text("Custom connection", "Eigene Verbindung") },
   };
   const localCards = (["claude", "gemini", "custom"] as LocalProviderId[]).map((provider) => {
     const status = localProviders[provider]; const meta = localMeta[provider];
     const ready = status?.installationState === "available" && status.authState !== "unavailable";
     const label = status?.connected ? text("Connected", "Verbunden") : ready ? text("Ready", "Bereit") : status ? text("Not ready", "Nicht bereit") : text("Checking…", "Wird geprüft…");
-    const detail = status?.connected ? text("Connected and ready to use.", "Verbunden und einsatzbereit.") : ready ? text("Detected locally and ready to connect.", "Lokal erkannt und bereit zum Verbinden.") : status ? text("No usable local connection is ready yet.", "Noch keine nutzbare lokale Verbindung bereit.") : text("Checking local installation…", "Lokale Installation wird geprüft…");
-    const action = status?.connected ? "" : provider === "custom"
-      ? `<div class="fr-connect-options"><label><span>${text("Provider executable path", "Provider-Programmpfad")}</span><div><input data-fr-local-provider-path="custom" data-fr-focus="custom-provider-path" placeholder="C:\\...\\provider.exe"/><button class="button secondary" data-fr-connect-local-provider="custom" type="button">${text("Connect path", "Pfad verbinden")}</button></div></label></div>`
-      : ready ? `<div class="fr-connect-options"><button class="button primary" data-fr-connect-local-provider="${provider}" type="button">${text("Connect", "Verbinden")} ${meta.name}</button></div>` : "";
-    return `<article class="fr-provider-card"><div class="fr-provider-icon">${meta.glyph}</div><div><small>${esc(meta.vendor)}</small><strong>${esc(meta.name)}</strong><span>${esc(detail)}</span></div><span class="fr-provider-state ${status?.connected ? "ok" : ready ? "ready" : "muted"}">${label}</span></article>${action}`;
+    const detail = status?.connected ? text("Connected and ready to use.", "Verbunden und einsatzbereit.") : ready ? text("Detected locally and ready to connect.", "Lokal erkannt und bereit zum Verbinden.") : status ? text("No usable local connection was found automatically.", "Es wurde automatisch keine nutzbare lokale Verbindung gefunden.") : text("Checking local installation…", "Lokale Installation wird geprüft…");
+    const fallback = status && !status.connected && !ready
+      ? `<div class="fr-connect-options fr-provider-fallback"><label><span>${text("Executable path (optional fallback)", "Programmpfad (optionaler Fallback)")}</span><div><input data-fr-local-provider-path="${provider}" data-fr-focus="${provider}-provider-path" value="${esc(status.configuredPath ?? "")}" placeholder="C:\\...\\${provider === "claude" ? "claude.exe" : provider === "gemini" ? "gemini.exe" : "provider.exe"}"/><button class="button secondary" data-fr-connect-local-provider="${provider}" type="button">${text("Connect path", "Pfad verbinden")}</button></div></label></div>`
+      : "";
+    const action = status?.connected ? "" : ready
+      ? `<div class="fr-connect-options fr-provider-single-action"><button class="button secondary" data-fr-connect-local-provider="${provider}" type="button">${text("Connect", "Verbinden")} ${meta.name}</button></div>`
+      : fallback;
+    return `<article class="fr-provider-card"><div class="fr-provider-icon">${providerLogo(provider)}</div><div><small>${esc(meta.vendor)}</small><strong>${esc(meta.name)}</strong><span>${esc(detail)}</span></div><span class="fr-provider-state ${status?.connected ? "ok" : ready ? "ready" : "muted"}">${label}</span></article>${action}`;
   }).join("");
-  return `<section class="fr-stage"><span class="fr-kicker">${text("LLM connections", "LLM-Verbindungen")}</span><h1>${text("Connect a provider, or set it up later", "Verbinde einen Anbieter oder richte ihn später ein")}</h1><p>${text("A connection lets Livariant use the provider. It does not grant permission to change project files, merge code or publish releases.", "Eine Verbindung erlaubt Livariant, den Anbieter zu nutzen. Sie erteilt keine Berechtigung, Projektdateien zu ändern, Code zu mergen oder Releases zu veröffentlichen.")}</p>
-    <article class="fr-provider-card"><div class="fr-provider-icon">C</div><div><small>OpenAI</small><strong>Codex</strong><span>${codex ? esc(codex.detail) : text("Checking local Codex…", "Lokales Codex wird geprüft…")}</span></div><span class="fr-provider-state ${connected ? "ok" : available ? "ready" : "muted"}">${stateLabel}</span></article>
+  const codexFallback = codex && !connected && !available
+    ? `<div class="fr-connect-options fr-provider-fallback"><label><span>${text("Codex executable path (optional fallback)", "Codex-Programmpfad (optionaler Fallback)")}</span><div><input data-fr-codex-path data-fr-focus="codex-path" placeholder="C:\\...\\codex.exe"/><button class="button secondary" data-fr-connect-codex-manual type="button">${text("Connect path", "Pfad verbinden")}</button></div></label></div>`
+    : "";
+  return `<section class="fr-stage"><span class="fr-kicker">${text("LLM connections", "LLM-Verbindungen")}</span><h1>${text("Connect the providers Livariant found", "Verbinde die von Livariant gefundenen Anbieter")}</h1><p>${text("Livariant detects supported local providers first. Connect all available providers at once, connect one individually, or use a manual executable path only when automatic discovery did not find a usable installation.", "Livariant erkennt unterstützte lokale Anbieter zuerst automatisch. Verbinde alle verfügbaren Anbieter gemeinsam, einen einzelnen Anbieter oder nutze einen manuellen Programmpfad nur dann, wenn die automatische Erkennung keine nutzbare Installation findet.")}</p>
+    <article class="fr-provider-card"><div class="fr-provider-icon">${providerLogo("codex")}</div><div><small>OpenAI</small><strong>Codex</strong><span>${codex ? esc(codex.detail) : text("Checking local Codex…", "Lokales Codex wird geprüft…")}</span></div><span class="fr-provider-state ${connected ? "ok" : available ? "ready" : "muted"}">${stateLabel}</span></article>
+    ${available && !connected ? `<div class="fr-connect-options fr-provider-single-action"><button class="button secondary" data-fr-connect-codex type="button">${text("Connect", "Verbinden")} Codex</button></div>` : codexFallback}
     ${localCards}
-    ${connected ? `<p class="fr-success">${text("Codex is connected. The normal approval rules for changes still apply.", "Codex ist verbunden. Für Änderungen gelten weiterhin die normalen Freigaberegeln.")}</p>` : available ? `<div class="fr-connect-options"><button class="button primary" data-fr-connect-codex type="button">${text("Connect automatically", "Automatisch verbinden")}</button><label><span>${text("Or explicit Codex executable path", "Oder expliziter Codex-Programmpfad")}</span><div><input data-fr-codex-path data-fr-focus="codex-path" placeholder="C:\\...\\codex.exe"/><button class="button secondary" data-fr-connect-codex-manual type="button">${text("Connect path", "Pfad verbinden")}</button></div></label></div>` : `<p class="fr-warning">${text("Codex is not currently available. You can finish setup and configure providers later.", "Codex ist aktuell nicht verfügbar. Du kannst die Einrichtung abschließen und Provider später konfigurieren.")}</p>`}
+    ${automaticallyConnectable.length ? `<div class="fr-provider-connect-all"><button class="button primary" data-fr-connect-all-providers type="button">${text("Connect all available providers", "Alle verfügbaren Anbieter verbinden")}</button><small>${text(`${automaticallyConnectable.length} automatically detected provider(s) are ready.`, `${automaticallyConnectable.length} automatisch erkannte Anbieter sind bereit.`)}</small></div>` : ""}
+    ${connectedProviderIds.length ? `<p class="fr-success">${text("Connected providers are ready. The normal approval rules for changes still apply.", "Verbundene Provider sind bereit. Für Änderungen gelten weiterhin die normalen Freigaberegeln.")}</p>` : ""}
     <div class="fr-actions"><button class="button secondary" data-fr-move="sources" type="button">${text("Back", "Zurück")}</button>${connectedProviderIds.length ? `<button class="button primary" data-fr-save-provider type="button">${text("Use connected providers and continue", "Verbundene Provider verwenden und weiter")}</button>` : `<button class="button primary" data-fr-defer-provider type="button">${text("Set up later", "Später einrichten")}</button>`}</div>${state.providers.deferred ? `<small class="fr-footnote">${text("Provider setup is currently deferred.", "Provider-Einrichtung ist aktuell aufgeschoben.")}</small>` : ""}</section>`;
 }
-
 function health(state: FirstRunState, snapshot: FirstRunLifecycleSnapshot): string {
   const sourceReady = snapshot.sourceReviewReady;
   const item = (ok: boolean, title: string, detail: string) => `<div class="${ok ? "ok" : "warn"}"><strong>${title}</strong><span>${detail}</span></div>`;
@@ -399,13 +420,31 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     root.querySelector<HTMLFormElement>("[data-fr-primary]")?.addEventListener("submit", (event) => { event.preventDefault(); void apply(repoAction(event.currentTarget as HTMLFormElement, false), true); });
     root.querySelector<HTMLFormElement>("[data-fr-additional]")?.addEventListener("submit", (event) => { event.preventDefault(); void apply(repoAction(event.currentTarget as HTMLFormElement, true), true); });
 
+    root.querySelector<HTMLButtonElement>("[data-fr-connect-all-providers]")?.addEventListener("click", async () => {
+      const context = captureContext(); busy = true; error = null; render(context);
+      const failures: string[] = [];
+      try {
+        if (!codex?.connected && codex?.installationState === "available") {
+          try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath: null }); }
+          catch (cause) { failures.push(`Codex: ${friendlyCodexError(cause)}`); }
+        }
+        for (const provider of ["claude", "gemini"] as LocalProviderId[]) {
+          const status = localProviders[provider];
+          if (status?.connected || status?.installationState !== "available" || status.authState === "unavailable") continue;
+          try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_connect", { provider, manualPath: null }); }
+          catch { failures.push(`${provider}: ${text("connection failed", "Verbindung fehlgeschlagen")}`); }
+        }
+        if (failures.length) error = failures.join(" · ");
+      } finally { busy = false; render(context); }
+    });
     root.querySelector<HTMLButtonElement>("[data-fr-connect-codex]")?.addEventListener("click", async () => { const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath: null }); } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
     root.querySelector<HTMLButtonElement>("[data-fr-connect-codex-manual]")?.addEventListener("click", async () => { const manualPath = root.querySelector<HTMLInputElement>("[data-fr-codex-path]")?.value.trim(); if (!manualPath) { error = text("Enter an explicit Codex executable path first.", "Trage zuerst einen expliziten Codex-Programmpfad ein."); render(captureContext()); return; } const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath }); } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
     root.querySelectorAll<HTMLButtonElement>("[data-fr-connect-local-provider]").forEach((button) => button.addEventListener("click", async () => {
       const provider = button.dataset.frConnectLocalProvider as LocalProviderId;
       if (!["claude", "gemini", "custom"].includes(provider)) return;
-      const manualPath = provider === "custom" ? root.querySelector<HTMLInputElement>('[data-fr-local-provider-path="custom"]')?.value.trim() || null : null;
-      if (provider === "custom" && !manualPath) { error = text("Enter the custom provider executable path first.", "Trage zuerst den Programmpfad des eigenen Providers ein."); render(captureContext()); return; }
+      const manualPath = root.querySelector<HTMLInputElement>(`[data-fr-local-provider-path="${provider}"]`)?.value.trim() || null;
+      const automaticallyAvailable = localProviders[provider]?.installationState === "available" && localProviders[provider]?.authState !== "unavailable";
+      if (!automaticallyAvailable && !manualPath) { error = text("Enter an executable path for this provider first.", "Trage zuerst einen Programmpfad für diesen Anbieter ein."); render(captureContext()); return; }
       const context = captureContext(); busy = true; error = null; render(context);
       try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_connect", { provider, manualPath }); }
       catch { error = text("The provider could not be connected. Check its local installation and authentication.", "Der Provider konnte nicht verbunden werden. Prüfe die lokale Installation und Authentifizierung."); }
