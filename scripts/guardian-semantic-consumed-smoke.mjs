@@ -15,6 +15,7 @@ import {
 } from "../dist/src/guardian/authority-record.js";
 import { buildSemanticGuardianAuthorityRequest } from "../dist/src/guardian/semantic-authority.js";
 import { applyActionableProposal } from "../dist/src/runtime/semantic-apply.js";
+import { buildSemanticMutationPlan } from "../dist/src/runtime/semantic-mutation-plan.js";
 
 const AUTH_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const RECORD_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -131,10 +132,12 @@ async function stageConsumedRecord({
   expiresAt,
   consumedAt,
 }) {
+  const plan = await buildSemanticMutationPlan(proposal, project);
   const material = buildSemanticGuardianAuthorityRequest({
     authorizationId,
     physicalProjectRoot: await realpath(project),
     proposal,
+    expectedPostBaseline: plan.expectedPostBaseline,
   });
   const active = buildGuardianAuthorityRecord({
     consumer: "semantic-mutation",

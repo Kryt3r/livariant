@@ -60,6 +60,14 @@ test("semantic Guardian Authority binds project, physical root, operation, propo
     assert.equal(first.request.mode, "one-shot");
     assert.equal(first.request.materialFields.length, 17);
 
+    const differentPostState = buildSemanticGuardianAuthorityRequest({
+      authorizationId: AUTH_A,
+      physicalProjectRoot: physical,
+      proposal: firstProposal,
+      expectedPostBaseline: { ...firstProposal.baseline, digest: "e".repeat(64) },
+    });
+    assert.notEqual(first.materialSha256, differentPostState.materialSha256);
+
     const differentOperation = buildSemanticGuardianAuthorityRequest({
       authorizationId: AUTH_B,
       physicalProjectRoot: physical,
