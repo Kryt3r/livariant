@@ -266,3 +266,19 @@ test("Reject and Keep Existing remain renderer-local decisions with no Project B
   assert.match(keepHandler, /area\.preparedProposal = null/);
   assert.match(rejectHandler, /area\.state = area\.confirmedValue \? "confirmed" : "open"/);
 });
+
+
+test("Project Knowledge setup retry stays non-blocking in the renderer", async () => {
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+  const start = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-auto-setup-retry]")');
+  const end = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")', start);
+  assert.ok(start >= 0 && end > start);
+  const handler = main.slice(start, end);
+
+  assert.match(handler, /projectKnowledgeSetupInFlight = true/);
+  assert.match(handler, /void \(async \(\) =>/);
+  assert.match(handler, /ensureProjectKnowledgeTrusted\(getLanguage\(\)\)/);
+  assert.doesNotMatch(handler, /projectKnowledgeLoading = true/);
+  assert.match(main, /without blocking this page/);
+  assert.match(main, /ohne diese Seite zu blockieren/);
+});
