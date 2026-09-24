@@ -28,13 +28,13 @@ test("Operator Live Notice localizes normal-user status and accessibility copy",
   assert.doesNotMatch(renderer, /operator_live_notice_(record|write|apply)/);
 });
 
-test("Desktop entry keeps first-run startup exceptions out of normal user copy", async () => {
+test("Desktop entry recovers from first-run startup failure without deleting existing app data", async () => {
   const entry = await text("apps/desktop/src/desktop-entry.ts");
 
   assert.match(entry, /console\.error\("Livariant first-run startup failed", error\)/);
-  assert.match(entry, /Livariant setup could not start/);
-  assert.match(entry, /Livariant-Einrichtung konnte nicht gestartet werden/);
+  assert.match(entry, /await loadMainSurface\(\)/);
+  assert.match(entry, /console\.error\("Livariant main surface recovery failed", mainError\)/);
   assert.doesNotMatch(entry, /\$\{String\(error\)/);
-  assert.match(entry, /No project-owned files were changed\./);
-  assert.match(entry, /Es wurden keine projekt-eigenen Dateien verändert\./);
+  assert.match(entry, /No project-owned files or Livariant app data were deleted\./);
+  assert.match(entry, /keine Livariant-Anwendungsdaten gelöscht/);
 });

@@ -76,3 +76,11 @@ test("first-run project submit preserves the selected draft and ignores its own 
   assert.match(firstRun, /if \(projectSubmissionInFlight\) return Promise\.resolve\(\)/);
   assert.match(firstRun, /projectDraft = null;\s*await inspectRepository\(localRoot\)/);
 });
+
+
+test("Desktop project activation does not block navigation on Project Knowledge trust setup", async () => {
+  const registry = await text("apps/desktop/src/desktop-project-registry.ts");
+  assert.doesNotMatch(registry, /ensureProjectKnowledgeTrusted/);
+  assert.doesNotMatch(registry, /launchProjectKnowledge(StageA|Protection)Setup/);
+  assert.match(registry, /await publishDesktopProjectActivated/);
+});

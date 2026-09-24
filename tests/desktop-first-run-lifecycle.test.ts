@@ -167,3 +167,32 @@ test("malformed, invalid-path or authority-claiming state fails closed", () => {
     localRoot: join(tmpdir(), "livariant-definitely-missing-project"),
   }));
 });
+
+
+test("persisted first-run state safely normalizes missing legacy defaults without granting authority", () => {
+  const state = createDesktopFirstRunInitialState();
+  const legacy = {
+    ...state,
+    providers: undefined,
+    health: undefined,
+    boundaries: {
+      grantsAuthority: false,
+      mutationAuthorized: false,
+      changesProjectOwnedFiles: false,
+    },
+  };
+  const parsed = parsePersistedFirstRunOnboardingState(legacy);
+  assert.deepEqual(parsed.providers, { configuredProviderIds: [], deferred: false });
+  assert.equal(parsed.health.hasProjectSelection, false);
+  assert.equal(parsed.boundaries.onboardingEvidenceIsProjectTruth, false);
+  assert.equal(parsed.boundaries.repositoryDescriptionGrantsAuthority, false);
+  assert.equal(parsed.boundaries.grantsAuthority, false);
+});
+
+test("persisted first-run compatibility never normalizes an explicit authority claim", () => {
+  const state = createDesktopFirstRunInitialState();
+  assert.throws(() => parsePersistedFirstRunOnboardingState({
+    ...state,
+    boundaries: { grantsAuthority: true },
+  }), /grantsAuthority/);
+});
