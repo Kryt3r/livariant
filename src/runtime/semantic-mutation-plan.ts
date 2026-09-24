@@ -100,7 +100,7 @@ export async function buildSemanticMutationPlan(
     || observed.schemaVersion !== proposal.baseline.schemaVersion
     || observed.digest !== proposal.baseline.digest
   ) {
-    throw new Error("Semantic mutation planning requires the exact actionable proposal pre-state.");
+    throw new Error("Semantic mutation planning refused stale work because the current trusted Project Brain baseline changed and no longer matches the exact actionable proposal pre-state.");
   }
 
   let next: Map<ProjectContextManagedInputName, Buffer>;
