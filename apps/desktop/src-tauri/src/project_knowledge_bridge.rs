@@ -38,12 +38,11 @@ fn hidden_command(program: &Path) -> Command {
     command
 }
 
-fn run_project_knowledge(
-    app: &tauri::AppHandle,
-    registry: &DesktopProjectRegistryState,
+fn run_project_knowledge_for_roots(
+    local_root: &Path,
+    state_root: &Path,
     request: Value,
 ) -> Result<Value, String> {
-    let scope = active_project_scope(app, registry)?;
     let executable = std::env::current_exe()
         .map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
     let install_root = executable.parent().ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
@@ -65,8 +64,8 @@ fn run_project_knowledge(
     let mut child = hidden_command(&node)
         .arg(&script)
         .current_dir(install_root)
-        .env("LIVARIANT_PROJECT_ROOT", &scope.local_root)
-        .env("LIVARIANT_PROJECT_BRAIN_ROOT", &scope.state_root)
+        .env("LIVARIANT_PROJECT_ROOT", local_root)
+        .env("LIVARIANT_PROJECT_BRAIN_ROOT", state_root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -79,10 +78,6 @@ fn run_project_knowledge(
     }
     let output = child.wait_with_output()
         .map_err(|error| format!("Project Knowledge runtime could not be read: {error}"))?;
-    let current = active_project_scope(app, registry)?;
-    if current.generation != scope.generation || current.desktop_project_id != scope.desktop_project_id {
-        return Err("Active Desktop project changed while Project Knowledge was loading; stale result rejected.".to_owned());
-    }
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
         return Err(if stderr.is_empty() { "Project Knowledge request failed closed.".to_owned() } else { stderr });
@@ -91,11 +86,25 @@ fn run_project_knowledge(
         .map_err(|error| format!("Project Knowledge runtime returned invalid JSON: {error}"))
 }
 
-pub(crate) fn ensure_active_project_brain_storage(
+fn run_project_knowledge(
     app: &tauri::AppHandle,
     registry: &DesktopProjectRegistryState,
+    request: Value,
+) -> Result<Value, String> {
+    let scope = active_project_scope(app, registry)?;
+    let result = run_project_knowledge_for_roots(&scope.local_root, &scope.state_root, request)?;
+    let current = active_project_scope(app, registry)?;
+    if current.generation != scope.generation || current.desktop_project_id != scope.desktop_project_id {
+        return Err("Active Desktop project changed while Project Knowledge was loading; stale result rejected.".to_owned());
+    }
+    Ok(result)
+}
+
+pub(crate) fn ensure_project_brain_storage_for_roots(
+    local_root: &Path,
+    state_root: &Path,
 ) -> Result<(), String> {
-    run_project_knowledge(app, registry, json!({ "method": "ensure-storage" }))?;
+    run_project_knowledge_for_roots(local_root, state_root, json!({ "method": "ensure-storage" }))?;
     Ok(())
 }
 

@@ -697,6 +697,28 @@ fn register_at(
     })
 }
 
+fn registered_project_roots(
+    projects_root: &Path,
+    desktop_project_id: &str,
+) -> Result<(PathBuf, PathBuf), String> {
+    let id = canonical_uuid(desktop_project_id, "desktopProjectId")?;
+    let registry = load_registry(projects_root)?;
+    let project = registry
+        .projects
+        .iter()
+        .find(|project| project.desktop_project_id == id)
+        .ok_or_else(|| "Desktop project is not registered.".to_owned())?;
+    if project.state != DesktopProjectRegistrationState::Registered {
+        return Err("Detached Desktop project cannot be activated.".to_owned());
+    }
+    if availability(project) != "available" {
+        return Err("Desktop project local root is unavailable or no longer matches its registered location.".to_owned());
+    }
+    let local_root = canonical_local_root(&project.local_root)?;
+    let state_root = real_state_directory(projects_root, &id, false)?;
+    Ok((local_root, state_root))
+}
+
 fn activate_at(
     projects_root: &Path,
     runtime: &mut ActiveProjectRuntime,
@@ -1341,15 +1363,13 @@ pub fn desktop_project_activate(
     desktop_project_id: String,
 ) -> Result<DesktopProjectMutationResult, String> {
     let projects_root = projects_root(&app)?;
-    let result = {
-        let mut runtime = state
-            .runtime
-            .lock()
-            .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
-        activate_at(&projects_root, &mut runtime, &desktop_project_id)?
-    };
-    crate::project_knowledge_bridge::ensure_active_project_brain_storage(&app, state.inner())?;
-    Ok(result)
+    let (local_root, state_root) = registered_project_roots(&projects_root, &desktop_project_id)?;
+    crate::project_knowledge_bridge::ensure_project_brain_storage_for_roots(&local_root, &state_root)?;
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+    activate_at(&projects_root, &mut runtime, &desktop_project_id)
 }
 
 #[tauri::command]
