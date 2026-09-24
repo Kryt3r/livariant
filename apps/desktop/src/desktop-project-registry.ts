@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getLanguage } from "./i18n/runtime.js";
 
 export interface DesktopProjectEntry {
   desktopProjectId: string;
