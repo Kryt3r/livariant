@@ -490,22 +490,6 @@ const renderProjectKnowledgeProtection = () => {
     });
   }
 
-  if (protection.state === "project-brain-initialization-required") {
-    return projectBrainSetupShell({
-      step: uiText("Project setup needs attention", "Projekteinrichtung benötigt Aufmerksamkeit"),
-      title: uiText("Project Brain storage is not ready", "Project-Brain-Speicher ist nicht bereit"),
-      description: uiText(
-        "Livariant prepares the Project Brain in its own machine-local project state during project setup. This fallback state means setup or migration did not complete safely.",
-        "Livariant legt den Project Brain während der Projekteinrichtung im eigenen lokalen Projektzustand an. Dieser Fallback bedeutet, dass Einrichtung oder Migration nicht sicher abgeschlossen wurde.",
-      ),
-      icon: "!",
-      detail: uiText(
-        "No Project Brain will be created inside the user repository. Re-activate the project or review the migration error before continuing.",
-        "Im Nutzer-Repository wird kein Project Brain angelegt. Aktiviere das Projekt erneut oder prüfe zuerst den Migrationsfehler.",
-      ),
-      secondary: refresh,
-    });
-  }
 
   if (protection.state === "integrity-acceptance-required" && protection.integrity.digest) {
     const technical = `<details class="project-brain-setup-technical"><summary>${uiText("Technical details", "Technische Details")}</summary><div><span>${uiText("Managed-state digest", "Digest des verwalteten Stands")}</span><code>${escapeHtml(protection.integrity.digest)}</code></div></details>`;

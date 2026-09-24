@@ -113,6 +113,10 @@ test("Desktop Project Brain uses machine-local project state instead of reposito
   assert.doesNotMatch(main, /data-project-knowledge-initialization-apply/);
   assert.doesNotMatch(main, /Authorize creation/);
   assert.doesNotMatch(main, /Create Project Brain/);
+  assert.doesNotMatch(core, /authorize-initialization/);
+  assert.doesNotMatch(core, /apply-initialization/);
+  assert.doesNotMatch(rust, /authorize_project_knowledge_initialization/);
+  assert.doesNotMatch(rust, /apply_project_knowledge_initialization/);
   assert.match(main, /no Project Brain will be created inside the user repository/i);
 });
 
