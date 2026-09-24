@@ -95,48 +95,40 @@ test("canonical reads are blocked until protected integrity and initial acceptan
 });
 
 
-test("Desktop Project Brain initialization preserves protected lifecycle phases", async () => {
+test("Desktop Project Brain uses machine-local project state instead of repository initialization UX", async () => {
   const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const storage = await readFile("src/project/desktop-project-brain-storage.ts", "utf8");
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  const registry = await readFile("apps/desktop/src-tauri/src/desktop_project_registry.rs", "utf8");
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
 
-  assert.match(core, /project-brain-initialization-required/);
-  assert.match(core, /issueLifecycleGuardianAuthority/);
-  assert.match(core, /consumeLifecycleGuardianAuthority/);
-  assert.match(core, /initializeProject\(project\.root, \{ authorized: true \}\)/);
-  assert.match(core, /Project Brain initialization requires matching protected lifecycle authorization before apply/);
-  assert.match(rust, /authorize_project_knowledge_initialization/);
-  assert.match(rust, /apply_project_knowledge_initialization/);
-  assert.match(main, /Authorize creation/);
-  assert.match(main, /Create Project Brain/);
-  assert.match(main, /Existing project files remain unchanged/i);
+  assert.match(core, /LIVARIANT_PROJECT_BRAIN_ROOT/);
+  assert.match(core, /ensureDesktopProjectBrainStorage\(checkoutRoot, projectBrainRoot\)/);
+  assert.match(rust, /LIVARIANT_PROJECT_ROOT/);
+  assert.match(rust, /LIVARIANT_PROJECT_BRAIN_ROOT/);
+  assert.match(registry, /ensure_project_brain_storage_for_roots\(&local_root, &state_root\)/);
+  assert.match(storage, /storage must not overlap the user project checkout/i);
+  assert.match(storage, /Both machine-local and repository-local Project Brains exist with different material/);
+  assert.doesNotMatch(main, /data-project-knowledge-initialization-authorize/);
+  assert.doesNotMatch(main, /data-project-knowledge-initialization-apply/);
+  assert.doesNotMatch(main, /Authorize creation/);
+  assert.doesNotMatch(main, /Create Project Brain/);
+  assert.match(main, /no Project Brain will be created inside the user repository/i);
 });
 
 
-test("Desktop Project Brain authorization uses protected native confirmation without moving Authority into the renderer", async () => {
-  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
-  const helper = await readFile("src/guardian/protected-helper.ts", "utf8");
-  const privileged = await readFile("src/guardian/privileged-helper.ts", "utf8");
-  const bridge = await readFile("apps/desktop/src/project-knowledge-bridge.ts", "utf8");
+test("legacy repository-local Project Brain migration is bounded and fail-closed", async () => {
+  const storage = await readFile("src/project/desktop-project-brain-storage.ts", "utf8");
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
-  assert.doesNotMatch(core, /LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION/);
-  assert.match(core, /nativeConfirmationLanguage: uiLanguage/);
-  assert.match(core, /files-to-create-json/);
-  assert.match(core, /project-files-to-modify-json/);
-  assert.match(helper, /buildWindowsLifecycleAuthorizationDialogModel/);
-  assert.match(helper, /request\.consumer !== "lifecycle-mutation"/);
-  assert.match(helper, /refuses initialization that would modify existing project files/);
-  assert.match(helper, /Anlegen autorisieren/);
-  assert.match(helper, /parseNativeConfirmationLanguage/);
-  assert.match(helper, /"--native-confirmation-language"/);
-  assert.match(helper, /"-Sta"/);
-  assert.match(privileged, /args\.includes\("--native-confirmation-language"\)/);
-  assert.match(privileged, /LIVARIANT_GUARDIAN_ELEVATED_HIDE_WINDOW/);
-  assert.doesNotMatch(privileged, /LIVARIANT_GUARDIAN_NATIVE_CONFIRMATION/);
-  assert.match(privileged, /WindowStyle='Hidden'/);
-  assert.match(bridge, /uiLanguage: "de" \| "en"/);
-  assert.match(main, /authorizeProjectKnowledgeInitialization\(material, getLanguage\(\)\)/);
-  assert.match(helper, /Type exactly: \$\{phrase\}/);
+
+  assert.match(storage, /MAX_MIGRATION_ENTRIES/);
+  assert.match(storage, /MAX_MIGRATION_FILE_BYTES/);
+  assert.match(storage, /unsupported symbolic link/);
+  assert.match(storage, /Migrated Project Brain candidate does not match the exact legacy source material/);
+  assert.match(storage, /Legacy Project Brain changed during migration/);
+  assert.match(storage, /Machine-local Project Brain promotion could not be verified/);
+  assert.match(storage, /await rm\(source\.path, \{ recursive: true, force: false \}\)/);
+  assert.match(main, /setup or migration did not complete safely/i);
 });
 
 test("Rust bridge keeps PowerShell quoting syntactically valid", async () => {
