@@ -101,6 +101,8 @@ let diagnosticsBusy: "measure" | "diagnostics" | "export" | null = null;
 let error: string | null = null;
 let diagnosticsNotice: string | null = null;
 let selectedProvider: ProviderId | null = null;
+let connectAllProvidersBusy = false;
+let connectAllProvidersNotice: string | null = null;
 let selectedDiagnosticsPreset: DiagnosticPreset = "30d";
 let diagnosticsProjectGeneration = 0;
 let activeDiagnosticsRerender: (() => void) | null = null;
@@ -165,10 +167,10 @@ const unknownTotalEvents = (dimension: ObservedAttributionDimension | undefined)
   dimension?.groups.reduce((sum, group) => sum + group.unknownTotalTokenEvents, 0) ?? 0;
 
 const providerGlyph = (provider: ProviderId) => {
-  if (provider === "codex") return '<span class="provider-glyph provider-glyph-codex">C</span>';
-  if (provider === "claude") return '<span class="provider-glyph provider-glyph-claude">A</span>';
-  if (provider === "gemini") return '<span class="provider-glyph provider-glyph-gemini">G</span>';
-  return '<span class="provider-glyph provider-glyph-custom">+</span>';
+  if (provider === "codex") return '<span class="provider-glyph provider-glyph-codex"><svg class="provider-brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4.1a7.1 7.1 0 0 1 6.15 3.55 7.1 7.1 0 0 1 3.55 6.15 7.1 7.1 0 0 1 0 7.1 7.1 7.1 0 0 1-6.15 3.55A7.1 7.1 0 0 1 13.4 28a7.1 7.1 0 0 1-6.15-3.55A7.1 7.1 0 0 1 3.7 18.3a7.1 7.1 0 0 1 0-7.1A7.1 7.1 0 0 1 9.85 7.65 7.1 7.1 0 0 1 16 4.1Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m10.2 12.4 5.8-3.3 5.8 3.3v6.7L16 22.4l-5.8-3.3Z" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>';
+  if (provider === "claude") return '<span class="provider-glyph provider-glyph-claude"><svg class="provider-brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M8 24 14.3 8h3.4L24 24h-4.2l-1.2-3.5h-5.4L12 24H8Zm6.4-7h3.1L16 12.4 14.4 17Z" fill="currentColor"/></svg></span>';
+  if (provider === "gemini") return '<span class="provider-glyph provider-glyph-gemini"><svg class="provider-brand-logo provider-brand-logo-gemini" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="geminiConnectionGradient" x1="5" y1="27" x2="27" y2="5" gradientUnits="userSpaceOnUse"><stop stop-color="#4F8DFF"/><stop offset=".52" stop-color="#8A67FF"/><stop offset="1" stop-color="#D36CFF"/></linearGradient></defs><path d="M16 3.5c1.4 7 5.5 11.1 12.5 12.5C21.5 17.4 17.4 21.5 16 28.5 14.6 21.5 10.5 17.4 3.5 16 10.5 14.6 14.6 10.5 16 3.5Z" fill="url(#geminiConnectionGradient)"/></svg></span>';
+  return '<span class="provider-glyph provider-glyph-custom"><svg class="provider-brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M12.3 19.7 9.8 22.2a4.2 4.2 0 0 1-5.9-5.9l4.2-4.2a4.2 4.2 0 0 1 5.9 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="m19.7 12.3 2.5-2.5a4.2 4.2 0 0 1 5.9 5.9l-4.2 4.2a4.2 4.2 0 0 1-5.9 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="m11.5 20.5 9-9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></span>';
 };
 
 const localizedCodexDetail = (detail: string | null | undefined): string | null => {
@@ -330,7 +332,7 @@ const renderLocalProviderModal = (provider: LocalProviderId) => {
               : `<button class="button primary local-provider-connect" type="button" ${busy || (provider !== "custom" && !available) ? "disabled" : ""}>${localProviderAction?.action === "connect" ? lang("Connecting…", "Verbinde…") : lang("Connect", "Verbinden")}</button>`}
           </div>
         </section>
-        ${provider === "custom" ? `<section class="provider-detail-section"><div class="provider-section-heading"><span>${lang("Executable", "Programmdatei")}</span><small>${lang("No shell scripts", "Keine Shell-Skripte")}</small></div><input class="provider-custom-path" type="text" value="${esc(status?.configuredPath ?? "")}" placeholder="${lang("Path to local provider executable", "Pfad zur lokalen Provider-Programmdatei")}" autocomplete="off" spellcheck="false"></section>` : ""}
+        ${!connected && !available ? `<section class="provider-detail-section provider-manual-fallback"><div class="provider-section-heading"><span>${provider === "custom" ? lang("Executable", "Programmdatei") : lang("Manual fallback", "Manueller Fallback")}</span><small>${lang("Shown because automatic discovery found no usable connection", "Wird angezeigt, weil die automatische Erkennung keine nutzbare Verbindung gefunden hat")}</small></div><input class="provider-custom-path" type="text" value="${esc(status?.configuredPath ?? "")}" placeholder="${lang("Path to local provider executable", "Pfad zur lokalen Provider-Programmdatei")}" autocomplete="off" spellcheck="false"></section>` : ""}
         <section class="provider-detail-section">
           <div class="provider-section-heading"><span>${lang("Connection details", "Verbindungsdetails")}</span><small>${lang("Observed locally", "Lokal beobachtet")}</small></div>
           <div class="provider-detail-grid">
@@ -355,13 +357,24 @@ export function renderConnectionsSettingsView(): string {
   const connectedLabel = connectedCount === 1
     ? lang("1 provider connected", "1 Anbieter verbunden")
     : lang(`${connectedCount} providers connected`, `${connectedCount} Anbieter verbunden`);
+  const autoConnectable = [
+    ...(!connector?.connected && connector?.installationState === "available" ? ["codex"] : []),
+    ...(["claude", "gemini"] as LocalProviderId[]).filter((provider) => {
+      const status = localProviders[provider];
+      return !status?.connected && status?.installationState === "available" && status.authState !== "unavailable";
+    }),
+  ];
   return `
     <section class="settings-panel connections-settings" data-surface="connections">
       <div class="connections-heading">
         <div><span class="eyebrow">${lang("AI tools available to this project", "KI-Werkzeuge für dieses Projekt")}</span><h2>${t("connections.title")}</h2><p>${lang("Connect the AI tools you want Livariant to work alongside. A connection only makes a provider available; it does not give that provider permission to change files, run commands, merge or release anything.", "Verbinde die KI-Werkzeuge, mit denen Livariant zusammenarbeiten soll. Eine Verbindung macht einen Anbieter nur verfügbar; sie gibt ihm keine Erlaubnis, Dateien zu ändern, Befehle auszuführen, zu mergen oder etwas zu veröffentlichen.")}</p></div>
         <div class="connections-overview"><strong>${connectedCount}</strong><span>${lang("connected", "verbunden")}</span></div>
       </div>
-      <div class="connection-summary-row"><span><i class="summary-dot ${connectedCount > 0 ? "connected" : ""}"></i><strong>${connectedCount > 0 ? connectedLabel : t("connections.noProviders")}</strong></span></div>
+      <div class="connection-summary-row">
+        <span><i class="summary-dot ${connectedCount > 0 ? "connected" : ""}"></i><strong>${connectedCount > 0 ? connectedLabel : t("connections.noProviders")}</strong></span>
+        ${autoConnectable.length ? `<button class="button primary connect-all-providers" type="button" ${connectAllProvidersBusy ? "disabled" : ""}>${connectAllProvidersBusy ? lang("Connecting…", "Verbinde…") : lang("Connect all available providers", "Alle verfügbaren Anbieter verbinden")}</button>` : ""}
+      </div>
+      ${connectAllProvidersNotice ? `<div class="connections-bulk-notice">${esc(connectAllProvidersNotice)}</div>` : ""}
       <div class="provider-grid" aria-label="${lang("Available LLM and agent connections", "Verfügbare LLM- und Agent-Verbindungen")}">
         ${renderProviderCard("codex", "Codex", lang("OpenAI · local App Server", "OpenAI · lokaler App Server"), state.label, state.tone)}
         ${(["claude", "gemini", "custom"] as LocalProviderId[]).map((provider) => {
@@ -542,6 +555,36 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     });
   });
 
+  document.querySelector<HTMLButtonElement>(".connect-all-providers")?.addEventListener("click", async () => {
+    if (connectAllProvidersBusy) return;
+    connectAllProvidersBusy = true;
+    connectAllProvidersNotice = null;
+    rerenderConnectionsSurface(rerender);
+    const failures: string[] = [];
+    let connectedNow = 0;
+    try {
+      if (!connector?.connected && connector?.installationState === "available") {
+        try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); if (connector.connected) connectedNow += 1; }
+        catch { failures.push("Codex"); }
+      }
+      for (const provider of ["claude", "gemini"] as LocalProviderId[]) {
+        const status = localProviders[provider];
+        if (status?.connected || status?.installationState !== "available" || status.authState === "unavailable") continue;
+        try {
+          localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_connect", { provider, manualPath: null });
+          if (localProviders[provider]?.connected) connectedNow += 1;
+        } catch { failures.push(localProviderCopy(provider).name); }
+      }
+      connectAllProvidersNotice = failures.length
+        ? lang(`${connectedNow} provider(s) connected; ${failures.join(", ")} could not be connected.`, `${connectedNow} Anbieter verbunden; ${failures.join(", ")} konnten nicht verbunden werden.`)
+        : lang(`${connectedNow} provider(s) connected.`, `${connectedNow} Anbieter verbunden.`);
+      notifyConnectionHealthChanged();
+    } finally {
+      connectAllProvidersBusy = false;
+      rerenderConnectionsSurface(rerender);
+    }
+  });
+
   document.querySelector<HTMLButtonElement>(".connector-refresh")?.addEventListener("click", async () => {
     const previousConnector = connector ? { ...connector } : null;
     const previousError = error;
@@ -594,9 +637,11 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   document.querySelector<HTMLButtonElement>(".local-provider-connect")?.addEventListener("click", async () => {
     const provider = activeLocalProvider();
     if (!provider) return;
-    const manualPath = provider === "custom"
-      ? document.querySelector<HTMLInputElement>(".provider-custom-path")?.value.trim() || null
-      : null;
+    const status = localProviders[provider];
+    const automaticallyAvailable = status?.installationState === "available" && status.authState !== "unavailable";
+    const manualPath = automaticallyAvailable
+      ? null
+      : document.querySelector<HTMLInputElement>(".provider-custom-path")?.value.trim() || null;
     localProviderAction = { provider, action: "connect" };
     delete localProviderErrors[provider];
     rerenderConnectionsSurface(rerender);
@@ -699,6 +744,8 @@ onDesktopProjectActivated(() => {
   localProviders = {};
   localProviderErrors = {};
   error = null;
+  connectAllProvidersBusy = false;
+  connectAllProvidersNotice = null;
   notifyConnectionHealthChanged();
 
   const rerender = activeDiagnosticsRerender;
