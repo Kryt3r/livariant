@@ -75,3 +75,23 @@ test("Block-A review follow-up does not leave duplicated function declarations o
   assert.match(shell, /target: "\.connections-settings"/);
   assert.match(main, /\}\);\r?\n\r?\nonLanguageChange\(\(\) => \{/);
 });
+
+
+test("provider connection UX groups automatic connections and keeps executable paths as fallback", () => {
+  const onboarding = readFileSync("apps/desktop/src/first-run-ui.ts", "utf8");
+  const connections = readFileSync("apps/desktop/src/connections-diagnostics.ts", "utf8");
+
+  assert.match(onboarding, /data-fr-connect-all-providers/);
+  assert.match(onboarding, /Alle verfügbaren Anbieter verbinden/);
+  assert.match(onboarding, /providerLogo\("codex"\)/);
+  assert.match(onboarding, /providerLogo\(provider\)/);
+  assert.match(onboarding, /data-fr-local-provider-path="\$\{provider\}"/);
+  assert.match(onboarding, /automatic discovery did not find a usable installation/);
+  assert.doesNotMatch(onboarding, /Oder expliziter Codex-Programmpfad/);
+
+  assert.match(connections, /connect-all-providers/);
+  assert.match(connections, /Connect all available providers/);
+  assert.match(connections, /provider-brand-logo/);
+  assert.match(connections, /provider-manual-fallback/);
+  assert.match(connections, /automaticallyAvailable/);
+});
