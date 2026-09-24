@@ -47,3 +47,21 @@ test("first-run activates the selected Desktop project and detects the same loca
   assert.match(registry, /projectId: projectId\?\.trim\(\) \|\| null/);
   assert.match(registry, /localRootKey/);
 });
+
+
+test("first-run establishes the project scope before persisting discovery and repository state", async () => {
+  const firstRun = await text("apps/desktop/src/first-run-ui.ts");
+  const submitStart = firstRun.indexOf('root.querySelector<HTMLFormElement>("[data-fr-project]")');
+  const submitEnd = firstRun.indexOf('root.querySelectorAll<HTMLButtonElement>("[data-fr-question-answer]")', submitStart);
+  const submit = firstRun.slice(submitStart, submitEnd);
+
+  const activateAt = submit.indexOf("await ensureDesktopProjectActive(localRoot, undefined, projectId)");
+  const selectAt = submit.indexOf('apply({ type: "select-project", projectId, localRoot })');
+  assert.ok(activateAt >= 0, "project activation must happen in first-run project submit");
+  assert.ok(selectAt > activateAt, "select-project must persist only after the project scope/Brain namespace is active");
+
+  assert.match(firstRun, /Project Brain ready/);
+  assert.match(firstRun, /Project Brain bereit/);
+  assert.match(firstRun, /machine-local Project Brain/);
+  assert.match(firstRun, /maschinenlokalen Project Brain/);
+});

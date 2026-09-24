@@ -155,8 +155,9 @@ function understanding(state: FirstRunState): string {
       <p>${esc(presented.reason)}</p><textarea data-fr-focus="question:${esc(question.id)}" data-fr-question-value="${esc(question.id)}" placeholder="${text("Your answer…", "Deine Antwort…")}">${esc(question.response ?? "")}</textarea>
       <div class="fr-question-actions"><button class="button secondary" data-fr-question-skip="${esc(question.id)}" type="button">${text("Skip / keep unknown", "Überspringen / unbekannt lassen")}</button><button class="button primary" data-fr-question-answer="${esc(question.id)}" type="button">${text("Save answer", "Antwort speichern")}</button></div></article>`;
   }).join("");
-  return `<section class="fr-stage"><span class="fr-kicker">${text("Project understanding", "Projektverständnis")}</span><h1>${text("Clarify only what the files cannot answer", "Kläre nur, was die Dateien nicht beantworten können")}</h1>
-    <p>${text("Livariant asks only where the project files do not provide a clear answer. You can skip any question; skipped information stays unknown instead of being guessed.", "Livariant fragt nur dort nach, wo die Projektdateien keine eindeutige Antwort liefern. Du kannst jede Frage überspringen; übersprungene Informationen bleiben unbekannt, statt geraten zu werden.")}</p>
+  return `<section class="fr-stage"><span class="fr-kicker">${text("Project understanding", "Projektverständnis")}</span><h1>${text("Build the Project Brain, then clarify only what the files cannot answer", "Project Brain aufbauen und nur offene Punkte klären")}</h1>
+    <p>${text("Livariant has prepared the machine-local Project Brain for this project and analyzed the selected folder. It now asks only where the project files do not provide a clear answer. You can skip any question; skipped information stays unknown instead of being guessed.", "Livariant hat den maschinenlokalen Project Brain für dieses Projekt vorbereitet und den ausgewählten Ordner analysiert. Jetzt fragt Livariant nur dort nach, wo die Projektdateien keine eindeutige Antwort liefern. Du kannst jede Frage überspringen; übersprungene Informationen bleiben unbekannt, statt geraten zu werden.")}</p>
+    <div class="fr-detected"><strong>${text("Project Brain ready", "Project Brain bereit")}</strong><span>${text("The managed Brain lives in Livariant's project storage, not inside your repository.", "Der verwaltete Brain liegt im projektspezifischen Livariant-Speicher und nicht in deinem Repository.")}</span></div>
     ${cards ? `<div class="fr-question-list">${cards}</div>` : `<div class="fr-empty"><strong>${text("No clarification questions are currently open.", "Aktuell sind keine Klärungsfragen offen.")}</strong><span>${text("You may continue without claiming the project is fully understood.", "Du kannst fortfahren, ohne zu behaupten, dass das Projekt vollständig verstanden ist.")}</span></div>`}
     <div class="fr-actions"><button class="button secondary" data-fr-move="project" type="button">${text("Back", "Zurück")}</button><button class="button primary" data-fr-move="sources" type="button">${text("Continue to sources", "Weiter zu Quellen")}</button></div></section>`;
 }
@@ -342,16 +343,20 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
       const path = (event.currentTarget as HTMLInputElement).value; const projectId = root.querySelector<HTMLInputElement>('input[name="projectId"]'); if (projectId && !projectId.value.trim() && path.trim()) projectId.value = suggestProjectIdFromPath(path);
     });
     root.querySelector<HTMLFormElement>("[data-fr-project]")?.addEventListener("submit", async (event) => {
-      event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const localRoot = formValue(form, "localRoot");
-      if (await apply({ type: "select-project", projectId: formValue(form, "projectId"), localRoot })) {
-        try {
-          await ensureSelectedProjectActive();
-          await inspectRepository(localRoot);
-          await apply({ type: "move", step: "understanding" });
-        } catch (cause) {
-          error = cause instanceof Error ? cause.message : String(cause);
-          render(captureContext());
-        }
+      event.preventDefault();
+      const form = event.currentTarget as HTMLFormElement;
+      const localRoot = formValue(form, "localRoot");
+      const projectId = formValue(form, "projectId");
+      try {
+        // Establish the project-scoped persistence/Brain namespace first. The first-run
+        // state must never be written to the pre-activation scope and then lost on activation.
+        await ensureDesktopProjectActive(localRoot, undefined, projectId);
+        if (!await apply({ type: "select-project", projectId, localRoot })) return;
+        await inspectRepository(localRoot);
+        await apply({ type: "move", step: "understanding" });
+      } catch (cause) {
+        error = cause instanceof Error ? cause.message : String(cause);
+        render(captureContext());
       }
     });
 
