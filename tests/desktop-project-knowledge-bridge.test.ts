@@ -162,15 +162,17 @@ test("protected Desktop confirmation uses hidden UAC plus native dialogs instead
   assert.doesNotMatch(main, /Geschützte Stage A abgeschlossen/);
 });
 
-test("Desktop installer remains non-blocking while project activation owns knowledge setup", async () => {
+test("Desktop installer and project activation remain non-blocking while Project Knowledge owns trust setup", async () => {
   const hook = await readFile("apps/desktop/src-tauri/windows/language-hooks.nsh", "utf8");
   const builder = await readFile("scripts/build-protected-bootstrap-assets.mjs", "utf8");
   const registry = await readFile("apps/desktop/src/desktop-project-registry.ts", "utf8");
+  const bridge = await readFile("apps/desktop/src/project-knowledge-bridge.ts", "utf8");
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
 
   assert.doesNotMatch(hook, /nsExec::ExecToStack[\s\S]*desktop-stage-a\.ps1/);
   assert.ok(builder.includes("$LivariantProgramFiles = 'C:\\\\Program Files\\\\Livariant\\\\Bootstrap'"));
-  assert.match(registry, /ensureProjectKnowledgeTrusted/);
+  assert.doesNotMatch(registry, /ensureProjectKnowledgeTrusted/);
+  assert.match(bridge, /ensureProjectKnowledgeTrusted/);
   assert.doesNotMatch(main, /Prepare protected source/);
   assert.doesNotMatch(main, /Set up Guardian/);
 });
