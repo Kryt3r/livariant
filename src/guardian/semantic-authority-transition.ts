@@ -7,6 +7,7 @@ import {
 } from "./authority-client.js";
 import { consumeGuardianAuthority, issueGuardianAuthority } from "./authority-transitions.js";
 import { buildSemanticGuardianAuthorityRequest } from "./semantic-authority.js";
+import { buildSemanticMutationPlan } from "../runtime/semantic-mutation-plan.js";
 
 async function semanticRequest(
   authorizationId: string,
@@ -14,10 +15,12 @@ async function semanticRequest(
   projectPath: string,
 ) {
   const project = discoverProject(projectPath);
+  const plan = await buildSemanticMutationPlan(proposal, project.root);
   return buildSemanticGuardianAuthorityRequest({
     authorizationId,
     physicalProjectRoot: await realpath(project.root),
     proposal,
+    expectedPostBaseline: plan.expectedPostBaseline,
   });
 }
 
@@ -25,9 +28,14 @@ export async function issueSemanticGuardianAuthority(
   authorizationId: string,
   proposal: ActionableProposal,
   projectPath: string = process.cwd(),
+  options: { nativeConfirmationLanguage?: "de" | "en" } = {},
 ) {
   const material = await semanticRequest(authorizationId, proposal, projectPath);
-  const record = await issueGuardianAuthority({ request: material.request, projectPath });
+  const record = await issueGuardianAuthority({
+    request: material.request,
+    projectPath,
+    nativeConfirmationLanguage: options.nativeConfirmationLanguage,
+  });
   if (record.materialSha256 !== material.materialSha256 || record.consumer !== "semantic-mutation" || record.mode !== "one-shot") {
     throw new Error("Protected Guardian issued Semantic Authority does not match the exact authorization material.");
   }

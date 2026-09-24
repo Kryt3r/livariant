@@ -154,6 +154,7 @@ pub async fn apply_project_knowledge_proposal(
     area_id: String,
     proposal: Value,
     confirmed_proposal_digest: String,
+    language: Option<String>,
 ) -> Result<Value, String> {
     let scope = active_project_scope(&app, registry.inner())?;
     let expected_generation = scope.generation;
@@ -166,6 +167,7 @@ pub async fn apply_project_knowledge_proposal(
             "areaId": area_id,
             "proposal": proposal,
             "confirmedProposalDigest": confirmed_proposal_digest,
+            "language": language,
         }))
     }).await.map_err(|error| format!("Project Knowledge apply worker failed: {error}"))??;
     let current = active_project_scope(&app, registry.inner())?;
@@ -361,7 +363,7 @@ pub async fn launch_project_knowledge_protection_setup(
     }
 
     Ok(ProjectKnowledgeProtectionLaunchResult {
-        state: "launched",
+        state: "completed",
         detail: "A protected Stage-B setup window was opened from the fixed OS-protected Livariant bootstrap source. Complete the UAC and exact bootstrap confirmation there, then re-check protection readiness.".to_owned(),
         boundaries: json!({
             "rendererSuppliesExecutable": false,
@@ -380,6 +382,7 @@ pub async fn accept_project_knowledge_integrity(
     app: tauri::AppHandle,
     registry: State<'_, DesktopProjectRegistryState>,
     confirmed_digest: String,
+    language: Option<String>,
 ) -> Result<Value, String> {
     let scope = active_project_scope(&app, registry.inner())?;
     let expected_generation = scope.generation;
@@ -390,6 +393,7 @@ pub async fn accept_project_knowledge_integrity(
         run_project_knowledge(&app_for_worker, state.inner(), json!({
             "method": "accept-integrity",
             "confirmedDigest": confirmed_digest,
+            "language": language,
         }))
     }).await.map_err(|error| format!("Project Knowledge integrity worker failed: {error}"))??;
     let current = active_project_scope(&app, registry.inner())?;

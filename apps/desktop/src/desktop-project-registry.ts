@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage } from "./i18n/runtime.js";
+import { ensureProjectKnowledgeTrusted } from "./project-knowledge-bridge.js";
 
 export interface DesktopProjectEntry {
   desktopProjectId: string;
@@ -186,6 +187,7 @@ export async function activateDesktopProject(desktopProjectId: string): Promise<
     }
 
     publishRegistry(snapshot);
+    await ensureProjectKnowledgeTrusted(getLanguage());
     await publishDesktopProjectActivated({
       desktopProjectId: active.desktopProjectId,
       generation: active.generation,
@@ -232,7 +234,10 @@ export async function ensureDesktopProjectActive(localRoot: string, displayName?
   const key = localRootKey(localRoot);
   const project = registered.projects.find((candidate) => candidate.state === "registered" && localRootKey(candidate.localRoot) === key);
   if (!project) throw new Error("The selected project was registered but could not be resolved by its local root.");
-  if (registered.active?.desktopProjectId === project.desktopProjectId) return registered;
+  if (registered.active?.desktopProjectId === project.desktopProjectId) {
+    await ensureProjectKnowledgeTrusted(getLanguage());
+    return registered;
+  }
   return activateDesktopProject(project.desktopProjectId);
 }
 

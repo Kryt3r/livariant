@@ -54,9 +54,14 @@ export async function findProjectBrainIntegrityGuardianAuthority(
 export async function issueProjectBrainIntegrityGuardianAuthority(
   identity: IntegrityIdentity,
   projectPath: string = process.cwd(),
+  options: { nativeConfirmationLanguage?: "de" | "en" } = {},
 ) {
   const material = await integrityRequest(identity, projectPath);
-  const record = await issueGuardianAuthority({ request: material.request, projectPath });
+  const record = await issueGuardianAuthority({
+    request: material.request,
+    projectPath,
+    nativeConfirmationLanguage: options.nativeConfirmationLanguage,
+  });
   if (record.consumer !== "project-brain-integrity"
     || record.mode !== "persistent"
     || record.state !== "active"

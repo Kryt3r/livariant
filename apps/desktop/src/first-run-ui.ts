@@ -319,7 +319,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
 
   const render = (context?: RenderContext) => {
     const state = stateFrom(snapshot); const displayStep = options.force && state.currentStep === "complete" ? "welcome" : state.currentStep;
-    root.innerHTML = `<div class="desktop-frame first-run-frame ${options.force ? "first-run-revisit" : ""}">${windowBar(options.logoUrl)}<div class="fr-shell"><aside class="fr-rail"><div class="fr-brand"><img src="${options.logoUrl}" alt="Livariant"/><div><strong>Livariant</strong><small>${text("Setup assistant", "Einrichtungsassistent")}</small></div></div><ol>${progress(displayStep)}</ol><div class="fr-rail-footer"><div class="fr-rail-note"><strong>${text("Resumable by design", "Bewusst fortsetzbar")}</strong><span>${text("Your setup progress is saved locally so you can continue later.", "Dein Einrichtungsfortschritt wird lokal gespeichert, damit du später fortsetzen kannst.")}</span></div>${options.force ? `<button class="button secondary fr-return" data-fr-exit type="button">${text("Return to Livariant", "Zurück zu Livariant")}</button>` : ""}</div></aside><main class="fr-main">${error ? `<div class="fr-error" role="alert"><strong>${text("Setup needs attention", "Einrichtung benötigt Aufmerksamkeit")}</strong><span>${esc(error)}</span></div>` : ""}${busy ? `<div class="fr-busy">${text("Saving…", "Speichere…")}</div>` : ""}${stage(state, snapshot, codex, localProviders, options.force === true, inspection)}</main></div></div>`;
+    root.innerHTML = `<div class="desktop-frame first-run-frame ${options.force ? "first-run-revisit" : ""}">${windowBar(options.logoUrl)}<div class="fr-shell"><aside class="fr-rail"><div class="fr-brand"><img src="${options.logoUrl}" alt="Livariant"/><div><strong>Livariant</strong><small>${text("Setup assistant", "Einrichtungsassistent")}</small></div></div><ol>${progress(displayStep)}</ol><div class="fr-rail-footer"><div class="fr-rail-note"><strong>${text("Resumable by design", "Bewusst fortsetzbar")}</strong><span>${text("Your setup progress is saved locally so you can continue later.", "Dein Einrichtungsfortschritt wird lokal gespeichert, damit du später fortsetzen kannst.")}</span></div>${options.force ? `<button class="button secondary fr-return" data-fr-exit type="button">${text("Return to Livariant", "Zurück zu Livariant")}</button>` : ""}</div></aside><main class="fr-main">${error ? `<div class="fr-error" role="alert"><strong>${text("Setup needs attention", "Einrichtung benötigt Aufmerksamkeit")}</strong><span>${esc(error)}</span></div>` : ""}${busy ? `<div class="fr-busy">${state.currentStep === "project" ? text("Preparing Project Brain and project knowledge…", "Project Brain und Projektwissen werden vorbereitet…") : text("Saving…", "Speichere…")}</div>` : ""}${stage(state, snapshot, codex, localProviders, options.force === true, inspection)}</main></div></div>`;
 
     if (context) {
       const main = root.querySelector<HTMLElement>(".fr-main"); if (main) main.scrollTop = context.scrollTop;
@@ -347,16 +347,23 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
       const form = event.currentTarget as HTMLFormElement;
       const localRoot = formValue(form, "localRoot");
       const projectId = formValue(form, "projectId");
+      const context = captureContext();
+      busy = true;
+      error = null;
+      render(context);
       try {
-        // Establish the project-scoped persistence/Brain namespace first. The first-run
-        // state must never be written to the pre-activation scope and then lost on activation.
+        // Establish the project-scoped persistence/Brain namespace and its trust state first.
+        // The first-run state must never be written to the pre-activation scope and then lost on activation.
         await ensureDesktopProjectActive(localRoot, undefined, projectId);
+        busy = false;
         if (!await apply({ type: "select-project", projectId, localRoot })) return;
         await inspectRepository(localRoot);
         await apply({ type: "move", step: "understanding" });
       } catch (cause) {
         error = cause instanceof Error ? cause.message : String(cause);
-        render(captureContext());
+      } finally {
+        busy = false;
+        render(context);
       }
     });
 

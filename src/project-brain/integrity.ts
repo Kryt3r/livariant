@@ -19,7 +19,14 @@ export interface ProjectBrainIntegrityBaseline {
   schemaVersion: 2;
 }
 
-interface PersistedProjectBrainIntegrity {
+export interface ProjectBrainManagedSnapshot {
+  projectMd: string;
+  goalsMd: string;
+  decisionsMd: string;
+  knowledgeMd: string;
+}
+
+export interface PersistedProjectBrainIntegrity {
   schemaVersion: 1;
   kind: typeof PROJECT_BRAIN_INTEGRITY_KIND;
   projectLocatorDigest: string;
@@ -27,6 +34,7 @@ interface PersistedProjectBrainIntegrity {
   baseline: ProjectBrainIntegrityBaseline;
   source: ProjectBrainIntegritySource;
   acceptedAt: string;
+  managedSnapshot?: ProjectBrainManagedSnapshot;
 }
 
 export type ProjectBrainIntegrityState =
@@ -123,9 +131,10 @@ function sameBaseline(left: ProjectBrainIntegrityBaseline, right: ProjectBrainIn
 function parseReceipt(value: unknown): PersistedProjectBrainIntegrity {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Project Brain integrity evidence is invalid.");
   const record = value as Record<string, unknown>;
-  const allowed = new Set(["schemaVersion", "kind", "projectLocatorDigest", "stableProjectIdentity", "baseline", "source", "acceptedAt"]);
+  const required = ["schemaVersion", "kind", "projectLocatorDigest", "stableProjectIdentity", "baseline", "source", "acceptedAt"] as const;
+  const allowed = new Set([...required, "managedSnapshot"]);
   for (const key of Object.keys(record)) if (!allowed.has(key)) throw new Error("Project Brain integrity evidence contains an unsupported field.");
-  for (const key of allowed) if (!(key in record)) throw new Error(`Project Brain integrity evidence is missing required field: ${key}.`);
+  for (const key of required) if (!(key in record)) throw new Error(`Project Brain integrity evidence is missing required field: ${key}.`);
   if (record.schemaVersion !== 1 || record.kind !== PROJECT_BRAIN_INTEGRITY_KIND) throw new Error("Project Brain integrity evidence schema is invalid.");
   if (typeof record.projectLocatorDigest !== "string" || !/^[a-f0-9]{64}$/.test(record.projectLocatorDigest)) throw new Error("Project Brain integrity project-locator digest is invalid.");
   if (!isStableProjectIdentity(record.stableProjectIdentity)) throw new Error("Project Brain integrity stable project identity is invalid.");
@@ -137,6 +146,34 @@ function parseReceipt(value: unknown): PersistedProjectBrainIntegrity {
     throw new Error("Project Brain integrity baseline is invalid.");
   }
 
+  let managedSnapshot: ProjectBrainManagedSnapshot | undefined;
+  if (record.managedSnapshot !== undefined) {
+    if (typeof record.managedSnapshot !== "object" || record.managedSnapshot === null || Array.isArray(record.managedSnapshot)) {
+      throw new Error("Project Brain integrity managed snapshot is invalid.");
+    }
+    const snapshot = record.managedSnapshot as Record<string, unknown>;
+    const keys = ["projectMd", "goalsMd", "decisionsMd", "knowledgeMd"] as const;
+    if (Object.keys(snapshot).length !== keys.length || keys.some((key) => typeof snapshot[key] !== "string")) {
+      throw new Error("Project Brain integrity managed snapshot is incomplete.");
+    }
+    managedSnapshot = {
+      projectMd: snapshot.projectMd as string,
+      goalsMd: snapshot.goalsMd as string,
+      decisionsMd: snapshot.decisionsMd as string,
+      knowledgeMd: snapshot.knowledgeMd as string,
+    };
+    const snapshotInputs = new Map<string, Buffer>([
+      ["project.md", Buffer.from(managedSnapshot.projectMd, "utf8")],
+      ["goals.md", Buffer.from(managedSnapshot.goalsMd, "utf8")],
+      ["decisions.md", Buffer.from(managedSnapshot.decisionsMd, "utf8")],
+      ["knowledge.md", Buffer.from(managedSnapshot.knowledgeMd, "utf8")],
+    ]);
+    const snapshotBaseline = buildIntegrityBaseline(record.stableProjectIdentity as string, snapshotInputs);
+    if (!sameBaseline(snapshotBaseline, baseline as ProjectBrainIntegrityBaseline)) {
+      throw new Error("Project Brain integrity managed snapshot does not match its accepted baseline.");
+    }
+  }
+
   return {
     schemaVersion: 1,
     kind: PROJECT_BRAIN_INTEGRITY_KIND,
@@ -145,6 +182,7 @@ function parseReceipt(value: unknown): PersistedProjectBrainIntegrity {
     baseline: baseline as ProjectBrainIntegrityBaseline,
     source: record.source as ProjectBrainIntegritySource,
     acceptedAt: record.acceptedAt,
+    ...(managedSnapshot ? { managedSnapshot } : {}),
   };
 }
 
@@ -169,7 +207,7 @@ function buildIntegrityBaseline(
   };
 }
 
-async function currentMaterial(projectRoot: string): Promise<{ stableProjectIdentity: string; baseline: ProjectBrainIntegrityBaseline }> {
+async function currentMaterial(projectRoot: string): Promise<{ stableProjectIdentity: string; baseline: ProjectBrainIntegrityBaseline; managedSnapshot: ProjectBrainManagedSnapshot }> {
   const store = new ProjectBrainStore(projectRoot);
   const inspection = await store.inspect();
   if (inspection.health !== "valid") throw new Error("Project Brain integrity requires a valid Project Brain.");
@@ -181,6 +219,12 @@ async function currentMaterial(projectRoot: string): Promise<{ stableProjectIden
   return {
     stableProjectIdentity: metadata.projectBrain.projectId,
     baseline: buildIntegrityBaseline(metadata.projectBrain.projectId, inputs),
+    managedSnapshot: {
+      projectMd: inputs.get("project.md")!.toString("utf8"),
+      goalsMd: inputs.get("goals.md")!.toString("utf8"),
+      decisionsMd: inputs.get("decisions.md")!.toString("utf8"),
+      knowledgeMd: inputs.get("knowledge.md")!.toString("utf8"),
+    },
   };
 }
 
@@ -252,6 +296,7 @@ export async function recordAcceptedProjectBrainState(
     baseline: current.baseline,
     source,
     acceptedAt: new Date().toISOString(),
+    managedSnapshot: current.managedSnapshot,
   };
   await writeFile(temp, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
   try {

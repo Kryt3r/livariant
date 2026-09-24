@@ -24,8 +24,7 @@ import {
 import {
   acceptProjectKnowledgeIntegrity,
   applyProjectKnowledgeProposal,
-  launchProjectKnowledgeProtectionSetup,
-  launchProjectKnowledgeStageASetup,
+  ensureProjectKnowledgeTrusted,
   loadProjectKnowledge,
   loadProjectKnowledgeProtectionStatus,
   prepareProjectKnowledgeProposal,
@@ -426,108 +425,76 @@ const renderTruthSourceModal = () => {
     </div>`;
 };
 
-const projectBrainSetupShell = (input: {
-  step: string;
-  title: string;
-  description: string;
-  icon: string;
-  detail?: string;
-  content?: string;
-  primary?: string;
-  secondary?: string;
-}) => `<section class="project-brain-setup-card">
-    <div class="project-brain-setup-icon" aria-hidden="true">${input.icon}</div>
-    <div class="project-brain-setup-main">
-      <div class="project-brain-setup-heading">
-        <span class="project-brain-setup-step">${escapeHtml(input.step)}</span>
-        <h3>${escapeHtml(input.title)}</h3>
-        <p>${escapeHtml(input.description)}</p>
-      </div>
-      ${input.detail ? `<div class="project-brain-setup-note"><span>✓</span><p>${escapeHtml(input.detail)}</p></div>` : ""}
-      ${input.content ?? ""}
-    </div>
-    <div class="project-brain-setup-actions">
-      ${input.primary ?? ""}
-      ${input.secondary ?? ""}
-    </div>
-  </section>`;
-
 const renderProjectKnowledgeProtection = () => {
   const protection = projectKnowledgeProtection;
   if (!protection || protection.state === "ready") return "";
 
-  const refresh = `<button class="text-button project-brain-setup-refresh" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button>`;
+  if (protection.state === "integrity-recovery-required" && protection.unexpectedChangeReview) {
+    const changed = protection.unexpectedChangeReview.areas.filter((area) => area.changed);
+    const rows = changed.length > 0
+      ? changed.map((area) => {
+          const labels: Record<string, string> = {
+            purpose: uiText("Project purpose", "Projektziel"),
+            direction: uiText("Current direction", "Aktuelle Richtung"),
+            rules: uiText("Rules and constraints", "Regeln und Grenzen"),
+          };
+          return `<article class="truth-review-section">
+            <div class="truth-review-section-head"><div><span class="eyebrow">${escapeHtml(labels[area.id] ?? area.id)}</span><h3>${uiText("Unexpected change detected", "Unerwartete Änderung erkannt")}</h3></div></div>
+            <div class="truth-review-diff">
+              <div class="truth-diff-row removed"><span>−</span><div><small>${uiText("Previously confirmed", "Bisher bestätigt")}</small><p>${escapeHtml(area.before || uiText("No confirmed value", "Kein bestätigter Wert"))}</p></div></div>
+              <div class="truth-diff-row added"><span>+</span><div><small>${uiText("Current local state", "Aktueller lokaler Stand")}</small><p>${escapeHtml(area.after || uiText("No confirmed value", "Kein bestätigter Wert"))}</p></div></div>
+            </div>
+          </article>`;
+        }).join("")
+      : `<div class="project-brain-setup-note"><span>!</span><p>${uiText(
+          "Managed Project Brain material changed outside the visible curated knowledge fields. Livariant will not trust the new state until it is explicitly confirmed.",
+          "Verwaltetes Project-Brain-Material wurde außerhalb der sichtbaren Wissensfelder verändert. Livariant vertraut dem neuen Stand erst nach ausdrücklicher Bestätigung.",
+        )}</p></div>`;
 
-  if (protection.state === "protected-source-required") {
-    return projectBrainSetupShell({
-      step: uiText("One-time setup · Step 1", "Einmalige Einrichtung · Schritt 1"),
-      title: uiText("Prepare protected Project Brain support", "Geschützten Project-Brain-Support vorbereiten"),
-      description: uiText(
-        "Livariant needs a release-bound protected source before it can safely manage canonical project knowledge.",
-        "Livariant benötigt eine release-gebundene geschützte Quelle, bevor kanonisches Projektwissen sicher verwaltet werden kann.",
-      ),
-      icon: "🛡",
-      detail: uiText(
-        "This UAC step does not change project files and does not issue mutation Authority.",
-        "Dieser UAC-Schritt ändert keine Projektdateien und erteilt keine Mutation Authority.",
-      ),
-      primary: `<button class="button primary" type="button" data-project-knowledge-stage-a-setup>${uiText("Prepare protected source", "Geschützte Quelle vorbereiten")}</button>`,
-      secondary: refresh,
-    });
-  }
-
-  if (protection.state === "guardian-bootstrap-required") {
-    return projectBrainSetupShell({
-      step: uiText("One-time setup · Step 2", "Einmalige Einrichtung · Schritt 2"),
-      title: uiText("Activate Guardian protection", "Guardian-Schutz aktivieren"),
-      description: uiText(
-        "The protected source is ready. Complete the Guardian bootstrap before Livariant reads or changes canonical Project Knowledge.",
-        "Die geschützte Quelle ist bereit. Schließe den Guardian-Bootstrap ab, bevor Livariant kanonisches Projektwissen liest oder ändert.",
-      ),
-      icon: "◆",
-      primary: `<button class="button primary" type="button" data-project-knowledge-protection-setup>${uiText("Set up Guardian", "Guardian einrichten")}</button>`,
-      secondary: refresh,
-    });
-  }
-
-
-  if (protection.state === "integrity-acceptance-required" && protection.integrity.digest) {
-    const technical = `<details class="project-brain-setup-technical"><summary>${uiText("Technical details", "Technische Details")}</summary><div><span>${uiText("Managed-state digest", "Digest des verwalteten Stands")}</span><code>${escapeHtml(protection.integrity.digest)}</code></div></details>`;
-    return projectBrainSetupShell({
-      step: uiText("One-time setup · Final step", "Einmalige Einrichtung · Letzter Schritt"),
-      title: uiText("Protect the current Project Brain", "Aktuellen Project Brain schützen"),
-      description: uiText(
-        "Guardian is ready. Confirm the exact current managed state before Livariant treats it as canonical.",
-        "Guardian ist bereit. Bestätige den exakten aktuellen verwalteten Stand, bevor Livariant ihn als kanonisch behandelt.",
-      ),
-      icon: "✓",
-      content: technical,
-      primary: `<button class="button primary" type="button" data-project-knowledge-integrity-accept>${uiText("Protect current state", "Aktuellen Stand schützen")}</button>`,
-      secondary: refresh,
-    });
+    return `<section class="project-brain-setup-card project-brain-unexpected-change">
+      <div class="project-brain-setup-icon" aria-hidden="true">!</div>
+      <div class="project-brain-setup-main">
+        <div class="project-brain-setup-heading">
+          <span class="project-brain-setup-step">${uiText("Knowledge change review", "Änderung am Livariant-Wissen prüfen")}</span>
+          <h3>${uiText("Livariant knowledge changed unexpectedly", "Das Livariant-Wissen hat sich verändert")}</h3>
+          <p>${uiText(
+            "This change did not arrive through the normal confirmed Livariant flow. Review the difference before deciding whether the current state should become trusted.",
+            "Diese Änderung entstand nicht über den normalen bestätigten Livariant-Ablauf. Prüfe den Unterschied, bevor du entscheidest, ob der aktuelle Stand vertrauenswürdig werden soll.",
+          )}</p>
+        </div>
+        ${rows}
+      </div>
+      <div class="project-brain-setup-actions">
+        <button class="text-button" type="button" data-project-knowledge-unexpected-reject>${uiText("Do not confirm", "Nicht bestätigen")}</button>
+        <button class="button primary" type="button" data-project-knowledge-unexpected-accept>${uiText("Confirm current state", "Aktuellen Stand bestätigen")}</button>
+      </div>
+    </section>`;
   }
 
   if (protection.state === "integrity-recovery-required") {
-    return projectBrainSetupShell({
-      step: uiText("Protection needs attention", "Schutz benötigt Aufmerksamkeit"),
-      title: uiText("Project Brain integrity needs recovery", "Project-Brain-Integrität muss wiederhergestellt werden"),
-      description: protection.integrity.reason ?? uiText(
-        "The current managed Project Brain state cannot be safely accepted from this screen.",
-        "Der aktuelle verwaltete Project-Brain-Stand kann in dieser Ansicht nicht sicher bestätigt werden.",
-      ),
-      icon: "!",
-      secondary: refresh,
-    });
+    return `<section class="project-brain-setup-card">
+      <div class="project-brain-setup-icon" aria-hidden="true">!</div>
+      <div class="project-brain-setup-main"><div class="project-brain-setup-heading">
+        <span class="project-brain-setup-step">${uiText("Project knowledge needs attention", "Projektwissen benötigt Aufmerksamkeit")}</span>
+        <h3>${uiText("Livariant cannot safely use this Project Brain yet", "Livariant kann diesen Project Brain noch nicht sicher verwenden")}</h3>
+        <p>${escapeHtml(protection.integrity.reason ?? uiText("The stored project knowledge is damaged or ambiguous and cannot be accepted as-is.", "Das gespeicherte Projektwissen ist beschädigt oder mehrdeutig und kann nicht unverändert übernommen werden."))}</p>
+      </div></div>
+      <div class="project-brain-setup-actions"><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>
+    </section>`;
   }
 
-  const reason = protection.guardian.protectedSource.reason || protection.guardian.guardian.reason;
-  return projectBrainSetupShell({
-    step: uiText("Protection not ready", "Schutz nicht bereit"),
-    title: uiText("Protected Project Brain is not ready", "Geschützter Project Brain ist nicht bereit"),
-    description: reason,
-    icon: "!",
-    secondary: refresh,
-  });
+  return `<section class="project-brain-setup-card">
+    <div class="project-brain-setup-icon" aria-hidden="true">…</div>
+    <div class="project-brain-setup-main"><div class="project-brain-setup-heading">
+      <span class="project-brain-setup-step">${uiText("Project setup", "Projekteinrichtung")}</span>
+      <h3>${uiText("Project knowledge setup is incomplete", "Projektwissen ist noch nicht vollständig eingerichtet")}</h3>
+      <p>${uiText(
+        "Livariant normally prepares Project Brain protection automatically when the project is added. Retry the project setup instead of manually managing security components here.",
+        "Livariant bereitet den Schutz des Project Brains normalerweise automatisch beim Hinzufügen des Projekts vor. Starte die Projekteinrichtung erneut, statt hier Sicherheitskomponenten manuell zu verwalten.",
+      )}</p>
+    </div></div>
+    <div class="project-brain-setup-actions"><button class="button secondary" type="button" data-project-knowledge-auto-setup-retry>${uiText("Retry project setup", "Projekteinrichtung erneut versuchen")}</button></div>
+  </section>`;
 };
 
 const renderProjectTruthView = () => {
@@ -926,7 +893,11 @@ const bindEvents = () => {
     notice = null;
     render();
     try {
-      const applied = await applyProjectKnowledgeProposal(area.id as "purpose" | "direction" | "rules", area.preparedProposal);
+      const applied = await applyProjectKnowledgeProposal(
+        area.id as "purpose" | "direction" | "rules",
+        area.preparedProposal,
+        getLanguage(),
+      );
       applyProjectKnowledgeSnapshot(applied.snapshot);
       selectedReviewAreaId = null;
       notice = {
@@ -975,77 +946,25 @@ const bindEvents = () => {
     render();
   });
 
-  document.querySelector<HTMLButtonElement>("[data-project-knowledge-stage-a-setup]")?.addEventListener("click", async () => {
-    try {
-      await launchProjectKnowledgeStageASetup();
-      notice = {
-        kind: "success",
-        title: uiText("Protected Stage A completed", "Geschützte Stage A abgeschlossen"),
-        detail: uiText(
-          "The protected source is ready. Livariant is checking the next protection step now.",
-          "Die geschützte Quelle ist bereit. Livariant prüft jetzt den nächsten Schutzschritt.",
-        ),
-      };
-      await refreshProjectKnowledge(false);
-    } catch (error) {
-      notice = {
-        kind: "error",
-        title: uiText("Protected Stage A was not completed", "Geschützte Stage A wurde nicht abgeschlossen"),
-        detail: uiText(
-          "UAC may have been cancelled or the protected setup failed. Nothing was silently accepted.",
-          "UAC wurde möglicherweise abgebrochen oder die geschützte Einrichtung ist fehlgeschlagen. Es wurde nichts stillschweigend übernommen.",
-        ),
-      };
-    }
-    render();
-  });
-
-  document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-setup]")?.addEventListener("click", async () => {
-    try {
-      await launchProjectKnowledgeProtectionSetup();
-      notice = {
-        kind: "success",
-        title: uiText("Guardian setup completed", "Guardian-Einrichtung abgeschlossen"),
-        detail: uiText(
-          "Guardian protection is ready. Livariant is checking the managed Project Brain state now.",
-          "Der Guardian-Schutz ist bereit. Livariant prüft jetzt den verwalteten Project-Brain-Stand.",
-        ),
-      };
-      await refreshProjectKnowledge(false);
-    } catch (error) {
-      notice = {
-        kind: "error",
-        title: uiText("Guardian setup was not completed", "Guardian-Einrichtung wurde nicht abgeschlossen"),
-        detail: uiText(
-          "UAC may have been cancelled or Guardian setup failed. Nothing was silently accepted.",
-          "UAC wurde möglicherweise abgebrochen oder die Guardian-Einrichtung ist fehlgeschlagen. Es wurde nichts stillschweigend übernommen.",
-        ),
-      };
-    }
-    render();
-  });
-  document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")?.addEventListener("click", async () => {
-    await refreshProjectKnowledge();
-  });
-
-
-  document.querySelector<HTMLButtonElement>("[data-project-knowledge-integrity-accept]")?.addEventListener("click", async () => {
-    const digest = projectKnowledgeProtection?.integrity.digest;
-    if (!digest || projectKnowledgeProtection?.state !== "integrity-acceptance-required") return;
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-auto-setup-retry]")?.addEventListener("click", async () => {
     projectKnowledgeLoading = true;
+    notice = null;
     render();
     try {
-      projectKnowledgeProtection = await acceptProjectKnowledgeIntegrity(digest);
+      await ensureProjectKnowledgeTrusted(getLanguage());
+      await refreshProjectKnowledge(false);
       notice = {
         kind: "success",
-        title: uiText("Project Brain protected", "Project Brain geschützt"),
-        detail: uiText("The exact reviewed managed state is now protected by Guardian accepted-state Authority.", "Der exakt geprüfte verwaltete Stand ist jetzt durch Guardian Accepted-State Authority geschützt."),
+        title: uiText("Project knowledge is ready", "Projektwissen ist bereit"),
+        detail: uiText(
+          "Livariant completed the project knowledge setup. No separate protection step is required here.",
+          "Livariant hat die Einrichtung des Projektwissens abgeschlossen. Hier ist kein zusätzlicher Schutzschritt erforderlich.",
+        ),
       };
-      await refreshProjectKnowledge(false);
     } catch (error) {
       notice = {
         kind: "error",
-        title: uiText("Project Brain protection was not completed", "Project-Brain-Schutz wurde nicht abgeschlossen"),
+        title: uiText("Project setup needs attention", "Projekteinrichtung benötigt Aufmerksamkeit"),
         detail: error instanceof Error ? error.message : String(error),
       };
       await refreshProjectKnowledge(false);
@@ -1053,6 +972,53 @@ const bindEvents = () => {
       projectKnowledgeLoading = false;
       render();
     }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")?.addEventListener("click", async () => {
+    await refreshProjectKnowledge();
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-unexpected-accept]")?.addEventListener("click", async () => {
+    const protection = projectKnowledgeProtection;
+    const digest = protection?.integrity.digest;
+    if (!digest || protection?.state !== "integrity-recovery-required" || !protection.unexpectedChangeReview) return;
+    projectKnowledgeLoading = true;
+    notice = null;
+    render();
+    try {
+      projectKnowledgeProtection = await acceptProjectKnowledgeIntegrity(digest, getLanguage());
+      await refreshProjectKnowledge(false);
+      notice = {
+        kind: "success",
+        title: uiText("Changed project knowledge confirmed", "Geändertes Projektwissen bestätigt"),
+        detail: uiText(
+          "The reviewed current state is now the new trusted Livariant knowledge baseline.",
+          "Der geprüfte aktuelle Stand ist jetzt der neue vertrauenswürdige Ausgangsstand des Livariant-Wissens.",
+        ),
+      };
+    } catch (error) {
+      notice = {
+        kind: "error",
+        title: uiText("The changed state was not confirmed", "Der geänderte Stand wurde nicht bestätigt"),
+        detail: error instanceof Error ? error.message : String(error),
+      };
+      await refreshProjectKnowledge(false);
+    } finally {
+      projectKnowledgeLoading = false;
+      render();
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-unexpected-reject]")?.addEventListener("click", () => {
+    notice = {
+      kind: "warning",
+      title: uiText("Change remains unconfirmed", "Änderung bleibt unbestätigt"),
+      detail: uiText(
+        "Livariant will continue to distrust the changed Project Brain and keep canonical project knowledge blocked until the change is confirmed or the previous state is restored.",
+        "Livariant vertraut dem veränderten Project Brain weiterhin nicht und blockiert kanonisches Projektwissen, bis die Änderung bestätigt oder der vorherige Stand wiederhergestellt wurde.",
+      ),
+    };
+    render();
   });
 
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });

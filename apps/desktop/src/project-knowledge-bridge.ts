@@ -53,10 +53,12 @@ export type ProjectKnowledgeApplyResult = {
 export const applyProjectKnowledgeProposal = (
   areaId: ProjectKnowledgeAreaId,
   proposal: ProjectKnowledgePreparedProposal["proposal"],
+  language: "de" | "en" = "en",
 ) => invoke<ProjectKnowledgeApplyResult>("apply_project_knowledge_proposal", {
   areaId,
   proposal,
   confirmedProposalDigest: proposal.materialDigest.digest,
+  language,
 });
 
 
@@ -79,6 +81,14 @@ export type ProjectKnowledgeProtectionStatus = {
     filesToCreate: string[];
     reason: string | null;
   } | null;
+  unexpectedChangeReview?: {
+    areas: Array<{
+      id: ProjectKnowledgeAreaId;
+      before: string;
+      after: string;
+      changed: boolean;
+    }>;
+  };
 };
 
 export const loadProjectKnowledgeProtectionStatus = () =>
@@ -91,5 +101,25 @@ export const launchProjectKnowledgeProtectionSetup = () =>
   invoke<{ state: "completed"; detail: string }>("launch_project_knowledge_protection_setup");
 
 
-export const acceptProjectKnowledgeIntegrity = (confirmedDigest: string) =>
-  invoke<ProjectKnowledgeProtectionStatus>("accept_project_knowledge_integrity", { confirmedDigest });
+export const acceptProjectKnowledgeIntegrity = (confirmedDigest: string, language: "de" | "en" = "en") =>
+  invoke<ProjectKnowledgeProtectionStatus>("accept_project_knowledge_integrity", { confirmedDigest, language });
+
+export async function ensureProjectKnowledgeTrusted(language: "de" | "en" = "en"): Promise<ProjectKnowledgeProtectionStatus> {
+  let status = await loadProjectKnowledgeProtectionStatus();
+  if (status.state === "protected-source-required") {
+    await launchProjectKnowledgeStageASetup();
+    status = await loadProjectKnowledgeProtectionStatus();
+  }
+  if (status.state === "guardian-bootstrap-required") {
+    await launchProjectKnowledgeProtectionSetup();
+    status = await loadProjectKnowledgeProtectionStatus();
+  }
+  if (status.state === "integrity-acceptance-required") {
+    if (!status.integrity.digest) throw new Error("Project Brain protection requires an exact current digest.");
+    status = await acceptProjectKnowledgeIntegrity(status.integrity.digest, language);
+  }
+  if (status.state !== "ready") {
+    throw new Error(status.integrity.reason || status.guardian.protectedSource.reason || status.guardian.guardian.reason || "Project knowledge protection is not ready.");
+  }
+  return status;
+}

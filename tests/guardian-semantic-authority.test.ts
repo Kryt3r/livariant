@@ -58,7 +58,7 @@ test("semantic Guardian Authority binds project, physical root, operation, propo
     assert.equal(first.materialSha256, same.materialSha256);
     assert.equal(first.request.consumer, "semantic-mutation");
     assert.equal(first.request.mode, "one-shot");
-    assert.equal(first.request.materialFields.length, 13);
+    assert.equal(first.request.materialFields.length, 17);
 
     const differentOperation = buildSemanticGuardianAuthorityRequest({
       authorizationId: AUTH_B,
@@ -104,6 +104,7 @@ test("semantic Guardian Authority material preserves reviewable exact identity f
     assert.equal(fields.get("stable-project-identity")?.length, 36);
     assert.match(fields.get("actionable-proposal-material-sha256") ?? "", /^[a-f0-9]{64}$/u);
     assert.match(fields.get("baseline-sha256") ?? "", /^[a-f0-9]{64}$/u);
+    assert.match(fields.get("expected-post-baseline-sha256") ?? "", /^[a-f0-9]{64}$/u);
     assert.equal(fields.get("scope-domain"), "project-decision");
     assert.equal(fields.get("scope-change-kind"), "add");
     assert.equal(fields.get("scope-proposed-statement"), "Use passkeys");

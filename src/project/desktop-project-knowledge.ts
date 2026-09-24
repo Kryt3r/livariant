@@ -53,6 +53,14 @@ export interface DesktopProjectKnowledgeProtectionStatus {
     filesToCreate: string[];
     reason: string | null;
   } | null;
+  unexpectedChangeReview?: {
+    areas: Array<{
+      id: DesktopProjectKnowledgeAreaId;
+      before: string;
+      after: string;
+      changed: boolean;
+    }>;
+  };
 }
 
 export interface DesktopProjectKnowledgeSnapshot {
@@ -173,6 +181,33 @@ async function localProjectKnowledgeSnapshot(projectPath: string): Promise<Deskt
   };
 }
 
+function areasFromDecisionsMarkdown(markdown: string): DesktopProjectKnowledgeAreaSnapshot[] {
+  const parsed = parseDecisionsMarkdown(markdown);
+  if (parsed.issues.length > 0) throw new Error(`Project Brain comparison found ambiguous decision history: ${parsed.issues.join("; ")}`);
+  return projectKnowledgeAreasFromDecisionRecords(parsed.records);
+}
+
+async function unexpectedChangeReview(
+  projectRoot: string,
+  integrity: Awaited<ReturnType<typeof inspectProtectedProjectBrainIntegrity>>,
+): Promise<DesktopProjectKnowledgeProtectionStatus["unexpectedChangeReview"]> {
+  if (integrity.state !== "mismatch" || !integrity.local.receipt.managedSnapshot) return undefined;
+  const beforeAreas = areasFromDecisionsMarkdown(integrity.local.receipt.managedSnapshot.decisionsMd);
+  const store = new ProjectBrainStore(projectRoot);
+  const afterAreas = areasFromDecisionsMarkdown(await store.readDecisionsDocument());
+  return {
+    areas: beforeAreas.map((before) => {
+      const after = afterAreas.find((candidate) => candidate.id === before.id)!;
+      return {
+        id: before.id,
+        before: before.confirmedValue,
+        after: after.confirmedValue,
+        changed: before.confirmedValue !== after.confirmedValue,
+      };
+    }),
+  };
+}
+
 export async function projectKnowledgeProtectionStatus(projectPath: string): Promise<DesktopProjectKnowledgeProtectionStatus> {
   const project = discoverProject(projectPath);
   const guardian = await inspectGuardianMachineReadiness(project.root, process.platform, process.execPath);
@@ -246,6 +281,7 @@ export async function projectKnowledgeProtectionStatus(projectPath: string): Pro
   else if (integrity.state === "missing" || integrity.state === "unprotected") state = "integrity-acceptance-required";
   else state = "integrity-recovery-required";
 
+  const review = await unexpectedChangeReview(project.root, integrity);
   return {
     schemaVersion: 1,
     state,
@@ -253,6 +289,7 @@ export async function projectKnowledgeProtectionStatus(projectPath: string): Pro
     guardian,
     integrity: { state: integrity.state, digest, reason },
     initialization: null,
+    ...(review ? { unexpectedChangeReview: review } : {}),
   };
 }
 
@@ -267,6 +304,7 @@ export async function readDesktopProjectKnowledge(projectPath: string): Promise<
 export async function establishDesktopProjectKnowledgeIntegrity(
   projectPath: string,
   confirmedDigest: string,
+  language: "de" | "en" = "en",
 ): Promise<DesktopProjectKnowledgeProtectionStatus> {
   const project = discoverProject(projectPath);
   const before = await projectKnowledgeProtectionStatus(project.root);
@@ -274,8 +312,12 @@ export async function establishDesktopProjectKnowledgeIntegrity(
     throw new Error(`Protected Guardian must be ready before Project Brain integrity acceptance; current state is ${before.guardian.state}.`);
   }
   if (before.state === "ready") return before;
-  if (before.state !== "integrity-acceptance-required" || !before.integrity.digest) {
-    throw new Error(`Project Brain integrity cannot be accepted from state ${before.state}; recovery is required instead.`);
+  const initialAcceptance = before.state === "integrity-acceptance-required";
+  const reviewedMismatch = before.state === "integrity-recovery-required"
+    && before.integrity.state === "mismatch"
+    && before.unexpectedChangeReview !== undefined;
+  if ((!initialAcceptance && !reviewedMismatch) || !before.integrity.digest) {
+    throw new Error(`Project Brain integrity cannot be accepted from state ${before.state}; damaged or ambiguous state requires recovery instead.`);
   }
   if (confirmedDigest !== before.integrity.digest) {
     throw new Error("Project Brain integrity confirmation does not match the exact current managed material digest.");
@@ -288,12 +330,20 @@ export async function establishDesktopProjectKnowledgeIntegrity(
       const detail = doctor.findings.map((finding) => `${finding.code}: ${finding.message}`).join("; ");
       throw new Error(`Initial integrity acceptance requires an otherwise healthy Project Brain: ${detail}`);
     }
+  } else if (before.integrity.state === "mismatch") {
+    const disallowed = doctor.findings.filter((finding) => finding.code !== "project-brain-integrity-mismatch");
+    if (doctor.state !== "drift-detected" || disallowed.length > 0) {
+      const detail = doctor.findings.map((finding) => `${finding.code}: ${finding.message}`).join("; ");
+      throw new Error(`Reviewed Project Brain change contains additional unresolved findings: ${detail}`);
+    }
   } else if (doctor.state !== "healthy") {
     const detail = doctor.findings.map((finding) => `${finding.code}: ${finding.message}`).join("; ");
     throw new Error(`Protected integrity acceptance requires coherent local Project Brain evidence: ${detail}`);
   }
 
-  await establishProtectedProjectBrainIntegrityState(project.root, "manual-bootstrap");
+  await establishProtectedProjectBrainIntegrityState(project.root, "manual-bootstrap", {
+    nativeConfirmationLanguage: language,
+  });
   const after = await projectKnowledgeProtectionStatus(project.root);
   if (!after.canonicalReadReady) {
     throw new Error(`Protected Project Brain integrity did not become ready after acceptance; current state is ${after.state}.`);
@@ -358,7 +408,7 @@ function assertAreaProposal(area: DesktopProjectKnowledgeAreaId, proposal: Actio
 
 export async function applyDesktopProjectKnowledgeProposal(
   projectPath: string,
-  input: { areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown },
+  input: { areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown; language?: unknown },
 ): Promise<DesktopProjectKnowledgeApplyResult> {
   const project = discoverProject(projectPath);
   const id = areaId(input.areaId);
@@ -380,12 +430,21 @@ export async function applyDesktopProjectKnowledgeProposal(
       proposalDigest: proposal.materialDigest.digest,
     },
   });
-  await issueSemanticGuardianAuthority(authorization.authorization.authorizationId, proposal, project.root);
+  const language = input.language === "de" ? "de" : "en";
+  await issueSemanticGuardianAuthority(
+    authorization.authorization.authorizationId,
+    proposal,
+    project.root,
+    { nativeConfirmationLanguage: language },
+  );
   const applied = await applyActionableProposal(authorization.authorization.authorizationId, proposal, project.root);
   if (applied.state !== "completed" || applied.actionableProposalId !== proposal.actionableProposalId) {
     throw new Error("Desktop Project Knowledge apply did not complete for the exact reviewed proposal.");
   }
-  await establishProtectedProjectBrainIntegrityState(project.root, "semantic-apply");
+  const postProtection = await inspectProtectedProjectBrainIntegrity(project.root);
+  if (postProtection.state !== "match") {
+    throw new Error(`Protected Semantic Authority did not establish the reviewed Project Brain as the trusted post-state: ${postProtection.state}.`);
+  }
   const snapshot = await readDesktopProjectKnowledge(project.root);
   const area = snapshot.areas.find((candidate) => candidate.id === id);
   const expected = taggedValue(id, {
@@ -410,9 +469,9 @@ type HostRequest =
   | { method: "ensure-storage" }
   | { method: "read" }
   | { method: "protection" }
-  | { method: "accept-integrity"; confirmedDigest: unknown }
+  | { method: "accept-integrity"; confirmedDigest: unknown; language?: unknown }
   | { method: "prepare"; areaId: unknown; value: unknown }
-  | { method: "apply"; areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown };
+  | { method: "apply"; areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown; language?: unknown };
 
 async function readStdin(): Promise<string> {
   let data = "";
@@ -435,7 +494,11 @@ async function main(): Promise<void> {
   else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectBrainRoot);
   else if (request.method === "accept-integrity") {
     if (typeof request.confirmedDigest !== "string") throw new Error("Project Brain integrity confirmation digest is invalid.");
-    result = await establishDesktopProjectKnowledgeIntegrity(projectBrainRoot, request.confirmedDigest);
+    result = await establishDesktopProjectKnowledgeIntegrity(
+      projectBrainRoot,
+      request.confirmedDigest,
+      request.language === "de" ? "de" : "en",
+    );
   }
   else if (request.method === "prepare") result = await prepareDesktopProjectKnowledgeProposal(projectBrainRoot, request);
   else if (request.method === "apply") result = await applyDesktopProjectKnowledgeProposal(projectBrainRoot, request);

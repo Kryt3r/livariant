@@ -79,21 +79,24 @@ test("Desktop protected Project Knowledge setup is fixed-path, per-machine and n
 });
 
 
-test("canonical reads are blocked until protected integrity and initial acceptance is explicit", async () => {
+test("project activation prepares trust automatically and Project Knowledge has no manual protection workflow", async () => {
   const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
   const bridge = await readFile("apps/desktop/src/project-knowledge-bridge.ts", "utf8");
+  const registry = await readFile("apps/desktop/src/desktop-project-registry.ts", "utf8");
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
 
   assert.match(core, /if \(!status\.canonicalReadReady\)/);
-  assert.match(core, /integrity-acceptance-required/);
   assert.match(core, /confirmedDigest !== before\.integrity\.digest/);
-  assert.match(core, /establishProtectedProjectBrainIntegrityState/);
-  assert.match(bridge, /accept_project_knowledge_integrity/);
-  assert.match(main, /Protect the current Project Brain/);
-  assert.match(main, /acceptProjectKnowledgeIntegrity\(digest\)/);
-  assert.doesNotMatch(main, /projectKnowledgeProtection\.protectedSource/);
+  assert.match(bridge, /ensureProjectKnowledgeTrusted/);
+  assert.match(registry, /await ensureProjectKnowledgeTrusted\(getLanguage\(\)\)/);
+  assert.doesNotMatch(main, /Aktuellen Project Brain schützen/);
+  assert.doesNotMatch(main, /data-project-knowledge-integrity-accept/);
+  assert.doesNotMatch(main, /data-project-knowledge-stage-a-setup/);
+  assert.doesNotMatch(main, /data-project-knowledge-protection-setup/);
+  assert.match(main, /Das Livariant-Wissen hat sich verändert/);
+  assert.match(main, /Bisher bestätigt/);
+  assert.match(main, /Aktueller lokaler Stand/);
 });
-
 
 test("Desktop Project Brain uses machine-local project state instead of repository initialization UX", async () => {
   const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
@@ -139,36 +142,34 @@ test("Desktop bridge types protected setup as completed after the awaited host r
 });
 
 
-test("Rust bridge launches protected setup through hidden awaited UAC without a console lifetime", async () => {
+test("protected Desktop confirmation uses hidden UAC plus native dialogs instead of a technical terminal challenge", async () => {
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  const helper = await readFile("src/guardian/protected-helper.ts", "utf8");
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
 
   assert.match(rust, /run_elevated_powershell_script/);
-  assert.match(rust, /escaped_script = script_path\.display\(\)\.to_string\(\)\.replace/);
-  assert.match(rust, /escaped_powershell = powershell\.display\(\)\.to_string\(\)\.replace/);
   assert.match(rust, /-WindowStyle Hidden/);
   assert.match(rust, /-Wait/);
   assert.doesNotMatch(rust, /-NoExit/);
-  assert.match(rust, /Protected Stage A finished without establishing the protected source/);
-  assert.match(rust, /Protected Guardian setup finished without establishing Guardian readiness/);
-  assert.match(main, /Geschützte Stage A abgeschlossen/);
-  assert.match(main, /Guardian-Einrichtung abgeschlossen/);
-  assert.doesNotMatch(main, /launched\.detail/);
-  assert.doesNotMatch(rust, /replace\(''', "''"\)/);
+  assert.match(helper, /requireWindowsNativeSimpleIssuance/);
+  assert.match(helper, /Änderung am Projektwissen bestätigen/);
+  assert.match(helper, /Projektwissen sicher einrichten/);
+  assert.doesNotMatch(main, /Guardian-Einrichtung abgeschlossen/);
+  assert.doesNotMatch(main, /Geschützte Stage A abgeschlossen/);
 });
 
-
-test("Desktop installer does not block on protected Stage A", async () => {
+test("Desktop installer remains non-blocking while project activation owns knowledge setup", async () => {
   const hook = await readFile("apps/desktop/src-tauri/windows/language-hooks.nsh", "utf8");
   const builder = await readFile("scripts/build-protected-bootstrap-assets.mjs", "utf8");
+  const registry = await readFile("apps/desktop/src/desktop-project-registry.ts", "utf8");
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
 
   assert.doesNotMatch(hook, /nsExec::ExecToStack[\s\S]*desktop-stage-a\.ps1/);
   assert.ok(builder.includes("$LivariantProgramFiles = 'C:\\\\Program Files\\\\Livariant\\\\Bootstrap'"));
-  assert.match(main, /Prepare protected source/);
-  assert.match(main, /launchProjectKnowledgeStageASetup/);
+  assert.match(registry, /ensureProjectKnowledgeTrusted/);
+  assert.doesNotMatch(main, /Prepare protected source/);
+  assert.doesNotMatch(main, /Set up Guardian/);
 });
-
 
 test("Project Knowledge navigation paints before canonical refresh and setup UI hides raw detail", async () => {
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
@@ -181,8 +182,23 @@ test("Project Knowledge navigation paints before canonical refresh and setup UI 
   assert.match(main, /projectKnowledgeRefreshInFlight/);
   assert.match(main, /projectKnowledgeLoadedOnce/);
   assert.match(main, /project-brain-setup-card/);
-  assert.match(main, /Technical details/);
+  assert.match(main, /unexpectedChangeReview/);
+  assert.doesNotMatch(main, /Technical details/);
   assert.doesNotMatch(main, /Only dedicated \.project-brain files are created/);
   assert.match(css, /\.project-brain-setup-card\{/);
   assert.match(css, /\.project-brain-file-chip\{/);
+});
+
+test("reviewed semantic apply becomes the new trusted state without a second integrity authorization", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const apply = await readFile("src/runtime/semantic-apply.ts", "utf8");
+  const protectedIntegrity = await readFile("src/project-brain/protected-integrity.ts", "utf8");
+  const semanticAuthority = await readFile("src/guardian/semantic-authority.ts", "utf8");
+
+  assert.match(apply, /buildSemanticMutationPlan/);
+  assert.match(apply, /does not match the exact user-authorized post-state/);
+  assert.match(semanticAuthority, /expected-post-baseline-sha256/);
+  assert.match(protectedIntegrity, /semanticGuardianProof/);
+  assert.match(protectedIntegrity, /findMatchingConsumedGuardianAuthority/);
+  assert.doesNotMatch(core, /establishProtectedProjectBrainIntegrityState\(project\.root, "semantic-apply"/);
 });

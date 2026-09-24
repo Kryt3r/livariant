@@ -408,9 +408,12 @@ function windowsNativeConfirmationRequested(
   language: "de" | "en" | undefined,
 ): boolean {
   return process.platform === "win32"
-    && request.consumer === "lifecycle-mutation"
-    && request.mode === "one-shot"
-    && language !== undefined;
+    && language !== undefined
+    && (
+      (request.consumer === "lifecycle-mutation" && request.mode === "one-shot")
+      || (request.consumer === "semantic-mutation" && request.mode === "one-shot")
+      || (request.consumer === "project-brain-integrity" && request.mode === "persistent")
+    );
 }
 
 function requireWindowsNativeLifecycleIssuance(
@@ -509,13 +512,56 @@ function requireWindowsNativeLifecycleIssuance(
   if (result.stdout.trim() !== "AUTHORIZED") throw new Error("Guardian Authority confirmation was declined.");
 }
 
+
+function requireWindowsNativeSimpleIssuance(
+  request: ProtectedGuardianRequest,
+  language: "de" | "en",
+): void {
+  const isSemantic = request.consumer === "semantic-mutation" && request.mode === "one-shot";
+  const isIntegrity = request.consumer === "project-brain-integrity" && request.mode === "persistent";
+  if (!isSemantic && !isIntegrity) throw new Error("Guardian native confirmation received unsupported Authority.");
+
+  const title = isSemantic
+    ? (language === "de" ? "Änderung am Projektwissen bestätigen" : "Confirm project knowledge change")
+    : (language === "de" ? "Projektwissen sicher einrichten" : "Secure project knowledge setup");
+  const body = isSemantic
+    ? (language === "de"
+      ? "Du hast die Änderung in Livariant als Vorher/Nachher geprüft. Möchtest du genau diese Änderung übernehmen?"
+      : "You reviewed the change in Livariant as Before/After. Apply this exact change?")
+    : (language === "de"
+      ? "Livariant hat den Project Brain automatisch angelegt. Möchtest du den Schutz für unerwartete Änderungen jetzt einmalig einrichten?"
+      : "Livariant created the Project Brain automatically. Set up protection against unexpected changes now?");
+
+  const payload = Buffer.from(JSON.stringify({ title, body }), "utf8").toString("base64");
+  const script = [
+    "Add-Type -AssemblyName System.Windows.Forms",
+    "$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:LIVARIANT_GUARDIAN_DIALOG_PAYLOAD))",
+    "$m=$json | ConvertFrom-Json",
+    "$r=[Windows.Forms.MessageBox]::Show($m.body,$m.title,[Windows.Forms.MessageBoxButtons]::OKCancel,[Windows.Forms.MessageBoxIcon]::Question)",
+    "if($r -eq [Windows.Forms.DialogResult]::OK){[Console]::Write('AUTHORIZED')}else{[Console]::Write('CANCELLED')}",
+  ].join("; ");
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Sta", "-Command", script], {
+    encoding: "utf8",
+    shell: false,
+    windowsHide: true,
+    env: { ...process.env, LIVARIANT_GUARDIAN_DIALOG_PAYLOAD: payload },
+  });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || result.stderr || result.stdout || ("exit " + String(result.status));
+    throw new Error("Guardian native confirmation failed: " + String(detail).trim());
+  }
+  if (result.stdout.trim() !== "AUTHORIZED") throw new Error("Guardian Authority confirmation was declined.");
+}
+
 async function requireInteractiveIssuance(
   request: ProtectedGuardianRequest,
   materialSha256: string,
   nativeConfirmationLanguage?: "de" | "en",
 ): Promise<void> {
   if (windowsNativeConfirmationRequested(request, nativeConfirmationLanguage)) {
-    requireWindowsNativeLifecycleIssuance(request, materialSha256, nativeConfirmationLanguage!);
+    const language = nativeConfirmationLanguage!;
+    if (request.consumer === "lifecycle-mutation") requireWindowsNativeLifecycleIssuance(request, materialSha256, language);
+    else requireWindowsNativeSimpleIssuance(request, language);
     return;
   }
   if (!stdin.isTTY || !stderr.isTTY) {
