@@ -15,6 +15,8 @@ $installDir = $null
 $oldSigningKey = $env:TAURI_SIGNING_PRIVATE_KEY
 $oldSigningPassword = $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 $ciEnvNames = @(
+  'APPDATA',
+  'LOCALAPPDATA',
   'LIVARIANT_CI_UPDATER_ACCEPTANCE',
   'LIVARIANT_CI_UPDATER_ENDPOINT',
   'LIVARIANT_CI_UPDATER_PUBLIC_KEY',
@@ -41,7 +43,12 @@ try {
   $root = Join-Path $env:RUNNER_TEMP 'LivariantUpdaterAcceptance'
   $feedDir = Join-Path $root 'feed'
   $installDir = Join-Path $env:ProgramFiles 'Livariant'
+  $appData = Join-Path $root 'appdata'
+  $localAppData = Join-Path $root 'localappdata'
+  $livariantAppData = Join-Path $appData 'dev.livariant.desktop'
   $resultPath = Join-Path $root 'result.json'
+  $userDataSentinel = Join-Path $livariantAppData 'upgrade-preservation-sentinel.txt'
+  $legacyFirstRunState = Join-Path $livariantAppData 'first-run-project-source-review-request.json'
   $privateKeyPath = Join-Path $root 'ci-updater.key'
   $publicKeyPath = "$privateKeyPath.pub"
   $newConfigPath = Join-Path $root 'new.conf.json'
@@ -50,7 +57,31 @@ try {
 
   Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
-  New-Item -ItemType Directory -Path $root, $feedDir -Force | Out-Null
+  New-Item -ItemType Directory -Path $root, $feedDir, $appData, $localAppData, $livariantAppData -Force | Out-Null
+
+  $env:APPDATA = $appData
+  $env:LOCALAPPDATA = $localAppData
+  Set-Content -LiteralPath $userDataSentinel -Value 'preserve-existing-livariant-app-data' -Encoding utf8
+  [ordered]@{
+    schemaVersion = 1
+    onboardingState = [ordered]@{
+      schemaVersion = 1
+      currentStep = 'project'
+      completed = $false
+      project = [ordered]@{}
+      understanding = [ordered]@{
+        projectRoot = ''
+        questions = @()
+      }
+      boundaries = [ordered]@{
+        grantsAuthority = $false
+        mutationAuthorized = $false
+        changesProjectOwnedFiles = $false
+      }
+    }
+    selectedReviewPaths = @()
+    decisions = @()
+  } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $legacyFirstRunState -Encoding utf8
 
   $password = 'livariant-ci-updater-acceptance-only'
   & npm run tauri signer generate -- --ci --password $password --write-keys $privateKeyPath
@@ -148,7 +179,8 @@ try {
   $node = Join-Path $installDir 'livariant-node.exe'
   $manifestPath = Join-Path $installDir 'runtime\manifest.json'
   $coreCli = Join-Path $installDir 'runtime\core\dist\src\cli\index.js'
-  foreach ($required in @($app, $node, $manifestPath, $coreCli)) {
+  $firstRunLifecycle = Join-Path $installDir 'runtime\core\dist\src\project\desktop-first-run-lifecycle-cli.js'
+  foreach ($required in @($app, $node, $manifestPath, $coreCli, $firstRunLifecycle)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
       throw "Older installed CI fixture is incomplete: $required"
     }
@@ -282,6 +314,49 @@ try {
     $env:PBF_RUNTIME_DELEGATION_BYPASS = $previousBypass
   }
 
+  if (-not (Test-Path -LiteralPath $userDataSentinel -PathType Leaf)) {
+    throw "Updater removed existing Livariant app-data sentinel."
+  }
+  $sentinel = (Get-Content -LiteralPath $userDataSentinel -Raw).Trim()
+  if ($sentinel -ne 'preserve-existing-livariant-app-data') {
+    throw "Updater altered existing Livariant app-data sentinel."
+  }
+  if (-not (Test-Path -LiteralPath $legacyFirstRunState -PathType Leaf)) {
+    throw "Updater removed persisted Livariant first-run state."
+  }
+
+  $previousFirstRunStatePath = $env:LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH
+  $previousFirstRunActionPath = $env:LIVARIANT_FIRST_RUN_ACTION_PATH
+  $env:LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH = $legacyFirstRunState
+  Remove-Item Env:LIVARIANT_FIRST_RUN_ACTION_PATH -ErrorAction SilentlyContinue
+  try {
+    $firstRunJson = (& $node $firstRunLifecycle 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+      throw "Updated bundled first-run lifecycle could not read preserved existing state: $firstRunJson"
+    }
+    $firstRun = $firstRunJson | ConvertFrom-Json
+    if ($firstRun.status -ne 'in-progress' -or $firstRun.onboardingState.currentStep -ne 'project') {
+      throw "Updated bundled first-run lifecycle did not preserve the existing resumable state: $firstRunJson"
+    }
+    if ($firstRun.onboardingState.boundaries.grantsAuthority -ne $false -or
+        $firstRun.onboardingState.boundaries.mutationAuthorized -ne $false -or
+        $firstRun.onboardingState.boundaries.changesProjectOwnedFiles -ne $false) {
+      throw "Preserved first-run state compatibility weakened protected boundaries."
+    }
+  } finally {
+    if ($null -eq $previousFirstRunStatePath) {
+      Remove-Item Env:LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH -ErrorAction SilentlyContinue
+    } else {
+      $env:LIVARIANT_FIRST_RUN_PROJECT_STATE_PATH = $previousFirstRunStatePath
+    }
+    if ($null -eq $previousFirstRunActionPath) {
+      Remove-Item Env:LIVARIANT_FIRST_RUN_ACTION_PATH -ErrorAction SilentlyContinue
+    } else {
+      $env:LIVARIANT_FIRST_RUN_ACTION_PATH = $previousFirstRunActionPath
+    }
+  }
+
+  Write-Host "Existing Livariant APPDATA and resumable first-run state survived the signed updater transition."
   Write-Host "Old installed Desktop $oldVersion -> signed $newVersion updater acceptance passed for exact source provenance $SourceSha."
 } finally {
   foreach ($name in $ciEnvNames) {
