@@ -977,20 +977,50 @@ const bindEvents = () => {
 
   document.querySelector<HTMLButtonElement>("[data-project-knowledge-stage-a-setup]")?.addEventListener("click", async () => {
     try {
-      const launched = await launchProjectKnowledgeStageASetup();
-      notice = { kind: "info", title: uiText("Protected Stage A opened", "Geschützte Stage A geöffnet"), detail: launched.detail };
+      await launchProjectKnowledgeStageASetup();
+      notice = {
+        kind: "success",
+        title: uiText("Protected Stage A completed", "Geschützte Stage A abgeschlossen"),
+        detail: uiText(
+          "The protected source is ready. Livariant is checking the next protection step now.",
+          "Die geschützte Quelle ist bereit. Livariant prüft jetzt den nächsten Schutzschritt.",
+        ),
+      };
+      await refreshProjectKnowledge(false);
     } catch (error) {
-      notice = { kind: "error", title: uiText("Protected Stage A could not start", "Geschützte Stage A konnte nicht gestartet werden"), detail: error instanceof Error ? error.message : String(error) };
+      notice = {
+        kind: "error",
+        title: uiText("Protected Stage A was not completed", "Geschützte Stage A wurde nicht abgeschlossen"),
+        detail: uiText(
+          "UAC may have been cancelled or the protected setup failed. Nothing was silently accepted.",
+          "UAC wurde möglicherweise abgebrochen oder die geschützte Einrichtung ist fehlgeschlagen. Es wurde nichts stillschweigend übernommen.",
+        ),
+      };
     }
     render();
   });
 
   document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-setup]")?.addEventListener("click", async () => {
     try {
-      const launched = await launchProjectKnowledgeProtectionSetup();
-      notice = { kind: "info", title: uiText("Protected setup opened", "Geschütztes Setup geöffnet"), detail: launched.detail };
+      await launchProjectKnowledgeProtectionSetup();
+      notice = {
+        kind: "success",
+        title: uiText("Guardian setup completed", "Guardian-Einrichtung abgeschlossen"),
+        detail: uiText(
+          "Guardian protection is ready. Livariant is checking the managed Project Brain state now.",
+          "Der Guardian-Schutz ist bereit. Livariant prüft jetzt den verwalteten Project-Brain-Stand.",
+        ),
+      };
+      await refreshProjectKnowledge(false);
     } catch (error) {
-      notice = { kind: "error", title: uiText("Protected setup could not start", "Geschütztes Setup konnte nicht gestartet werden"), detail: error instanceof Error ? error.message : String(error) };
+      notice = {
+        kind: "error",
+        title: uiText("Guardian setup was not completed", "Guardian-Einrichtung wurde nicht abgeschlossen"),
+        detail: uiText(
+          "UAC may have been cancelled or Guardian setup failed. Nothing was silently accepted.",
+          "UAC wurde möglicherweise abgebrochen oder die Guardian-Einrichtung ist fehlgeschlagen. Es wurde nichts stillschweigend übernommen.",
+        ),
+      };
     }
     render();
   });

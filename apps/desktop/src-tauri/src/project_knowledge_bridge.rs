@@ -214,6 +214,30 @@ fn fixed_desktop_install_root() -> PathBuf {
     PathBuf::from("/opt/livariant/desktop")
 }
 
+#[cfg(target_os = "windows")]
+async fn run_elevated_powershell_script(script_path: PathBuf) -> Result<(), String> {
+    let powershell = PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
+    let escaped_script = script_path.display().to_string().replace('\'', "''");
+    let escaped_powershell = powershell.display().to_string().replace('\'', "''");
+    let launcher = format!(
+        "$args=@('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File','\"{}\"'); try {{$p=Start-Process -FilePath '{}' -ArgumentList $args -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop; exit $p.ExitCode}} catch {{Write-Error $_; exit 1}}",
+        escaped_script,
+        escaped_powershell
+    );
+    let status = tauri::async_runtime::spawn_blocking(move || {
+        hidden_command(&powershell)
+            .args(["-NoProfile", "-NonInteractive", "-Command", &launcher])
+            .status()
+    })
+    .await
+    .map_err(|error| format!("Protected setup worker failed: {error}"))?
+    .map_err(|error| format!("Protected setup could not be started: {error}"))?;
+    if !status.success() {
+        return Err("Protected setup did not complete. UAC may have been cancelled or the protected setup failed.".to_owned());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn launch_project_knowledge_stage_a_setup(
     app: tauri::AppHandle,
@@ -254,18 +278,12 @@ pub async fn launch_project_knowledge_stage_a_setup(
 
     #[cfg(target_os = "windows")]
     {
-        let powershell = PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
-        let escaped_stage_a = stage_a.display().to_string().replace('\'', "''");
-        let escaped_powershell = powershell.display().to_string().replace('\'', "''");
-        let script = format!(
-            "$p=Start-Process -FilePath '{}' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File','{}') -Verb RunAs -PassThru; exit 0",
-            escaped_powershell,
-            escaped_stage_a
-        );
-        hidden_command(&powershell)
-            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-            .spawn()
-            .map_err(|error| format!("Protected Stage-A setup window could not be started: {error}"))?;
+        run_elevated_powershell_script(stage_a.clone()).await?;
+        let state = app.state::<DesktopProjectRegistryState>();
+        let refreshed = run_project_knowledge(&app, state.inner(), json!({ "method": "protection" }))?;
+        if refreshed.get("state").and_then(Value::as_str) == Some("protected-source-required") {
+            return Err("Protected Stage A finished without establishing the protected source.".to_owned());
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -279,8 +297,8 @@ pub async fn launch_project_knowledge_stage_a_setup(
     }
 
     Ok(ProjectKnowledgeProtectionLaunchResult {
-        state: "launched",
-        detail: "A protected Stage-A setup window was opened from the exact fixed Livariant Desktop installation. Complete UAC and Stage A there, then check protection readiness again.".to_owned(),
+        state: "completed",
+        detail: "Protected Stage A completed from the exact fixed Livariant Desktop installation.".to_owned(),
         boundaries: json!({
             "rendererSuppliesExecutable": false,
             "rendererSuppliesPath": false,
@@ -324,18 +342,12 @@ pub async fn launch_project_knowledge_protection_setup(
 
     #[cfg(target_os = "windows")]
     {
-        let powershell = PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
-        let escaped_launcher = launcher.display().to_string().replace('\'', "''");
-        let escaped_powershell = powershell.display().to_string().replace('\'', "''");
-        let script = format!(
-            "$p=Start-Process -FilePath '{}' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File','{}') -Verb RunAs -PassThru; exit 0",
-            escaped_powershell,
-            escaped_launcher
-        );
-        hidden_command(&powershell)
-            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-            .spawn()
-            .map_err(|error| format!("Protected Guardian setup window could not be started: {error}"))?;
+        run_elevated_powershell_script(launcher.clone()).await?;
+        let state = app.state::<DesktopProjectRegistryState>();
+        let refreshed = run_project_knowledge(&app, state.inner(), json!({ "method": "protection" }))?;
+        if refreshed.get("state").and_then(Value::as_str) == Some("guardian-bootstrap-required") {
+            return Err("Protected Guardian setup finished without establishing Guardian readiness.".to_owned());
+        }
     }
 
     #[cfg(not(target_os = "windows"))]

@@ -131,10 +131,21 @@ test("legacy repository-local Project Brain migration is bounded and fail-closed
   assert.match(storage, /await rm\(source\.path, \{ recursive: true, force: false \}\)/);
 });
 
-test("Rust bridge keeps PowerShell quoting syntactically valid", async () => {
+test("Rust bridge launches protected setup through hidden awaited UAC without a console lifetime", async () => {
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
-  assert.match(rust, /escaped_launcher = launcher\.display\(\)\.to_string\(\)\.replace/);
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+
+  assert.match(rust, /run_elevated_powershell_script/);
+  assert.match(rust, /escaped_script = script_path\.display\(\)\.to_string\(\)\.replace/);
   assert.match(rust, /escaped_powershell = powershell\.display\(\)\.to_string\(\)\.replace/);
+  assert.match(rust, /-WindowStyle Hidden/);
+  assert.match(rust, /-Wait/);
+  assert.doesNotMatch(rust, /-NoExit/);
+  assert.match(rust, /Protected Stage A finished without establishing the protected source/);
+  assert.match(rust, /Protected Guardian setup finished without establishing Guardian readiness/);
+  assert.match(main, /Geschützte Stage A abgeschlossen/);
+  assert.match(main, /Guardian-Einrichtung abgeschlossen/);
+  assert.doesNotMatch(main, /launched\.detail/);
   assert.doesNotMatch(rust, /replace\(''', "''"\)/);
 });
 

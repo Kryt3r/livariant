@@ -92,6 +92,8 @@ struct StoredCredential {
     expires_at: Option<u64>,
     refresh_token: Option<String>,
     refresh_token_expires_at: Option<u64>,
+    #[serde(default)]
+    login: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -287,6 +289,7 @@ fn refresh_credential(client_id: &str, credential: &StoredCredential) -> Result<
         expires_at: response.expires_in.map(|seconds| now.saturating_add(seconds)),
         refresh_token: response.refresh_token.or_else(|| credential.refresh_token.clone()),
         refresh_token_expires_at: response.refresh_token_expires_in.map(|seconds| now.saturating_add(seconds)).or(credential.refresh_token_expires_at),
+        login: credential.login.clone(),
     })
 }
 
@@ -459,8 +462,15 @@ pub fn github_connection_status() -> GitHubConnectionStatus {
     if !configured {
         return GitHubConnectionStatus { state: "not-configured", connected: false, configured: false, login: None, detail: "Livariant GitHub App client ID is not configured in this build.".to_owned(), boundaries: boundaries() };
     }
-    match usable_credential().and_then(|credential| authenticated_login(&credential.access_token)) {
-        Ok(login) => GitHubConnectionStatus { state: "connected", connected: true, configured: true, login: Some(login), detail: "GitHub is connected for bounded read capability. Connection grants no Livariant Authority.".to_owned(), boundaries: boundaries() },
+    match usable_credential() {
+        Ok(credential) => GitHubConnectionStatus {
+            state: "connected",
+            connected: true,
+            configured: true,
+            login: credential.login,
+            detail: "GitHub has a usable locally protected credential. Remote access is verified by the bounded GitHub operation when it is used.".to_owned(),
+            boundaries: boundaries(),
+        },
         Err(error) => GitHubConnectionStatus { state: "disconnected", connected: false, configured: true, login: None, detail: error, boundaries: boundaries() },
     }
 }
@@ -510,13 +520,15 @@ pub fn github_poll_device_authorization(state: State<'_, GitHubRemoteState>) -> 
     }
     let access_token = response.access_token.ok_or_else(|| "GitHub authorization returned neither a token nor an error.".to_owned())?;
     let now = now_seconds();
-    let credential = StoredCredential {
+    let mut credential = StoredCredential {
         access_token,
         expires_at: response.expires_in.map(|seconds| now.saturating_add(seconds)),
         refresh_token: response.refresh_token,
         refresh_token_expires_at: response.refresh_token_expires_in.map(|seconds| now.saturating_add(seconds)),
+        login: None,
     };
     let login = authenticated_login(&credential.access_token)?;
+    credential.login = Some(login.clone());
     store_credential(&credential)?;
     *state.pending.lock().map_err(|_| "GitHub authorization state lock is poisoned.".to_owned())? = None;
     Ok(GitHubDevicePollResult { state: "connected", connected: true, login: Some(login), retry_after_seconds: None, detail: "GitHub read connection established. No project-change Authority was granted.".to_owned() })

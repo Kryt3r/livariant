@@ -28,3 +28,22 @@ test("first-run presentation reuses the normal Desktop palette and geometry", as
   assert.match(css, /border[^;]*var\(--line\)/);
   assert.doesNotMatch(css, /font-family:\s*(Georgia|serif)/i);
 });
+
+
+test("first-run activates the selected Desktop project and detects the same local providers as Connections settings", async () => {
+  const firstRun = await text("apps/desktop/src/first-run-ui.ts");
+  const registry = await text("apps/desktop/src/desktop-project-registry.ts");
+
+  assert.match(firstRun, /ensureDesktopProjectActive/);
+  assert.match(firstRun, /await ensureSelectedProjectActive\(\)/);
+  assert.match(firstRun, /invoke<LocalProviderStatus>\("local_provider_status", \{ provider: "claude" \}\)/);
+  assert.match(firstRun, /invoke<LocalProviderStatus>\("local_provider_status", \{ provider: "gemini" \}\)/);
+  assert.match(firstRun, /invoke<LocalProviderStatus>\("local_provider_status", \{ provider: "custom" \}\)/);
+  assert.match(firstRun, /Promise\.allSettled/);
+  assert.match(firstRun, /data-fr-connect-local-provider/);
+  assert.match(firstRun, /connectedProviderIds\(\)/);
+  assert.doesNotMatch(firstRun, /providerIds: \["codex"\]/);
+  assert.match(registry, /export async function ensureDesktopProjectActive/);
+  assert.match(registry, /projectId: projectId\?\.trim\(\) \|\| null/);
+  assert.match(registry, /localRootKey/);
+});

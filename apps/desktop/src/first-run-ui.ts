@@ -3,7 +3,7 @@ import "./first-run-ux-polish.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getLanguage } from "./i18n/runtime.js";
-import { onDesktopProjectActivated } from "./desktop-project-registry.js";
+import { ensureDesktopProjectActive, onDesktopProjectActivated } from "./desktop-project-registry.js";
 import { presentFirstRunQuestion, suggestProjectIdFromPath } from "./first-run-presentation.js";
 import {
   loadFirstRunLifecycle,
@@ -39,6 +39,17 @@ type CodexStatus = {
   version: string | null;
   detail: string;
   connectionMode?: "auto" | "manual";
+};
+type LocalProviderId = "claude" | "gemini" | "custom";
+type LocalProviderStatus = {
+  provider: LocalProviderId;
+  installationState: "available" | "not-found" | "unusable";
+  authState: "authenticated" | "configured" | "unknown" | "unavailable";
+  version: string | null;
+  connected: boolean;
+  detail: string;
+  connectionMode: "auto" | "manual";
+  configuredPath?: string | null;
 };
 type RepositoryInspection = {
   isRepository: boolean;
@@ -166,13 +177,33 @@ function sources(state: FirstRunState, inspection: RepositoryInspection | null):
   return `<section class="fr-stage"><span class="fr-kicker">${text("Project sources", "Projektquellen")}</span><h1>${text("Confirm the repositories that belong to this project", "Bestätige die Repositories dieses Projekts")}</h1><p>${text("Livariant keeps the project folder and repository identity separate so that detected data is never accepted silently. One primary repository is required; additional repositories are optional.", "Livariant hält Projektordner und Repository-Identität getrennt, damit erkannte Daten niemals stillschweigend übernommen werden. Ein Hauptrepository ist erforderlich; weitere Repositories sind optional.")}</p>${configured}${primary}${additional}<div class="fr-actions"><button class="button secondary" data-fr-move="understanding" type="button">${text("Back", "Zurück")}</button><button class="button primary" data-fr-move="providers" type="button" ${registry ? "" : "disabled"}>${text("Continue", "Weiter")}</button></div></section>`;
 }
 
-function providers(state: FirstRunState, codex: CodexStatus | null): string {
+function providers(state: FirstRunState, codex: CodexStatus | null, localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>>): string {
   const connected = codex?.connected === true; const available = codex?.installationState === "available";
   const stateLabel = connected ? text("Connected", "Verbunden") : available ? text("Ready", "Bereit") : text("Not ready", "Nicht bereit");
+  const connectedProviderIds = [
+    ...(connected ? ["codex"] : []),
+    ...(["claude", "gemini", "custom"] as LocalProviderId[]).filter((provider) => localProviders[provider]?.connected),
+  ];
+  const localMeta: Record<LocalProviderId, { vendor: string; name: string; glyph: string }> = {
+    claude: { vendor: "Anthropic", name: "Claude", glyph: "A" },
+    gemini: { vendor: "Google", name: "Gemini", glyph: "G" },
+    custom: { vendor: text("Advanced", "Erweitert"), name: text("Custom connection", "Eigene Verbindung"), glyph: "+" },
+  };
+  const localCards = (["claude", "gemini", "custom"] as LocalProviderId[]).map((provider) => {
+    const status = localProviders[provider]; const meta = localMeta[provider];
+    const ready = status?.installationState === "available" && status.authState !== "unavailable";
+    const label = status?.connected ? text("Connected", "Verbunden") : ready ? text("Ready", "Bereit") : status ? text("Not ready", "Nicht bereit") : text("Checking…", "Wird geprüft…");
+    const detail = status?.connected ? text("Connected and ready to use.", "Verbunden und einsatzbereit.") : ready ? text("Detected locally and ready to connect.", "Lokal erkannt und bereit zum Verbinden.") : status ? text("No usable local connection is ready yet.", "Noch keine nutzbare lokale Verbindung bereit.") : text("Checking local installation…", "Lokale Installation wird geprüft…");
+    const action = status?.connected ? "" : provider === "custom"
+      ? `<div class="fr-connect-options"><label><span>${text("Provider executable path", "Provider-Programmpfad")}</span><div><input data-fr-local-provider-path="custom" data-fr-focus="custom-provider-path" placeholder="C:\\...\\provider.exe"/><button class="button secondary" data-fr-connect-local-provider="custom" type="button">${text("Connect path", "Pfad verbinden")}</button></div></label></div>`
+      : ready ? `<div class="fr-connect-options"><button class="button primary" data-fr-connect-local-provider="${provider}" type="button">${text("Connect", "Verbinden")} ${meta.name}</button></div>` : "";
+    return `<article class="fr-provider-card"><div class="fr-provider-icon">${meta.glyph}</div><div><small>${esc(meta.vendor)}</small><strong>${esc(meta.name)}</strong><span>${esc(detail)}</span></div><span class="fr-provider-state ${status?.connected ? "ok" : ready ? "ready" : "muted"}">${label}</span></article>${action}`;
+  }).join("");
   return `<section class="fr-stage"><span class="fr-kicker">${text("LLM connections", "LLM-Verbindungen")}</span><h1>${text("Connect a provider, or set it up later", "Verbinde einen Anbieter oder richte ihn später ein")}</h1><p>${text("A connection lets Livariant use the provider. It does not grant permission to change project files, merge code or publish releases.", "Eine Verbindung erlaubt Livariant, den Anbieter zu nutzen. Sie erteilt keine Berechtigung, Projektdateien zu ändern, Code zu mergen oder Releases zu veröffentlichen.")}</p>
     <article class="fr-provider-card"><div class="fr-provider-icon">C</div><div><small>OpenAI</small><strong>Codex</strong><span>${codex ? esc(codex.detail) : text("Checking local Codex…", "Lokales Codex wird geprüft…")}</span></div><span class="fr-provider-state ${connected ? "ok" : available ? "ready" : "muted"}">${stateLabel}</span></article>
+    ${localCards}
     ${connected ? `<p class="fr-success">${text("Codex is connected. The normal approval rules for changes still apply.", "Codex ist verbunden. Für Änderungen gelten weiterhin die normalen Freigaberegeln.")}</p>` : available ? `<div class="fr-connect-options"><button class="button primary" data-fr-connect-codex type="button">${text("Connect automatically", "Automatisch verbinden")}</button><label><span>${text("Or explicit Codex executable path", "Oder expliziter Codex-Programmpfad")}</span><div><input data-fr-codex-path data-fr-focus="codex-path" placeholder="C:\\...\\codex.exe"/><button class="button secondary" data-fr-connect-codex-manual type="button">${text("Connect path", "Pfad verbinden")}</button></div></label></div>` : `<p class="fr-warning">${text("Codex is not currently available. You can finish setup and configure providers later.", "Codex ist aktuell nicht verfügbar. Du kannst die Einrichtung abschließen und Provider später konfigurieren.")}</p>`}
-    <div class="fr-actions"><button class="button secondary" data-fr-move="sources" type="button">${text("Back", "Zurück")}</button>${connected ? `<button class="button primary" data-fr-save-provider type="button">${text("Use Codex and continue", "Codex verwenden und weiter")}</button>` : `<button class="button primary" data-fr-defer-provider type="button">${text("Set up later", "Später einrichten")}</button>`}</div>${state.providers.deferred ? `<small class="fr-footnote">${text("Provider setup is currently deferred.", "Provider-Einrichtung ist aktuell aufgeschoben.")}</small>` : ""}</section>`;
+    <div class="fr-actions"><button class="button secondary" data-fr-move="sources" type="button">${text("Back", "Zurück")}</button>${connectedProviderIds.length ? `<button class="button primary" data-fr-save-provider type="button">${text("Use connected providers and continue", "Verbundene Provider verwenden und weiter")}</button>` : `<button class="button primary" data-fr-defer-provider type="button">${text("Set up later", "Später einrichten")}</button>`}</div>${state.providers.deferred ? `<small class="fr-footnote">${text("Provider setup is currently deferred.", "Provider-Einrichtung ist aktuell aufgeschoben.")}</small>` : ""}</section>`;
 }
 
 function health(state: FirstRunState, snapshot: FirstRunLifecycleSnapshot): string {
@@ -183,15 +214,15 @@ function health(state: FirstRunState, snapshot: FirstRunLifecycleSnapshot): stri
     <div class="fr-boundary"><strong>${text("Changes remain controlled", "Änderungen bleiben kontrolliert")}</strong><p>${text("Finishing setup does not let Livariant or a connected AI change project files automatically. Changes still require the normal Livariant approval path.", "Das Abschließen der Einrichtung erlaubt Livariant oder einer verbundenen KI nicht, Projektdateien automatisch zu verändern. Für Änderungen gilt weiterhin der normale Livariant-Freigabepfad.")}</p><p>${text("When Livariant opens, a short optional tour will show you where the most important areas are. You can skip it or start it again later from Settings.", "Wenn Livariant geöffnet wird, zeigt dir eine kurze optionale Tour die wichtigsten Bereiche. Du kannst sie überspringen oder später in den Einstellungen erneut starten.")}</p></div><div class="fr-actions"><button class="button secondary" data-fr-move="providers" type="button">${text("Back", "Zurück")}</button><button class="button primary" data-fr-complete type="button">${text("Finish and open Livariant", "Abschließen und Livariant öffnen")}</button></div></section>`;
 }
 
-function stage(state: FirstRunState, snapshot: FirstRunLifecycleSnapshot, codex: CodexStatus | null, force: boolean, inspection: RepositoryInspection | null): string {
+function stage(state: FirstRunState, snapshot: FirstRunLifecycleSnapshot, codex: CodexStatus | null, localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>>, force: boolean, inspection: RepositoryInspection | null): string {
   const step = force && state.currentStep === "complete" ? "welcome" : state.currentStep;
-  if (step === "project") return project(state); if (step === "understanding") return understanding(state); if (step === "sources") return sources(state, inspection); if (step === "providers") return providers(state, codex); if (step === "health") return health(state, snapshot); return welcome();
+  if (step === "project") return project(state); if (step === "understanding") return understanding(state); if (step === "sources") return sources(state, inspection); if (step === "providers") return providers(state, codex, localProviders); if (step === "health") return health(state, snapshot); return welcome();
 }
 
 export async function mountFirstRunOnboarding(root: HTMLElement, options: { logoUrl: string; force?: boolean; onExit: () => void }): Promise<boolean> {
   let snapshot = await loadFirstRunLifecycle();
   if (snapshot.status === "complete" && !options.force) return false;
-  let codex: CodexStatus | null = null; let inspection: RepositoryInspection | null = null; let busy = false; let error: string | null = null;
+  let codex: CodexStatus | null = null; let localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>> = {}; let inspection: RepositoryInspection | null = null; let busy = false; let error: string | null = null;
   let projectActivationGeneration = 0;
   let disposeProjectActivation = () => {};
   const exit = () => {
@@ -199,8 +230,32 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     options.onExit();
   };
 
-  const refreshCodex = async () => { try { codex = await invoke<CodexStatus>("codex_connector_status"); } catch { codex = null; } };
-  await refreshCodex();
+  const refreshProviders = async (rerender = true) => {
+    const generation = projectActivationGeneration;
+    const [codexResult, claude, gemini, custom] = await Promise.allSettled([
+      invoke<CodexStatus>("codex_connector_status"),
+      invoke<LocalProviderStatus>("local_provider_status", { provider: "claude" }),
+      invoke<LocalProviderStatus>("local_provider_status", { provider: "gemini" }),
+      invoke<LocalProviderStatus>("local_provider_status", { provider: "custom" }),
+    ]);
+    if (generation !== projectActivationGeneration) return;
+    codex = codexResult.status === "fulfilled" ? codexResult.value : null;
+    localProviders = {
+      ...(claude.status === "fulfilled" ? { claude: claude.value } : {}),
+      ...(gemini.status === "fulfilled" ? { gemini: gemini.value } : {}),
+      ...(custom.status === "fulfilled" ? { custom: custom.value } : {}),
+    };
+    if (rerender && root.isConnected) render(captureContext());
+  };
+  const connectedProviderIds = (): string[] => [
+    ...(codex?.connected ? ["codex"] : []),
+    ...(["claude", "gemini", "custom"] as LocalProviderId[]).filter((provider) => localProviders[provider]?.connected),
+  ];
+  const ensureSelectedProjectActive = async () => {
+    const state = stateFrom(snapshot); const localRoot = state.project.localRoot?.trim();
+    if (!localRoot) return;
+    await ensureDesktopProjectActive(localRoot, undefined, state.project.projectId);
+  };
 
   const captureContext = (): RenderContext => {
     const main = root.querySelector<HTMLElement>(".fr-main");
@@ -263,7 +318,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
 
   const render = (context?: RenderContext) => {
     const state = stateFrom(snapshot); const displayStep = options.force && state.currentStep === "complete" ? "welcome" : state.currentStep;
-    root.innerHTML = `<div class="desktop-frame first-run-frame ${options.force ? "first-run-revisit" : ""}">${windowBar(options.logoUrl)}<div class="fr-shell"><aside class="fr-rail"><div class="fr-brand"><img src="${options.logoUrl}" alt="Livariant"/><div><strong>Livariant</strong><small>${text("Setup assistant", "Einrichtungsassistent")}</small></div></div><ol>${progress(displayStep)}</ol><div class="fr-rail-footer"><div class="fr-rail-note"><strong>${text("Resumable by design", "Bewusst fortsetzbar")}</strong><span>${text("Your setup progress is saved locally so you can continue later.", "Dein Einrichtungsfortschritt wird lokal gespeichert, damit du später fortsetzen kannst.")}</span></div>${options.force ? `<button class="button secondary fr-return" data-fr-exit type="button">${text("Return to Livariant", "Zurück zu Livariant")}</button>` : ""}</div></aside><main class="fr-main">${error ? `<div class="fr-error" role="alert"><strong>${text("Setup needs attention", "Einrichtung benötigt Aufmerksamkeit")}</strong><span>${esc(error)}</span></div>` : ""}${busy ? `<div class="fr-busy">${text("Saving…", "Speichere…")}</div>` : ""}${stage(state, snapshot, codex, options.force === true, inspection)}</main></div></div>`;
+    root.innerHTML = `<div class="desktop-frame first-run-frame ${options.force ? "first-run-revisit" : ""}">${windowBar(options.logoUrl)}<div class="fr-shell"><aside class="fr-rail"><div class="fr-brand"><img src="${options.logoUrl}" alt="Livariant"/><div><strong>Livariant</strong><small>${text("Setup assistant", "Einrichtungsassistent")}</small></div></div><ol>${progress(displayStep)}</ol><div class="fr-rail-footer"><div class="fr-rail-note"><strong>${text("Resumable by design", "Bewusst fortsetzbar")}</strong><span>${text("Your setup progress is saved locally so you can continue later.", "Dein Einrichtungsfortschritt wird lokal gespeichert, damit du später fortsetzen kannst.")}</span></div>${options.force ? `<button class="button secondary fr-return" data-fr-exit type="button">${text("Return to Livariant", "Zurück zu Livariant")}</button>` : ""}</div></aside><main class="fr-main">${error ? `<div class="fr-error" role="alert"><strong>${text("Setup needs attention", "Einrichtung benötigt Aufmerksamkeit")}</strong><span>${esc(error)}</span></div>` : ""}${busy ? `<div class="fr-busy">${text("Saving…", "Speichere…")}</div>` : ""}${stage(state, snapshot, codex, localProviders, options.force === true, inspection)}</main></div></div>`;
 
     if (context) {
       const main = root.querySelector<HTMLElement>(".fr-main"); if (main) main.scrollTop = context.scrollTop;
@@ -272,7 +327,10 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
 
     root.querySelectorAll<HTMLButtonElement>("[data-fr-window]").forEach((button) => button.addEventListener("click", async () => { const action = button.dataset.frWindow; if (action === "minimize") await appWindow.minimize(); if (action === "maximize") await appWindow.toggleMaximize(); if (action === "close") await appWindow.close(); }));
     root.querySelector<HTMLButtonElement>("[data-fr-exit]")?.addEventListener("click", exit);
-    root.querySelectorAll<HTMLButtonElement>("[data-fr-move]").forEach((button) => button.addEventListener("click", () => void apply({ type: "move", step: button.dataset.frMove as Step })));
+    root.querySelectorAll<HTMLButtonElement>("[data-fr-move]").forEach((button) => button.addEventListener("click", async () => {
+      const step = button.dataset.frMove as Step;
+      if (await apply({ type: "move", step }) && step === "providers") void refreshProviders();
+    }));
     root.querySelector<HTMLButtonElement>("[data-fr-skip-all]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) exit(); });
 
     root.querySelector<HTMLButtonElement>("[data-fr-pick-project]")?.addEventListener("click", async () => {
@@ -285,7 +343,16 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     });
     root.querySelector<HTMLFormElement>("[data-fr-project]")?.addEventListener("submit", async (event) => {
       event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const localRoot = formValue(form, "localRoot");
-      if (await apply({ type: "select-project", projectId: formValue(form, "projectId"), localRoot })) { await inspectRepository(localRoot); await apply({ type: "move", step: "understanding" }); }
+      if (await apply({ type: "select-project", projectId: formValue(form, "projectId"), localRoot })) {
+        try {
+          await ensureSelectedProjectActive();
+          await inspectRepository(localRoot);
+          await apply({ type: "move", step: "understanding" });
+        } catch (cause) {
+          error = cause instanceof Error ? cause.message : String(cause);
+          render(captureContext());
+        }
+      }
     });
 
     root.querySelectorAll<HTMLButtonElement>("[data-fr-question-answer]").forEach((button) => button.addEventListener("click", () => { const id = button.dataset.frQuestionAnswer ?? ""; const value = root.querySelector<HTMLTextAreaElement>(`[data-fr-question-value="${CSS.escape(id)}"]`)?.value ?? ""; void apply({ type: "answer-question", questionId: id, response: value }, true); }));
@@ -300,9 +367,25 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
 
     root.querySelector<HTMLButtonElement>("[data-fr-connect-codex]")?.addEventListener("click", async () => { const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath: null }); } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
     root.querySelector<HTMLButtonElement>("[data-fr-connect-codex-manual]")?.addEventListener("click", async () => { const manualPath = root.querySelector<HTMLInputElement>("[data-fr-codex-path]")?.value.trim(); if (!manualPath) { error = text("Enter an explicit Codex executable path first.", "Trage zuerst einen expliziten Codex-Programmpfad ein."); render(captureContext()); return; } const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath }); } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
-    root.querySelector<HTMLButtonElement>("[data-fr-save-provider]")?.addEventListener("click", async () => { if (await apply({ type: "set-providers", providerIds: ["codex"], deferred: false })) await apply({ type: "move", step: "health" }); });
+    root.querySelectorAll<HTMLButtonElement>("[data-fr-connect-local-provider]").forEach((button) => button.addEventListener("click", async () => {
+      const provider = button.dataset.frConnectLocalProvider as LocalProviderId;
+      if (!["claude", "gemini", "custom"].includes(provider)) return;
+      const manualPath = provider === "custom" ? root.querySelector<HTMLInputElement>('[data-fr-local-provider-path="custom"]')?.value.trim() || null : null;
+      if (provider === "custom" && !manualPath) { error = text("Enter the custom provider executable path first.", "Trage zuerst den Programmpfad des eigenen Providers ein."); render(captureContext()); return; }
+      const context = captureContext(); busy = true; error = null; render(context);
+      try { localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_connect", { provider, manualPath }); }
+      catch { error = text("The provider could not be connected. Check its local installation and authentication.", "Der Provider konnte nicht verbunden werden. Prüfe die lokale Installation und Authentifizierung."); }
+      finally { busy = false; render(context); }
+    }));
+    root.querySelector<HTMLButtonElement>("[data-fr-save-provider]")?.addEventListener("click", async () => {
+      const providerIds = connectedProviderIds();
+      if (providerIds.length && await apply({ type: "set-providers", providerIds, deferred: false })) await apply({ type: "move", step: "health" });
+    });
     root.querySelector<HTMLButtonElement>("[data-fr-defer-provider]")?.addEventListener("click", async () => { if (await apply({ type: "set-providers", providerIds: [], deferred: true })) await apply({ type: "move", step: "health" }); });
-    root.querySelector<HTMLButtonElement>("[data-fr-complete]")?.addEventListener("click", async () => { if (await apply({ type: "complete" })) exit(); });
+    root.querySelector<HTMLButtonElement>("[data-fr-complete]")?.addEventListener("click", async () => {
+      try { await ensureSelectedProjectActive(); if (await apply({ type: "complete" })) exit(); }
+      catch (cause) { error = cause instanceof Error ? cause.message : String(cause); render(captureContext()); }
+    });
   };
 
   const initialState = stateFrom(snapshot); if (initialState.project.localRoot) await inspectRepository(initialState.project.localRoot);
@@ -318,6 +401,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
         snapshot = next;
         const state = stateFrom(snapshot);
         if (state.project.localRoot) await inspectRepository(state.project.localRoot);
+        await refreshProviders(false);
         if (generation === projectActivationGeneration && root.isConnected) render();
       })
       .catch((cause: unknown) => {
@@ -327,5 +411,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
       });
   });
 
-  render(); return true;
+  render();
+  void refreshProviders();
+  return true;
 }
