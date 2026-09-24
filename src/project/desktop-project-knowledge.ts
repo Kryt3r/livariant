@@ -118,6 +118,30 @@ function normalizedValue(value: unknown): string {
   return normalized;
 }
 
+function confirmedPackageName(projectMarkdown: string): string | undefined {
+  return projectMarkdown.match(/^- Confirmed package name:\s*(.+)$/m)?.[1]?.trim();
+}
+
+export async function assertDesktopProjectCheckoutIdentity(
+  checkoutPath: string,
+  projectBrainRoot: string,
+): Promise<void> {
+  const checkout = discoverProject(checkoutPath);
+  const store = new ProjectBrainStore(projectBrainRoot);
+  const inspection = await store.inspect();
+  if (inspection.health !== "valid") {
+    throw new Error(`Desktop Project Knowledge checkout identity verification requires a valid Project Brain; current state is ${inspection.health}.`);
+  }
+  if (!checkout.packageName) return;
+  const projectMarkdown = await readFile(resolve(projectBrainRoot, ".project-brain", "project.md"), "utf8");
+  const brainPackageName = confirmedPackageName(projectMarkdown);
+  if (brainPackageName && brainPackageName !== checkout.packageName) {
+    throw new Error(
+      `Desktop Project Knowledge checkout identity conflict: package.json identifies '${checkout.packageName}' while Project Brain identifies '${brainPackageName}'.`,
+    );
+  }
+}
+
 function taggedValue(id: DesktopProjectKnowledgeAreaId, record: DecisionRecord): string | null {
   const prefix = AREA_PREFIX[id];
   if (!record.text.startsWith(prefix)) return null;
@@ -208,7 +232,10 @@ async function unexpectedChangeReview(
   };
 }
 
-export async function projectKnowledgeProtectionStatus(projectPath: string): Promise<DesktopProjectKnowledgeProtectionStatus> {
+export async function projectKnowledgeProtectionStatus(
+  projectPath: string,
+  checkoutPath?: string,
+): Promise<DesktopProjectKnowledgeProtectionStatus> {
   const project = discoverProject(projectPath);
   const guardian = await inspectGuardianMachineReadiness(project.root, process.platform, process.execPath);
   const store = new ProjectBrainStore(project.root);
@@ -249,6 +276,25 @@ export async function projectKnowledgeProtectionStatus(projectPath: string): Pro
       integrity: { state: brain.health, digest: null, reason: brain.reason ?? "Project Brain requires diagnosis before canonical use." },
       initialization: null,
     };
+  }
+
+  if (checkoutPath) {
+    try {
+      await assertDesktopProjectCheckoutIdentity(checkoutPath, project.root);
+    } catch (error) {
+      return {
+        schemaVersion: 1,
+        state: "integrity-recovery-required",
+        canonicalReadReady: false,
+        guardian,
+        integrity: {
+          state: "checkout-identity-conflict",
+          digest: null,
+          reason: error instanceof Error ? error.message : "Desktop project checkout identity verification failed.",
+        },
+        initialization: null,
+      };
+    }
   }
 
   let integrity;
@@ -293,8 +339,11 @@ export async function projectKnowledgeProtectionStatus(projectPath: string): Pro
   };
 }
 
-export async function readDesktopProjectKnowledge(projectPath: string): Promise<DesktopProjectKnowledgeSnapshot> {
-  const status = await projectKnowledgeProtectionStatus(projectPath);
+export async function readDesktopProjectKnowledge(
+  projectPath: string,
+  checkoutPath?: string,
+): Promise<DesktopProjectKnowledgeSnapshot> {
+  const status = await projectKnowledgeProtectionStatus(projectPath, checkoutPath);
   if (!status.canonicalReadReady) {
     throw new Error(`Canonical Project Knowledge is blocked until protected Project Brain integrity is ready; current protection state is ${status.state}.`);
   }
@@ -305,9 +354,10 @@ export async function establishDesktopProjectKnowledgeIntegrity(
   projectPath: string,
   confirmedDigest: string,
   language: "de" | "en" = "en",
+  checkoutPath?: string,
 ): Promise<DesktopProjectKnowledgeProtectionStatus> {
   const project = discoverProject(projectPath);
-  const before = await projectKnowledgeProtectionStatus(project.root);
+  const before = await projectKnowledgeProtectionStatus(project.root, checkoutPath);
   if (before.guardian.state !== "ready") {
     throw new Error(`Protected Guardian must be ready before Project Brain integrity acceptance; current state is ${before.guardian.state}.`);
   }
@@ -344,7 +394,7 @@ export async function establishDesktopProjectKnowledgeIntegrity(
   await establishProtectedProjectBrainIntegrityState(project.root, "manual-bootstrap", {
     nativeConfirmationLanguage: language,
   });
-  const after = await projectKnowledgeProtectionStatus(project.root);
+  const after = await projectKnowledgeProtectionStatus(project.root, checkoutPath);
   if (!after.canonicalReadReady) {
     throw new Error(`Protected Project Brain integrity did not become ready after acceptance; current state is ${after.state}.`);
   }
@@ -354,9 +404,10 @@ export async function establishDesktopProjectKnowledgeIntegrity(
 export async function prepareDesktopProjectKnowledgeProposal(
   projectPath: string,
   input: { areaId: unknown; value: unknown },
+  checkoutPath?: string,
 ): Promise<DesktopProjectKnowledgePreparedProposal> {
   const project = discoverProject(projectPath);
-  const protection = await projectKnowledgeProtectionStatus(project.root);
+  const protection = await projectKnowledgeProtectionStatus(project.root, checkoutPath);
   if (!protection.canonicalReadReady) {
     throw new Error(`Project Knowledge proposal preparation requires protected canonical state; current protection state is ${protection.state}.`);
   }
@@ -409,8 +460,10 @@ function assertAreaProposal(area: DesktopProjectKnowledgeAreaId, proposal: Actio
 export async function applyDesktopProjectKnowledgeProposal(
   projectPath: string,
   input: { areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown; language?: unknown },
+  checkoutPath?: string,
 ): Promise<DesktopProjectKnowledgeApplyResult> {
   const project = discoverProject(projectPath);
+  if (checkoutPath) await assertDesktopProjectCheckoutIdentity(checkoutPath, project.root);
   const id = areaId(input.areaId);
   const proposal = parseActionableProposal(input.proposal);
   assertAreaProposal(id, proposal);
@@ -445,7 +498,7 @@ export async function applyDesktopProjectKnowledgeProposal(
   if (postProtection.state !== "match") {
     throw new Error(`Protected Semantic Authority did not establish the reviewed Project Brain as the trusted post-state: ${postProtection.state}.`);
   }
-  const snapshot = await readDesktopProjectKnowledge(project.root);
+  const snapshot = await readDesktopProjectKnowledge(project.root, checkoutPath);
   const area = snapshot.areas.find((candidate) => candidate.id === id);
   const expected = taggedValue(id, {
     id: "expected",
@@ -490,18 +543,19 @@ async function main(): Promise<void> {
   const storage = await ensureDesktopProjectBrainStorage(checkoutRoot, projectBrainRoot);
   let result: unknown;
   if (request.method === "ensure-storage") result = storage;
-  else if (request.method === "read") result = await readDesktopProjectKnowledge(projectBrainRoot);
-  else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectBrainRoot);
+  else if (request.method === "read") result = await readDesktopProjectKnowledge(projectBrainRoot, checkoutRoot);
+  else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectBrainRoot, checkoutRoot);
   else if (request.method === "accept-integrity") {
     if (typeof request.confirmedDigest !== "string") throw new Error("Project Brain integrity confirmation digest is invalid.");
     result = await establishDesktopProjectKnowledgeIntegrity(
       projectBrainRoot,
       request.confirmedDigest,
       request.language === "de" ? "de" : "en",
+      checkoutRoot,
     );
   }
-  else if (request.method === "prepare") result = await prepareDesktopProjectKnowledgeProposal(projectBrainRoot, request);
-  else if (request.method === "apply") result = await applyDesktopProjectKnowledgeProposal(projectBrainRoot, request);
+  else if (request.method === "prepare") result = await prepareDesktopProjectKnowledgeProposal(projectBrainRoot, request, checkoutRoot);
+  else if (request.method === "apply") result = await applyDesktopProjectKnowledgeProposal(projectBrainRoot, request, checkoutRoot);
   else throw new Error("Desktop Project Knowledge method is unsupported.");
   stdout.write(JSON.stringify(result));
 }

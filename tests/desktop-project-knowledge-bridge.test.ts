@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import test from "node:test";
 import {
+  assertDesktopProjectCheckoutIdentity,
   projectKnowledgeAreasFromDecisionRecords,
 } from "../src/project/desktop-project-knowledge.js";
+import { ProjectBrainStore } from "../src/project-brain/store.js";
 
 test("Desktop Project Knowledge projection reads only tagged active Project Brain decisions", () => {
   const areas = projectKnowledgeAreasFromDecisionRecords([
@@ -201,4 +205,43 @@ test("reviewed semantic apply becomes the new trusted state without a second int
   assert.match(protectedIntegrity, /semanticGuardianProof/);
   assert.match(protectedIntegrity, /findMatchingConsumedGuardianAuthority/);
   assert.doesNotMatch(core, /establishProtectedProjectBrainIntegrityState\(project\.root, "semantic-apply"/);
+});
+
+
+test("Desktop Project Knowledge keeps checkout identity coupled to the machine-local Project Brain", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "livariant-desktop-checkout-identity-"));
+  const checkout = resolve(root, "checkout");
+  const stateRoot = resolve(root, "state");
+  await mkdir(checkout);
+  await mkdir(stateRoot);
+  try {
+    await writeFile(resolve(checkout, "package.json"), JSON.stringify({ name: "alpha-project" }), "utf8");
+    const store = new ProjectBrainStore(stateRoot);
+    await store.bootstrap(
+      {
+        framework: { version: "0.0.0-development", channel: "development" },
+        projectBrain: { schemaVersion: 2, projectId: "11111111-1111-4111-8111-111111111111" },
+      },
+      { projectName: "alpha-project", evidence: ["package.json"], unknowns: [] },
+    );
+
+    await assert.doesNotReject(assertDesktopProjectCheckoutIdentity(checkout, stateRoot));
+
+    await writeFile(resolve(checkout, "package.json"), JSON.stringify({ name: "renamed-project" }), "utf8");
+    await assert.rejects(
+      assertDesktopProjectCheckoutIdentity(checkout, stateRoot),
+      /checkout identity conflict.*renamed-project.*alpha-project/i,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Desktop host passes both checkout and AppData Brain roots through Project Knowledge operations", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  assert.match(core, /projectKnowledgeProtectionStatus\(projectBrainRoot, checkoutRoot\)/);
+  assert.match(core, /readDesktopProjectKnowledge\(projectBrainRoot, checkoutRoot\)/);
+  assert.match(core, /prepareDesktopProjectKnowledgeProposal\(projectBrainRoot, request, checkoutRoot\)/);
+  assert.match(core, /applyDesktopProjectKnowledgeProposal\(projectBrainRoot, request, checkoutRoot\)/);
+  assert.match(core, /checkout-identity-conflict/);
 });
