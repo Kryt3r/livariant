@@ -83,7 +83,7 @@ test("Desktop protected Project Knowledge setup is fixed-path, per-machine and n
 });
 
 
-test("project activation prepares trust automatically and Project Knowledge has no manual protection workflow", async () => {
+test("project activation stays non-blocking while Project Knowledge owns trust and protected review", async () => {
   const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
   const bridge = await readFile("apps/desktop/src/project-knowledge-bridge.ts", "utf8");
   const registry = await readFile("apps/desktop/src/desktop-project-registry.ts", "utf8");
@@ -92,7 +92,7 @@ test("project activation prepares trust automatically and Project Knowledge has 
   assert.match(core, /if \(!status\.canonicalReadReady\)/);
   assert.match(core, /confirmedDigest !== before\.integrity\.digest/);
   assert.match(bridge, /ensureProjectKnowledgeTrusted/);
-  assert.match(registry, /await ensureProjectKnowledgeTrusted\(getLanguage\(\)\)/);
+  assert.doesNotMatch(registry, /ensureProjectKnowledgeTrusted/);
   assert.doesNotMatch(main, /Aktuellen Project Brain schützen/);
   assert.doesNotMatch(main, /data-project-knowledge-integrity-accept/);
   assert.doesNotMatch(main, /data-project-knowledge-stage-a-setup/);
