@@ -898,3 +898,26 @@
     margin-right: 18px;
   }
 }
+
+
+/* Provider connection hierarchy: bulk-connect ready providers, keep manual executable entry a fallback. */
+.provider-glyph .provider-brand-logo{width:25px;height:25px;display:block}
+.provider-modal-header .provider-glyph .provider-brand-logo{width:30px;height:30px}
+.connections-bulk-notice{
+  margin-top:10px;padding:10px 12px;border:1px solid rgba(99,210,165,.16);
+  border-radius:10px;color:#a8e6c4;background:rgba(99,210,165,.055);font-size:11px
+}
+.provider-manual-fallback{
+  border-color:rgba(227,186,112,.16);
+  background:rgba(88,61,22,.045)
+}
+.provider-manual-fallback input{
+  width:100%;margin-top:12px;padding:11px 12px;border:1px solid rgba(152,175,226,.15);
+  border-radius:10px;outline:none;color:var(--text);background:rgba(4,11,20,.72);font:inherit;font-size:12px
+}
+.provider-manual-fallback input:focus{
+  border-color:rgba(160,129,255,.55);box-shadow:0 0 0 3px rgba(123,89,255,.09)
+}
+@media(max-width:840px){
+  .connection-summary-row .connect-all-providers{width:100%}
+}
