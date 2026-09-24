@@ -134,6 +134,7 @@ let projectKnowledgeLoadedOnce = false;
 let projectKnowledgeLastRefreshAt = 0;
 let projectKnowledgeRefreshInFlight: Promise<void> | null = null;
 let projectKnowledgeApplying = false;
+let projectKnowledgeSetupInFlight = false;
 let projectKnowledgeProtection: ProjectKnowledgeProtectionStatus | null = null;
 let projectKnowledgeError: string | null = null;
 let updateState: UpdateState = "idle";
@@ -484,16 +485,21 @@ const renderProjectKnowledgeProtection = () => {
   }
 
   return `<section class="project-brain-setup-card">
-    <div class="project-brain-setup-icon" aria-hidden="true">…</div>
+    <div class="project-brain-setup-icon" aria-hidden="true">${projectKnowledgeSetupInFlight ? "↻" : "…"}</div>
     <div class="project-brain-setup-main"><div class="project-brain-setup-heading">
       <span class="project-brain-setup-step">${uiText("Project setup", "Projekteinrichtung")}</span>
-      <h3>${uiText("Project knowledge setup is incomplete", "Projektwissen ist noch nicht vollständig eingerichtet")}</h3>
-      <p>${uiText(
-        "Livariant normally prepares Project Brain protection automatically when the project is added. Retry the project setup instead of manually managing security components here.",
-        "Livariant bereitet den Schutz des Project Brains normalerweise automatisch beim Hinzufügen des Projekts vor. Starte die Projekteinrichtung erneut, statt hier Sicherheitskomponenten manuell zu verwalten.",
-      )}</p>
+      <h3>${projectKnowledgeSetupInFlight ? uiText("Project setup is continuing", "Projekteinrichtung wird fortgesetzt") : uiText("Project knowledge setup is incomplete", "Projektwissen ist noch nicht vollständig eingerichtet")}</h3>
+      <p>${projectKnowledgeSetupInFlight
+        ? uiText(
+            "Livariant is completing the protected setup without blocking this page. You can keep using the app; the status will update when the setup finishes.",
+            "Livariant schließt die geschützte Einrichtung ab, ohne diese Seite zu blockieren. Du kannst die App weiter benutzen; der Status wird aktualisiert, sobald die Einrichtung abgeschlossen ist.",
+          )
+        : uiText(
+            "Livariant normally prepares Project Brain protection automatically when the project is added. Retry the project setup instead of manually managing security components here.",
+            "Livariant bereitet den Schutz des Project Brains normalerweise automatisch beim Hinzufügen des Projekts vor. Starte die Projekteinrichtung erneut, statt hier Sicherheitskomponenten manuell zu verwalten.",
+          )}</p>
     </div></div>
-    <div class="project-brain-setup-actions"><button class="button secondary" type="button" data-project-knowledge-auto-setup-retry>${uiText("Retry project setup", "Projekteinrichtung erneut versuchen")}</button></div>
+    <div class="project-brain-setup-actions"><button class="button secondary" type="button" data-project-knowledge-auto-setup-retry ${projectKnowledgeSetupInFlight ? "disabled" : ""}>${projectKnowledgeSetupInFlight ? uiText("Setup running…", "Einrichtung läuft…") : uiText("Retry project setup", "Projekteinrichtung erneut versuchen")}</button></div>
   </section>`;
 };
 
@@ -946,32 +952,42 @@ const bindEvents = () => {
     render();
   });
 
-  document.querySelector<HTMLButtonElement>("[data-project-knowledge-auto-setup-retry]")?.addEventListener("click", async () => {
-    projectKnowledgeLoading = true;
-    notice = null;
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-auto-setup-retry]")?.addEventListener("click", () => {
+    if (projectKnowledgeSetupInFlight) return;
+    projectKnowledgeSetupInFlight = true;
+    notice = {
+      kind: "info",
+      title: uiText("Project setup is continuing", "Projekteinrichtung wird fortgesetzt"),
+      detail: uiText(
+        "Livariant is completing the protected setup without blocking Project Knowledge.",
+        "Livariant schließt die geschützte Einrichtung ab, ohne Projektwissen zu blockieren.",
+      ),
+    };
     render();
-    try {
-      await ensureProjectKnowledgeTrusted(getLanguage());
-      await refreshProjectKnowledge(false);
-      notice = {
-        kind: "success",
-        title: uiText("Project knowledge is ready", "Projektwissen ist bereit"),
-        detail: uiText(
-          "Livariant completed the project knowledge setup. No separate protection step is required here.",
-          "Livariant hat die Einrichtung des Projektwissens abgeschlossen. Hier ist kein zusätzlicher Schutzschritt erforderlich.",
-        ),
-      };
-    } catch (error) {
-      notice = {
-        kind: "error",
-        title: uiText("Project setup needs attention", "Projekteinrichtung benötigt Aufmerksamkeit"),
-        detail: error instanceof Error ? error.message : String(error),
-      };
-      await refreshProjectKnowledge(false);
-    } finally {
-      projectKnowledgeLoading = false;
-      render();
-    }
+    void (async () => {
+      try {
+        await ensureProjectKnowledgeTrusted(getLanguage());
+        await refreshProjectKnowledge(false);
+        notice = {
+          kind: "success",
+          title: uiText("Project knowledge is ready", "Projektwissen ist bereit"),
+          detail: uiText(
+            "Livariant completed the project knowledge setup. No separate protection step is required here.",
+            "Livariant hat die Einrichtung des Projektwissens abgeschlossen. Hier ist kein zusätzlicher Schutzschritt erforderlich.",
+          ),
+        };
+      } catch (error) {
+        notice = {
+          kind: "error",
+          title: uiText("Project setup needs attention", "Projekteinrichtung benötigt Aufmerksamkeit"),
+          detail: error instanceof Error ? error.message : String(error),
+        };
+        await refreshProjectKnowledge(false);
+      } finally {
+        projectKnowledgeSetupInFlight = false;
+        render();
+      }
+    })();
   });
 
   document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")?.addEventListener("click", async () => {
@@ -1061,6 +1077,7 @@ onDesktopProjectActivated(() => {
   }
   projectKnowledgeError = null;
   projectKnowledgeProtection = null;
+  projectKnowledgeSetupInFlight = false;
   projectKnowledgeLoadedOnce = false;
   projectKnowledgeLastRefreshAt = 0;
   projectKnowledgeRefreshInFlight = null;
