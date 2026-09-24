@@ -65,3 +65,14 @@ test("first-run establishes the project scope before persisting discovery and re
   assert.match(firstRun, /machine-local Project Brain/);
   assert.match(firstRun, /maschinenlokalen Project Brain/);
 });
+
+
+test("first-run project submit preserves the selected draft and ignores its own activation rerender", async () => {
+  const firstRun = await text("apps/desktop/src/first-run-ui.ts");
+  assert.match(firstRun, /let projectDraft: \{ projectId: string; localRoot: string \} \| null = null/);
+  assert.match(firstRun, /let projectSubmissionInFlight = false/);
+  assert.match(firstRun, /projectDraft = \{ projectId, localRoot \};\s*projectSubmissionInFlight = true;\s*busy = true/);
+  assert.match(firstRun, /if \(state\.currentStep === "project" && projectDraft\)/);
+  assert.match(firstRun, /if \(projectSubmissionInFlight\) return Promise\.resolve\(\)/);
+  assert.match(firstRun, /projectDraft = null;\s*await inspectRepository\(localRoot\)/);
+});

@@ -224,6 +224,8 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
   let snapshot = await loadFirstRunLifecycle();
   if (snapshot.status === "complete" && !options.force) return false;
   let codex: CodexStatus | null = null; let localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>> = {}; let inspection: RepositoryInspection | null = null; let busy = false; let error: string | null = null;
+  let projectDraft: { projectId: string; localRoot: string } | null = null;
+  let projectSubmissionInFlight = false;
   let projectActivationGeneration = 0;
   let disposeProjectActivation = () => {};
   const exit = () => {
@@ -325,6 +327,12 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
       const main = root.querySelector<HTMLElement>(".fr-main"); if (main) main.scrollTop = context.scrollTop;
       if (context.focusKey) root.querySelector<HTMLElement>(`[data-fr-focus="${CSS.escape(context.focusKey)}"]`)?.focus({ preventScroll: true });
     }
+    if (state.currentStep === "project" && projectDraft) {
+      const projectIdInput = root.querySelector<HTMLInputElement>('input[name="projectId"]');
+      const localRootInput = root.querySelector<HTMLInputElement>('input[name="localRoot"]');
+      if (projectIdInput) projectIdInput.value = projectDraft.projectId;
+      if (localRootInput) localRootInput.value = projectDraft.localRoot;
+    }
 
     root.querySelectorAll<HTMLButtonElement>("[data-fr-window]").forEach((button) => button.addEventListener("click", async () => { const action = button.dataset.frWindow; if (action === "minimize") await appWindow.minimize(); if (action === "maximize") await appWindow.toggleMaximize(); if (action === "close") await appWindow.close(); }));
     root.querySelector<HTMLButtonElement>("[data-fr-exit]")?.addEventListener("click", exit);
@@ -337,10 +345,20 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     root.querySelector<HTMLButtonElement>("[data-fr-pick-project]")?.addEventListener("click", async () => {
       const selected = await chooseFolder(); if (!selected) return;
       const localRoot = root.querySelector<HTMLInputElement>('input[name="localRoot"]'); const projectId = root.querySelector<HTMLInputElement>('input[name="projectId"]');
-      if (localRoot) localRoot.value = selected; if (projectId && !projectId.value.trim()) projectId.value = suggestProjectIdFromPath(selected);
+      if (localRoot) localRoot.value = selected;
+      if (projectId && !projectId.value.trim()) projectId.value = suggestProjectIdFromPath(selected);
+      projectDraft = { projectId: projectId?.value.trim() ?? "", localRoot: selected };
     });
     root.querySelector<HTMLInputElement>('input[name="localRoot"]')?.addEventListener("change", (event) => {
-      const path = (event.currentTarget as HTMLInputElement).value; const projectId = root.querySelector<HTMLInputElement>('input[name="projectId"]'); if (projectId && !projectId.value.trim() && path.trim()) projectId.value = suggestProjectIdFromPath(path);
+      const path = (event.currentTarget as HTMLInputElement).value;
+      const projectId = root.querySelector<HTMLInputElement>('input[name="projectId"]');
+      if (projectId && !projectId.value.trim() && path.trim()) projectId.value = suggestProjectIdFromPath(path);
+      projectDraft = { projectId: projectId?.value.trim() ?? "", localRoot: path.trim() };
+    });
+    root.querySelector<HTMLInputElement>('input[name="projectId"]')?.addEventListener("input", (event) => {
+      const projectId = (event.currentTarget as HTMLInputElement).value.trim();
+      const localRoot = root.querySelector<HTMLInputElement>('input[name="localRoot"]')?.value.trim() ?? "";
+      projectDraft = { projectId, localRoot };
     });
     root.querySelector<HTMLFormElement>("[data-fr-project]")?.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -348,20 +366,24 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
       const localRoot = formValue(form, "localRoot");
       const projectId = formValue(form, "projectId");
       const context = captureContext();
+      projectDraft = { projectId, localRoot };
+      projectSubmissionInFlight = true;
       busy = true;
       error = null;
       render(context);
       try {
         // Establish the project-scoped persistence/Brain namespace and its trust state first.
-        // The first-run state must never be written to the pre-activation scope and then lost on activation.
+        // Suppress the matching activation event here: this submit itself owns the scope transition.
         await ensureDesktopProjectActive(localRoot, undefined, projectId);
         busy = false;
         if (!await apply({ type: "select-project", projectId, localRoot })) return;
+        projectDraft = null;
         await inspectRepository(localRoot);
         await apply({ type: "move", step: "understanding" });
       } catch (cause) {
         error = cause instanceof Error ? cause.message : String(cause);
       } finally {
+        projectSubmissionInFlight = false;
         busy = false;
         render(context);
       }
@@ -403,6 +425,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
   const initialState = stateFrom(snapshot); if (initialState.project.localRoot) await inspectRepository(initialState.project.localRoot);
 
   disposeProjectActivation = onDesktopProjectActivated(() => {
+    if (projectSubmissionInFlight) return Promise.resolve();
     const generation = ++projectActivationGeneration;
     busy = false;
     error = null;
