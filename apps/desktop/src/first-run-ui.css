@@ -382,3 +382,20 @@
     padding-bottom: 56px;
   }
 }
+
+
+/* Provider connection hierarchy: recognizable marks, one bulk action, and manual paths only as fallback. */
+.fr-provider-icon .provider-brand-logo{width:26px;height:26px;display:block}
+.fr-provider-connect-all{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  margin-top:20px;padding:14px;border:1px solid rgba(151,126,255,.24);
+  border-radius:12px;background:linear-gradient(90deg,rgba(82,111,255,.10),rgba(169,76,255,.06))
+}
+.fr-provider-connect-all .button{min-width:260px}
+.fr-provider-connect-all small{color:var(--muted);font-size:11px}
+.fr-provider-single-action{justify-items:end;margin-top:8px}
+.fr-provider-fallback{margin-top:8px;padding:12px;border:1px solid rgba(153,176,224,.12);border-radius:11px;background:rgba(5,14,29,.46)}
+@media(max-width:720px){
+  .fr-provider-connect-all{align-items:stretch;flex-direction:column}
+  .fr-provider-connect-all .button{min-width:0;width:100%}
+}
