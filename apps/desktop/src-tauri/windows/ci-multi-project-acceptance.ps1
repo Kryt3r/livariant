@@ -52,9 +52,6 @@ try {
   New-Item -ItemType Directory -Path $root, $appData, $localAppData, $projectA, $projectB -Force | Out-Null
   foreach ($project in @($projectA, $projectB)) {
     Set-Content -LiteralPath (Join-Path $project 'ci-project-root-marker.txt') -Value 'preserve-root' -Encoding utf8
-    $brain = Join-Path $project '.project-brain'
-    New-Item -ItemType Directory -Path $brain -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $brain 'ci-preserve-marker.txt') -Value 'preserve-project-brain' -Encoding utf8
   }
 
   $install = Start-Process -FilePath $installers[0].FullName -ArgumentList '/S' -Wait -PassThru
@@ -114,6 +111,11 @@ try {
     'detachPreservedProjectRoot',
     'detachPreservedProjectBrain',
     'detachPreservedProjectState',
+    'freshProjectAHasNoRepositoryBrain',
+    'projectAMachineBrainReady',
+    'legacyBMigratedOutOfRepository',
+    'projectBMachineBrainReady',
+    'legacyBMigrationIdempotent',
     'projectStateContainsNoGlobalCredentials',
     'projectStateContainsNoGlobalMeasurementState'
   )) {
@@ -135,8 +137,8 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $project 'ci-project-root-marker.txt') -PathType Leaf)) {
       throw "Installed acceptance deleted or altered a project-root preservation marker: $project"
     }
-    if (-not (Test-Path -LiteralPath (Join-Path $project '.project-brain\ci-preserve-marker.txt') -PathType Leaf)) {
-      throw "Installed acceptance deleted or altered a Project Brain preservation marker: $project"
+    if (Test-Path -LiteralPath (Join-Path $project '.project-brain')) {
+      throw "Installed acceptance left a repository-local Project Brain behind: $project"
     }
   }
 
