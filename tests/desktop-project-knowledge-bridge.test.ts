@@ -245,3 +245,22 @@ test("Desktop host passes both checkout and AppData Brain roots through Project 
   assert.match(core, /applyDesktopProjectKnowledgeProposal\(projectBrainRoot, request, checkoutRoot\)/);
   assert.match(core, /checkout-identity-conflict/);
 });
+
+
+test("Reject and Keep Existing remain renderer-local decisions with no Project Brain mutation bridge call", async () => {
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+  const keepStart = main.indexOf('document.querySelector<HTMLButtonElement>(".keep-truth-review")');
+  const rejectStart = main.indexOf('document.querySelector<HTMLButtonElement>(".reject-truth-review")');
+  const nextStart = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-auto-setup-retry]")', rejectStart);
+  assert.ok(keepStart >= 0 && rejectStart > keepStart && nextStart > rejectStart);
+
+  const keepHandler = main.slice(keepStart, rejectStart);
+  const rejectHandler = main.slice(rejectStart, nextStart);
+  for (const handler of [keepHandler, rejectHandler]) {
+    assert.doesNotMatch(handler, /applyProjectKnowledgeProposal|prepareProjectKnowledgeProposal|acceptProjectKnowledgeIntegrity/);
+    assert.match(handler, /area\.pendingValue = ""/);
+    assert.match(handler, /selectedReviewAreaId = null/);
+  }
+  assert.match(keepHandler, /area\.preparedProposal = null/);
+  assert.match(rejectHandler, /area\.state = area\.confirmedValue \? "confirmed" : "open"/);
+});
