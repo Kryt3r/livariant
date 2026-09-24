@@ -66,6 +66,7 @@ fn run_project_knowledge(
         .arg(&script)
         .current_dir(install_root)
         .env("LIVARIANT_PROJECT_ROOT", &scope.local_root)
+        .env("LIVARIANT_PROJECT_BRAIN_ROOT", &scope.state_root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -88,6 +89,14 @@ fn run_project_knowledge(
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("Project Knowledge runtime returned invalid JSON: {error}"))
+}
+
+pub(crate) fn ensure_active_project_brain_storage(
+    app: &tauri::AppHandle,
+    registry: &DesktopProjectRegistryState,
+) -> Result<(), String> {
+    run_project_knowledge(app, registry, json!({ "method": "ensure-storage" }))?;
+    Ok(())
 }
 
 #[tauri::command]

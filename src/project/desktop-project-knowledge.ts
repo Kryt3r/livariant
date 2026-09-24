@@ -2,6 +2,7 @@ import { readFile, realpath } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import { discoverProject } from "./discovery.js";
+import { ensureDesktopProjectBrainStorage } from "./desktop-project-brain-storage.js";
 import { initializeProject, inspectInitialization, type InitializationPlan } from "../runtime/initialization.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
 import { parseDecisionsMarkdown, type DecisionRecord } from "../project-brain/decisions.js";
@@ -539,6 +540,7 @@ export async function applyDesktopProjectKnowledgeProposal(
 }
 
 type HostRequest =
+  | { method: "ensure-storage" }
   | { method: "read" }
   | { method: "protection" }
   | { method: "authorize-initialization"; confirmedMaterialSha256: unknown; uiLanguage: unknown }
@@ -555,28 +557,32 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const projectRoot = process.env.LIVARIANT_PROJECT_ROOT?.trim();
-  if (!projectRoot) throw new Error("Fixed Desktop Project Knowledge project root is required.");
+  const checkoutRoot = process.env.LIVARIANT_PROJECT_ROOT?.trim();
+  const projectBrainRoot = process.env.LIVARIANT_PROJECT_BRAIN_ROOT?.trim();
+  if (!checkoutRoot) throw new Error("Fixed Desktop Project Knowledge checkout root is required.");
+  if (!projectBrainRoot) throw new Error("Fixed Desktop Project Brain storage root is required.");
   const raw = await readStdin();
   const request = JSON.parse(raw) as HostRequest;
+  const storage = await ensureDesktopProjectBrainStorage(checkoutRoot, projectBrainRoot);
   let result: unknown;
-  if (request.method === "read") result = await readDesktopProjectKnowledge(projectRoot);
-  else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectRoot);
+  if (request.method === "ensure-storage") result = storage;
+  else if (request.method === "read") result = await readDesktopProjectKnowledge(projectBrainRoot);
+  else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectBrainRoot);
   else if (request.method === "authorize-initialization") {
     if (typeof request.confirmedMaterialSha256 !== "string") throw new Error("Project Brain initialization material digest is invalid.");
     if (request.uiLanguage !== "de" && request.uiLanguage !== "en") throw new Error("Project Brain authorization UI language is invalid.");
-    result = await authorizeDesktopProjectKnowledgeInitialization(projectRoot, request.confirmedMaterialSha256, request.uiLanguage);
+    result = await authorizeDesktopProjectKnowledgeInitialization(projectBrainRoot, request.confirmedMaterialSha256, request.uiLanguage);
   }
   else if (request.method === "apply-initialization") {
     if (typeof request.confirmedMaterialSha256 !== "string") throw new Error("Project Brain initialization material digest is invalid.");
-    result = await applyDesktopProjectKnowledgeInitialization(projectRoot, request.confirmedMaterialSha256);
+    result = await applyDesktopProjectKnowledgeInitialization(projectBrainRoot, request.confirmedMaterialSha256);
   }
   else if (request.method === "accept-integrity") {
     if (typeof request.confirmedDigest !== "string") throw new Error("Project Brain integrity confirmation digest is invalid.");
-    result = await establishDesktopProjectKnowledgeIntegrity(projectRoot, request.confirmedDigest);
+    result = await establishDesktopProjectKnowledgeIntegrity(projectBrainRoot, request.confirmedDigest);
   }
-  else if (request.method === "prepare") result = await prepareDesktopProjectKnowledgeProposal(projectRoot, request);
-  else if (request.method === "apply") result = await applyDesktopProjectKnowledgeProposal(projectRoot, request);
+  else if (request.method === "prepare") result = await prepareDesktopProjectKnowledgeProposal(projectBrainRoot, request);
+  else if (request.method === "apply") result = await applyDesktopProjectKnowledgeProposal(projectBrainRoot, request);
   else throw new Error("Desktop Project Knowledge method is unsupported.");
   stdout.write(JSON.stringify(result));
 }

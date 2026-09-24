@@ -1341,11 +1341,15 @@ pub fn desktop_project_activate(
     desktop_project_id: String,
 ) -> Result<DesktopProjectMutationResult, String> {
     let projects_root = projects_root(&app)?;
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
-    activate_at(&projects_root, &mut runtime, &desktop_project_id)
+    let result = {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Desktop project registry state lock is poisoned.".to_owned())?;
+        activate_at(&projects_root, &mut runtime, &desktop_project_id)?
+    };
+    crate::project_knowledge_bridge::ensure_active_project_brain_storage(&app, state.inner())?;
+    Ok(result)
 }
 
 #[tauri::command]

@@ -23,9 +23,7 @@ import {
 } from "./project-settings.js";
 import {
   acceptProjectKnowledgeIntegrity,
-  applyProjectKnowledgeInitialization,
   applyProjectKnowledgeProposal,
-  authorizeProjectKnowledgeInitialization,
   launchProjectKnowledgeProtectionSetup,
   launchProjectKnowledgeStageASetup,
   loadProjectKnowledge,
@@ -492,27 +490,19 @@ const renderProjectKnowledgeProtection = () => {
     });
   }
 
-  if (protection.state === "project-brain-initialization-required" && protection.initialization?.materialSha256) {
-    const files = protection.initialization.filesToCreate
-      .map((file) => `<span class="project-brain-file-chip">${escapeHtml(file.replace(/^\.project-brain\//, ""))}</span>`)
-      .join("");
-    const technical = `<details class="project-brain-setup-technical"><summary>${uiText("Technical details", "Technische Details")}</summary><div><span>${uiText("Files to create", "Dateien, die angelegt werden")}</span><div class="project-brain-file-grid">${files}</div><span>${uiText("Lifecycle digest", "Lifecycle-Digest")}</span><code>${escapeHtml(protection.initialization.materialSha256)}</code></div></details>`;
+  if (protection.state === "project-brain-initialization-required") {
     return projectBrainSetupShell({
-      step: uiText("Project setup · Project Brain", "Projekteinrichtung · Project Brain"),
-      title: uiText("Create the Project Brain for this project", "Project Brain für dieses Projekt anlegen"),
+      step: uiText("Project setup needs attention", "Projekteinrichtung benötigt Aufmerksamkeit"),
+      title: uiText("Project Brain storage is not ready", "Project-Brain-Speicher ist nicht bereit"),
       description: uiText(
-        "This project does not have a Project Brain yet. Livariant can create the dedicated knowledge store now.",
-        "Dieses Projekt besitzt noch keinen Project Brain. Livariant kann den dafür vorgesehenen Wissensspeicher jetzt anlegen.",
+        "Livariant prepares the Project Brain in its own machine-local project state during project setup. This fallback state means setup or migration did not complete safely.",
+        "Livariant legt den Project Brain während der Projekteinrichtung im eigenen lokalen Projektzustand an. Dieser Fallback bedeutet, dass Einrichtung oder Migration nicht sicher abgeschlossen wurde.",
       ),
-      icon: "＋",
+      icon: "!",
       detail: uiText(
-        "Only dedicated .project-brain files are created. Existing project files remain unchanged.",
-        "Es werden ausschließlich eigene .project-brain-Dateien angelegt. Bestehende Projektdateien bleiben unverändert.",
+        "No Project Brain will be created inside the user repository. Re-activate the project or review the migration error before continuing.",
+        "Im Nutzer-Repository wird kein Project Brain angelegt. Aktiviere das Projekt erneut oder prüfe zuerst den Migrationsfehler.",
       ),
-      content: technical,
-      primary: protection.initialization.authorized
-        ? `<button class="button primary" type="button" data-project-knowledge-initialization-apply>${uiText("Create Project Brain", "Project Brain anlegen")}</button>`
-        : `<button class="button primary" type="button" data-project-knowledge-initialization-authorize>${uiText("Authorize creation", "Anlegen autorisieren")}</button>`,
       secondary: refresh,
     });
   }
@@ -1024,55 +1014,6 @@ const bindEvents = () => {
     await refreshProjectKnowledge();
   });
 
-  document.querySelector<HTMLButtonElement>("[data-project-knowledge-initialization-authorize]")?.addEventListener("click", async () => {
-    const material = projectKnowledgeProtection?.initialization?.materialSha256;
-    if (!material || projectKnowledgeProtection?.state !== "project-brain-initialization-required") return;
-    projectKnowledgeLoading = true;
-    render();
-    try {
-      projectKnowledgeProtection = await authorizeProjectKnowledgeInitialization(material, getLanguage());
-      notice = {
-        kind: "success",
-        title: uiText("Project Brain creation authorized", "Project-Brain-Anlegen autorisiert"),
-        detail: uiText("Protected Guardian Lifecycle Authority now matches the exact reviewed initialization plan. No project files have been created yet.", "Die geschützte Guardian Lifecycle Authority entspricht jetzt exakt dem geprüften Initialisierungsplan. Es wurden noch keine Projektdateien angelegt."),
-      };
-    } catch (error) {
-      notice = {
-        kind: "error",
-        title: uiText("Project Brain creation was not authorized", "Project-Brain-Anlegen wurde nicht autorisiert"),
-        detail: error instanceof Error ? error.message : String(error),
-      };
-    } finally {
-      projectKnowledgeLoading = false;
-      render();
-    }
-  });
-
-  document.querySelector<HTMLButtonElement>("[data-project-knowledge-initialization-apply]")?.addEventListener("click", async () => {
-    const material = projectKnowledgeProtection?.initialization?.materialSha256;
-    if (!material || projectKnowledgeProtection?.state !== "project-brain-initialization-required" || projectKnowledgeProtection.initialization?.authorized !== true) return;
-    projectKnowledgeLoading = true;
-    render();
-    try {
-      projectKnowledgeProtection = await applyProjectKnowledgeInitialization(material);
-      notice = {
-        kind: "success",
-        title: uiText("Project Brain created", "Project Brain angelegt"),
-        detail: uiText("The exact authorized .project-brain initialization was applied. Protect the resulting managed state before Livariant treats it as canonical.", "Die exakt autorisierte .project-brain-Initialisierung wurde angewendet. Schütze den entstandenen verwalteten Stand, bevor Livariant ihn als kanonisch behandelt."),
-      };
-      await refreshProjectKnowledge(false);
-    } catch (error) {
-      notice = {
-        kind: "error",
-        title: uiText("Project Brain creation needs attention", "Project-Brain-Anlegen benötigt Aufmerksamkeit"),
-        detail: error instanceof Error ? error.message : String(error),
-      };
-      await refreshProjectKnowledge(false);
-    } finally {
-      projectKnowledgeLoading = false;
-      render();
-    }
-  });
 
   document.querySelector<HTMLButtonElement>("[data-project-knowledge-integrity-accept]")?.addEventListener("click", async () => {
     const digest = projectKnowledgeProtection?.integrity.digest;

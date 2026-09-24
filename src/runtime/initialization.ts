@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises";
 import { FRAMEWORK_VERSION, PROJECT_BRAIN_SCHEMA_VERSION, UPDATE_CHANNEL } from "../lifecycle/state.js";
 import { findStrandedLifecycleArtifacts } from "../lifecycle/recovery.js";
 import { buildBootstrapDiscovery, type BootstrapDiscoveryReport } from "../project/bootstrap-discovery.js";
@@ -37,14 +38,24 @@ export interface InitializeResult {
 
 export interface InitializeOptions extends BootstrapOptions {
   authorized: boolean;
+  /** Desktop may keep Project Brain state outside the observed checkout. Defaults to projectPath. */
+  storageRoot?: string;
 }
 
-export async function inspectInitialization(projectPath: string = process.cwd()): Promise<InitializationPlan> {
+export interface InspectInitializationOptions {
+  storageRoot?: string;
+}
+
+export async function inspectInitialization(
+  projectPath: string = process.cwd(),
+  options: InspectInitializationOptions = {},
+): Promise<InitializationPlan> {
   const project = discoverProject(projectPath);
   const discovery = buildBootstrapDiscovery(project);
-  const store = new ProjectBrainStore(project.root);
+  const storageRoot = options.storageRoot ? await realpath(options.storageRoot) : project.root;
+  const store = new ProjectBrainStore(storageRoot);
   const brain = await store.inspect();
-  const stranded = brain.health === "not-found" ? await findStrandedLifecycleArtifacts(project.root) : [];
+  const stranded = brain.health === "not-found" ? await findStrandedLifecycleArtifacts(storageRoot) : [];
 
   const evidence = [...project.signals];
   if (project.packageName) {
@@ -121,7 +132,8 @@ export async function initializeProject(
 ): Promise<InitializeResult> {
   if (!options.authorized) throw new Error("Initialization application requires explicit authorization.");
 
-  const plan = await inspectInitialization(projectPath);
+  const storageRoot = options.storageRoot ? await realpath(options.storageRoot) : undefined;
+  const plan = await inspectInitialization(projectPath, { storageRoot });
   if (plan.action === "blocked-diagnosis") {
     throw new Error(`Initialization blocked; diagnosis required: ${plan.reason ?? "Project Brain state must be diagnosed before mutation."}`);
   }
@@ -140,8 +152,9 @@ export async function initializeProject(
     },
   };
 
-  const { authorized: _authorized, ...bootstrapOptions } = options;
-  const store = new ProjectBrainStore(plan.projectRoot);
+  const { authorized: _authorized, storageRoot: _storageRoot, ...bootstrapOptions } = options;
+  const canonicalStorageRoot = storageRoot ?? plan.projectRoot;
+  const store = new ProjectBrainStore(canonicalStorageRoot);
   const projectBrainPath = await store.bootstrap(
     metadata,
     {
@@ -151,7 +164,7 @@ export async function initializeProject(
     },
     bootstrapOptions,
   );
-  await recordAcceptedProjectBrainState(plan.projectRoot, "initialization");
+  await recordAcceptedProjectBrainState(canonicalStorageRoot, "initialization");
 
   return { plan, projectBrainPath };
 }
