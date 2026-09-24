@@ -201,16 +201,33 @@ try {
   }
 
   Start-Sleep -Seconds 4
-  Get-Process -Name 'livariant-desktop' -ErrorAction SilentlyContinue | ForEach-Object {
-    try {
-      if ($_.Path -eq $app) {
-        Stop-Process -Id $_.Id -Force -ErrorAction Stop
+  $remainingInstalled = @()
+  for ($attempt = 0; $attempt -lt 15; $attempt++) {
+    $remainingInstalled = @(
+      Get-Process -Name 'livariant-desktop' -ErrorAction SilentlyContinue | Where-Object {
+        try { $_.Path -eq $app } catch { $false }
       }
-    } catch {
-      Write-Host "Could not inspect or stop automatically restarted Desktop process $($_.Id): $($_.Exception.Message)"
+    )
+    if ($remainingInstalled.Count -eq 0) {
+      break
     }
+    foreach ($candidate in $remainingInstalled) {
+      try {
+        Stop-Process -Id $candidate.Id -Force -ErrorAction Stop
+      } catch {
+        Write-Host "Could not stop automatically restarted Desktop process $($candidate.Id): $($_.Exception.Message)"
+      }
+    }
+    Start-Sleep -Seconds 1
   }
-  Start-Sleep -Seconds 1
+  $remainingInstalled = @(
+    Get-Process -Name 'livariant-desktop' -ErrorAction SilentlyContinue | Where-Object {
+      try { $_.Path -eq $app } catch { $false }
+    }
+  )
+  if ($remainingInstalled.Count -ne 0) {
+    throw "Automatically restarted Desktop process still owns the installed executable before identity verification."
+  }
 
   Remove-Item -LiteralPath $resultPath -Force -ErrorAction SilentlyContinue
   $verificationProcess = Start-Process -FilePath $app -PassThru
@@ -222,7 +239,8 @@ try {
       $resultReady = $true
       break
     }
-    if ($verificationProcess.HasExited -and $verificationProcess.ExitCode -ne 0) {
+    $verificationProcess.Refresh()
+    if ($verificationProcess.HasExited) {
       throw "Updated Desktop identity verification exited with code $($verificationProcess.ExitCode) before producing evidence."
     }
     Start-Sleep -Seconds 2

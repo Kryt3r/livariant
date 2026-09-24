@@ -167,7 +167,7 @@ test("Project Knowledge navigation paints before canonical refresh and setup UI 
   assert.match(main, /projectKnowledgeLoadedOnce/);
   assert.match(main, /project-brain-setup-card/);
   assert.match(main, /Technical details/);
-  assert.match(main, /Only dedicated \.project-brain files are created/);
+  assert.doesNotMatch(main, /Only dedicated \.project-brain files are created/);
   assert.match(css, /\.project-brain-setup-card\{/);
   assert.match(css, /\.project-brain-file-chip\{/);
 });
