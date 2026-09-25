@@ -3,7 +3,6 @@ import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { buildProjectContextSnapshot, type ProjectContextBaseline } from "./context-snapshot.js";
 import { validateProviderContextEvidence } from "./provider-context-copy-validation.js";
 import { PROJECT_CONTEXT_BASELINE_DOMAIN } from "./project-context-material.js";
-import { inspectDesktopProjectCoordination } from "./desktop-project-coordination.js";
 import { providerContextPacketId } from "./provider-context-hash.js";
 import { validateProviderContextTask } from "./provider-context-task.js";
 import type { ProviderContextProvider } from "./provider-context-types.js";
@@ -31,9 +30,9 @@ interface SuppliedReadyProviderContext {
   provider: ProviderContextProvider;
   packetId: string;
   stableProjectIdentity: string;
-  desktopActivation: {
-    desktopProjectId: string;
-    activationId: string;
+  providerSession: {
+    id: string;
+    source: "mcp-session";
   } | null;
   baseline: ProjectContextBaseline;
   task: {
@@ -44,7 +43,6 @@ interface SuppliedReadyProviderContext {
 
 export interface ProviderReturnOptions {
   afterCurrentContextCheckBeforeMaintenance?: () => void | Promise<void>;
-  desktopRegistryPath?: string | null;
 }
 
 export interface ProviderReturnEvidence {
@@ -201,7 +199,7 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
     "provider",
     "projectLocator",
     "stableProjectIdentity",
-    "desktopActivation",
+    "providerSession",
     "projection",
     "mutationAuthorization",
     "applySupported",
@@ -224,13 +222,13 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
   const provider = parseProvider(value.provider);
   const packetId = parsePacketId(value.packetId);
   const stableProjectIdentity = parseStableIdentity(value.stableProjectIdentity);
-  let desktopActivation: SuppliedReadyProviderContext["desktopActivation"] = null;
-  if (value.desktopActivation !== null) {
-    if (!plainObject(value.desktopActivation)) throw new Error("Provider context Desktop activation binding is invalid.");
-    strictKeys(value.desktopActivation, ["desktopProjectId", "activationId"]);
-    const desktopProjectId = parseStableIdentity(value.desktopActivation.desktopProjectId);
-    const activationId = parseStableIdentity(value.desktopActivation.activationId);
-    desktopActivation = { desktopProjectId, activationId };
+  let providerSession: SuppliedReadyProviderContext["providerSession"] = null;
+  if (value.providerSession !== null) {
+    if (!plainObject(value.providerSession)) throw new Error("Provider context session binding is invalid.");
+    strictKeys(value.providerSession, ["id", "source"]);
+    const id = parseStableIdentity(value.providerSession.id);
+    if (value.providerSession.source !== "mcp-session") throw new Error("Provider context session source is unsupported.");
+    providerSession = { id, source: "mcp-session" };
   }
   const baseline = parseBaseline(value.baseline);
   parseProjection(value.projection);
@@ -250,7 +248,7 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
     provider,
     baseline.digest,
     value.task.value,
-    desktopActivation?.activationId,
+    providerSession?.id,
   );
   if (packetId !== expectedPacketId) throw new Error("Provider context packet id does not match its provider/baseline/task material.");
 
@@ -261,7 +259,7 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
     provider,
     packetId,
     stableProjectIdentity,
-    desktopActivation,
+    providerSession,
     baseline,
     task: { value: value.task.value, authorityClass: "session-ephemeral" },
   };
@@ -340,47 +338,6 @@ export async function processProviderReturn(
       state: "mismatched-context",
       phase: "provider-return",
       message: "Provider return evidence does not match the supplied Provider Context correlation material.",
-      mutationAuthorization: false,
-      semanticChangesMade: 0,
-    };
-  }
-
-  const coordination = await inspectDesktopProjectCoordination(projectPath, options.desktopRegistryPath);
-  if (coordination.state === "invalid") {
-    return {
-      state: "mismatched-context",
-      phase: "current-project",
-      message: `Livariant Desktop project coordination is invalid: ${coordination.message}`,
-      mutationAuthorization: false,
-      semanticChangesMade: 0,
-    };
-  }
-  if (coordination.state === "mismatched") {
-    return {
-      state: "mismatched-context",
-      phase: "current-project",
-      message: "Livariant Desktop currently has a different project active. Provider Return is rejected until the matching project is active.",
-      mutationAuthorization: false,
-      semanticChangesMade: 0,
-    };
-  }
-  if (coordination.state === "matched") {
-    if (context.desktopActivation === null
-      || context.desktopActivation.desktopProjectId !== coordination.desktopProjectId
-      || context.desktopActivation.activationId !== coordination.activationId) {
-      return {
-        state: "mismatched-context",
-        phase: "current-project",
-        message: "Provider Context predates the current Livariant Desktop project activation. Obtain fresh Provider Context before returning project-specific evidence.",
-        mutationAuthorization: false,
-        semanticChangesMade: 0,
-      };
-    }
-  } else if (context.desktopActivation !== null) {
-    return {
-      state: "mismatched-context",
-      phase: "current-project",
-      message: "Provider Context was bound to a Livariant Desktop activation that is no longer current. Obtain fresh Provider Context.",
       mutationAuthorization: false,
       semanticChangesMade: 0,
     };
