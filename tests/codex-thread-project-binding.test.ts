@@ -31,7 +31,7 @@ class FakeSession implements CodexAppServerSession {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
   }
-  onDisconnect(): () => void { return () => {}; }
+  onDisconnect(_listener: (reason: string) => void): () => void { return () => {}; }
   close(): void { this.#open = false; }
   emit(message: Record<string, unknown>): void {
     for (const listener of this.#listeners) listener(message);
