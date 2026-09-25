@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import type { ProviderContextProvider } from "./provider-context-types.js";
 
-export function providerContextPacketId(provider: ProviderContextProvider, baselineDigest: string, task: string): string {
+export function providerContextPacketId(
+  provider: ProviderContextProvider,
+  baselineDigest: string,
+  task: string,
+  desktopActivationId?: string,
+): string {
   const hash = createHash("sha256");
   const add = (label: string, value: string): void => {
     const labelBytes = Buffer.from(label, "utf8");
@@ -17,5 +22,6 @@ export function providerContextPacketId(provider: ProviderContextProvider, basel
   add("provider", provider);
   add("baseline", baselineDigest);
   add("task", task);
+  if (desktopActivationId !== undefined) add("desktopActivation", desktopActivationId);
   return `pcx_${hash.digest("hex")}`;
 }
