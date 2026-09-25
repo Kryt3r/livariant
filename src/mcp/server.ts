@@ -129,6 +129,7 @@ function parseToolCallParams(value: unknown): ToolCallParams {
 }
 
 function canonicalJson(value: unknown): string {
+  if (value === undefined) return "undefined";
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
   const record = value as Record<string, unknown>;
