@@ -532,19 +532,56 @@ function requireWindowsNativeSimpleIssuance(
       ? "Livariant hat den Project Brain automatisch angelegt. Möchtest du den Schutz für unerwartete Änderungen jetzt einmalig einrichten?"
       : "Livariant created the Project Brain automatically. Set up protection against unexpected changes now?");
 
-  const payload = Buffer.from(JSON.stringify({ title, body }), "utf8").toString("base64");
+  const payload = Buffer.from(JSON.stringify({ title, body, language }), "utf8").toString("base64");
   const script = [
     "Add-Type -AssemblyName System.Windows.Forms",
+    "Add-Type -AssemblyName System.Drawing",
     "$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:LIVARIANT_GUARDIAN_DIALOG_PAYLOAD))",
     "$m=$json | ConvertFrom-Json",
-    "$r=[Windows.Forms.MessageBox]::Show($m.body,$m.title,[Windows.Forms.MessageBoxButtons]::OKCancel,[Windows.Forms.MessageBoxIcon]::Question)",
-    "if($r -eq [Windows.Forms.DialogResult]::OK){[Console]::Write('AUTHORIZED')}else{[Console]::Write('CANCELLED')}",
+    "$form=New-Object Windows.Forms.Form",
+    "$form.Text=$m.title",
+    "$form.StartPosition='CenterScreen'",
+    "$form.Size=New-Object Drawing.Size(580,260)",
+    "$form.MinimumSize=New-Object Drawing.Size(580,260)",
+    "$form.MaximizeBox=$false",
+    "$form.MinimizeBox=$false",
+    "$form.TopMost=$true",
+    "$form.ShowInTaskbar=$true",
+    "$label=New-Object Windows.Forms.Label",
+    "$label.Location=New-Object Drawing.Point(24,24)",
+    "$label.Size=New-Object Drawing.Size(520,112)",
+    "$label.Font=New-Object Drawing.Font('Segoe UI',10)",
+    "$label.Text=$m.body",
+    "$form.Controls.Add($label)",
+    "$cancel=New-Object Windows.Forms.Button",
+    "$cancel.Location=New-Object Drawing.Point(334,164)",
+    "$cancel.Size=New-Object Drawing.Size(100,32)",
+    "$cancel.Text=if($m.language -eq 'de'){'Abbrechen'}else{'Cancel'}",
+    "$cancel.Add_Click({[Console]::Write('CANCELLED');$form.Tag='done';$form.Close()})",
+    "$form.Controls.Add($cancel)",
+    "$ok=New-Object Windows.Forms.Button",
+    "$ok.Location=New-Object Drawing.Point(442,164)",
+    "$ok.Size=New-Object Drawing.Size(100,32)",
+    "$ok.Text=if($m.language -eq 'de'){'Bestätigen'}else{'Confirm'}",
+    "$ok.Add_Click({[Console]::Write('AUTHORIZED');$form.Tag='done';$form.Close()})",
+    "$form.Controls.Add($ok)",
+    "$form.AcceptButton=$ok",
+    "$form.CancelButton=$cancel",
+    "$timer=New-Object Windows.Forms.Timer",
+    "$timer.Interval=300000",
+    "$timer.Add_Tick({$timer.Stop();[Console]::Write('CANCELLED');$form.Tag='done';$form.Close()})",
+    "$timer.Start()",
+    "$form.Add_Shown({$form.Activate();$form.BringToFront()})",
+    "$form.Add_FormClosing({if($form.Tag -ne 'done'){[Console]::Write('CANCELLED')}})",
+    "[void]$form.ShowDialog()",
+    "$timer.Stop()",
   ].join("; ");
   const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Sta", "-Command", script], {
     encoding: "utf8",
     shell: false,
     windowsHide: true,
     env: { ...process.env, LIVARIANT_GUARDIAN_DIALOG_PAYLOAD: payload },
+    timeout: 5 * 60 * 1000,
   });
   if (result.error || result.status !== 0) {
     const detail = result.error?.message || result.stderr || result.stdout || ("exit " + String(result.status));
