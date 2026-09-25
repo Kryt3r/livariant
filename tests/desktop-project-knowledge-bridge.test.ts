@@ -296,6 +296,9 @@ test("Project Knowledge begins canonical refresh immediately on initial render a
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
   assert.doesNotMatch(main, /requestAnimationFrame\(\(\) => \{ void refreshProjectKnowledge/);
   assert.match(main, /projectKnowledgeLoading = true;\s*render\(\);\s*void refreshProjectKnowledge\(true\);\s*$/);
-  const activation = main.slice(main.indexOf("onDesktopProjectActivated"), main.indexOf("onLanguageChange"));
+  const activationStart = main.indexOf("onDesktopProjectActivated(() =>");
+  const activationEnd = main.indexOf("onLanguageChange(() =>", activationStart);
+  assert.ok(activationStart >= 0 && activationEnd > activationStart);
+  const activation = main.slice(activationStart, activationEnd);
   assert.match(activation, /render\(\);\s*void refreshProjectKnowledge\(true\)/);
 });
