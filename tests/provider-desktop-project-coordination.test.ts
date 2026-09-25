@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -61,6 +61,8 @@ test("Desktop A-B-A activation epochs bind Provider Context and reject stale A r
   const activationA2 = randomUUID().toLowerCase();
 
   try {
+    await mkdir(projectA);
+    await mkdir(projectB);
     await initializeProject(projectA, { authorized: true });
     await initializeProject(projectB, { authorized: true });
     const projects = [
