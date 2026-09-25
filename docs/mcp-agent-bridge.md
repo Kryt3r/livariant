@@ -115,9 +115,11 @@ Input:
 }
 ```
 
-The tool delegates directly to `processProviderReturn()` with no authorization selector.
+The tool delegates to `processProviderReturn()` with no authorization selector, but the MCP adapter adds a stricter transport/session boundary before that core call.
 
-The supplied context and returned packet remain external untrusted evidence. Provider, packet ID, stable Project Identity, baseline and task values are correlation material only; they do not prove prior issuance, approval, trusted current truth, or mutation authority.
+A ready Provider Context used for `livariant_provider_return` must be the exact context copy previously issued by the same running MCP session. The session marks that issuance consumed before processing the return, so replay requires a fresh `livariant_provider_context` call. A ready context copied from another MCP session, an altered copy, or an already-consumed issuance fails closed.
+
+This same-session check proves only MCP-session issuance/freshness for the bounded roundtrip. The context and returned provider evidence still do not prove approval, canonical mutation authority, or independent truth. Core `processProviderReturn()` remains a separate general correlation/evidence surface outside this MCP-session guarantee.
 
 Possible results remain the existing Provider Return / maintenance states, including:
 
