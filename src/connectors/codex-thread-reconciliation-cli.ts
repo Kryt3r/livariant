@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { stdin, stdout } from "node:process";
+import { stdout } from "node:process";
 import { resolveCodexCommand } from "./codex-command.js";
 import { connectCodexAppServer } from "./codex-runtime.js";
 import { listCodexThreads } from "./codex-thread-catalog.js";
