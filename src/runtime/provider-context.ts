@@ -4,6 +4,7 @@ export { readProviderContextTaskFile, PROVIDER_CONTEXT_TASK_MAX_BYTES } from "./
 export type {
   BlockedProviderContextPacket,
   ProviderContextEvidence,
+  ProviderContextDesktopActivation,
   ProviderContextPacket,
   ProviderContextProjection,
   ProviderContextProvider,
