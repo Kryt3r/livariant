@@ -1323,19 +1323,19 @@ pub(crate) fn restore_last_active_project(
     if registry.legacy_migration.state == LegacyMigrationState::RecoveryRequired {
         return Ok(());
     }
-    let Some(id) = registry.last_active_desktop_project_id.as_deref() else {
+    let Some(id) = registry.last_active_desktop_project_id.clone() else {
         return Ok(());
     };
-    let Some(project) = registry.projects.iter().find(|project| project.desktop_project_id == id) else {
+    let Some(project) = registry.projects.iter().find(|project| project.desktop_project_id == id).cloned() else {
         return Err("Desktop project registry last-active identity does not exist.".to_owned());
     };
-    if project.state != DesktopProjectRegistrationState::Registered || availability(project) != "available" {
+    if project.state != DesktopProjectRegistrationState::Registered || availability(&project) != "available" {
         return Ok(());
     }
     let local_root = canonical_local_root(&project.local_root)?;
-    let state_root = real_state_directory(&projects_root, id, false)?;
+    let state_root = real_state_directory(&projects_root, &id, false)?;
     registry.provider_activation = Some(DesktopProviderActivationRecord {
-        desktop_project_id: id.to_owned(),
+        desktop_project_id: id.clone(),
         activation_id: Uuid::new_v4().hyphenated().to_string(),
         process_id: std::process::id(),
     });
@@ -1352,7 +1352,7 @@ pub(crate) fn restore_last_active_project(
     runtime.generation = next_generation;
     runtime.active = Some(ActiveProjectScope {
         generation: next_generation,
-        desktop_project_id: id.to_owned(),
+        desktop_project_id: id,
         local_root,
         state_root,
     });
