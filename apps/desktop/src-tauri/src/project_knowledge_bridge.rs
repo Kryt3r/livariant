@@ -427,7 +427,7 @@ fn powershell_escape_literal(value: &str) -> String {
 #[cfg(target_os = "windows")]
 async fn issue_project_knowledge_integrity_authority_from_desktop(
     request: &Value,
-    language: &str,
+    material_sha256: &str,
 ) -> Result<(), String> {
     let executable = std::env::current_exe()
         .map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
@@ -470,7 +470,11 @@ async fn issue_project_knowledge_integrity_authority_from_desktop(
         return Err("Prepared Project Knowledge integrity Authority request is invalid.".to_owned());
     }
 
-    let language = if language == "de" { "de" } else { "en" };
+    if material_sha256.len() != 64 || !material_sha256.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return Err("Prepared Project Knowledge integrity material digest is invalid.".to_owned());
+    }
+    let consent_path = PathBuf::from(r"C:\ProgramData\Livariant\Guardian\v1")
+        .join(format!("desktop-uac-consent-{}.json", uuid::Uuid::new_v4()));
     let temporary = std::env::temp_dir().join(format!("livariant-desktop-integrity-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir(&temporary)
         .map_err(|error| format!("Project Knowledge integrity request directory could not be created: {error}"))?;
@@ -490,6 +494,8 @@ async fn issue_project_knowledge_integrity_authority_from_desktop(
         let diagnostic_literal = powershell_escape_literal(&diagnostic_path.display().to_string());
         let stage_a_literal = powershell_escape_literal(&stage_a.display().to_string());
         let upgrade_literal = powershell_escape_literal(&guardian_upgrade.display().to_string());
+        let consent_literal = powershell_escape_literal(&consent_path.display().to_string());
+        let material_literal = powershell_escape_literal(material_sha256);
         let protected_source_refresh = if protected_source_current {
             String::new()
         } else {
@@ -506,7 +512,10 @@ async fn issue_project_knowledge_integrity_authority_from_desktop(
                if(-not (Test-Path -LiteralPath '{upgrade_literal}' -PathType Leaf)){{ throw 'Current protected Guardian upgrade launcher is missing after Stage-A refresh.' }}; \
                $upgradeOut = & 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '{upgrade_literal}' 2>&1 | Out-String; \
                if($LASTEXITCODE -ne 0){{ [IO.File]::WriteAllText('{diagnostic_literal}', [string]$upgradeOut); exit $LASTEXITCODE }}; \
-               $output = & '{node_literal}' '{helper_literal}' 'issue-authority' '--request' '{request_literal}' '--native-confirmation-language' '{language}' 2>&1 | Out-String; \
+               $issued=[DateTime]::UtcNow; \
+               $consent=[ordered]@{{schemaVersion=1;kind='livariant-guardian-desktop-uac-consent';consumer='project-brain-integrity';mode='persistent';materialSha256='{material_literal}';issuedAt=$issued.ToString('o');expiresAt=$issued.AddMinutes(2).ToString('o')}} | ConvertTo-Json -Compress; \
+               [IO.File]::WriteAllText('{consent_literal}', [string]$consent, (New-Object Text.UTF8Encoding($false))); \
+               $output = & '{node_literal}' '{helper_literal}' 'issue-authority' '--request' '{request_literal}' '--desktop-uac-receipt' '{consent_literal}' 2>&1 | Out-String; \
                $code=$LASTEXITCODE; \
                [IO.File]::WriteAllText('{diagnostic_literal}', [string]$output); \
                if($code -ne 0){{ exit $code }}; \
@@ -514,6 +523,8 @@ async fn issue_project_knowledge_integrity_authority_from_desktop(
              }} catch {{ \
                try {{ [IO.File]::WriteAllText('{diagnostic_literal}', [string]$_.Exception.Message) }} catch {{}}; \
                exit 1 \
+             }} finally {{ \
+               try {{ if(Test-Path -LiteralPath '{consent_literal}'){{ Remove-Item -LiteralPath '{consent_literal}' -Force }} }} catch {{}} \
              }}"
         );
 
@@ -593,9 +604,10 @@ pub async fn accept_project_knowledge_integrity(
 
     #[cfg(target_os = "windows")]
     {
+        let _ = language.as_deref();
         issue_project_knowledge_integrity_authority_from_desktop(
             &request,
-            if language.as_deref() == Some("de") { "de" } else { "en" },
+            &material_sha256,
         ).await?;
     }
 
