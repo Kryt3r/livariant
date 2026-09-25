@@ -4,6 +4,7 @@ import { stderr, stdin, stdout } from "node:process";
 import { discoverProject } from "./discovery.js";
 import { ensureDesktopProjectBrainStorage } from "./desktop-project-brain-storage.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
+import { inspectProjectBrainIntegrity, recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import { parseDecisionsMarkdown, type DecisionRecord } from "../project-brain/decisions.js";
 import { buildActionableProposal, parseActionableProposal, type ActionableProposal } from "../runtime/actionable-proposal.js";
 import { parseSemanticProposalCandidate } from "../runtime/semantic-proposal.js";
@@ -13,6 +14,7 @@ import { issueSemanticGuardianAuthority } from "../guardian/semantic-authority-t
 import { runProtectedDoctor } from "../runtime/protected-doctor.js";
 import { runDoctor as runLocalEvidenceDoctor } from "../runtime/doctor.js";
 import { inspectGuardianMachineReadiness } from "../guardian/readiness.js";
+import { findProjectBrainIntegrityGuardianAuthority, projectBrainIntegrityGuardianRequest } from "../guardian/project-brain-integrity-authority-transition.js";
 import {
   establishProtectedProjectBrainIntegrityState,
   inspectProtectedProjectBrainIntegrity,
@@ -350,18 +352,30 @@ export async function readDesktopProjectKnowledge(
   return localProjectKnowledgeSnapshot(projectPath);
 }
 
-export async function establishDesktopProjectKnowledgeIntegrity(
-  projectPath: string,
+export interface DesktopProjectKnowledgeIntegrityAuthorityPreparation {
+  schemaVersion: 1;
+  state: "authority-required";
+  confirmedDigest: string;
+  materialSha256: string;
+  request: {
+    schemaVersion: 1;
+    kind: "livariant-guardian-authority-request";
+    consumer: "project-brain-integrity";
+    mode: "persistent";
+    materialFields: Array<{ label: string; value: string }>;
+  };
+}
+
+async function assertDesktopProjectKnowledgeIntegrityAcceptancePreconditions(
+  projectRoot: string,
   confirmedDigest: string,
-  language: "de" | "en" = "en",
   checkoutPath?: string,
-): Promise<DesktopProjectKnowledgeProtectionStatus> {
-  const project = discoverProject(projectPath);
-  const before = await projectKnowledgeProtectionStatus(project.root, checkoutPath);
+): Promise<void> {
+  const before = await projectKnowledgeProtectionStatus(projectRoot, checkoutPath);
   if (before.guardian.state !== "ready") {
     throw new Error(`Protected Guardian must be ready before Project Brain integrity acceptance; current state is ${before.guardian.state}.`);
   }
-  if (before.state === "ready") return before;
+  if (before.state === "ready") return;
   const initialAcceptance = before.state === "integrity-acceptance-required";
   const reviewedMismatch = before.state === "integrity-recovery-required"
     && before.integrity.state === "mismatch"
@@ -373,7 +387,7 @@ export async function establishDesktopProjectKnowledgeIntegrity(
     throw new Error("Project Brain integrity confirmation does not match the exact current managed material digest.");
   }
 
-  const doctor = await runLocalEvidenceDoctor(project.root);
+  const doctor = await runLocalEvidenceDoctor(projectRoot);
   if (before.integrity.state === "missing") {
     const disallowed = doctor.findings.filter((finding) => finding.code !== "project-brain-integrity-unestablished");
     if (doctor.state !== "drift-detected" || disallowed.length > 0) {
@@ -390,6 +404,76 @@ export async function establishDesktopProjectKnowledgeIntegrity(
     const detail = doctor.findings.map((finding) => `${finding.code}: ${finding.message}`).join("; ");
     throw new Error(`Protected integrity acceptance requires coherent local Project Brain evidence: ${detail}`);
   }
+}
+
+export async function prepareDesktopProjectKnowledgeIntegrityAuthority(
+  projectPath: string,
+  confirmedDigest: string,
+  checkoutPath?: string,
+): Promise<DesktopProjectKnowledgeIntegrityAuthorityPreparation> {
+  const project = discoverProject(projectPath);
+  await assertDesktopProjectKnowledgeIntegrityAcceptancePreconditions(project.root, confirmedDigest, checkoutPath);
+
+  await recordAcceptedProjectBrainState(project.root, "manual-bootstrap");
+  const local = await inspectProjectBrainIntegrity(project.root);
+  if (local.state !== "match") {
+    throw new Error(`Machine-local Project Brain integrity evidence did not remain coherent before Guardian protection: ${local.state}.`);
+  }
+  if (local.current.digest !== confirmedDigest) {
+    throw new Error("Project Brain changed while integrity Authority was being prepared.");
+  }
+
+  const material = await projectBrainIntegrityGuardianRequest({
+    stableProjectIdentity: local.receipt.stableProjectIdentity,
+    integritySchemaVersion: 1,
+    baseline: local.current,
+  }, project.root);
+
+  return {
+    schemaVersion: 1,
+    state: "authority-required",
+    confirmedDigest,
+    materialSha256: material.materialSha256,
+    request: material.request,
+  };
+}
+
+export async function completeDesktopProjectKnowledgeIntegrityAuthority(
+  projectPath: string,
+  confirmedDigest: string,
+  expectedMaterialSha256: string,
+  checkoutPath?: string,
+): Promise<DesktopProjectKnowledgeProtectionStatus> {
+  const project = discoverProject(projectPath);
+  const local = await inspectProjectBrainIntegrity(project.root);
+  if (local.state !== "match" || local.current.digest !== confirmedDigest) {
+    throw new Error("Project Brain changed while protected integrity Authority was being issued.");
+  }
+  const direct = await findProjectBrainIntegrityGuardianAuthority({
+    stableProjectIdentity: local.receipt.stableProjectIdentity,
+    integritySchemaVersion: 1,
+    baseline: local.current,
+  }, project.root);
+  if (!direct.record || direct.material.materialSha256 !== expectedMaterialSha256 || direct.record.materialSha256 !== expectedMaterialSha256) {
+    throw new Error("Protected Guardian did not issue the exact prepared Project Brain Integrity Authority.");
+  }
+  const after = await projectKnowledgeProtectionStatus(project.root, checkoutPath);
+  if (!after.canonicalReadReady) {
+    throw new Error(`Protected Project Brain integrity did not become ready after Authority issuance; current state is ${after.state}.`);
+  }
+  return after;
+}
+
+export async function establishDesktopProjectKnowledgeIntegrity(
+  projectPath: string,
+  confirmedDigest: string,
+  language: "de" | "en" = "en",
+  checkoutPath?: string,
+): Promise<DesktopProjectKnowledgeProtectionStatus> {
+  const project = discoverProject(projectPath);
+  const before = await projectKnowledgeProtectionStatus(project.root, checkoutPath);
+  if (before.state === "ready") return before;
+  await assertDesktopProjectKnowledgeIntegrityAcceptancePreconditions(project.root, confirmedDigest, checkoutPath);
 
   await establishProtectedProjectBrainIntegrityState(project.root, "manual-bootstrap", {
     nativeConfirmationLanguage: language,
@@ -523,6 +607,8 @@ type HostRequest =
   | { method: "read" }
   | { method: "protection" }
   | { method: "accept-integrity"; confirmedDigest: unknown; language?: unknown }
+  | { method: "prepare-integrity-authority"; confirmedDigest: unknown }
+  | { method: "complete-integrity-authority"; confirmedDigest: unknown; materialSha256: unknown }
   | { method: "prepare"; areaId: unknown; value: unknown }
   | { method: "apply"; areaId: unknown; proposal: unknown; confirmedProposalDigest: unknown; language?: unknown };
 
@@ -551,6 +637,25 @@ async function main(): Promise<void> {
       projectBrainRoot,
       request.confirmedDigest,
       request.language === "de" ? "de" : "en",
+      checkoutRoot,
+    );
+  }
+  else if (request.method === "prepare-integrity-authority") {
+    if (typeof request.confirmedDigest !== "string") throw new Error("Project Brain integrity confirmation digest is invalid.");
+    result = await prepareDesktopProjectKnowledgeIntegrityAuthority(
+      projectBrainRoot,
+      request.confirmedDigest,
+      checkoutRoot,
+    );
+  }
+  else if (request.method === "complete-integrity-authority") {
+    if (typeof request.confirmedDigest !== "string" || typeof request.materialSha256 !== "string") {
+      throw new Error("Project Brain integrity completion material is invalid.");
+    }
+    result = await completeDesktopProjectKnowledgeIntegrityAuthority(
+      projectBrainRoot,
+      request.confirmedDigest,
+      request.materialSha256,
       checkoutRoot,
     );
   }
