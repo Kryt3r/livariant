@@ -62,7 +62,7 @@ test("Windows Stage-B hardening gives leaf files effective requester read withou
 test("Windows pre-Authority recovery is exact-material-bound, zero-record and ACL-only", async () => {
   const builtBootstrap = await readFile(bootstrapPath, "utf8");
   const start = builtBootstrap.indexOf("async function recoverProductionGuardianPreAuthority");
-  const end = builtBootstrap.indexOf("async function bootstrapProductionGuardian", start);
+  const end = builtBootstrap.indexOf("async function upgradeProductionGuardianHelper", start);
   assert.notEqual(start, -1, "compiled Stage-B must expose the bounded recovery core");
   assert.notEqual(end, -1, "compiled Stage-B must keep recovery separate from fresh bootstrap");
   const recovery = builtBootstrap.slice(start, end);
@@ -83,12 +83,35 @@ test("Windows pre-Authority recovery is exact-material-bound, zero-record and AC
   assert.match(builtBootstrap, /Recovery aborted before ACL mutation/u);
 });
 
-test("protected bootstrap bundle contains the Windows recovery launcher and binds it into release material", async () => {
+test("protected bootstrap bundle contains recovery and Desktop Guardian-upgrade launchers in release material", async () => {
   const buildScript = await readFile(protectedBuildPath, "utf8");
   assert.match(buildScript, /guardian-recover-entry\.mjs/u);
   assert.match(buildScript, /guardian-recover\.ps1/u);
   assert.match(buildScript, /recoverProductionGuardianPreAuthority/u);
-  assert.match(buildScript, /filesBelow\(staging\)/u, "release descriptor hashing must cover all staged recovery launcher files");
+  assert.match(buildScript, /guardian-upgrade-entry\.mjs/u);
+  assert.match(buildScript, /guardian-upgrade-desktop\.ps1/u);
+  assert.match(buildScript, /upgradeProductionGuardianHelper/u);
+  assert.match(buildScript, /C:\\\\Program Files\\\\Livariant\\\\livariant-node\.exe/u);
+  assert.match(buildScript, /filesBelow\(staging\)/u, "release descriptor hashing must cover all staged protected launchers");
+});
+
+test("Guardian helper upgrade preserves records and replaces only helper plus descriptor after protected-source verification", async () => {
+  const builtBootstrap = await readFile(bootstrapPath, "utf8");
+  const start = builtBootstrap.indexOf("async function upgradeProductionGuardianHelper");
+  const end = builtBootstrap.indexOf("async function bootstrapProductionGuardian", start);
+  assert.ok(start >= 0 && end > start);
+  const upgrade = builtBootstrap.slice(start, end);
+
+  assert.match(upgrade, /assertProtectedGuardianBootstrapSource/);
+  assert.match(upgrade, /inspectGuardianRootAt/);
+  assert.match(upgrade, /requirePrivilegedProcess\("win32"\)/);
+  assert.match(upgrade, /guardianLayoutPaths/);
+  assert.match(upgrade, /recordsPreserved: true/);
+  assert.match(upgrade, /buildGuardianRootDescriptor/);
+  assert.match(upgrade, /previousHelperSha256/);
+  assert.match(upgrade, /hardenWindowsFile\(helper\)/);
+  assert.match(upgrade, /hardenWindowsFile\(descriptor\)/);
+  assert.doesNotMatch(upgrade, /rm\(records|rename\(records|writeFile\(records|mkdir\(records/);
 });
 
 test("guardian diagnostics surface only the protected recovery launcher for an unsafe Windows machine", async () => {
