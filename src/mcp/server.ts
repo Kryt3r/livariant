@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProviderContext } from "../runtime/provider-context.js";
 import { processProviderReturn } from "../runtime/provider-return.js";
@@ -237,15 +238,9 @@ export interface McpSession {
   handleMessage(value: unknown): Promise<JsonRpcResponse | null>;
 }
 
-export interface McpSessionOptions {
-  desktopRegistryPath?: string | null;
-}
-
-export function createMcpSession(
-  projectPath: string = process.cwd(),
-  options: McpSessionOptions = {},
-): McpSession {
+export function createMcpSession(projectPath: string = process.cwd()): McpSession {
   let lifecycle: "new" | "initializing" | "ready" = "new";
+  const providerSessionId = randomUUID().toLowerCase();
   const issuedProviderContexts = new Map<string, IssuedProviderContext>();
 
   return {
@@ -340,7 +335,7 @@ export function createMcpSession(
           try {
             const args = parseContextToolArguments(call.arguments);
             const result = await buildProviderContext(args.provider, args.task, projectPath, {
-              desktopRegistryPath: options.desktopRegistryPath,
+              providerSessionId,
             });
             if (result.state === "ready" && typeof result.packetId === "string") {
               issuedProviderContexts.set(result.packetId, {
@@ -374,7 +369,6 @@ export function createMcpSession(
               args.providerReturn,
               undefined,
               projectPath,
-              { desktopRegistryPath: options.desktopRegistryPath },
             );
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
