@@ -294,6 +294,27 @@ try {
     throw "Updated ordinary runtime manifest must not claim Authority."
   }
 
+  # The updated Desktop may legitimately use the bundled Node runtime immediately
+  # after producing package-identity evidence (for example, Project Knowledge reads).
+  # Runtime identity is verified out-of-process below, so release the installed
+  # Desktop and any short-lived child runtime work before probing the executable.
+  if (-not $verificationProcess.HasExited) {
+    Stop-Process -Id $verificationProcess.Id -Force -ErrorAction Stop
+    $verificationProcess.WaitForExit()
+  }
+  for ($attempt = 0; $attempt -lt 30; $attempt++) {
+    $runtimeUsers = @(
+      Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        try { $_.Path -eq $node } catch { $false }
+      }
+    )
+    if ($runtimeUsers.Count -eq 0) { break }
+    foreach ($runtimeUser in $runtimeUsers) {
+      Stop-Process -Id $runtimeUser.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Milliseconds 200
+  }
+
   $nodeVersion = (& $node --version | Out-String).Trim()
   if ($LASTEXITCODE -ne 0 -or $nodeVersion -ne "v$($manifest.nodeVersion)") {
     throw "Updated bundled Node runtime identity mismatch: $nodeVersion"
