@@ -3,7 +3,7 @@ use crate::desktop_project_registry::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::{io::Write, path::{Path, PathBuf}, process::{Command, Stdio}};
+use std::{io::{Read, Write}, path::{Path, PathBuf}, process::{Command, Stdio}, thread, time::{Duration, Instant}};
 use tauri::{Manager, State};
 
 #[derive(Debug, Deserialize)]
@@ -72,17 +72,52 @@ fn run_project_knowledge_for_roots(
         .spawn()
         .map_err(|error| format!("Project Knowledge runtime could not be started: {error}"))?;
     {
-        let input = child.stdin.as_mut().ok_or_else(|| "Project Knowledge runtime stdin is unavailable.".to_owned())?;
+        let mut input = child.stdin.take().ok_or_else(|| "Project Knowledge runtime stdin is unavailable.".to_owned())?;
         input.write_all(request.to_string().as_bytes())
             .map_err(|error| format!("Project Knowledge request could not be written: {error}"))?;
     }
-    let output = child.wait_with_output()
-        .map_err(|error| format!("Project Knowledge runtime could not be read: {error}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+
+    let bounded_read = matches!(
+        request.get("method").and_then(Value::as_str),
+        Some("read") | Some("protection")
+    );
+
+    let (status, stdout, stderr) = if bounded_read {
+        let started = Instant::now();
+        let status = loop {
+            if let Some(status) = child.try_wait()
+                .map_err(|error| format!("Project Knowledge runtime could not be polled: {error}"))? {
+                break status;
+            }
+            if started.elapsed() >= Duration::from_secs(10) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("Project Knowledge local read timed out after 10 seconds.".to_owned());
+            }
+            thread::sleep(Duration::from_millis(25));
+        };
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        if let Some(mut pipe) = child.stdout.take() {
+            pipe.read_to_end(&mut stdout)
+                .map_err(|error| format!("Project Knowledge runtime stdout could not be read: {error}"))?;
+        }
+        if let Some(mut pipe) = child.stderr.take() {
+            pipe.read_to_end(&mut stderr)
+                .map_err(|error| format!("Project Knowledge runtime stderr could not be read: {error}"))?;
+        }
+        (status, stdout, stderr)
+    } else {
+        let output = child.wait_with_output()
+            .map_err(|error| format!("Project Knowledge runtime could not be read: {error}"))?;
+        (output.status, output.stdout, output.stderr)
+    };
+
+    if !status.success() {
+        let stderr = String::from_utf8_lossy(&stderr).trim().to_owned();
         return Err(if stderr.is_empty() { "Project Knowledge request failed closed.".to_owned() } else { stderr });
     }
-    serde_json::from_slice(&output.stdout)
+    serde_json::from_slice(&stdout)
         .map_err(|error| format!("Project Knowledge runtime returned invalid JSON: {error}"))
 }
 
