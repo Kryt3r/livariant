@@ -115,9 +115,11 @@ Eingabe:
 }
 ```
 
-Das Tool delegiert direkt an `processProviderReturn()` ohne Authorization-Selector.
+Das Tool delegiert ohne Authorization-Selector an `processProviderReturn()`; die MCP-Bridge erzwingt davor jedoch zusätzlich eine strengere Session-Grenze.
 
-Der bereitgestellte Kontext und das Return-Paket bleiben externe, nicht vertrauenswürdige Evidenz. Provider, Packet-ID, Stable Project Identity, Baseline und Task-Werte sind ausschließlich Korrelationsmaterial; sie beweisen weder frühere Ausgabe noch Zustimmung, vertrauenswürdige aktuelle Wahrheit oder Mutation Authority.
+Ein Ready-Provider-Context für `livariant_provider_return` muss exakt der Kontext sein, den dieselbe laufende MCP-Session zuvor ausgegeben hat. Die Session markiert diese Ausgabe bereits vor der Return-Verarbeitung als verbraucht. Ein Replay benötigt deshalb zuerst einen neuen Aufruf von `livariant_provider_context`. Ein Ready-Kontext aus einer anderen MCP-Session, eine veränderte Kopie oder eine bereits verbrauchte Ausgabe schlägt fail-closed fehl.
+
+Diese Prüfung beweist ausschließlich Ausgabe/Freshness innerhalb dieser MCP-Session für den begrenzten Roundtrip. Kontext und Provider-Return-Evidenz beweisen dadurch weiterhin weder Zustimmung noch kanonische Mutation Authority oder unabhängige Wahrheit. Core `processProviderReturn()` bleibt außerhalb dieser MCP-Garantie eine getrennte allgemeine Korrelations-/Evidenzoberfläche.
 
 Mögliche Ergebnisse bleiben die bestehenden Provider-Return-/Maintenance-Zustände, unter anderem:
 
