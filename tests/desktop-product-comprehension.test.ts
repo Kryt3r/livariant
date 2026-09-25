@@ -88,10 +88,19 @@ test("provider connection UX groups automatic connections and keeps executable p
   assert.match(onboarding, /data-fr-local-provider-path="\$\{provider\}"/);
   assert.match(onboarding, /automatic discovery did not find a usable installation/);
   assert.doesNotMatch(onboarding, /Oder expliziter Codex-Programmpfad/);
+  assert.match(onboarding, /fr-provider-card-mockup/);
+  assert.match(onboarding, /fr-provider-controls/);
+  assert.match(onboarding, /fr-provider-connect-button/);
+  assert.match(onboarding, /provider-brand-logo-openai/);
+  assert.match(onboarding, /provider-brand-logo-anthropic/);
+  assert.match(onboarding, /provider-brand-logo-google/);
+  assert.match(onboarding, /data-fr-connect-all-providers/);
 
   assert.match(connections, /connect-all-providers/);
   assert.match(connections, /Connect all available providers/);
-  assert.match(connections, /provider-brand-logo/);
+  assert.match(connections, /provider-brand-logo-openai/);
+  assert.match(connections, /provider-brand-logo-anthropic/);
+  assert.match(connections, /provider-brand-logo-google/);
   assert.match(connections, /provider-manual-fallback/);
   assert.match(connections, /automaticallyAvailable/);
 });
