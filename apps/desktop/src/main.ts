@@ -133,6 +133,7 @@ let projectKnowledgeLoadedOnce = false;
 let projectKnowledgeLastRefreshAt = 0;
 let projectKnowledgeRefreshInFlight: Promise<void> | null = null;
 let projectKnowledgeApplying = false;
+let projectKnowledgeIntegrityInFlight = false;
 let projectKnowledgeProtection: ProjectKnowledgeProtectionStatus | null = null;
 let projectKnowledgeError: string | null = null;
 let updateState: UpdateState = "idle";
@@ -184,22 +185,11 @@ const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
       // check. Ready-state reads should not run the same expensive inspection twice.
       const snapshot = await loadProjectKnowledge();
       projectKnowledgeProtection = null;
+  projectKnowledgeIntegrityInFlight = false;
       applyProjectKnowledgeSnapshot(snapshot);
     } catch (readError) {
       try {
         let protection = await loadProjectKnowledgeProtectionStatus();
-
-        // Only the narrow initial integrity baseline may be established automatically.
-        // Mismatches, damaged state and unexpected changes still require explicit review.
-        if (protection.state === "integrity-acceptance-required" && protection.integrity.digest) {
-          protection = await acceptProjectKnowledgeIntegrity(protection.integrity.digest, getLanguage());
-          if (protection.canonicalReadReady) {
-            const snapshot = await loadProjectKnowledge();
-            projectKnowledgeProtection = null;
-            applyProjectKnowledgeSnapshot(snapshot);
-            return;
-          }
-        }
 
         projectKnowledgeProtection = protection;
         clearProjectKnowledgeSnapshot();
@@ -208,7 +198,6 @@ const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
           protection.state === "protected-source-required"
           || protection.state === "guardian-bootstrap-required"
           || protection.state === "project-brain-initialization-required"
-          || protection.state === "integrity-acceptance-required"
         ) {
           projectKnowledgeError = uiText(
             "Project knowledge is not ready on this device yet. Livariant will not use an unprotected Project Brain.",
@@ -468,6 +457,23 @@ const renderTruthSourceModal = () => {
 const renderProjectKnowledgeProtection = () => {
   const protection = projectKnowledgeProtection;
   if (!protection || protection.state === "ready") return "";
+
+  if (protection.state === "integrity-acceptance-required") {
+    return `<section class="project-brain-setup-card project-brain-integrity-activation">
+      <div class="project-brain-setup-icon" aria-hidden="true">✓</div>
+      <div class="project-brain-setup-main"><div class="project-brain-setup-heading">
+        <span class="project-brain-setup-step">${uiText("One-time protection", "Einmaliger Schutz")}</span>
+        <h3>${uiText("Activate project knowledge", "Projektwissen aktivieren")}</h3>
+        <p>${uiText(
+          "The local Project Brain is present, but this project's protected baseline has not been confirmed yet. Windows will ask once for confirmation. Livariant does not change project files.",
+          "Der lokale Project Brain ist vorhanden, aber die geschützte Ausgangsbasis dieses Projekts wurde noch nicht bestätigt. Windows fragt dafür einmalig nach einer Bestätigung. Livariant verändert dabei keine Projektdateien.",
+        )}</p>
+      </div></div>
+      <div class="project-brain-setup-actions">
+        <button class="button primary" type="button" data-project-knowledge-integrity-activate ${projectKnowledgeIntegrityInFlight ? "disabled" : ""}>${projectKnowledgeIntegrityInFlight ? uiText("Waiting for Windows confirmation…", "Warte auf Windows-Bestätigung…") : uiText("Activate project knowledge", "Projektwissen aktivieren")}</button>
+      </div>
+    </section>`;
+  }
 
   if (protection.state === "integrity-recovery-required" && protection.unexpectedChangeReview) {
     const changed = protection.unexpectedChangeReview.areas.filter((area) => area.changed);
@@ -976,6 +982,49 @@ const bindEvents = () => {
     render();
   });
 
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-integrity-activate]")?.addEventListener("click", () => {
+    const digest = projectKnowledgeProtection?.integrity.digest;
+    if (!digest || projectKnowledgeProtection?.state !== "integrity-acceptance-required" || projectKnowledgeIntegrityInFlight) return;
+    projectKnowledgeIntegrityInFlight = true;
+    notice = null;
+    render();
+    void (async () => {
+      try {
+        const protection = await acceptProjectKnowledgeIntegrity(digest, getLanguage());
+        projectKnowledgeProtection = protection;
+        if (!protection.canonicalReadReady) {
+          throw new Error(uiText(
+            "Project knowledge protection did not become ready.",
+            "Der Schutz des Projektwissens wurde nicht bereit.",
+          ));
+        }
+        await refreshProjectKnowledge(false);
+        notice = {
+          kind: "success",
+          title: uiText("Project knowledge activated", "Projektwissen aktiviert"),
+          detail: uiText(
+            "The local Project Brain is now protected and can be used as canonical project knowledge.",
+            "Der lokale Project Brain ist jetzt geschützt und kann als kanonisches Projektwissen verwendet werden.",
+          ),
+        };
+      } catch (error) {
+        notice = {
+          kind: "error",
+          title: uiText("Project knowledge was not activated", "Projektwissen wurde nicht aktiviert"),
+          detail: error instanceof Error ? error.message : String(error),
+        };
+        try {
+          projectKnowledgeProtection = await loadProjectKnowledgeProtectionStatus();
+        } catch {
+          // Preserve the explicit failure above; a failed status refresh must not hide it.
+        }
+      } finally {
+        projectKnowledgeIntegrityInFlight = false;
+        render();
+      }
+    })();
+  });
+
   document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")?.addEventListener("click", async () => {
     await refreshProjectKnowledge();
   });
@@ -1063,6 +1112,7 @@ onDesktopProjectActivated(() => {
   }
   projectKnowledgeError = null;
   projectKnowledgeProtection = null;
+  projectKnowledgeIntegrityInFlight = false;
   projectKnowledgeLoadedOnce = false;
   projectKnowledgeLastRefreshAt = 0;
   projectKnowledgeRefreshInFlight = null;
