@@ -6,6 +6,7 @@ export function providerContextPacketId(
   baselineDigest: string,
   task: string,
   providerSessionId?: string,
+  providerThreadId?: string,
 ): string {
   const hash = createHash("sha256");
   const add = (label: string, value: string): void => {
@@ -23,5 +24,6 @@ export function providerContextPacketId(
   add("baseline", baselineDigest);
   add("task", task);
   if (providerSessionId !== undefined) add("providerSession", providerSessionId);
+  if (providerThreadId !== undefined) add("providerThread", providerThreadId);
   return `pcx_${hash.digest("hex")}`;
 }
