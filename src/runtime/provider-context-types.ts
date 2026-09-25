@@ -6,6 +6,7 @@ export type ProviderContextProvider = "claude-code" | "codex";
 export interface ProviderContextSessionBinding {
   id: string;
   source: "mcp-session";
+  providerThreadId?: string;
 }
 
 export interface ProviderContextTask {
