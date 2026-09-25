@@ -561,5 +561,8 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${resolve(process.argv[1]).replace(/\\/g, "/")}`).href) {
-  await main();
+  main().catch((error: unknown) => {
+    stderr.write(`${error instanceof Error ? error.message : "Project Knowledge host failure"}\n`);
+    process.exitCode = 2;
+  });
 }
