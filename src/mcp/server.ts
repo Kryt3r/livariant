@@ -223,7 +223,14 @@ export interface McpSession {
   handleMessage(value: unknown): Promise<JsonRpcResponse | null>;
 }
 
-export function createMcpSession(projectPath: string = process.cwd()): McpSession {
+export interface McpSessionOptions {
+  desktopRegistryPath?: string | null;
+}
+
+export function createMcpSession(
+  projectPath: string = process.cwd(),
+  options: McpSessionOptions = {},
+): McpSession {
   let lifecycle: "new" | "initializing" | "ready" = "new";
 
   return {
@@ -317,7 +324,9 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         if (call.name === MCP_CONTEXT_TOOL) {
           try {
             const args = parseContextToolArguments(call.arguments);
-            const result = await buildProviderContext(args.provider, args.task, projectPath);
+            const result = await buildProviderContext(args.provider, args.task, projectPath, {
+              desktopRegistryPath: options.desktopRegistryPath,
+            });
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
             return response(id, toolError(error instanceof Error ? error.message : "Provider Context tool failed."));
@@ -327,7 +336,13 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         if (call.name === MCP_RETURN_TOOL) {
           try {
             const args = parseReturnToolArguments(call.arguments);
-            const result = await processProviderReturn(args.context, args.providerReturn, undefined, projectPath);
+            const result = await processProviderReturn(
+              args.context,
+              args.providerReturn,
+              undefined,
+              projectPath,
+              { desktopRegistryPath: options.desktopRegistryPath },
+            );
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
             return response(id, toolError(error instanceof Error ? error.message : "Provider Return tool failed."));
