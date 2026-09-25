@@ -253,11 +253,11 @@ test("Reject and Keep Existing remain renderer-local decisions with no Project B
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
   const keepStart = main.indexOf('document.querySelector<HTMLButtonElement>(".keep-truth-review")');
   const rejectStart = main.indexOf('document.querySelector<HTMLButtonElement>(".reject-truth-review")');
-  const nextStart = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")', rejectStart);
-  assert.ok(keepStart >= 0 && rejectStart > keepStart && nextStart > rejectStart);
+  const rejectEnd = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-integrity-activate]")', rejectStart);
+  assert.ok(keepStart >= 0 && rejectStart > keepStart && rejectEnd > rejectStart);
 
   const keepHandler = main.slice(keepStart, rejectStart);
-  const rejectHandler = main.slice(rejectStart, nextStart);
+  const rejectHandler = main.slice(rejectStart, rejectEnd);
   for (const handler of [keepHandler, rejectHandler]) {
     assert.doesNotMatch(handler, /applyProjectKnowledgeProposal|prepareProjectKnowledgeProposal|acceptProjectKnowledgeIntegrity/);
     assert.match(handler, /area\.pendingValue = ""/);
