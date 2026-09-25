@@ -1,4 +1,5 @@
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
+import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { buildProtectedProjectContextSnapshot } from "./protected-context.js";
 import { providerContextPacketId } from "./provider-context-hash.js";
 import { validateProviderContextTask } from "./provider-context-task.js";
@@ -30,6 +31,9 @@ export async function buildProtectedProviderContext(
 ): Promise<ProviderContextPacket> {
   if (provider !== "claude-code" && provider !== "codex") throw new Error("Unsupported provider context target.");
   validateProviderContextTask(task);
+  if (options.providerSessionId !== undefined && !isStableProjectIdentity(options.providerSessionId)) {
+    throw new Error("Provider session id must be a canonical UUID.");
+  }
 
   const snapshot = await buildProtectedProjectContextSnapshot(projectPath, options);
   const base: ProviderContextBase = {
