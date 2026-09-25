@@ -327,6 +327,80 @@ test("MCP Provider Return requires the exact context issued by the same session 
   });
 });
 
+test("MCP Provider Context is bound to provider-native thread metadata when supplied", async () => {
+  await withProject(async (path) => {
+    const session = await initializedSession(path);
+    const context = structuredToolResult(await session.handleMessage({
+      jsonrpc: "2.0",
+      id: 57,
+      method: "tools/call",
+      params: {
+        name: MCP_CONTEXT_TOOL,
+        arguments: { provider: "codex", task: "Thread-bound Codex work" },
+        _meta: { threadId: "codex-thread-a", unrelatedProviderMeta: "ignored" },
+      },
+    }));
+
+    const providerSession = context.providerSession as {
+      id: string;
+      source: string;
+      providerThreadId?: string;
+    };
+    assert.equal(providerSession.source, "mcp-session");
+    assert.equal(providerSession.providerThreadId, "codex-thread-a");
+
+    const wrongThread = successResult(await session.handleMessage({
+      jsonrpc: "2.0",
+      id: 58,
+      method: "tools/call",
+      params: {
+        name: MCP_RETURN_TOOL,
+        arguments: { context, providerReturn: noCandidateReturn(context) },
+        _meta: { threadId: "codex-thread-b" },
+      },
+    }));
+    assert.equal(wrongThread.isError, true);
+    assert.match(
+      String((wrongThread.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? ""),
+      /same provider-native thread/i,
+    );
+
+    const correctThread = structuredToolResult(await session.handleMessage({
+      jsonrpc: "2.0",
+      id: 59,
+      method: "tools/call",
+      params: {
+        name: MCP_RETURN_TOOL,
+        arguments: { context, providerReturn: noCandidateReturn(context) },
+        _meta: { threadId: "codex-thread-a" },
+      },
+    }));
+    assert.equal(correctThread.state, "no-candidate");
+  });
+});
+
+test("two Codex threads sharing one MCP session receive distinct Provider Context packets", async () => {
+  await withProject(async (path) => {
+    const session = await initializedSession(path);
+    const call = async (id: number, threadId: string) => structuredToolResult(await session.handleMessage({
+      jsonrpc: "2.0",
+      id,
+      method: "tools/call",
+      params: {
+        name: MCP_CONTEXT_TOOL,
+        arguments: { provider: "codex", task: "Same task text" },
+        _meta: { threadId },
+      },
+    }));
+
+    const a = await call(60, "codex-thread-a");
+    const b = await call(61, "codex-thread-b");
+    assert.notEqual(a.packetId, b.packetId);
+    assert.equal((a.providerSession as { providerThreadId?: string }).providerThreadId, "codex-thread-a");
+    assert.equal((b.providerSession as { providerThreadId?: string }).providerThreadId, "codex-thread-b");
+  });
+});
+
 test("MCP Provider Return rejects a ready context copied from another MCP session", async () => {
   await withProject(async (path) => {
     const first = await mcpContext(path, "Cross-session context");
