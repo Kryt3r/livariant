@@ -921,3 +921,38 @@
 @media(max-width:840px){
   .connection-summary-row .connect-all-providers{width:100%}
 }
+
+
+/* Provider brand marks aligned with the onboarding cards. */
+.provider-glyph .provider-brand-logo{
+  width:25px;
+  height:25px;
+  display:block;
+}
+.provider-glyph-codex{
+  color:#f4fff9;
+  border-color:rgba(76,221,179,.22);
+  background:
+    radial-gradient(circle at 35% 30%,rgba(101,230,190,.24),transparent 48%),
+    rgba(20,89,76,.38);
+}
+.provider-glyph-claude{
+  color:#e3a56f;
+  border-color:rgba(213,132,78,.24);
+  background:
+    radial-gradient(circle at 38% 30%,rgba(232,158,103,.20),transparent 50%),
+    rgba(91,50,30,.40);
+}
+.provider-glyph-gemini{
+  border-color:rgba(78,130,255,.26);
+  background:
+    radial-gradient(circle at 38% 28%,rgba(54,117,238,.28),transparent 52%),
+    rgba(13,48,103,.46);
+}
+.provider-glyph-custom{
+  color:#c8a6ff;
+  border-color:rgba(156,111,255,.26);
+  background:
+    radial-gradient(circle at 38% 28%,rgba(140,91,255,.24),transparent 52%),
+    rgba(58,35,110,.40);
+}
