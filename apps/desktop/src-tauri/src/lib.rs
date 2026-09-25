@@ -27,6 +27,7 @@ mod project_review_selection;
 mod project_scoped_persistence;
 mod public_resources;
 mod project_source_observation;
+mod provider_session_reconciliation;
 mod project_knowledge_bridge;
 mod project_source_review_async;
 mod project_source_review_bridge;
@@ -252,6 +253,8 @@ pub fn run() {
             #[cfg(feature = "ci-multi-project-acceptance")]
             ci_multi_project_acceptance::start_if_requested(app.handle().clone());
 
+            provider_session_reconciliation::start_background(app.handle().clone());
+
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let state = handle.state::<connector_host::ConnectorHostState>();
@@ -306,6 +309,7 @@ pub fn run() {
             connector_host::codex_connector_status,
             connector_host::codex_connector_connect,
             connector_host::codex_connector_disconnect,
+            provider_session_reconciliation::reconcile_codex_provider_sessions,
             local_provider_desktop::local_provider_status,
             local_provider_desktop::local_provider_connect,
             local_provider_desktop::local_provider_disconnect,
