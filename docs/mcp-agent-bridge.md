@@ -188,3 +188,14 @@ No MCP task execution, prompts, resources, sampling, HTTP authorization, server-
 This capability is repository development after the immutable `v0.1.0-rc.3` Foundation Preview.
 
 RC3 does not contain the MCP Agent Bridge or WP-013 native setup UX. A later release requires separate explicit release authorization.
+
+
+## Project and provider-session binding
+
+Livariant Desktop project selection is a presentation/navigation choice and does not route MCP work.
+
+Each running MCP bridge instance is bound to the project path from which that bridge is running. Livariant reconstructs canonical Project Brain context from that project path and adds a fresh MCP-session UUID to ready Provider Context packet identity. Provider Return still requires the exact same-session, single-use context copy.
+
+This permits multiple sessions of the same provider to work on the same or different projects without requiring Livariant Desktop to be open or showing the matching project.
+
+For Codex, Livariant can also query persisted App Server thread metadata later. Provider-owned thread `id`, `sessionId`, and captured `cwd` are used as evidence to reconcile saved Codex threads against all registered Livariant project roots. Exact/descendant cwd matches are project-attributed; unknown or mixed-project sessions remain unattributed/ambiguous. This retrospective mapping is evidence only and grants no Project Truth or Authority.
