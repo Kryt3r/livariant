@@ -147,8 +147,12 @@ test("MCP context tool delegates to the existing Provider Context semantics", as
 
     const { context } = await mcpContext(path, task);
     assert.equal(context.provider, direct.provider);
-    assert.equal(context.packetId, direct.packetId);
+    assert.notEqual(context.packetId, direct.packetId);
     assert.equal(context.stableProjectIdentity, direct.stableProjectIdentity);
+    assert.equal(direct.providerSession, null);
+    const sessionBinding = context.providerSession as { id?: unknown; source?: unknown } | null;
+    assert.equal(sessionBinding?.source, "mcp-session");
+    assert.equal(typeof sessionBinding?.id, "string");
     assert.deepEqual(context.baseline, direct.baseline);
     assert.deepEqual(context.evidence, direct.evidence);
     assert.deepEqual(context.task, direct.task);
