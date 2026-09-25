@@ -288,8 +288,30 @@ test("Project Knowledge ready-state refresh performs one protected snapshot read
   const statusAt = refresh.indexOf("await loadProjectKnowledgeProtectionStatus()");
   assert.ok(snapshotAt >= 0 && statusAt > snapshotAt, "ready-state snapshot read must precede detailed recovery status inspection");
   assert.match(refresh, /integrity-acceptance-required/);
-  assert.match(refresh, /acceptProjectKnowledgeIntegrity\(protection\.integrity\.digest/);
+  assert.doesNotMatch(refresh, /acceptProjectKnowledgeIntegrity/);
   assert.doesNotMatch(refresh.slice(0, statusAt), /loadProjectKnowledgeProtectionStatus/);
+});
+
+test("initial Project Knowledge integrity activation is explicit and does not own the global loading state", async () => {
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+  assert.match(main, /data-project-knowledge-integrity-activate/);
+  assert.match(main, /Projektwissen aktivieren/);
+  assert.match(main, /Warte auf Windows-Bestätigung/);
+  const start = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-integrity-activate]")');
+  const end = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")', start);
+  assert.ok(start >= 0 && end > start);
+  const handler = main.slice(start, end);
+  assert.match(handler, /acceptProjectKnowledgeIntegrity\(digest, getLanguage\(\)\)/);
+  assert.match(handler, /projectKnowledgeIntegrityInFlight = true/);
+  assert.doesNotMatch(handler, /projectKnowledgeLoading = true/);
+});
+
+test("bounded Project Knowledge reads cannot leave the renderer waiting forever", async () => {
+  const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  assert.match(rust, /Some\("read"\) \| Some\("protection"\)/);
+  assert.match(rust, /Duration::from_secs\(10\)/);
+  assert.match(rust, /Project Knowledge local read timed out after 10 seconds/);
+  assert.match(rust, /child\.kill\(\)/);
 });
 
 test("Project Knowledge begins canonical refresh immediately on initial render and project activation", async () => {
