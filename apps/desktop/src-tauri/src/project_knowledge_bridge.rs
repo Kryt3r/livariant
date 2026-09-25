@@ -439,9 +439,29 @@ async fn issue_project_knowledge_integrity_authority_from_desktop(
 
     let node = bundled_node_path(install_root);
     let guardian_helper = fixed_guardian_helper();
-    if !node.is_file() || !guardian_helper.is_file() {
-        return Err("Protected Guardian runtime is missing from the fixed Livariant installation. Repair or reinstall Livariant.".to_owned());
+    let runtime_manifest_path = install_root.join("runtime").join("manifest.json");
+    let stage_a = install_root.join("runtime").join("protected-bootstrap-assets").join("desktop-stage-a.ps1");
+    let protected_release = install_root.join("Bootstrap").join("v1").join("bootstrap-release.json");
+    let guardian_upgrade = install_root.join("Bootstrap").join("v1").join("guardian-upgrade-desktop.ps1");
+
+    if !node.is_file() || !guardian_helper.is_file() || !runtime_manifest_path.is_file() || !stage_a.is_file() {
+        return Err("Protected Guardian/Desktop runtime material is missing from the fixed Livariant installation. Repair or reinstall Livariant.".to_owned());
     }
+
+    let runtime_manifest: RuntimeManifest = serde_json::from_slice(
+        &std::fs::read(&runtime_manifest_path)
+            .map_err(|error| format!("Desktop runtime manifest could not be read: {error}"))?
+    ).map_err(|error| format!("Desktop runtime manifest is invalid: {error}"))?;
+    if runtime_manifest.authority_issued {
+        return Err("Ordinary Desktop runtime material must never claim Authority.".to_owned());
+    }
+
+    let protected_source_current = std::fs::read(&protected_release)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .and_then(|value| value.get("sourceSha").and_then(Value::as_str).map(str::to_owned))
+        .map(|source_sha| source_sha == runtime_manifest.core_source_sha)
+        .unwrap_or(false);
 
     if request.get("kind").and_then(Value::as_str) != Some("livariant-guardian-authority-request")
         || request.get("consumer").and_then(Value::as_str) != Some("project-brain-integrity")
@@ -468,10 +488,24 @@ async fn issue_project_knowledge_integrity_authority_from_desktop(
         let helper_literal = powershell_escape_literal(&guardian_helper.display().to_string());
         let request_literal = powershell_escape_literal(&request_path.display().to_string());
         let diagnostic_literal = powershell_escape_literal(&diagnostic_path.display().to_string());
+        let stage_a_literal = powershell_escape_literal(&stage_a.display().to_string());
+        let upgrade_literal = powershell_escape_literal(&guardian_upgrade.display().to_string());
+        let protected_source_refresh = if protected_source_current {
+            String::new()
+        } else {
+            format!(
+                "$stageOut = & 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '{stage_a_literal}' -Replace 2>&1 | Out-String; \
+                 if($LASTEXITCODE -ne 0){{ [IO.File]::WriteAllText('{diagnostic_literal}', [string]$stageOut); exit $LASTEXITCODE }}; "
+            )
+        };
 
         let elevated_script = format!(
             "$ErrorActionPreference='Stop'; \
              try {{ \
+               {protected_source_refresh} \
+               if(-not (Test-Path -LiteralPath '{upgrade_literal}' -PathType Leaf)){{ throw 'Current protected Guardian upgrade launcher is missing after Stage-A refresh.' }}; \
+               $upgradeOut = & 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '{upgrade_literal}' 2>&1 | Out-String; \
+               if($LASTEXITCODE -ne 0){{ [IO.File]::WriteAllText('{diagnostic_literal}', [string]$upgradeOut); exit $LASTEXITCODE }}; \
                $output = & '{node_literal}' '{helper_literal}' 'issue-authority' '--request' '{request_literal}' '--native-confirmation-language' '{language}' 2>&1 | Out-String; \
                $code=$LASTEXITCODE; \
                [IO.File]::WriteAllText('{diagnostic_literal}', [string]$output); \
@@ -508,7 +542,7 @@ async fn issue_project_knowledge_integrity_authority_from_desktop(
 
         if !status.success() {
             let detail = std::fs::read_to_string(&diagnostic_path)
-                .unwrap_or_else(|_| "Windows UAC may have been cancelled or the protected Guardian helper failed before returning diagnostic output.".to_owned());
+                .unwrap_or_else(|_| "Windows UAC may have been cancelled or protected Guardian maintenance failed before returning diagnostic output.".to_owned());
             return Err(format!("Project Knowledge integrity Authority failed: {}", detail.trim()));
         }
         Ok(())
