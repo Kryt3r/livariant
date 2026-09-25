@@ -4,6 +4,7 @@ import "./diagnostics-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage, t } from "./i18n/runtime.js";
 import { onDesktopProjectActivated } from "./desktop-project-registry.js";
+import { providerBrandLogo } from "./provider-brand-assets.js";
 import {
   bindProjectConnectionsSettingsEvents,
   refreshProjectConnectionsSettings,
@@ -167,10 +168,7 @@ const unknownTotalEvents = (dimension: ObservedAttributionDimension | undefined)
   dimension?.groups.reduce((sum, group) => sum + group.unknownTotalTokenEvents, 0) ?? 0;
 
 const providerGlyph = (provider: ProviderId) => {
-  if (provider === "codex") return '<span class="provider-glyph provider-glyph-codex"><svg class="provider-brand-logo provider-brand-logo-openai" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4.7c3.05 0 5.52 2.47 5.52 5.52v2.18L16 15.58l-5.52-3.18v-2.18C10.48 7.17 12.95 4.7 16 4.7Z"/><path d="M25.79 10.35c1.52 2.64.62 6.02-2.02 7.54l-1.89 1.09-5.52-3.19v-6.37l1.89-1.09c2.64-1.52 6.02-.62 7.54 2.02Z"/><path d="M25.79 21.65c-1.52 2.64-4.9 3.54-7.54 2.02l-1.89-1.09v-6.37l5.52-3.19 1.89 1.09c2.64 1.52 3.54 4.9 2.02 7.54Z"/><path d="M16 27.3c-3.05 0-5.52-2.47-5.52-5.52V19.6L16 16.42l5.52 3.18v2.18c0 3.05-2.47 5.52-5.52 5.52Z"/><path d="M6.21 21.65c-1.52-2.64-.62-6.02 2.02-7.54l1.89-1.09 5.52 3.19v6.37l-1.89 1.09c-2.64 1.52-6.02.62-7.54-2.02Z"/><path d="M6.21 10.35c1.52-2.64 4.9-3.54 7.54-2.02l1.89 1.09v6.37l-5.52 3.19-1.89-1.09c-2.64-1.52-3.54-4.9-2.02-7.54Z"/></g></svg></span>';
-  if (provider === "claude") return '<span class="provider-glyph provider-glyph-claude"><svg class="provider-brand-logo provider-brand-logo-anthropic" viewBox="0 0 32 32" aria-hidden="true"><text x="4.2" y="22.1" fill="currentColor" font-size="17.5" font-family="Arial,Helvetica,sans-serif" font-weight="800" letter-spacing="-2">AI</text></svg></span>';
-  if (provider === "gemini") return '<span class="provider-glyph provider-glyph-gemini"><svg class="provider-brand-logo provider-brand-logo-google" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.21c0-.72-.06-1.25-.2-1.8H12v3.58h5.37c-.11.89-.7 2.23-2.04 3.14l-.02.12 2.96 2.25.2.02c1.84-1.67 2.88-4.13 2.88-7.31Z"/><path fill="#34A853" d="M12 21.5c2.63 0 4.84-.85 6.45-2.31l-3.14-2.06c-.84.55-1.94.94-3.31.94-2.53 0-4.68-1.68-5.45-4.01l-.11.01-3.08 2.34-.04.11C4.91 19.48 8.12 21.5 12 21.5Z"/><path fill="#FBBC05" d="M6.55 14.06A6.15 6.15 0 0 1 6.22 12c0-.72.13-1.42.31-2.06l-.01-.14-3.12-2.38-.1.05A9.52 9.52 0 0 0 2.5 12c0 1.64.39 3.19 1.08 4.56l2.97-2.5Z"/><path fill="#EA4335" d="M12 5.93c1.84 0 3.08.78 3.79 1.42l2.76-2.65C16.85 3.15 14.63 2.5 12 2.5c-3.88 0-7.09 2.02-8.68 4.97l3.23 2.47C7.32 7.61 9.47 5.93 12 5.93Z"/></svg></span>';
-  return '<span class="provider-glyph provider-glyph-custom"><svg class="provider-brand-logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M12.3 19.7 9.8 22.2a4.2 4.2 0 0 1-5.9-5.9l4.2-4.2a4.2 4.2 0 0 1 5.9 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="m19.7 12.3 2.5-2.5a4.2 4.2 0 0 1 5.9 5.9l-4.2 4.2a4.2 4.2 0 0 1-5.9 0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="m11.5 20.5 9-9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></span>';
+  return `<span class="provider-glyph provider-glyph-${provider}">${providerBrandLogo(provider)}</span>`;
 };
 
 const localizedCodexDetail = (detail: string | null | undefined): string | null => {
