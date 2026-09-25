@@ -306,6 +306,32 @@ test("initial Project Knowledge integrity activation is explicit and does not ow
   assert.doesNotMatch(handler, /projectKnowledgeLoading = true/);
 });
 
+test("Windows Project Knowledge integrity confirmation uses visible bounded native elevation", async () => {
+  const privileged = await readFile("src/guardian/privileged-helper.ts", "utf8");
+  const protectedHelper = await readFile("src/guardian/protected-helper.ts", "utf8");
+
+  const runWindowsStart = privileged.indexOf("function runWindows(");
+  const runWindowsEnd = privileged.indexOf("export async function runPrivilegedGuardianHelper", runWindowsStart);
+  assert.ok(runWindowsStart >= 0 && runWindowsEnd > runWindowsStart);
+  const runWindows = privileged.slice(runWindowsStart, runWindowsEnd);
+  assert.match(runWindows, /FilePath='C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1\.0\\\\powershell\.exe'/);
+  assert.match(runWindows, /Verb='RunAs'/);
+  assert.match(runWindows, /-EncodedCommand/);
+  assert.match(runWindows, /timeout: 5 \* 60 \* 1000/);
+  assert.doesNotMatch(runWindows, /FilePath=\$env:LIVARIANT_GUARDIAN_ELEVATED_NODE;ArgumentList/);
+
+  const dialogStart = protectedHelper.indexOf("function requireWindowsNativeSimpleIssuance(");
+  const dialogEnd = protectedHelper.indexOf("async function requireInteractiveIssuance", dialogStart);
+  assert.ok(dialogStart >= 0 && dialogEnd > dialogStart);
+  const dialog = protectedHelper.slice(dialogStart, dialogEnd);
+  assert.match(dialog, /\$form\.TopMost=\$true/);
+  assert.match(dialog, /\$form\.ShowInTaskbar=\$true/);
+  assert.match(dialog, /\$form\.Add_Shown\(\{\$form\.Activate\(\);\$form\.BringToFront\(\)\}\)/);
+  assert.match(dialog, /\$timer\.Interval=300000/);
+  assert.match(dialog, /timeout: 5 \* 60 \* 1000/);
+  assert.doesNotMatch(dialog, /Windows\.Forms\.MessageBox/);
+});
+
 test("bounded Project Knowledge reads cannot leave the renderer waiting forever", async () => {
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
   assert.match(rust, /Some\("read"\) \| Some\("protection"\)/);
