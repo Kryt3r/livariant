@@ -77,22 +77,24 @@ fn run_project_knowledge_for_roots(
             .map_err(|error| format!("Project Knowledge request could not be written: {error}"))?;
     }
 
-    let bounded_read = matches!(
-        request.get("method").and_then(Value::as_str),
-        Some("read") | Some("protection")
-    );
+    let method = request.get("method").and_then(Value::as_str);
+    let bounded_timeout = match method {
+        Some("read") | Some("protection") => Some((Duration::from_secs(10), "Project Knowledge local read timed out after 10 seconds.")),
+        Some("accept-integrity") => Some((Duration::from_secs(360), "Project Knowledge integrity confirmation timed out after 6 minutes.")),
+        _ => None,
+    };
 
-    let (status, stdout, stderr) = if bounded_read {
+    let (status, stdout, stderr) = if let Some((timeout, timeout_message)) = bounded_timeout {
         let started = Instant::now();
         let status = loop {
             if let Some(status) = child.try_wait()
                 .map_err(|error| format!("Project Knowledge runtime could not be polled: {error}"))? {
                 break status;
             }
-            if started.elapsed() >= Duration::from_secs(10) {
+            if started.elapsed() >= timeout {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err("Project Knowledge local read timed out after 10 seconds.".to_owned());
+                return Err(timeout_message.to_owned());
             }
             thread::sleep(Duration::from_millis(25));
         };
