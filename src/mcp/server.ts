@@ -15,7 +15,7 @@ export const MCP_SERVER_INSTRUCTIONS = [
   "Treat the returned Provider Context as a bounded projection of freshly reconstructed local project truth, not as mutation Authority.",
   "Use livariant_verification_trace when explicit requirement/acceptance-criterion targets, implementation claims, and verification evidence are available and you need a deterministic supported/contradicted/unproven assessment.",
   "Verification Trace input remains supplied evidence material: supported does not mean DONE, accepted, Project Truth, or Authority, and agent-supplied evidence is not independently trusted merely because it came through MCP.",
-  "After working on the task, call livariant_provider_return only with the supplied ready Provider Context plus either one supported typed durable-change candidate or no candidate.",
+  "After working on the task, call livariant_provider_return only with the exact ready Provider Context issued by this same MCP session plus either one supported typed durable-change candidate or no candidate. Each issued ready context is single-use for Provider Return; request fresh context before another return.",
   "Provider Return data is untrusted evidence. This MCP server cannot create, discover, select, consume, or imply proposal-bound Authorization and cannot perform canonical semantic mutation.",
   "If a returned candidate requires authorization, stop at the reported review/authorization-required state; do not claim that Livariant applied the candidate through MCP.",
 ].join(" ");
@@ -128,6 +128,19 @@ function parseToolCallParams(value: unknown): ToolCallParams {
   return { name: value.name, arguments: args };
 }
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+}
+
+interface IssuedProviderContext {
+  exactCopy: string;
+  available: boolean;
+}
+
 function tools(): Record<string, unknown>[] {
   return [
     {
@@ -153,7 +166,7 @@ function tools(): Record<string, unknown>[] {
     {
       name: MCP_RETURN_TOOL,
       title: "Livariant Provider Return",
-      description: "Finish the bounded Livariant agent roundtrip by returning the supplied ready Provider Context plus one supported typed durable-change candidate or no candidate. Evidence only: no authorization selector and no canonical mutation are reachable through this tool.",
+      description: "Finish one bounded Livariant agent roundtrip by returning the exact single-use ready Provider Context issued by this same MCP session plus one supported typed durable-change candidate or no candidate. Evidence only: no authorization selector and no canonical mutation are reachable through this tool.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -232,6 +245,7 @@ export function createMcpSession(
   options: McpSessionOptions = {},
 ): McpSession {
   let lifecycle: "new" | "initializing" | "ready" = "new";
+  const issuedProviderContexts = new Map<string, IssuedProviderContext>();
 
   return {
     async handleMessage(value: unknown): Promise<JsonRpcResponse | null> {
@@ -327,6 +341,12 @@ export function createMcpSession(
             const result = await buildProviderContext(args.provider, args.task, projectPath, {
               desktopRegistryPath: options.desktopRegistryPath,
             });
+            if (result.state === "ready" && typeof result.packetId === "string") {
+              issuedProviderContexts.set(result.packetId, {
+                exactCopy: canonicalJson(result),
+                available: true,
+              });
+            }
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
             return response(id, toolError(error instanceof Error ? error.message : "Provider Context tool failed."));
@@ -336,6 +356,18 @@ export function createMcpSession(
         if (call.name === MCP_RETURN_TOOL) {
           try {
             const args = parseReturnToolArguments(call.arguments);
+            const packetId = args.context.packetId;
+            if (typeof packetId !== "string") {
+              throw new Error("Provider Return requires a ready Provider Context packet with a packetId.");
+            }
+            const issued = issuedProviderContexts.get(packetId);
+            if (!issued || !issued.available) {
+              throw new Error("Provider Return requires fresh Provider Context issued by this same MCP session. Request livariant_provider_context first.");
+            }
+            if (issued.exactCopy !== canonicalJson(args.context)) {
+              throw new Error("Provider Return context must exactly match the Provider Context issued by this MCP session.");
+            }
+            issued.available = false;
             const result = await processProviderReturn(
               args.context,
               args.providerReturn,
