@@ -15,6 +15,7 @@ import { runProtectedDoctor } from "../runtime/protected-doctor.js";
 import { runDoctor as runLocalEvidenceDoctor } from "../runtime/doctor.js";
 import { inspectGuardianMachineReadiness } from "../guardian/readiness.js";
 import { findProjectBrainIntegrityGuardianAuthority, projectBrainIntegrityGuardianRequest } from "../guardian/project-brain-integrity-authority-transition.js";
+import type { GuardianAuthorityRequest } from "../guardian/authority-client.js";
 import {
   establishProtectedProjectBrainIntegrityState,
   inspectProtectedProjectBrainIntegrity,
@@ -357,13 +358,7 @@ export interface DesktopProjectKnowledgeIntegrityAuthorityPreparation {
   state: "authority-required";
   confirmedDigest: string;
   materialSha256: string;
-  request: {
-    schemaVersion: 1;
-    kind: "livariant-guardian-authority-request";
-    consumer: "project-brain-integrity";
-    mode: "persistent";
-    materialFields: Array<{ label: string; value: string }>;
-  };
+  request: GuardianAuthorityRequest;
 }
 
 async function assertDesktopProjectKnowledgeIntegrityAcceptancePreconditions(
