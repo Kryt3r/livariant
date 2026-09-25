@@ -1610,6 +1610,52 @@ mod tests {
     }
 
     #[test]
+    fn provider_activation_rotates_across_a_b_a_even_when_returning_to_same_project() {
+        let root = test_root("provider-activation-aba");
+        let projects = root.join("app-data").join("projects");
+        let one = project(&root, "one");
+        let two = project(&root, "two");
+        let mut runtime = ActiveProjectRuntime::default();
+
+        register_at(&projects, &runtime, register_input(&one, Some("One"))).expect("register one");
+        register_at(&projects, &runtime, register_input(&two, Some("Two"))).expect("register two");
+        let registry = load_registry(&projects).expect("registry");
+        let one_id = registry.projects[0].desktop_project_id.clone();
+        let two_id = registry.projects[1].desktop_project_id.clone();
+
+        activate_at(&projects, &mut runtime, &one_id).expect("activate A1");
+        let a1 = load_registry(&projects)
+            .expect("A1 registry")
+            .provider_activation
+            .expect("A1 provider activation");
+
+        activate_at(&projects, &mut runtime, &two_id).expect("activate B");
+        let b = load_registry(&projects)
+            .expect("B registry")
+            .provider_activation
+            .expect("B provider activation");
+
+        activate_at(&projects, &mut runtime, &one_id).expect("activate A2");
+        let a2 = load_registry(&projects)
+            .expect("A2 registry")
+            .provider_activation
+            .expect("A2 provider activation");
+
+        assert_eq!(a1.desktop_project_id, one_id);
+        assert_eq!(b.desktop_project_id, two_id);
+        assert_eq!(a2.desktop_project_id, one_id);
+        assert_eq!(a1.process_id, std::process::id());
+        assert_eq!(b.process_id, std::process::id());
+        assert_eq!(a2.process_id, std::process::id());
+        assert_ne!(a1.activation_id, b.activation_id);
+        assert_ne!(a1.activation_id, a2.activation_id);
+        assert_ne!(b.activation_id, a2.activation_id);
+
+        fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+
+    #[test]
     fn activation_of_unavailable_other_target_does_not_relabel_current_project() {
         let root = test_root("failed-switch");
         let projects = root.join("app-data").join("projects");
@@ -1671,6 +1717,7 @@ mod tests {
         let registry = DesktopProjectRegistry {
             schema_version: REGISTRY_SCHEMA_VERSION,
             last_active_desktop_project_id: Some(desktop_project_id.clone()),
+            provider_activation: None,
             projects: vec![DesktopProjectRecord {
                 desktop_project_id,
                 display_name: "Project".to_owned(),
