@@ -326,7 +326,7 @@ test("Windows Project Knowledge integrity activation is prepared in Core and ele
   assert.doesNotMatch(accept, /"method": "accept-integrity"/);
 
   const elevationStart = rust.indexOf("async fn issue_project_knowledge_integrity_authority_from_desktop");
-  const elevationEnd = rust.indexOf("#\[tauri::command\]\npub async fn accept_project_knowledge_integrity", elevationStart);
+  const elevationEnd = rust.indexOf("pub async fn accept_project_knowledge_integrity", elevationStart);
   assert.ok(elevationStart >= 0 && elevationEnd > elevationStart);
   const elevation = rust.slice(elevationStart, elevationEnd);
   assert.match(elevation, /fixed_guardian_helper/);
