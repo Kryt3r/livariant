@@ -55,20 +55,10 @@ struct DesktopProjectRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-struct DesktopProviderActivationRecord {
-    desktop_project_id: String,
-    activation_id: String,
-    process_id: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 struct DesktopProjectRegistry {
     schema_version: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_active_desktop_project_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    provider_activation: Option<DesktopProviderActivationRecord>,
     projects: Vec<DesktopProjectRecord>,
     #[serde(default)]
     legacy_migration: LegacyMigrationRecord,
@@ -79,7 +69,6 @@ impl Default for DesktopProjectRegistry {
         Self {
             schema_version: REGISTRY_SCHEMA_VERSION,
             last_active_desktop_project_id: None,
-            provider_activation: None,
             projects: Vec::new(),
             legacy_migration: LegacyMigrationRecord::default(),
         }
@@ -413,22 +402,6 @@ fn validate_registry(registry: &DesktopProjectRegistry) -> Result<(), String> {
         };
         if record.state != DesktopProjectRegistrationState::Registered {
             return Err("Desktop project registry last-active identity is detached.".to_owned());
-        }
-    }
-    if let Some(binding) = registry.provider_activation.as_ref() {
-        let desktop_project_id = canonical_uuid(&binding.desktop_project_id, "providerActivation.desktopProjectId")?;
-        canonical_uuid(&binding.activation_id, "providerActivation.activationId")?;
-        if binding.process_id == 0 {
-            return Err("Desktop provider activation processId must be positive.".to_owned());
-        }
-        if registry.last_active_desktop_project_id.as_deref() != Some(desktop_project_id.as_str()) {
-            return Err("Desktop provider activation must match the last-active Desktop project.".to_owned());
-        }
-        let Some(record) = registry.projects.iter().find(|project| project.desktop_project_id == desktop_project_id) else {
-            return Err("Desktop provider activation references an unknown project.".to_owned());
-        };
-        if record.state != DesktopProjectRegistrationState::Registered {
-            return Err("Desktop provider activation references a detached project.".to_owned());
         }
     }
     Ok(())
@@ -774,11 +747,6 @@ fn activate_at(
         .ok_or_else(|| "Desktop project activation generation is exhausted.".to_owned())?;
 
     registry.last_active_desktop_project_id = Some(id.clone());
-    registry.provider_activation = Some(DesktopProviderActivationRecord {
-        desktop_project_id: id.clone(),
-        activation_id: Uuid::new_v4().hyphenated().to_string(),
-        process_id: std::process::id(),
-    });
     write_registry(projects_root, &registry)?;
 
     runtime.generation = next_generation;
@@ -837,9 +805,6 @@ fn detach_at(
     project.state = DesktopProjectRegistrationState::Detached;
     if registry.last_active_desktop_project_id.as_deref() == Some(id.as_str()) {
         registry.last_active_desktop_project_id = None;
-    }
-    if registry.provider_activation.as_ref().is_some_and(|binding| binding.desktop_project_id == id) {
-        registry.provider_activation = None;
     }
 
     let active_is_target = runtime
@@ -1287,11 +1252,6 @@ pub(crate) fn finalize_legacy_migration(
         state: DesktopProjectRegistrationState::Registered,
     });
     registry.last_active_desktop_project_id = Some(id.clone());
-    registry.provider_activation = Some(DesktopProviderActivationRecord {
-        desktop_project_id: id.clone(),
-        activation_id: Uuid::new_v4().hyphenated().to_string(),
-        process_id: std::process::id(),
-    });
     registry.legacy_migration = LegacyMigrationRecord {
         state: LegacyMigrationState::Complete,
         source_fingerprint: Some(import.source_fingerprint),
@@ -1334,11 +1294,6 @@ pub(crate) fn restore_last_active_project(
     }
     let local_root = canonical_local_root(&project.local_root)?;
     let state_root = real_state_directory(&projects_root, &id, false)?;
-    registry.provider_activation = Some(DesktopProviderActivationRecord {
-        desktop_project_id: id.clone(),
-        activation_id: Uuid::new_v4().hyphenated().to_string(),
-        process_id: std::process::id(),
-    });
     write_registry(&projects_root, &registry)?;
 
     let mut runtime = state
@@ -1610,52 +1565,6 @@ mod tests {
     }
 
     #[test]
-    fn provider_activation_rotates_across_a_b_a_even_when_returning_to_same_project() {
-        let root = test_root("provider-activation-aba");
-        let projects = root.join("app-data").join("projects");
-        let one = project(&root, "one");
-        let two = project(&root, "two");
-        let mut runtime = ActiveProjectRuntime::default();
-
-        register_at(&projects, &runtime, register_input(&one, Some("One"))).expect("register one");
-        register_at(&projects, &runtime, register_input(&two, Some("Two"))).expect("register two");
-        let registry = load_registry(&projects).expect("registry");
-        let one_id = registry.projects[0].desktop_project_id.clone();
-        let two_id = registry.projects[1].desktop_project_id.clone();
-
-        activate_at(&projects, &mut runtime, &one_id).expect("activate A1");
-        let a1 = load_registry(&projects)
-            .expect("A1 registry")
-            .provider_activation
-            .expect("A1 provider activation");
-
-        activate_at(&projects, &mut runtime, &two_id).expect("activate B");
-        let b = load_registry(&projects)
-            .expect("B registry")
-            .provider_activation
-            .expect("B provider activation");
-
-        activate_at(&projects, &mut runtime, &one_id).expect("activate A2");
-        let a2 = load_registry(&projects)
-            .expect("A2 registry")
-            .provider_activation
-            .expect("A2 provider activation");
-
-        assert_eq!(a1.desktop_project_id, one_id);
-        assert_eq!(b.desktop_project_id, two_id);
-        assert_eq!(a2.desktop_project_id, one_id);
-        assert_eq!(a1.process_id, std::process::id());
-        assert_eq!(b.process_id, std::process::id());
-        assert_eq!(a2.process_id, std::process::id());
-        assert_ne!(a1.activation_id, b.activation_id);
-        assert_ne!(a1.activation_id, a2.activation_id);
-        assert_ne!(b.activation_id, a2.activation_id);
-
-        fs::remove_dir_all(&root).expect("cleanup");
-    }
-
-
-    #[test]
     fn activation_of_unavailable_other_target_does_not_relabel_current_project() {
         let root = test_root("failed-switch");
         let projects = root.join("app-data").join("projects");
@@ -1717,7 +1626,6 @@ mod tests {
         let registry = DesktopProjectRegistry {
             schema_version: REGISTRY_SCHEMA_VERSION,
             last_active_desktop_project_id: Some(desktop_project_id.clone()),
-            provider_activation: None,
             projects: vec![DesktopProjectRecord {
                 desktop_project_id,
                 display_name: "Project".to_owned(),
