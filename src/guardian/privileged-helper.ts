@@ -1,4 +1,6 @@
 import { lstat, realpath } from "node:fs/promises";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, parse, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { assertWindowsProtectedParentAnchor, assertWindowsProtectedPath } from "./windows-protection.js";
@@ -80,49 +82,71 @@ function runWindows(interpreter: string, support: GuardianAuthoritySupport, args
   if (windowsProcessIsElevated()) {
     throw new Error("Guardian Authority transitions must be requested from an ordinary Windows terminal, not from an already-elevated Livariant process.");
   }
+
   const nativeConfirmation = args.includes("--native-confirmation-language");
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    LIVARIANT_GUARDIAN_ELEVATED_NODE: interpreter,
-    LIVARIANT_GUARDIAN_ELEVATED_HELPER: support.helper,
-    LIVARIANT_GUARDIAN_ELEVATED_CWD: cwd ?? process.cwd(),
-    LIVARIANT_GUARDIAN_ELEVATED_ARG_COUNT: String(args.length),
-    LIVARIANT_GUARDIAN_ELEVATED_HIDE_WINDOW: nativeConfirmation ? "1" : "0",
-  };
-  args.forEach((arg, index) => { env[`LIVARIANT_GUARDIAN_ELEVATED_ARG_${index}`] = arg; });
+  const elevatedWorkingDirectory = cwd ?? process.cwd();
+  const diagnosticDirectory = mkdtempSync(resolve(tmpdir(), "livariant-guardian-elevation-"));
+  const diagnosticPath = resolve(diagnosticDirectory, "result.txt");
 
-  // Use the same elevation shape as the installed protected setup: elevate the
-  // fixed Windows PowerShell host first, then invoke the already-validated
-  // protected Node/helper pair from inside that elevated process.
-  const elevatedScript = [
-    "$ErrorActionPreference='Stop'",
-    "$count=[int]$env:LIVARIANT_GUARDIAN_ELEVATED_ARG_COUNT",
-    "$arguments=New-Object System.Collections.Generic.List[string]",
-    "$arguments.Add($env:LIVARIANT_GUARDIAN_ELEVATED_HELPER)",
-    "for($i=0;$i -lt $count;$i++){ $arguments.Add([Environment]::GetEnvironmentVariable(('LIVARIANT_GUARDIAN_ELEVATED_ARG_' + $i))) }",
-    "& $env:LIVARIANT_GUARDIAN_ELEVATED_NODE @($arguments.ToArray())",
-    "exit $LASTEXITCODE",
-  ].join("; ");
-  env.LIVARIANT_GUARDIAN_ELEVATED_SCRIPT = Buffer.from(elevatedScript, "utf8").toString("base64");
+  try {
+    // Everything required by the elevated process is embedded into the encoded
+    // command. Do not depend on custom environment variables surviving RunAs/UAC.
+    const payload = Buffer.from(JSON.stringify({
+      node: interpreter,
+      helper: support.helper,
+      cwd: elevatedWorkingDirectory,
+      args: [...args],
+      diagnosticPath,
+    }), "utf8").toString("base64");
 
-  const launcher = [
-    "$ErrorActionPreference='Stop'",
-    "$payload=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:LIVARIANT_GUARDIAN_ELEVATED_SCRIPT))",
-    "$encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($payload))",
-    "$startArgs=@{FilePath='C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';ArgumentList=@('-NoProfile','-NonInteractive','-Sta','-EncodedCommand',$encoded);WorkingDirectory=$env:LIVARIANT_GUARDIAN_ELEVATED_CWD;Verb='RunAs';Wait=$true;PassThru=$true}",
-    "if($env:LIVARIANT_GUARDIAN_ELEVATED_HIDE_WINDOW -eq '1'){ $startArgs.WindowStyle='Hidden' }",
-    "$p=Start-Process @startArgs",
-    "exit $p.ExitCode",
-  ].join("; ");
-  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", launcher], {
-    encoding: "utf8",
-    shell: false,
-    windowsHide: true,
-    env,
-    timeout: 5 * 60 * 1000,
-  });
-  if (result.error || result.status !== 0) {
-    throw new Error(`Protected Guardian UAC transition failed or was declined: ${failureDetail(result)}`);
+    const elevatedScript = [
+      "$ErrorActionPreference='Stop'",
+      `$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}'))`,
+      "$p=$json | ConvertFrom-Json",
+      "try {",
+      "Set-Location -LiteralPath ([string]$p.cwd)",
+      "$argv=@([string]$p.helper)",
+      "foreach($arg in $p.args){ $argv += [string]$arg }",
+      "& ([string]$p.node) @argv",
+      "$childExit=$LASTEXITCODE",
+      "if($childExit -ne 0){ throw ('protected helper exited with code ' + $childExit) }",
+      "Set-Content -LiteralPath ([string]$p.diagnosticPath) -Value 'ok' -Encoding UTF8",
+      "exit 0",
+      "} catch {",
+      "$detail=$_.Exception.Message",
+      "try { Set-Content -LiteralPath ([string]$p.diagnosticPath) -Value $detail -Encoding UTF8 } catch {}",
+      "exit 1",
+      "}",
+    ].join("; ");
+    const encodedCommand = Buffer.from(elevatedScript, "utf16le").toString("base64");
+
+    const launcher = [
+      "$ErrorActionPreference='Stop'",
+      `$startArgs=@{FilePath='C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';ArgumentList=@('-NoProfile','-NonInteractive','-Sta','-EncodedCommand','${encodedCommand}');Verb='RunAs';Wait=$true;PassThru=$true}`,
+      nativeConfirmation ? "$startArgs.WindowStyle='Hidden'" : "",
+      "$p=Start-Process @startArgs",
+      "exit $p.ExitCode",
+    ].filter(Boolean).join("; ");
+
+    const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", launcher], {
+      encoding: "utf8",
+      shell: false,
+      windowsHide: true,
+      timeout: 5 * 60 * 1000,
+    });
+
+    if (result.error || result.status !== 0) {
+      let elevatedDetail = "";
+      try {
+        elevatedDetail = readFileSync(diagnosticPath, "utf8").trim();
+      } catch {
+        // UAC cancellation or pre-launch failure may produce no elevated diagnostic.
+      }
+      const detail = elevatedDetail || failureDetail(result);
+      throw new Error(`Protected Guardian UAC transition failed or was declined: ${detail}`);
+    }
+  } finally {
+    rmSync(diagnosticDirectory, { recursive: true, force: true });
   }
 }
 
