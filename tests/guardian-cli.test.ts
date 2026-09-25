@@ -177,6 +177,23 @@ test("ordinary global guardian bootstrap is guidance only and never runs request
   });
 });
 
+test("protected Guardian helper accepts Desktop UAC consent only for exact persistent Project Brain Integrity material", async () => {
+  const builtHelper = await readFile(helperPath, "utf8");
+  const start = builtHelper.indexOf("async function requireWindowsDesktopUacConsent");
+  const end = builtHelper.indexOf("async function requireInteractiveIssuance", start);
+  assert.ok(start >= 0 && end > start);
+  const receipt = builtHelper.slice(start, end);
+
+  assert.match(receipt, /project-brain-integrity/);
+  assert.match(receipt, /persistent/);
+  assert.match(receipt, /materialSha256 !== materialSha256/);
+  assert.match(receipt, /DESKTOP_UAC_CONSENT_MAX_AGE_MS/);
+  assert.match(receipt, /inspectWindowsInterpreterProtection/);
+  assert.match(receipt, /ordinaryRequesterWritable/);
+  assert.match(receipt, /await rm\(physicalReceipt, \{ force: false \}\)/);
+  assert.match(builtHelper, /--desktop-uac-receipt/);
+});
+
 test("protected Guardian helper exposes bounded authority transition commands", () => {
   const version = spawnSync(process.execPath, [helperPath, "version"], { encoding: "utf8", shell: false });
   assert.equal(version.status, 0, version.stderr);
