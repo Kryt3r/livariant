@@ -15,6 +15,8 @@ const GUARDIAN_AUTHORITY_MATERIAL_DOMAIN = "livariant:guardian-authority-materia
 const GUARDIAN_ROOT_KIND = "livariant-guardian-root" as const;
 const GUARDIAN_DESCRIPTOR_FILE = "guardian-root.json" as const;
 const GUARDIAN_RECORDS_DIRECTORY = "records" as const;
+const DESKTOP_UAC_CONSENT_KIND = "livariant-guardian-desktop-uac-consent" as const;
+const DESKTOP_UAC_CONSENT_MAX_AGE_MS = 2 * 60 * 1000;
 const ONE_SHOT_TTL_MS = 10 * 60 * 1000;
 const WINDOWS_POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
 const WINDOWS_INTERPRETER_TARGET_ENV = "LIVARIANT_GUARDIAN_HELPER_INTERPRETER_TARGET";
@@ -590,11 +592,73 @@ function requireWindowsNativeSimpleIssuance(
   if (result.stdout.trim() !== "AUTHORIZED") throw new Error("Guardian Authority confirmation was declined.");
 }
 
+async function requireWindowsDesktopUacConsent(
+  request: ProtectedGuardianRequest,
+  materialSha256: string,
+  receiptPath: string,
+): Promise<void> {
+  if (process.platform !== "win32"
+    || request.consumer !== "project-brain-integrity"
+    || request.mode !== "persistent") {
+    throw new Error("Guardian Desktop UAC consent is restricted to persistent Project Brain Integrity Authority.");
+  }
+
+  const root = await realpath(productionRoot());
+  const physicalReceipt = await realpath(receiptPath);
+  if (dirname(physicalReceipt).toLowerCase() !== root.toLowerCase()) {
+    throw new Error("Guardian Desktop UAC consent receipt must be created directly inside the fixed protected Guardian root.");
+  }
+  const stats = await lstat(physicalReceipt);
+  if (!stats.isFile() || stats.isSymbolicLink()) {
+    throw new Error("Guardian Desktop UAC consent receipt must be a regular protected file.");
+  }
+
+  const protection = inspectWindowsInterpreterProtection(physicalReceipt);
+  if (!protectedWindowsOwner(protection.ownerSid) || protection.ordinaryRequesterWritable) {
+    throw new Error("Guardian Desktop UAC consent receipt is not protected from ordinary requester writes.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(physicalReceipt, "utf8")) as unknown;
+  } catch {
+    throw new Error("Guardian Desktop UAC consent receipt is invalid JSON.");
+  }
+  if (!plainObject(parsed)) throw new Error("Guardian Desktop UAC consent receipt is invalid.");
+  strictKeys(parsed, ["schemaVersion", "kind", "consumer", "mode", "materialSha256", "issuedAt", "expiresAt"]);
+  if (parsed.schemaVersion !== 1
+    || parsed.kind !== DESKTOP_UAC_CONSENT_KIND
+    || parsed.consumer !== "project-brain-integrity"
+    || parsed.mode !== "persistent"
+    || parsed.materialSha256 !== materialSha256
+    || typeof parsed.issuedAt !== "string"
+    || typeof parsed.expiresAt !== "string") {
+    throw new Error("Guardian Desktop UAC consent receipt does not match the exact prepared integrity material.");
+  }
+  const issuedAt = Date.parse(parsed.issuedAt);
+  const expiresAt = Date.parse(parsed.expiresAt);
+  const now = Date.now();
+  if (!Number.isFinite(issuedAt) || !Number.isFinite(expiresAt)
+    || issuedAt > now + 5_000
+    || expiresAt <= now
+    || expiresAt - issuedAt <= 0
+    || expiresAt - issuedAt > DESKTOP_UAC_CONSENT_MAX_AGE_MS) {
+    throw new Error("Guardian Desktop UAC consent receipt is expired or has an invalid validity window.");
+  }
+
+  await rm(physicalReceipt, { force: false });
+}
+
 async function requireInteractiveIssuance(
   request: ProtectedGuardianRequest,
   materialSha256: string,
   nativeConfirmationLanguage?: "de" | "en",
+  desktopUacReceiptPath?: string,
 ): Promise<void> {
+  if (desktopUacReceiptPath !== undefined) {
+    await requireWindowsDesktopUacConsent(request, materialSha256, desktopUacReceiptPath);
+    return;
+  }
   if (windowsNativeConfirmationRequested(request, nativeConfirmationLanguage)) {
     const language = nativeConfirmationLanguage!;
     if (request.consumer === "lifecycle-mutation") requireWindowsNativeLifecycleIssuance(request, materialSha256, language);
@@ -644,13 +708,14 @@ async function ensureConsumerDirectory(recordsRoot: string, consumer: ProtectedG
 async function issueAuthority(
   requestPath: string,
   nativeConfirmationLanguage?: "de" | "en",
+  desktopUacReceiptPath?: string,
 ): Promise<void> {
   const { records } = await assertProtectedSelf();
   requirePrivilegedProcess();
   await assertProtectedInterpreter();
   const request = parseProtectedGuardianRequest(JSON.parse(await readFile(requestPath, "utf8")) as unknown);
   const materialSha256 = protectedGuardianMaterialDigest(request.consumer, request.materialFields);
-  await requireInteractiveIssuance(request, materialSha256, nativeConfirmationLanguage);
+  await requireInteractiveIssuance(request, materialSha256, nativeConfirmationLanguage, desktopUacReceiptPath);
 
   const issuedAt = new Date();
   const record: ProtectedGuardianAuthorityRecord = {
@@ -735,6 +800,10 @@ function optionalArgValue(args: string[], name: string): string | undefined {
   return args[index + 1];
 }
 
+function parseDesktopUacReceipt(args: string[]): string | undefined {
+  return optionalArgValue(args, "--desktop-uac-receipt");
+}
+
 function parseNativeConfirmationLanguage(args: string[]): "de" | "en" | undefined {
   const value = optionalArgValue(args, "--native-confirmation-language");
   if (value === undefined || value === "de" || value === "en") return value;
@@ -754,7 +823,11 @@ async function main(args: string[]): Promise<void> {
     return;
   }
   if (command === "issue-authority") {
-    await issueAuthority(argValue(args, "--request"), parseNativeConfirmationLanguage(args));
+    await issueAuthority(
+      argValue(args, "--request"),
+      parseNativeConfirmationLanguage(args),
+      parseDesktopUacReceipt(args),
+    );
     return;
   }
   if (command === "inspect-authority") {
