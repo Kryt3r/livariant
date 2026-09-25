@@ -38,3 +38,10 @@ Automatische Provider-Injektion ist nicht implementiert. Der Repository-Stand na
 Siehe [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md) für den Return-Vertrag und [Stable Project Identity Foundation](stable-project-identity-foundation.md) für die Semantik der logischen Identität.
 
 Diese Funktion ist Repository-Entwicklung nach RC3 und nicht Bestandteil des unveränderlichen Releases `v0.1.0-rc.3`.
+
+
+## Provider-Session-Freshness
+
+Eine stabile Project-Brain-Identität bezeichnet das logische Projekt, nicht eine einzelne Provider-Unterhaltung. MCP ergänzt deshalb eine getrennte ephemere Provider-Session-Bindung: Jede laufende Livariant-MCP-Session erhält eine eigene UUID; diese UUID ist materialer Bestandteil der Provider-Context-Paketidentität. Die Desktop-UI-Auswahl ist kein Teil dieser Bindung.
+
+Damit können zwei Codex- oder Claude-MCP-Sessions unabhängig am selben Projekt arbeiten, während eine weitere Session desselben Providers einem anderen Projekt zugeordnet ist. Projektfremde Returns werden durch die aktuellen Project-Brain-Identitäts-/Baseline-Prüfungen abgewiesen; MCP verlangt zusätzlich die exakte, nur einmal verwendbare Ausgabe derselben Session.
