@@ -3,9 +3,9 @@ import type { ProjectContextBaseline, ProjectContextItem } from "./context-snaps
 
 export type ProviderContextProvider = "claude-code" | "codex";
 
-export interface ProviderContextDesktopActivation {
-  desktopProjectId: string;
-  activationId: string;
+export interface ProviderContextSessionBinding {
+  id: string;
+  source: "mcp-session";
 }
 
 export interface ProviderContextTask {
@@ -39,7 +39,7 @@ export interface ProviderContextBase {
   provider: ProviderContextProvider;
   projectLocator: string;
   stableProjectIdentity: string | null;
-  desktopActivation: ProviderContextDesktopActivation | null;
+  providerSession: ProviderContextSessionBinding | null;
   projection: ProviderContextProjection;
   mutationAuthorization: false;
   applySupported: false;
