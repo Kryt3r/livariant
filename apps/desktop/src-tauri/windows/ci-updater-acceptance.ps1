@@ -315,9 +315,24 @@ try {
     Start-Sleep -Milliseconds 200
   }
 
-  $nodeVersion = (& $node --version | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $nodeVersion -ne "v$($manifest.nodeVersion)") {
-    throw "Updated bundled Node runtime identity mismatch: $nodeVersion"
+  $nodeVersion = $null
+  $nodeProbeError = $null
+  for ($attempt = 0; $attempt -lt 30; $attempt++) {
+    try {
+      $candidateNodeVersion = (& $node --version 2>&1 | Out-String).Trim()
+      if ($LASTEXITCODE -eq 0) {
+        $nodeVersion = $candidateNodeVersion
+        $nodeProbeError = $null
+        break
+      }
+      $nodeProbeError = "exit=$LASTEXITCODE output=$candidateNodeVersion"
+    } catch {
+      $nodeProbeError = $_.Exception.Message
+    }
+    Start-Sleep -Milliseconds 200
+  }
+  if ($nodeVersion -ne "v$($manifest.nodeVersion)") {
+    throw "Updated bundled Node runtime identity mismatch after bounded retry. Expected v$($manifest.nodeVersion), got '$nodeVersion'. Last probe error: $nodeProbeError"
   }
 
   $previousBypass = $env:PBF_RUNTIME_DELEGATION_BYPASS
