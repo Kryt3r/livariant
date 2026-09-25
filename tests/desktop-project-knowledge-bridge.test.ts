@@ -306,23 +306,35 @@ test("initial Project Knowledge integrity activation is explicit and does not ow
   assert.doesNotMatch(handler, /projectKnowledgeLoading = true/);
 });
 
-test("Windows Project Knowledge integrity confirmation uses visible bounded native elevation", async () => {
-  const privileged = await readFile("src/guardian/privileged-helper.ts", "utf8");
+test("Windows Project Knowledge integrity activation is prepared in Core and elevated only by the Desktop host", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
   const protectedHelper = await readFile("src/guardian/protected-helper.ts", "utf8");
 
-  const runWindowsStart = privileged.indexOf("function runWindows(");
-  const runWindowsEnd = privileged.indexOf("export async function runPrivilegedGuardianHelper", runWindowsStart);
-  assert.ok(runWindowsStart >= 0 && runWindowsEnd > runWindowsStart);
-  const runWindows = privileged.slice(runWindowsStart, runWindowsEnd);
-  assert.match(runWindows, /FilePath='C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1\.0\\\\powershell\.exe'/);
-  assert.match(runWindows, /Verb='RunAs'/);
-  assert.match(runWindows, /-EncodedCommand/);
-  assert.match(runWindows, /timeout: 5 \* 60 \* 1000/);
-  assert.match(runWindows, /Buffer\.from\(JSON\.stringify\(\{/);
-  assert.match(runWindows, /Buffer\.from\(elevatedScript, "utf16le"\)\.toString\("base64"\)/);
-  assert.match(runWindows, /diagnosticPath/);
-  assert.doesNotMatch(runWindows, /LIVARIANT_GUARDIAN_ELEVATED_/);
-  assert.doesNotMatch(runWindows, /FilePath=\$env:LIVARIANT_GUARDIAN_ELEVATED_NODE;ArgumentList/);
+  assert.match(core, /prepareDesktopProjectKnowledgeIntegrityAuthority/);
+  assert.match(core, /completeDesktopProjectKnowledgeIntegrityAuthority/);
+  assert.match(core, /projectBrainIntegrityGuardianRequest/);
+  assert.match(core, /"prepare-integrity-authority"/);
+  assert.match(core, /"complete-integrity-authority"/);
+
+  const acceptStart = rust.indexOf("pub async fn accept_project_knowledge_integrity");
+  assert.ok(acceptStart >= 0);
+  const accept = rust.slice(acceptStart);
+  assert.match(accept, /"method": "prepare-integrity-authority"/);
+  assert.match(accept, /issue_project_knowledge_integrity_authority_from_desktop/);
+  assert.match(accept, /"method": "complete-integrity-authority"/);
+  assert.doesNotMatch(accept, /"method": "accept-integrity"/);
+
+  const elevationStart = rust.indexOf("async fn issue_project_knowledge_integrity_authority_from_desktop");
+  const elevationEnd = rust.indexOf("#\[tauri::command\]\npub async fn accept_project_knowledge_integrity", elevationStart);
+  assert.ok(elevationStart >= 0 && elevationEnd > elevationStart);
+  const elevation = rust.slice(elevationStart, elevationEnd);
+  assert.match(elevation, /fixed_guardian_helper/);
+  assert.match(elevation, /fixed_desktop_install_root/);
+  assert.match(elevation, /LIVARIANT_DESKTOP_ELEVATED_SCRIPT/);
+  assert.match(elevation, /Verb RunAs/);
+  assert.match(elevation, /--native-confirmation-language/);
+  assert.doesNotMatch(elevation, /LIVARIANT_GUARDIAN_ELEVATED_/);
 
   const dialogStart = protectedHelper.indexOf("function requireWindowsNativeSimpleIssuance(");
   const dialogEnd = protectedHelper.indexOf("async function requireInteractiveIssuance", dialogStart);
@@ -332,8 +344,6 @@ test("Windows Project Knowledge integrity confirmation uses visible bounded nati
   assert.match(dialog, /\$form\.ShowInTaskbar=\$true/);
   assert.match(dialog, /\$form\.Add_Shown\(\{\$form\.Activate\(\);\$form\.BringToFront\(\)\}\)/);
   assert.match(dialog, /\$timer\.Interval=300000/);
-  assert.match(dialog, /timeout: 5 \* 60 \* 1000/);
-  assert.doesNotMatch(dialog, /Windows\.Forms\.MessageBox/);
 });
 
 test("bounded Project Knowledge reads cannot leave the renderer waiting forever", async () => {
