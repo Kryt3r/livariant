@@ -44,6 +44,7 @@ export type JsonRpcResponse = JsonRpcSuccess | JsonRpcFailure;
 interface ToolCallParams {
   name: string;
   arguments: Record<string, unknown>;
+  providerThreadId?: string;
 }
 
 function plainObject(value: unknown): value is Record<string, unknown> {
@@ -126,7 +127,21 @@ function parseToolCallParams(value: unknown): ToolCallParams {
   if ("_meta" in value && !plainObject(value._meta)) throw new Error("tools/call _meta must be an object when present.");
   const args = value.arguments === undefined ? {} : value.arguments;
   if (!plainObject(args)) throw new Error("tools/call arguments must be an object.");
-  return { name: value.name, arguments: args };
+
+  let providerThreadId: string | undefined;
+  if (plainObject(value._meta) && "threadId" in value._meta) {
+    if (typeof value._meta.threadId !== "string") throw new Error("tools/call _meta.threadId must be a string when present.");
+    const normalized = value._meta.threadId.trim();
+    if (normalized.length === 0 || normalized.length > 240 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+      throw new Error("tools/call _meta.threadId is invalid.");
+    }
+    providerThreadId = normalized;
+  }
+  return {
+    name: value.name,
+    arguments: args,
+    ...(providerThreadId === undefined ? {} : { providerThreadId }),
+  };
 }
 
 function canonicalJson(value: unknown): string {
@@ -141,6 +156,7 @@ function canonicalJson(value: unknown): string {
 interface IssuedProviderContext {
   exactCopy: string;
   available: boolean;
+  providerThreadId?: string;
 }
 
 function tools(): Record<string, unknown>[] {
@@ -336,11 +352,13 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
             const args = parseContextToolArguments(call.arguments);
             const result = await buildProviderContext(args.provider, args.task, projectPath, {
               providerSessionId,
+              providerThreadId: call.providerThreadId,
             });
             if (result.state === "ready" && typeof result.packetId === "string") {
               issuedProviderContexts.set(result.packetId, {
                 exactCopy: canonicalJson(result),
                 available: true,
+                ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
               });
             }
             return response(id, toolResult(result as unknown as Record<string, unknown>));
@@ -362,6 +380,9 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
             }
             if (issued.exactCopy !== canonicalJson(args.context)) {
               throw new Error("Provider Return context must exactly match the Provider Context issued by this MCP session.");
+            }
+            if (issued.providerThreadId !== call.providerThreadId) {
+              throw new Error("Provider Return must come from the same provider-native thread that received Provider Context.");
             }
             issued.available = false;
             const result = await processProviderReturn(
