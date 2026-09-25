@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { stdin, stdout } from "node:process";
+import { stderr, stdin, stdout } from "node:process";
 import { discoverProject } from "./discovery.js";
 import { ensureDesktopProjectBrainStorage } from "./desktop-project-brain-storage.js";
 import { ProjectBrainStore } from "../project-brain/store.js";
