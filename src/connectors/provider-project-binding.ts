@@ -8,6 +8,13 @@ export interface ProviderProjectDescriptor {
   stableProjectIdentity: string | null;
 }
 
+export interface CodexSessionProjectBinding {
+  sessionId: string;
+  threadIds: string[];
+  project: ProviderProjectDescriptor | null;
+  attribution: "consistent-project" | "mixed-projects" | "unattributed";
+}
+
 export interface CodexThreadProjectBinding {
   threadId: string;
   sessionId: string;
@@ -70,6 +77,45 @@ export function bindCodexThreadsToProjects(
       providerProjectId: thread.projectId,
       project: { ...first.project },
       attribution: first.exact ? "cwd-exact" as const : "cwd-descendant" as const,
+    };
+  });
+}
+
+
+export function summarizeCodexSessionProjects(
+  bindings: readonly CodexThreadProjectBinding[],
+): CodexSessionProjectBinding[] {
+  const groups = new Map<string, CodexThreadProjectBinding[]>();
+  for (const binding of bindings) {
+    const current = groups.get(binding.sessionId) ?? [];
+    current.push(binding);
+    groups.set(binding.sessionId, current);
+  }
+
+  return [...groups.entries()].map(([sessionId, sessionBindings]) => {
+    const attributed = sessionBindings.filter((binding) => binding.project !== null);
+    const projectIds = new Set(attributed.map((binding) => binding.project!.desktopProjectId));
+    if (projectIds.size === 0) {
+      return {
+        sessionId,
+        threadIds: sessionBindings.map((binding) => binding.threadId),
+        project: null,
+        attribution: "unattributed" as const,
+      };
+    }
+    if (projectIds.size > 1 || attributed.length !== sessionBindings.length) {
+      return {
+        sessionId,
+        threadIds: sessionBindings.map((binding) => binding.threadId),
+        project: null,
+        attribution: "mixed-projects" as const,
+      };
+    }
+    return {
+      sessionId,
+      threadIds: sessionBindings.map((binding) => binding.threadId),
+      project: { ...attributed[0]!.project! },
+      attribution: "consistent-project" as const,
     };
   });
 }
