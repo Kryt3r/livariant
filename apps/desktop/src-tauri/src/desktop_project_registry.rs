@@ -145,6 +145,15 @@ pub struct DesktopProjectRegistrySnapshot {
     boundaries: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProviderProjectDescriptor {
+    pub(crate) desktop_project_id: String,
+    pub(crate) local_root: String,
+    pub(crate) project_id: Option<String>,
+    pub(crate) stable_project_identity: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesktopProjectMutationResult {
@@ -910,6 +919,27 @@ pub(crate) fn ci_project_state_root(
 ) -> Result<PathBuf, String> {
     let projects_root = projects_root(app)?;
     real_state_directory(&projects_root, desktop_project_id, false)
+}
+
+pub(crate) fn registered_provider_projects(
+    app: &tauri::AppHandle,
+) -> Result<Vec<ProviderProjectDescriptor>, String> {
+    let projects_root = projects_root(app)?;
+    let registry = load_registry(&projects_root)?;
+    let mut projects = Vec::new();
+    for project in registry.projects {
+        if project.state != DesktopProjectRegistrationState::Registered || availability(&project) != "available" {
+            continue;
+        }
+        let local_root = canonical_local_root(&project.local_root)?;
+        projects.push(ProviderProjectDescriptor {
+            desktop_project_id: project.desktop_project_id,
+            local_root: path_for_storage(&local_root),
+            project_id: project.project_id,
+            stable_project_identity: project.stable_project_identity,
+        });
+    }
+    Ok(projects)
 }
 
 pub(crate) fn active_diagnostics_project_id(
