@@ -199,3 +199,12 @@ Each running MCP bridge instance is bound to the project path from which that br
 This permits multiple sessions of the same provider to work on the same or different projects without requiring Livariant Desktop to be open or showing the matching project.
 
 For Codex, Livariant can also query persisted App Server thread metadata later. Provider-owned thread `id`, `sessionId`, and captured `cwd` are used as evidence to reconcile saved Codex threads against all registered Livariant project roots. Exact/descendant cwd matches are project-attributed; unknown or mixed-project sessions remain unattributed/ambiguous. This retrospective mapping is evidence only and grants no Project Truth or Authority.
+
+
+### Provider-native conversation correlation
+
+When an MCP client supplies bounded provider-native conversation metadata, Livariant can make the session binding more specific. Current Codex injects a `threadId` into MCP tool-call `_meta`. Livariant carries that value as `providerThreadId` inside the ephemeral Provider Context session binding and includes it in packet identity.
+
+A Provider Return for such a context must arrive through the same running Livariant MCP session **and** with the same provider-native thread id. Two Codex threads sharing one MCP server therefore receive distinct Provider Context packet identities.
+
+Provider-native thread metadata remains correlation evidence only. It is not Project Truth, user approval, authentication, or mutation Authority.
