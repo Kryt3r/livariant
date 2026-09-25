@@ -341,7 +341,10 @@ test("Windows Project Knowledge integrity activation is prepared in Core and ele
   assert.ok(stageAt >= 0 && upgradeAt > stageAt && issueAt > upgradeAt);
   assert.match(elevation, /LIVARIANT_DESKTOP_ELEVATED_SCRIPT/);
   assert.match(elevation, /Verb RunAs/);
-  assert.match(elevation, /--native-confirmation-language/);
+  assert.match(elevation, /desktop-uac-consent/);
+  assert.match(elevation, /--desktop-uac-receipt/);
+  assert.match(elevation, /materialSha256/);
+  assert.doesNotMatch(elevation, /--native-confirmation-language/);
   assert.doesNotMatch(elevation, /LIVARIANT_GUARDIAN_ELEVATED_/);
 
   const dialogStart = protectedHelper.indexOf("function requireWindowsNativeSimpleIssuance(");
