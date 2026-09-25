@@ -253,7 +253,7 @@ test("Reject and Keep Existing remain renderer-local decisions with no Project B
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
   const keepStart = main.indexOf('document.querySelector<HTMLButtonElement>(".keep-truth-review")');
   const rejectStart = main.indexOf('document.querySelector<HTMLButtonElement>(".reject-truth-review")');
-  const nextStart = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-auto-setup-retry]")', rejectStart);
+  const nextStart = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")', rejectStart);
   assert.ok(keepStart >= 0 && rejectStart > keepStart && nextStart > rejectStart);
 
   const keepHandler = main.slice(keepStart, rejectStart);
@@ -268,17 +268,34 @@ test("Reject and Keep Existing remain renderer-local decisions with no Project B
 });
 
 
-test("Project Knowledge setup retry stays non-blocking in the renderer", async () => {
+test("Project Knowledge normal surface has no manual protected-setup retry or hanging setup state", async () => {
   const main = await readFile("apps/desktop/src/main.ts", "utf8");
-  const start = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-auto-setup-retry]")');
-  const end = main.indexOf('document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")', start);
-  assert.ok(start >= 0 && end > start);
-  const handler = main.slice(start, end);
 
-  assert.match(handler, /projectKnowledgeSetupInFlight = true/);
-  assert.match(handler, /void \(async \(\) =>/);
-  assert.match(handler, /ensureProjectKnowledgeTrusted\(getLanguage\(\)\)/);
-  assert.doesNotMatch(handler, /projectKnowledgeLoading = true/);
-  assert.match(main, /without blocking this page/);
-  assert.match(main, /ohne diese Seite zu blockieren/);
+  assert.doesNotMatch(main, /data-project-knowledge-auto-setup-retry/);
+  assert.doesNotMatch(main, /projectKnowledgeSetupInFlight/);
+  assert.doesNotMatch(main, /ensureProjectKnowledgeTrusted\(getLanguage\(\)\)/);
+  assert.match(main, /data-project-knowledge-protection-refresh/);
+  assert.match(main, /Das Livariant-Wissen hat sich verändert/);
+});
+
+test("Project Knowledge ready-state refresh performs one protected snapshot read before detailed recovery inspection", async () => {
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+  const start = main.indexOf("const refreshProjectKnowledge");
+  const end = main.indexOf("const icon =", start);
+  const refresh = main.slice(start, end);
+
+  const snapshotAt = refresh.indexOf("await loadProjectKnowledge()");
+  const statusAt = refresh.indexOf("await loadProjectKnowledgeProtectionStatus()");
+  assert.ok(snapshotAt >= 0 && statusAt > snapshotAt, "ready-state snapshot read must precede detailed recovery status inspection");
+  assert.match(refresh, /integrity-acceptance-required/);
+  assert.match(refresh, /acceptProjectKnowledgeIntegrity\(protection\.integrity\.digest/);
+  assert.doesNotMatch(refresh.slice(0, statusAt), /loadProjectKnowledgeProtectionStatus/);
+});
+
+test("Project Knowledge begins canonical refresh immediately on initial render and project activation", async () => {
+  const main = await readFile("apps/desktop/src/main.ts", "utf8");
+  assert.doesNotMatch(main, /requestAnimationFrame\(\(\) => \{ void refreshProjectKnowledge/);
+  assert.match(main, /projectKnowledgeLoading = true;\s*render\(\);\s*void refreshProjectKnowledge\(true\);\s*$/);
+  const activation = main.slice(main.indexOf("onDesktopProjectActivated"), main.indexOf("onLanguageChange"));
+  assert.match(activation, /render\(\);\s*void refreshProjectKnowledge\(true\)/);
 });
