@@ -16,6 +16,8 @@ test("global header health reads every supported local provider and refreshes on
   assert.match(shell, /local_provider_status", \{ provider: "custom" \}/);
   assert.match(shell, /livariant:connections-changed/);
   assert.match(shell, /connectedProviderRows/);
+  assert.match(shell, /providerBrandLogo\(row\.id\)/);
+  assert.match(shell, /global-health-provider-logo/);
 });
 
 test("connection settings notify the shell after provider state changes", () => {
