@@ -90,22 +90,36 @@ function runWindows(interpreter: string, support: GuardianAuthoritySupport, args
     LIVARIANT_GUARDIAN_ELEVATED_HIDE_WINDOW: nativeConfirmation ? "1" : "0",
   };
   args.forEach((arg, index) => { env[`LIVARIANT_GUARDIAN_ELEVATED_ARG_${index}`] = arg; });
-  const script = [
+
+  // Use the same elevation shape as the installed protected setup: elevate the
+  // fixed Windows PowerShell host first, then invoke the already-validated
+  // protected Node/helper pair from inside that elevated process.
+  const elevatedScript = [
     "$ErrorActionPreference='Stop'",
     "$count=[int]$env:LIVARIANT_GUARDIAN_ELEVATED_ARG_COUNT",
     "$arguments=New-Object System.Collections.Generic.List[string]",
     "$arguments.Add($env:LIVARIANT_GUARDIAN_ELEVATED_HELPER)",
     "for($i=0;$i -lt $count;$i++){ $arguments.Add([Environment]::GetEnvironmentVariable(('LIVARIANT_GUARDIAN_ELEVATED_ARG_' + $i))) }",
-    "$startArgs=@{FilePath=$env:LIVARIANT_GUARDIAN_ELEVATED_NODE;ArgumentList=$arguments.ToArray();WorkingDirectory=$env:LIVARIANT_GUARDIAN_ELEVATED_CWD;Verb='RunAs';Wait=$true;PassThru=$true}",
+    "& $env:LIVARIANT_GUARDIAN_ELEVATED_NODE @($arguments.ToArray())",
+    "exit $LASTEXITCODE",
+  ].join("; ");
+  env.LIVARIANT_GUARDIAN_ELEVATED_SCRIPT = Buffer.from(elevatedScript, "utf8").toString("base64");
+
+  const launcher = [
+    "$ErrorActionPreference='Stop'",
+    "$payload=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:LIVARIANT_GUARDIAN_ELEVATED_SCRIPT))",
+    "$encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($payload))",
+    "$startArgs=@{FilePath='C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';ArgumentList=@('-NoProfile','-NonInteractive','-Sta','-EncodedCommand',$encoded);WorkingDirectory=$env:LIVARIANT_GUARDIAN_ELEVATED_CWD;Verb='RunAs';Wait=$true;PassThru=$true}",
     "if($env:LIVARIANT_GUARDIAN_ELEVATED_HIDE_WINDOW -eq '1'){ $startArgs.WindowStyle='Hidden' }",
     "$p=Start-Process @startArgs",
     "exit $p.ExitCode",
   ].join("; ");
-  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", script], {
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Command", launcher], {
     encoding: "utf8",
     shell: false,
     windowsHide: true,
     env,
+    timeout: 5 * 60 * 1000,
   });
   if (result.error || result.status !== 0) {
     throw new Error(`Protected Guardian UAC transition failed or was declined: ${failureDetail(result)}`);
