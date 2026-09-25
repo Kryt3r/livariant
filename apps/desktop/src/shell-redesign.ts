@@ -11,6 +11,7 @@ import {
   loadProjectSourceReviewPresentation,
 } from "./project-source-review-bridge.js";
 import { loadFirstRunLifecycle } from "./first-run-lifecycle.js";
+import { providerBrandLogo } from "./provider-brand-assets.js";
 import {
   ensureShellProjectRegistryLoaded,
   syncShellProjectSwitcher,
@@ -139,7 +140,7 @@ const providerDetail = (provider: "codex" | LocalProviderId): string => {
 };
 
 const connectedProviderRows = () => {
-  const rows: Array<{ id: string; name: string; detail: string }> = [];
+  const rows: Array<{ id: "codex" | LocalProviderId; name: string; detail: string }> = [];
   if (connectorStatus?.connected) rows.push({ id: "codex", name: "Codex", detail: providerDetail("codex") });
   for (const provider of localProviderIds) {
     if (localProviderStatuses[provider]?.connected) {
@@ -158,7 +159,7 @@ const healthRowsMarkup = () => {
     return `<div class="global-health-row"><span>${text("Providers", "Provider")}</span><strong data-health-tone="${healthState()}">${text("No active connection", "Keine aktive Verbindung")}</strong></div>`;
   }
   return rows.map((row) =>
-    `<div class="global-health-row" data-health-provider="${row.id}"><span>${esc(row.name)}</span><strong data-health-tone="healthy">${esc(row.detail)}</strong></div>`
+    `<div class="global-health-row" data-health-provider="${row.id}"><span class="global-health-provider-name"><i class="global-health-provider-logo global-health-provider-logo-${row.id}" aria-hidden="true">${providerBrandLogo(row.id)}</i><b>${esc(row.name)}</b></span><strong data-health-tone="healthy">${esc(row.detail)}</strong></div>`
   ).join("");
 };
 
