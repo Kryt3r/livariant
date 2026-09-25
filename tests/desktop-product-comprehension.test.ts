@@ -80,27 +80,28 @@ test("Block-A review follow-up does not leave duplicated function declarations o
 test("provider connection UX groups automatic connections and keeps executable paths as fallback", () => {
   const onboarding = readFileSync("apps/desktop/src/first-run-ui.ts", "utf8");
   const connections = readFileSync("apps/desktop/src/connections-diagnostics.ts", "utf8");
+  const brands = readFileSync("apps/desktop/src/provider-brand-assets.ts", "utf8");
 
   assert.match(onboarding, /data-fr-connect-all-providers/);
   assert.match(onboarding, /Alle verfügbaren Anbieter verbinden/);
-  assert.match(onboarding, /providerLogo\("codex"\)/);
-  assert.match(onboarding, /providerLogo\(provider\)/);
+  assert.match(onboarding, /providerBrandLogo\("codex"\)/);
+  assert.match(onboarding, /providerBrandLogo\(provider\)/);
   assert.match(onboarding, /data-fr-local-provider-path="\$\{provider\}"/);
   assert.match(onboarding, /automatic discovery did not find a usable installation/);
   assert.doesNotMatch(onboarding, /Oder expliziter Codex-Programmpfad/);
   assert.match(onboarding, /fr-provider-card-mockup/);
   assert.match(onboarding, /fr-provider-controls/);
   assert.match(onboarding, /fr-provider-connect-button/);
-  assert.match(onboarding, /provider-brand-logo-openai/);
-  assert.match(onboarding, /provider-brand-logo-anthropic/);
-  assert.match(onboarding, /provider-brand-logo-google/);
-  assert.match(onboarding, /data-fr-connect-all-providers/);
 
   assert.match(connections, /connect-all-providers/);
   assert.match(connections, /Connect all available providers/);
-  assert.match(connections, /provider-brand-logo-openai/);
-  assert.match(connections, /provider-brand-logo-anthropic/);
-  assert.match(connections, /provider-brand-logo-google/);
+  assert.match(connections, /providerBrandLogo\(provider\)/);
   assert.match(connections, /provider-manual-fallback/);
   assert.match(connections, /automaticallyAvailable/);
+
+  assert.match(brands, /provider-brand-logo-openai/);
+  assert.match(brands, /provider-brand-logo-claude/);
+  assert.match(brands, /provider-brand-logo-google/);
+  assert.match(brands, /openai\/openai-cookbook/);
+  assert.match(brands, /anthropics\/anthropic-sdk-typescript/);
 });
