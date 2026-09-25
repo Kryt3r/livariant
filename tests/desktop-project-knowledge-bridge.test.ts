@@ -331,6 +331,14 @@ test("Windows Project Knowledge integrity activation is prepared in Core and ele
   const elevation = rust.slice(elevationStart, elevationEnd);
   assert.match(elevation, /fixed_guardian_helper/);
   assert.match(elevation, /fixed_desktop_install_root/);
+  assert.match(elevation, /desktop-stage-a\.ps1/);
+  assert.match(elevation, /guardian-upgrade-desktop\.ps1/);
+  assert.match(elevation, /protected_source_current/);
+  assert.match(elevation, /-Replace/);
+  const stageAt = elevation.indexOf("desktop-stage-a.ps1");
+  const upgradeAt = elevation.indexOf("guardian-upgrade-desktop.ps1");
+  const issueAt = elevation.indexOf("'issue-authority'");
+  assert.ok(stageAt >= 0 && upgradeAt > stageAt && issueAt > upgradeAt);
   assert.match(elevation, /LIVARIANT_DESKTOP_ELEVATED_SCRIPT/);
   assert.match(elevation, /Verb RunAs/);
   assert.match(elevation, /--native-confirmation-language/);
