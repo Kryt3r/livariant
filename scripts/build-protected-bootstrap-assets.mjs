@@ -92,6 +92,8 @@ try {
       "guardian-bootstrap",
       "guardian-recover-entry.mjs",
       "guardian-recover.ps1",
+      "guardian-upgrade-entry.mjs",
+      "guardian-upgrade-desktop.ps1",
     ],
   }, null, 2)}\n`);
 
@@ -134,6 +136,26 @@ try {
     "",
   ].join("\n");
   await writeFile(resolve(staging, "guardian-recover-entry.mjs"), recoveryEntry);
+  const upgradeEntry = [
+    'import { upgradeProductionGuardianHelper } from "./dist/src/guardian/bootstrap.js";',
+    "try {",
+    "  const result = await upgradeProductionGuardianHelper();",
+    '  console.log("Livariant Guardian upgrade");',
+    '  console.log(`State: ${result.state}`);',
+    '  console.log(`Root: ${result.root}`);',
+    '  console.log(`Previous helper SHA-256: ${result.previousHelperSha256}`);',
+    '  console.log(`Helper SHA-256: ${result.helperSha256}`);',
+    '  console.log("Authority issued: no");',
+    '  console.log("Records preserved: yes");',
+    '  console.log(`Changes made: ${result.changesMade}`);',
+    "} catch (error) {",
+    '  console.error(`Runtime error: ${error instanceof Error ? error.message : String(error)}`);',
+    "  process.exitCode = 1;",
+    "}",
+    "",
+  ].join("\n");
+  await writeFile(resolve(staging, "guardian-upgrade-entry.mjs"), upgradeEntry);
+
 
   // Stage B must never resolve its privileged interpreter from ambient PATH.
   // Stage A verifies these fixed OS-protected paths before these launchers are used;
@@ -149,6 +171,10 @@ try {
   await writeFile(
     resolve(staging, "guardian-recover.ps1"),
     "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\nodejs\\node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Node executable is missing. Re-run the verified Stage-A installer after installing system-wide Node.js 20+.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-recover-entry.mjs')\nexit $LASTEXITCODE\n",
+  );
+  await writeFile(
+    resolve(staging, "guardian-upgrade-desktop.ps1"),
+    "$ErrorActionPreference = 'Stop'\n$Node = 'C:\\Program Files\\Livariant\\livariant-node.exe'\nif (-not (Test-Path -LiteralPath $Node -PathType Leaf)) { throw 'Protected Livariant Desktop Node runtime is missing. Repair or reinstall Livariant before Guardian upgrade.' }\n& $Node (Join-Path $PSScriptRoot 'guardian-upgrade-entry.mjs')\nexit $LASTEXITCODE\n",
   );
   await writeFile(
     resolve(staging, "guardian-bootstrap"),
