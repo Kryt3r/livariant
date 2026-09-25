@@ -24,7 +24,6 @@ import {
 import {
   acceptProjectKnowledgeIntegrity,
   applyProjectKnowledgeProposal,
-  ensureProjectKnowledgeTrusted,
   loadProjectKnowledge,
   loadProjectKnowledgeProtectionStatus,
   prepareProjectKnowledgeProposal,
@@ -134,7 +133,6 @@ let projectKnowledgeLoadedOnce = false;
 let projectKnowledgeLastRefreshAt = 0;
 let projectKnowledgeRefreshInFlight: Promise<void> | null = null;
 let projectKnowledgeApplying = false;
-let projectKnowledgeSetupInFlight = false;
 let projectKnowledgeProtection: ProjectKnowledgeProtectionStatus | null = null;
 let projectKnowledgeError: string | null = null;
 let updateState: UpdateState = "idle";
@@ -182,17 +180,58 @@ const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
 
   const refresh = (async () => {
     try {
-      const protection = await loadProjectKnowledgeProtectionStatus();
-      projectKnowledgeProtection = protection;
-      if (!protection.canonicalReadReady) {
-        clearProjectKnowledgeSnapshot();
-        return;
-      }
+      // The snapshot command already performs the complete fail-closed protection
+      // check. Ready-state reads should not run the same expensive inspection twice.
       const snapshot = await loadProjectKnowledge();
+      projectKnowledgeProtection = null;
       applyProjectKnowledgeSnapshot(snapshot);
-    } catch (error) {
-      clearProjectKnowledgeSnapshot();
-      projectKnowledgeError = error instanceof Error ? error.message : String(error);
+    } catch (readError) {
+      try {
+        let protection = await loadProjectKnowledgeProtectionStatus();
+
+        // Only the narrow initial integrity baseline may be established automatically.
+        // Mismatches, damaged state and unexpected changes still require explicit review.
+        if (protection.state === "integrity-acceptance-required" && protection.integrity.digest) {
+          protection = await acceptProjectKnowledgeIntegrity(protection.integrity.digest, getLanguage());
+          if (protection.canonicalReadReady) {
+            const snapshot = await loadProjectKnowledge();
+            projectKnowledgeProtection = null;
+            applyProjectKnowledgeSnapshot(snapshot);
+            return;
+          }
+        }
+
+        projectKnowledgeProtection = protection;
+        clearProjectKnowledgeSnapshot();
+
+        if (
+          protection.state === "protected-source-required"
+          || protection.state === "guardian-bootstrap-required"
+          || protection.state === "project-brain-initialization-required"
+          || protection.state === "integrity-acceptance-required"
+        ) {
+          projectKnowledgeError = uiText(
+            "Project knowledge is not ready on this device yet. Livariant will not use an unprotected Project Brain.",
+            "Projektwissen ist auf diesem Gerät noch nicht bereit. Livariant verwendet keinen ungeschützten Project Brain.",
+          );
+        } else if (protection.state === "unsupported-platform") {
+          projectKnowledgeError = uiText(
+            "Protected Project Knowledge is not available on this platform.",
+            "Geschütztes Projektwissen ist auf dieser Plattform nicht verfügbar.",
+          );
+        } else if (protection.state === "unsafe") {
+          projectKnowledgeError = uiText(
+            "Project knowledge is blocked because the protected local setup is not safe to use.",
+            "Projektwissen ist blockiert, weil die geschützte lokale Einrichtung nicht sicher verwendet werden kann.",
+          );
+        } else if (protection.state !== "integrity-recovery-required") {
+          projectKnowledgeError = readError instanceof Error ? readError.message : String(readError);
+        }
+      } catch (statusError) {
+        clearProjectKnowledgeSnapshot();
+        projectKnowledgeProtection = null;
+        projectKnowledgeError = statusError instanceof Error ? statusError.message : String(statusError);
+      }
     } finally {
       projectKnowledgeLoadedOnce = true;
       projectKnowledgeLastRefreshAt = Date.now();
@@ -484,23 +523,8 @@ const renderProjectKnowledgeProtection = () => {
     </section>`;
   }
 
-  return `<section class="project-brain-setup-card">
-    <div class="project-brain-setup-icon" aria-hidden="true">${projectKnowledgeSetupInFlight ? "↻" : "…"}</div>
-    <div class="project-brain-setup-main"><div class="project-brain-setup-heading">
-      <span class="project-brain-setup-step">${uiText("Project setup", "Projekteinrichtung")}</span>
-      <h3>${projectKnowledgeSetupInFlight ? uiText("Project setup is continuing", "Projekteinrichtung wird fortgesetzt") : uiText("Project knowledge setup is incomplete", "Projektwissen ist noch nicht vollständig eingerichtet")}</h3>
-      <p>${projectKnowledgeSetupInFlight
-        ? uiText(
-            "Livariant is completing the protected setup without blocking this page. You can keep using the app; the status will update when the setup finishes.",
-            "Livariant schließt die geschützte Einrichtung ab, ohne diese Seite zu blockieren. Du kannst die App weiter benutzen; der Status wird aktualisiert, sobald die Einrichtung abgeschlossen ist.",
-          )
-        : uiText(
-            "Livariant normally prepares Project Brain protection automatically when the project is added. Retry the project setup instead of manually managing security components here.",
-            "Livariant bereitet den Schutz des Project Brains normalerweise automatisch beim Hinzufügen des Projekts vor. Starte die Projekteinrichtung erneut, statt hier Sicherheitskomponenten manuell zu verwalten.",
-          )}</p>
-    </div></div>
-    <div class="project-brain-setup-actions"><button class="button secondary" type="button" data-project-knowledge-auto-setup-retry ${projectKnowledgeSetupInFlight ? "disabled" : ""}>${projectKnowledgeSetupInFlight ? uiText("Setup running…", "Einrichtung läuft…") : uiText("Retry project setup", "Projekteinrichtung erneut versuchen")}</button></div>
-  </section>`;
+  return "";
+
 };
 
 const renderProjectTruthView = () => {
@@ -760,7 +784,7 @@ const activateView = async (view: View) => {
     const stale = !projectKnowledgeLoadedOnce || Date.now() - projectKnowledgeLastRefreshAt > 15_000;
     if (!projectKnowledgeLoadedOnce) projectKnowledgeLoading = true;
     render();
-    if (stale) window.requestAnimationFrame(() => { void refreshProjectKnowledge(true); });
+    if (stale) void refreshProjectKnowledge(true);
     return;
   }
 
@@ -952,44 +976,6 @@ const bindEvents = () => {
     render();
   });
 
-  document.querySelector<HTMLButtonElement>("[data-project-knowledge-auto-setup-retry]")?.addEventListener("click", () => {
-    if (projectKnowledgeSetupInFlight) return;
-    projectKnowledgeSetupInFlight = true;
-    notice = {
-      kind: "info",
-      title: uiText("Project setup is continuing", "Projekteinrichtung wird fortgesetzt"),
-      detail: uiText(
-        "Livariant is completing the protected setup without blocking Project Knowledge.",
-        "Livariant schließt die geschützte Einrichtung ab, ohne Projektwissen zu blockieren.",
-      ),
-    };
-    render();
-    void (async () => {
-      try {
-        await ensureProjectKnowledgeTrusted(getLanguage());
-        await refreshProjectKnowledge(false);
-        notice = {
-          kind: "success",
-          title: uiText("Project knowledge is ready", "Projektwissen ist bereit"),
-          detail: uiText(
-            "Livariant completed the project knowledge setup. No separate protection step is required here.",
-            "Livariant hat die Einrichtung des Projektwissens abgeschlossen. Hier ist kein zusätzlicher Schutzschritt erforderlich.",
-          ),
-        };
-      } catch (error) {
-        notice = {
-          kind: "error",
-          title: uiText("Project setup needs attention", "Projekteinrichtung benötigt Aufmerksamkeit"),
-          detail: error instanceof Error ? error.message : String(error),
-        };
-        await refreshProjectKnowledge(false);
-      } finally {
-        projectKnowledgeSetupInFlight = false;
-        render();
-      }
-    })();
-  });
-
   document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")?.addEventListener("click", async () => {
     await refreshProjectKnowledge();
   });
@@ -1077,14 +1063,13 @@ onDesktopProjectActivated(() => {
   }
   projectKnowledgeError = null;
   projectKnowledgeProtection = null;
-  projectKnowledgeSetupInFlight = false;
   projectKnowledgeLoadedOnce = false;
   projectKnowledgeLastRefreshAt = 0;
   projectKnowledgeRefreshInFlight = null;
   if (currentView === "steps") {
     projectKnowledgeLoading = true;
     render();
-    window.requestAnimationFrame(() => { void refreshProjectKnowledge(true); });
+    void refreshProjectKnowledge(true);
   }
 });
 
@@ -1092,4 +1077,6 @@ onLanguageChange(() => {
   if (document.querySelector(".truth-workspace") || settingsOpen) render();
 });
 
+projectKnowledgeLoading = true;
 render();
+void refreshProjectKnowledge(true);
