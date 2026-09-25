@@ -55,10 +55,20 @@ struct DesktopProjectRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+struct DesktopProviderActivationRecord {
+    desktop_project_id: String,
+    activation_id: String,
+    process_id: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 struct DesktopProjectRegistry {
     schema_version: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_active_desktop_project_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    provider_activation: Option<DesktopProviderActivationRecord>,
     projects: Vec<DesktopProjectRecord>,
     #[serde(default)]
     legacy_migration: LegacyMigrationRecord,
@@ -69,6 +79,7 @@ impl Default for DesktopProjectRegistry {
         Self {
             schema_version: REGISTRY_SCHEMA_VERSION,
             last_active_desktop_project_id: None,
+            provider_activation: None,
             projects: Vec::new(),
             legacy_migration: LegacyMigrationRecord::default(),
         }
@@ -402,6 +413,22 @@ fn validate_registry(registry: &DesktopProjectRegistry) -> Result<(), String> {
         };
         if record.state != DesktopProjectRegistrationState::Registered {
             return Err("Desktop project registry last-active identity is detached.".to_owned());
+        }
+    }
+    if let Some(binding) = registry.provider_activation.as_ref() {
+        let desktop_project_id = canonical_uuid(&binding.desktop_project_id, "providerActivation.desktopProjectId")?;
+        canonical_uuid(&binding.activation_id, "providerActivation.activationId")?;
+        if binding.process_id == 0 {
+            return Err("Desktop provider activation processId must be positive.".to_owned());
+        }
+        if registry.last_active_desktop_project_id.as_deref() != Some(desktop_project_id.as_str()) {
+            return Err("Desktop provider activation must match the last-active Desktop project.".to_owned());
+        }
+        let Some(record) = registry.projects.iter().find(|project| project.desktop_project_id == desktop_project_id) else {
+            return Err("Desktop provider activation references an unknown project.".to_owned());
+        };
+        if record.state != DesktopProjectRegistrationState::Registered {
+            return Err("Desktop provider activation references a detached project.".to_owned());
         }
     }
     Ok(())
@@ -747,6 +774,11 @@ fn activate_at(
         .ok_or_else(|| "Desktop project activation generation is exhausted.".to_owned())?;
 
     registry.last_active_desktop_project_id = Some(id.clone());
+    registry.provider_activation = Some(DesktopProviderActivationRecord {
+        desktop_project_id: id.clone(),
+        activation_id: Uuid::new_v4().hyphenated().to_string(),
+        process_id: std::process::id(),
+    });
     write_registry(projects_root, &registry)?;
 
     runtime.generation = next_generation;
@@ -805,6 +837,9 @@ fn detach_at(
     project.state = DesktopProjectRegistrationState::Detached;
     if registry.last_active_desktop_project_id.as_deref() == Some(id.as_str()) {
         registry.last_active_desktop_project_id = None;
+    }
+    if registry.provider_activation.as_ref().is_some_and(|binding| binding.desktop_project_id == id) {
+        registry.provider_activation = None;
     }
 
     let active_is_target = runtime
@@ -1252,6 +1287,11 @@ pub(crate) fn finalize_legacy_migration(
         state: DesktopProjectRegistrationState::Registered,
     });
     registry.last_active_desktop_project_id = Some(id.clone());
+    registry.provider_activation = Some(DesktopProviderActivationRecord {
+        desktop_project_id: id.clone(),
+        activation_id: Uuid::new_v4().hyphenated().to_string(),
+        process_id: std::process::id(),
+    });
     registry.legacy_migration = LegacyMigrationRecord {
         state: LegacyMigrationState::Complete,
         source_fingerprint: Some(import.source_fingerprint),
@@ -1279,7 +1319,7 @@ pub(crate) fn restore_last_active_project(
     state: &DesktopProjectRegistryState,
 ) -> Result<(), String> {
     let projects_root = projects_root(app)?;
-    let registry = load_registry(&projects_root)?;
+    let mut registry = load_registry(&projects_root)?;
     if registry.legacy_migration.state == LegacyMigrationState::RecoveryRequired {
         return Ok(());
     }
@@ -1294,6 +1334,12 @@ pub(crate) fn restore_last_active_project(
     }
     let local_root = canonical_local_root(&project.local_root)?;
     let state_root = real_state_directory(&projects_root, id, false)?;
+    registry.provider_activation = Some(DesktopProviderActivationRecord {
+        desktop_project_id: id.to_owned(),
+        activation_id: Uuid::new_v4().hyphenated().to_string(),
+        process_id: std::process::id(),
+    });
+    write_registry(&projects_root, &registry)?;
 
     let mut runtime = state
         .runtime
