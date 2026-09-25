@@ -287,9 +287,9 @@ test("Project Knowledge ready-state refresh performs one protected snapshot read
   const snapshotAt = refresh.indexOf("await loadProjectKnowledge()");
   const statusAt = refresh.indexOf("await loadProjectKnowledgeProtectionStatus()");
   assert.ok(snapshotAt >= 0 && statusAt > snapshotAt, "ready-state snapshot read must precede detailed recovery status inspection");
-  assert.match(refresh, /integrity-acceptance-required/);
   assert.doesNotMatch(refresh, /acceptProjectKnowledgeIntegrity/);
   assert.doesNotMatch(refresh.slice(0, statusAt), /loadProjectKnowledgeProtectionStatus/);
+  assert.match(refresh, /protection\.state !== "integrity-acceptance-required"/);
 });
 
 test("initial Project Knowledge integrity activation is explicit and does not own the global loading state", async () => {
