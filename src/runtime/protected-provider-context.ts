@@ -34,6 +34,12 @@ export async function buildProtectedProviderContext(
   if (options.providerSessionId !== undefined && !isStableProjectIdentity(options.providerSessionId)) {
     throw new Error("Provider session id must be a canonical UUID.");
   }
+  if (options.providerThreadId !== undefined) {
+    const threadId = options.providerThreadId.trim();
+    if (threadId.length === 0 || threadId.length > 240 || /[\u0000-\u001f\u007f]/.test(threadId)) {
+      throw new Error("Provider thread id is invalid.");
+    }
+  }
 
   const snapshot = await buildProtectedProjectContextSnapshot(projectPath, options);
   const base: ProviderContextBase = {
@@ -45,7 +51,11 @@ export async function buildProtectedProviderContext(
     projectLocator: snapshot.projectLocator,
     stableProjectIdentity: snapshot.stableProjectIdentity,
     providerSession: options.providerSessionId
-      ? { id: options.providerSessionId, source: "mcp-session" }
+      ? {
+          id: options.providerSessionId,
+          source: "mcp-session",
+          ...(options.providerThreadId ? { providerThreadId: options.providerThreadId.trim() } : {}),
+        }
       : null,
     projection: projection(),
     mutationAuthorization: false,
@@ -75,6 +85,7 @@ export async function buildProtectedProviderContext(
       snapshot.baseline.digest,
       task,
       options.providerSessionId,
+      options.providerThreadId?.trim(),
     ),
     baseline: snapshot.baseline,
     safetyState: "clear",
