@@ -3,7 +3,7 @@ import { stdin, stdout } from "node:process";
 import { resolveCodexCommand } from "./codex-command.js";
 import { connectCodexAppServer } from "./codex-runtime.js";
 import { listCodexThreads } from "./codex-thread-catalog.js";
-import { bindCodexThreadsToProjects, type ProviderProjectDescriptor } from "./provider-project-binding.js";
+import { bindCodexThreadsToProjects, summarizeCodexSessionProjects, type ProviderProjectDescriptor } from "./provider-project-binding.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -76,6 +76,7 @@ async function main(): Promise<void> {
   try {
     const threads = await listCodexThreads(session);
     const bindings = bindCodexThreadsToProjects(threads, projects);
+    const sessions = summarizeCodexSessionProjects(bindings);
     stdout.write(JSON.stringify({
       schemaVersion: 1,
       state: "ready",
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
       observedAt: new Date().toISOString(),
       detail: "Codex persisted threads were reconciled against registered Livariant project roots by provider-owned cwd.",
       bindings,
+      sessions,
     }));
   } finally {
     session.close();
