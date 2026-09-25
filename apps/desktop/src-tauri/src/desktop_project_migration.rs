@@ -779,8 +779,10 @@ pub(crate) fn initialize(
             return Ok(());
         }
         if is_pre_project_first_run_progress(&material)? {
-            if status.project_count > 0 && status.state == LegacyMigrationState::Pending {
-                mark_legacy_migration_not_needed(app)?;
+            if status.project_count > 0 {
+                if status.state == LegacyMigrationState::Pending {
+                    mark_legacy_migration_not_needed(app)?;
+                }
                 restore_last_active_project(app, state)?;
             }
             return Ok(());
