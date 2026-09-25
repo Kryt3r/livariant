@@ -318,6 +318,10 @@ test("Windows Project Knowledge integrity confirmation uses visible bounded nati
   assert.match(runWindows, /Verb='RunAs'/);
   assert.match(runWindows, /-EncodedCommand/);
   assert.match(runWindows, /timeout: 5 \* 60 \* 1000/);
+  assert.match(runWindows, /Buffer\.from\(JSON\.stringify\(\{/);
+  assert.match(runWindows, /Buffer\.from\(elevatedScript, "utf16le"\)\.toString\("base64"\)/);
+  assert.match(runWindows, /diagnosticPath/);
+  assert.doesNotMatch(runWindows, /LIVARIANT_GUARDIAN_ELEVATED_/);
   assert.doesNotMatch(runWindows, /FilePath=\$env:LIVARIANT_GUARDIAN_ELEVATED_NODE;ArgumentList/);
 
   const dialogStart = protectedHelper.indexOf("function requireWindowsNativeSimpleIssuance(");
