@@ -335,8 +335,11 @@ test("Windows Project Knowledge integrity confirmation uses visible bounded nati
 test("bounded Project Knowledge reads cannot leave the renderer waiting forever", async () => {
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
   assert.match(rust, /Some\("read"\) \| Some\("protection"\)/);
+  assert.match(rust, /Some\("accept-integrity"\)/);
   assert.match(rust, /Duration::from_secs\(10\)/);
+  assert.match(rust, /Duration::from_secs\(360\)/);
   assert.match(rust, /Project Knowledge local read timed out after 10 seconds/);
+  assert.match(rust, /Project Knowledge integrity confirmation timed out after 6 minutes/);
   assert.match(rust, /child\.kill\(\)/);
 });
 
