@@ -185,7 +185,6 @@ const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
       // check. Ready-state reads should not run the same expensive inspection twice.
       const snapshot = await loadProjectKnowledge();
       projectKnowledgeProtection = null;
-  projectKnowledgeIntegrityInFlight = false;
       applyProjectKnowledgeSnapshot(snapshot);
     } catch (readError) {
       try {
@@ -213,7 +212,10 @@ const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
             "Project knowledge is blocked because the protected local setup is not safe to use.",
             "Projektwissen ist blockiert, weil die geschützte lokale Einrichtung nicht sicher verwendet werden kann.",
           );
-        } else if (protection.state !== "integrity-recovery-required") {
+        } else if (
+          protection.state !== "integrity-recovery-required"
+          && protection.state !== "integrity-acceptance-required"
+        ) {
           projectKnowledgeError = readError instanceof Error ? readError.message : String(readError);
         }
       } catch (statusError) {
