@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bindCodexThreadsToProjects } from "../src/connectors/provider-project-binding.js";
+import { bindCodexThreadsToProjects, summarizeCodexSessionProjects } from "../src/connectors/provider-project-binding.js";
 import { listCodexThreads } from "../src/connectors/codex-thread-catalog.js";
 import type { CodexAppServerSession } from "../src/connectors/codex-runtime.js";
 import type { ConnectorInstance } from "../src/connectors/connector-registry.js";
@@ -120,4 +120,27 @@ test("nested registered project root wins over broader parent root", () => {
   );
   assert.equal(bindings[0]?.project?.desktopProjectId, "service");
   assert.equal(bindings[0]?.attribution, "cwd-exact");
+});
+
+
+test("session summary keeps multiple same-project Codex sessions separate and marks mixed session trees ambiguous", () => {
+  const projects = [
+    { desktopProjectId: "desktop-a", localRoot: "/work/a", projectId: "a", stableProjectIdentity: null },
+    { desktopProjectId: "desktop-b", localRoot: "/work/b", projectId: "b", stableProjectIdentity: null },
+  ];
+  const bindings = bindCodexThreadsToProjects([
+    { threadId: "a-1", sessionId: "session-a-1", cwd: "/work/a", projectId: null },
+    { threadId: "a-2", sessionId: "session-a-2", cwd: "/work/a/sub", projectId: null },
+    { threadId: "b-1", sessionId: "session-b-1", cwd: "/work/b", projectId: null },
+    { threadId: "mixed-a", sessionId: "session-mixed", cwd: "/work/a", projectId: null },
+    { threadId: "mixed-b", sessionId: "session-mixed", cwd: "/work/b", projectId: null },
+  ], projects);
+
+  const sessions = summarizeCodexSessionProjects(bindings);
+  const byId = new Map(sessions.map((session) => [session.sessionId, session]));
+  assert.equal(byId.get("session-a-1")?.project?.desktopProjectId, "desktop-a");
+  assert.equal(byId.get("session-a-2")?.project?.desktopProjectId, "desktop-a");
+  assert.equal(byId.get("session-b-1")?.project?.desktopProjectId, "desktop-b");
+  assert.equal(byId.get("session-mixed")?.project, null);
+  assert.equal(byId.get("session-mixed")?.attribution, "mixed-projects");
 });
