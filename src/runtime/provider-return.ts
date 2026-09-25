@@ -33,6 +33,7 @@ interface SuppliedReadyProviderContext {
   providerSession: {
     id: string;
     source: "mcp-session";
+    providerThreadId?: string;
   } | null;
   baseline: ProjectContextBaseline;
   task: {
@@ -225,10 +226,31 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
   let providerSession: SuppliedReadyProviderContext["providerSession"] = null;
   if (value.providerSession !== null) {
     if (!plainObject(value.providerSession)) throw new Error("Provider context session binding is invalid.");
-    strictKeys(value.providerSession, ["id", "source"]);
+    const keys = Object.keys(value.providerSession);
+    for (const key of keys) {
+      if (!["id", "source", "providerThreadId"].includes(key)) {
+        throw new Error(`Provider context session binding contains unsupported field: ${key}.`);
+      }
+    }
+    if (!("id" in value.providerSession) || !("source" in value.providerSession)) {
+      throw new Error("Provider context session binding is incomplete.");
+    }
     const id = parseStableIdentity(value.providerSession.id);
     if (value.providerSession.source !== "mcp-session") throw new Error("Provider context session source is unsupported.");
-    providerSession = { id, source: "mcp-session" };
+    let providerThreadId: string | undefined;
+    if (value.providerSession.providerThreadId !== undefined) {
+      if (typeof value.providerSession.providerThreadId !== "string") throw new Error("Provider context thread id is invalid.");
+      const normalized = value.providerSession.providerThreadId.trim();
+      if (normalized.length === 0 || normalized.length > 240 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+        throw new Error("Provider context thread id is invalid.");
+      }
+      providerThreadId = normalized;
+    }
+    providerSession = {
+      id,
+      source: "mcp-session",
+      ...(providerThreadId === undefined ? {} : { providerThreadId }),
+    };
   }
   const baseline = parseBaseline(value.baseline);
   parseProjection(value.projection);
@@ -249,6 +271,7 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
     baseline.digest,
     value.task.value,
     providerSession?.id,
+    providerSession?.providerThreadId,
   );
   if (packetId !== expectedPacketId) throw new Error("Provider context packet id does not match its provider/baseline/task material.");
 
