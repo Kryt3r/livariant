@@ -414,6 +414,114 @@ pub async fn launch_project_knowledge_protection_setup(
 }
 
 
+#[cfg(target_os = "windows")]
+fn fixed_guardian_helper() -> PathBuf {
+    PathBuf::from(r"C:\ProgramData\Livariant\Guardian\v1\guardian-helper.js")
+}
+
+#[cfg(target_os = "windows")]
+fn powershell_escape_literal(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
+#[cfg(target_os = "windows")]
+async fn issue_project_knowledge_integrity_authority_from_desktop(
+    request: &Value,
+    language: &str,
+) -> Result<(), String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
+    let install_root = executable.parent()
+        .ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
+    if install_root != fixed_desktop_install_root() {
+        return Err("Project Knowledge integrity Authority may launch only from the fixed per-machine Livariant Desktop installation root.".to_owned());
+    }
+
+    let node = bundled_node_path(install_root);
+    let guardian_helper = fixed_guardian_helper();
+    if !node.is_file() || !guardian_helper.is_file() {
+        return Err("Protected Guardian runtime is missing from the fixed Livariant installation. Repair or reinstall Livariant.".to_owned());
+    }
+
+    if request.get("kind").and_then(Value::as_str) != Some("livariant-guardian-authority-request")
+        || request.get("consumer").and_then(Value::as_str) != Some("project-brain-integrity")
+        || request.get("mode").and_then(Value::as_str) != Some("persistent")
+    {
+        return Err("Prepared Project Knowledge integrity Authority request is invalid.".to_owned());
+    }
+
+    let language = if language == "de" { "de" } else { "en" };
+    let temporary = std::env::temp_dir().join(format!("livariant-desktop-integrity-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&temporary)
+        .map_err(|error| format!("Project Knowledge integrity request directory could not be created: {error}"))?;
+    let request_path = temporary.join("authority-request.json");
+    let diagnostic_path = temporary.join("elevation-result.txt");
+
+    let outcome = async {
+        std::fs::write(
+            &request_path,
+            serde_json::to_vec_pretty(request)
+                .map_err(|error| format!("Prepared Project Knowledge integrity Authority request is invalid: {error}"))?
+        ).map_err(|error| format!("Project Knowledge integrity Authority request could not be written: {error}"))?;
+
+        let node_literal = powershell_escape_literal(&node.display().to_string());
+        let helper_literal = powershell_escape_literal(&guardian_helper.display().to_string());
+        let request_literal = powershell_escape_literal(&request_path.display().to_string());
+        let diagnostic_literal = powershell_escape_literal(&diagnostic_path.display().to_string());
+
+        let elevated_script = format!(
+            "$ErrorActionPreference='Stop'; \
+             try {{ \
+               $output = & '{node_literal}' '{helper_literal}' 'issue-authority' '--request' '{request_literal}' '--native-confirmation-language' '{language}' 2>&1 | Out-String; \
+               $code=$LASTEXITCODE; \
+               [IO.File]::WriteAllText('{diagnostic_literal}', [string]$output); \
+               if($code -ne 0){{ exit $code }}; \
+               exit 0 \
+             }} catch {{ \
+               try {{ [IO.File]::WriteAllText('{diagnostic_literal}', [string]$_.Exception.Message) }} catch {{}}; \
+               exit 1 \
+             }}"
+        );
+
+        let powershell = PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
+        let escaped_powershell = powershell_escape_literal(&powershell.display().to_string());
+        let launcher = format!(
+            "$ErrorActionPreference='Stop'; \
+             $payload=$env:LIVARIANT_DESKTOP_ELEVATED_SCRIPT; \
+             $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($payload)); \
+             try {{ \
+               $p=Start-Process -FilePath '{escaped_powershell}' -ArgumentList @('-NoProfile','-NonInteractive','-Sta','-EncodedCommand',$encoded) -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop; \
+               exit $p.ExitCode \
+             }} catch {{ Write-Error $_; exit 1 }}"
+        );
+
+        let elevated_script_for_worker = elevated_script.clone();
+        let powershell_for_worker = powershell.clone();
+        let status = tauri::async_runtime::spawn_blocking(move || {
+            hidden_command(&powershell_for_worker)
+                .args(["-NoProfile", "-NonInteractive", "-Command", &launcher])
+                .env("LIVARIANT_DESKTOP_ELEVATED_SCRIPT", elevated_script_for_worker)
+                .status()
+        }).await
+            .map_err(|error| format!("Project Knowledge integrity elevation worker failed: {error}"))?
+            .map_err(|error| format!("Project Knowledge integrity elevation could not be started: {error}"))?;
+
+        if !status.success() {
+            let detail = std::fs::read_to_string(&diagnostic_path)
+                .unwrap_or_else(|_| "Windows UAC may have been cancelled or the protected Guardian helper failed before returning diagnostic output.".to_owned());
+            return Err(format!("Project Knowledge integrity Authority failed: {}", detail.trim()));
+        }
+        Ok(())
+    }.await;
+
+    if let Err(error) = std::fs::remove_dir_all(&temporary) {
+        if outcome.is_ok() {
+            return Err(format!("Project Knowledge integrity completed but temporary request cleanup failed: {error}"));
+        }
+    }
+    outcome
+}
+
 #[tauri::command]
 pub async fn accept_project_knowledge_integrity(
     app: tauri::AppHandle,
@@ -424,15 +532,56 @@ pub async fn accept_project_knowledge_integrity(
     let scope = active_project_scope(&app, registry.inner())?;
     let expected_generation = scope.generation;
     let expected_project = scope.desktop_project_id.clone();
-    let app_for_worker = app.clone();
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        let state = app_for_worker.state::<DesktopProjectRegistryState>();
-        run_project_knowledge(&app_for_worker, state.inner(), json!({
-            "method": "accept-integrity",
-            "confirmedDigest": confirmed_digest,
-            "language": language,
+
+    let confirmed_for_prepare = confirmed_digest.clone();
+    let app_for_prepare = app.clone();
+    let prepared = tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_prepare.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app_for_prepare, state.inner(), json!({
+            "method": "prepare-integrity-authority",
+            "confirmedDigest": confirmed_for_prepare,
         }))
-    }).await.map_err(|error| format!("Project Knowledge integrity worker failed: {error}"))??;
+    }).await.map_err(|error| format!("Project Knowledge integrity preparation worker failed: {error}"))??;
+
+    let material_sha256 = prepared.get("materialSha256")
+        .and_then(Value::as_str)
+        .filter(|value| value.len() == 64 && value.chars().all(|ch| ch.is_ascii_hexdigit()))
+        .ok_or_else(|| "Prepared Project Knowledge integrity Authority material digest is invalid.".to_owned())?
+        .to_ascii_lowercase();
+    let request = prepared.get("request")
+        .cloned()
+        .ok_or_else(|| "Prepared Project Knowledge integrity Authority request is missing.".to_owned())?;
+
+    let current_before_uac = active_project_scope(&app, registry.inner())?;
+    if current_before_uac.generation != expected_generation || current_before_uac.desktop_project_id != expected_project {
+        return Err("Active Desktop project changed while Project Knowledge integrity Authority was being prepared; stale operation rejected.".to_owned());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        issue_project_knowledge_integrity_authority_from_desktop(
+            &request,
+            if language.as_deref() == Some("de") { "de" } else { "en" },
+        ).await?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Desktop Project Knowledge integrity activation is currently implemented for Windows only.".to_owned());
+    }
+
+    let confirmed_for_complete = confirmed_digest.clone();
+    let material_for_complete = material_sha256.clone();
+    let app_for_complete = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_complete.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app_for_complete, state.inner(), json!({
+            "method": "complete-integrity-authority",
+            "confirmedDigest": confirmed_for_complete,
+            "materialSha256": material_for_complete,
+        }))
+    }).await.map_err(|error| format!("Project Knowledge integrity completion worker failed: {error}"))??;
+
     let current = active_project_scope(&app, registry.inner())?;
     if current.generation != expected_generation || current.desktop_project_id != expected_project {
         return Err("Active Desktop project changed while protected Project Brain integrity was being accepted; stale result rejected.".to_owned());
