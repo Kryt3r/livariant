@@ -145,18 +145,42 @@ async function main(): Promise<void> {
 
   try {
     const threads = await listCodexThreads(session);
+    const cwdBindings = bindCodexThreadsToProjects(threads, projects);
     const bindings = applyDirectProviderContextEvidence(
-      bindCodexThreadsToProjects(threads, projects),
+      cwdBindings,
       projects,
       contextObservations,
     );
     const sessions = summarizeCodexSessionProjects(bindings);
+    const codexObservations = contextObservations.filter((observation) => observation.provider === "codex");
+    const codexThreadObservations = codexObservations.filter((observation) => observation.providerThreadId !== null);
+    const catalogThreadIds = new Set(threads.map((thread) => thread.threadId));
+    const matchedObservationThreadIds = new Set(
+      codexThreadObservations
+        .map((observation) => observation.providerThreadId)
+        .filter((threadId): threadId is string => threadId !== null && catalogThreadIds.has(threadId)),
+    );
+    const knownProjectIdentities = new Set(
+      projects.flatMap((project) => [project.stableProjectIdentity, project.projectId]).filter((value): value is string => value !== null),
+    );
+    const projectMatchedObservations = codexThreadObservations.filter(
+      (observation) => knownProjectIdentities.has(observation.stableProjectIdentity),
+    );
     stdout.write(JSON.stringify({
       schemaVersion: 1,
       state: "ready",
       provider: "codex",
       observedAt: new Date().toISOString(),
       detail: "Codex persisted threads were reconciled using direct Livariant Provider Context thread evidence first, with provider-owned cwd as fallback only.",
+      directContextEvidence: {
+        observationsTotal: contextObservations.length,
+        codexObservations: codexObservations.length,
+        codexObservationsWithThreadId: codexThreadObservations.length,
+        observationsMatchingRegisteredProjectIdentity: projectMatchedObservations.length,
+        distinctObservationThreadIdsMatchingCatalog: matchedObservationThreadIds.size,
+        bindingsUsingDirectContext: bindings.filter((binding) => binding.attribution === "provider-context").length,
+        bindingsWithDirectContextConflict: bindings.filter((binding) => binding.attribution === "provider-context-conflict").length,
+      },
       bindings,
       sessions,
     }));
