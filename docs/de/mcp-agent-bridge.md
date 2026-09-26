@@ -25,7 +25,8 @@ WP-013 ergänzt eine ausschließlich lesende Setup-Ausgabe für die aktuell unte
 ```text
 livariant mcp setup --provider claude-code
 livariant mcp setup --provider codex
-livariant mcp setup --provider <claude-code|codex> --json
+livariant mcp setup --provider gemini
+livariant mcp setup --provider <claude-code|codex|gemini> --json
 ```
 
 Der Setup-Helfer **führt weder Claude Code noch Codex aus und schreibt keine Provider-Konfiguration**. Er gibt nur providerspezifische native Befehle bzw. Konfigurationsmaterial aus, das der Nutzer selbst prüfen und anwenden kann.
@@ -95,10 +96,11 @@ Eingabe:
 }
 ```
 
-Unterstützte Provider bleiben die bereits durch Provider Context unterstützten Ziele:
+Unterstützte Provider-Context-Ziele sind:
 
 - `codex`
 - `claude-code`
+- `gemini`
 
 Das Tool delegiert direkt an `buildProviderContext()`.
 
