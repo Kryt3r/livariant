@@ -310,6 +310,7 @@ pub fn run() {
             connector_host::codex_connector_connect,
             connector_host::codex_connector_disconnect,
             provider_session_reconciliation::reconcile_codex_provider_sessions,
+            provider_session_reconciliation::reconcile_provider_hook_sessions,
             local_provider_desktop::local_provider_status,
             local_provider_desktop::local_provider_connect,
             local_provider_desktop::local_provider_disconnect,
