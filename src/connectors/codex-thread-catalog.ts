@@ -6,6 +6,7 @@ export interface CodexThreadCatalogEntry {
   sessionId: string;
   cwd: string;
   projectId: string | null;
+  runtimeWorkspaceRoots: string[];
 }
 
 type JsonObject = Record<string, unknown>;
@@ -27,6 +28,22 @@ function requireText(value: unknown, field: string): string {
 function optionalText(value: unknown, field: string): string | null {
   if (value === null || value === undefined) return null;
   return requireText(value, field);
+}
+
+function runtimeWorkspaceRoots(value: unknown, field: string): string[] {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error(`${field} must be an array or null.`);
+  const roots = new Set<string>();
+  value.forEach((rawEnvironment, environmentIndex) => {
+    const environment = requireObject(rawEnvironment, `${field}[${environmentIndex}]`);
+    if (!Array.isArray(environment.runtimeWorkspaceRoots)) {
+      throw new Error(`${field}[${environmentIndex}].runtimeWorkspaceRoots must be an array.`);
+    }
+    environment.runtimeWorkspaceRoots.forEach((root, rootIndex) => {
+      roots.add(requireText(root, `${field}[${environmentIndex}].runtimeWorkspaceRoots[${rootIndex}]`));
+    });
+  });
+  return [...roots];
 }
 
 async function requestThreadPage(
@@ -77,6 +94,10 @@ async function requestThreadPage(
       sessionId: requireText(thread.sessionId, `Codex thread/list result.data[${index}].sessionId`),
       cwd: requireText(thread.cwd, `Codex thread/list result.data[${index}].cwd`),
       projectId: optionalText(thread.projectId, `Codex thread/list result.data[${index}].projectId`),
+      runtimeWorkspaceRoots: runtimeWorkspaceRoots(
+        thread.environments,
+        `Codex thread/list result.data[${index}].environments`,
+      ),
     };
   });
   const nextCursor = result.nextCursor === null || result.nextCursor === undefined
