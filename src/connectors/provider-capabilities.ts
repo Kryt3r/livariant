@@ -7,6 +7,7 @@ export type ProviderCapabilityId =
 export type ProviderCapabilityState =
   | "supported"
   | "mcp-session-only"
+  | "supported-opt-in"
   | "provider-capable-not-integrated"
   | "not-integrated"
   | "bridge-dependent";
@@ -62,9 +63,9 @@ const matrix: Record<ProviderCapabilityMatrix["provider"], ProviderCapabilityMat
         detail: "Livariant isolates each running MCP session, but no Claude-native session id is currently bound into MCP tool calls.",
       },
       "retrospective-session-attribution": {
-        state: "provider-capable-not-integrated",
+        state: "supported-opt-in",
         evidence: "provider-runtime",
-        detail: "Claude exposes session_id and cwd in programmatic session output, but Livariant does not yet ingest a supported historical session catalog.",
+        detail: "Claude hook evidence can be captured without Desktop running and later reconciled to registered projects by cwd when the user explicitly configures the Livariant hook command.",
       },
       "provider-owned-usage-telemetry": {
         state: "not-integrated",
@@ -87,9 +88,9 @@ const matrix: Record<ProviderCapabilityMatrix["provider"], ProviderCapabilityMat
         detail: "Livariant isolates each running MCP session; Gemini hook session_id/cwd metadata is not implicitly installed or consumed.",
       },
       "retrospective-session-attribution": {
-        state: "provider-capable-not-integrated",
+        state: "supported-opt-in",
         evidence: "provider-hooks",
-        detail: "Gemini hooks expose session_id, transcript_path and cwd, but Livariant does not install provider hooks implicitly and has not qualified that reconciliation path yet.",
+        detail: "Gemini hook evidence can be captured without Desktop running and later reconciled to registered projects by cwd when the user explicitly configures the Livariant hook command.",
       },
       "provider-owned-usage-telemetry": {
         state: "provider-capable-not-integrated",
