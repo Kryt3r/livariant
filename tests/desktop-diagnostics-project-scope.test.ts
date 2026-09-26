@@ -82,3 +82,30 @@ test("diagnostics data contract separates provider connection from qualified tel
   assert.doesNotMatch(preview, /value: "Claude", eventCount/);
   assert.doesNotMatch(preview, /value: "Gemini", eventCount/);
 });
+
+
+test("diagnostics exposes live provider sessions as branded provider accordions", async () => {
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const css = await readFile("apps/desktop/src/diagnostics-cockpit.css", "utf8");
+  const reconciliation = await readFile("apps/desktop/src-tauri/src/provider_session_reconciliation.rs", "utf8");
+
+  assert.match(cockpit, /"sessions", lang\("Live sessions", "Live-Sessions"\)/);
+  assert.match(cockpit, /providerBrandLogo\(provider\)/);
+  assert.match(cockpit, /reconcile_codex_provider_sessions/);
+  assert.match(cockpit, /reconcile_provider_hook_sessions/);
+  assert.match(cockpit, /Desktop project selection only filters the view/);
+  assert.match(cockpit, /temporären Diagnose-Mess-Thread/);
+  assert.match(cockpit, /data-dc-provider/);
+  assert.match(cockpit, /openProviders/);
+  assert.match(cockpit, /LIVE_SESSION_REFRESH_MS = 15_000/);
+
+  assert.match(css, /\.dc-provider-accordion/);
+  assert.match(css, /\.dc-provider-brand/);
+  assert.match(css, /\.dc-session-row/);
+  assert.match(css, /\.dc-session-state\.ok/);
+
+  assert.match(reconciliation, /loop \{/);
+  assert.match(reconciliation, /Duration::from_secs\(30\)/);
+  assert.match(reconciliation, /reconcile_codex_sessions_blocking\(app\.clone\(\)\)/);
+  assert.match(reconciliation, /reconcile_provider_hook_sessions_blocking\(app\.clone\(\)\)/);
+});
