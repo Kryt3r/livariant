@@ -2,9 +2,10 @@ import "./diagnostics-cockpit.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage, onLanguageChange } from "./i18n/runtime.js";
 import { onDesktopProjectActivated } from "./desktop-project-registry.js";
+import { providerBrandLogo } from "./provider-brand-assets.js";
 
 type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
-type DiagnosticsTab = "overview" | "usage" | "attribution" | "details";
+type DiagnosticsTab = "overview" | "sessions" | "usage" | "attribution" | "details";
 type ObservedAttributionGroup = {
   value: string;
   eventCount: number;
@@ -17,6 +18,18 @@ type ObservedAttributionDimension = {
   unattributedEventCount: number;
   groups: ObservedAttributionGroup[];
 };
+type DiagnosticsTelemetryProviderState = {
+  state: "supported" | "supported-opt-in" | "mcp-session-only" | "provider-capable-not-integrated" | "not-integrated" | "bridge-dependent";
+  evidence: string;
+  detail: string;
+};
+type DiagnosticsTelemetryCoverage = {
+  evidenceContract: "qualified-provider-owned-usage";
+  connectionDoesNotImplyTelemetry: true;
+  qualifiedProviders: string[];
+  providers: Record<"codex" | "claude" | "gemini" | "custom", DiagnosticsTelemetryProviderState>;
+};
+
 type DiagnosticsSummary = {
   preset: DiagnosticPreset;
   range: { start?: string; end?: string };
@@ -27,6 +40,7 @@ type DiagnosticsSummary = {
   };
   hasObservedData: boolean;
   storage: string;
+  telemetryCoverage: DiagnosticsTelemetryCoverage;
   observed: {
     eventCount: number;
     inputTokens: number;
@@ -48,6 +62,71 @@ type DiagnosticsSummary = {
     taskId: ObservedAttributionDimension;
   };
 };
+type ProviderProjectDescriptor = {
+  desktopProjectId: string;
+  localRoot: string;
+  projectId: string | null;
+  stableProjectIdentity: string | null;
+};
+type CodexSessionBinding = {
+  threadId: string;
+  sessionId: string;
+  cwd: string;
+  providerProjectId: string | null;
+  project: ProviderProjectDescriptor | null;
+  attribution: "provider-context" | "provider-context-conflict" | "provider-workspace" | "provider-workspace-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
+};
+type CodexReconciliation = {
+  schemaVersion: 1;
+  state: "ready" | "unavailable";
+  provider: "codex";
+  observedAt: string;
+  detail: string;
+  runtimeWorkspaceEvidence?: {
+    threadsWithRuntimeWorkspaceRoots: number;
+    distinctRuntimeWorkspaceRoots: number;
+    bindingsUsingRuntimeWorkspace: number;
+    bindingsWithRuntimeWorkspaceConflict: number;
+  };
+  providerProjectEvidence?: {
+    projectsTotal: number;
+    threadsWithProviderProjectId: number;
+    bindingsUsingProviderProject: number;
+    bindingsWithProviderProjectConflict: number;
+  };
+  directContextEvidence?: {
+    observationsTotal: number;
+    codexObservations: number;
+    codexObservationsWithThreadId: number;
+    observationsMatchingRegisteredProjectIdentity: number;
+    distinctObservationThreadIdsMatchingCatalog: number;
+    bindingsUsingDirectContext: number;
+    bindingsWithDirectContextConflict: number;
+  };
+  bindings: CodexSessionBinding[];
+};
+type HookSessionBinding = {
+  provider: "claude" | "gemini";
+  sessionId: string;
+  project: ProviderProjectDescriptor | null;
+  attribution: "cwd-consistent" | "mixed-projects" | "unattributed";
+  cwdEvidence: string[];
+  transcriptPaths: string[];
+  latestObservedAt: string;
+  eventCount: number;
+};
+type HookReconciliation = {
+  schemaVersion: 1;
+  state: "ready";
+  observedAt: string;
+  bindings: HookSessionBinding[];
+};
+type ProviderSessionEvidence = {
+  codex: CodexReconciliation | null;
+  hooks: HookReconciliation | null;
+  codexError: string | null;
+  hooksError: string | null;
+};
 type ExportResult = { saved: boolean; fileName?: string | null };
 
 type CockpitState = {
@@ -57,6 +136,8 @@ type CockpitState = {
   busy: boolean;
   error: string | null;
   notice: string | null;
+  sessions: ProviderSessionEvidence;
+  openProviders: Set<"codex" | "claude" | "gemini" | "custom">;
 };
 
 const state: CockpitState = {
@@ -66,6 +147,8 @@ const state: CockpitState = {
   busy: false,
   error: null,
   notice: null,
+  sessions: { codex: null, hooks: null, codexError: null, hooksError: null },
+  openProviders: new Set(["codex"]),
 };
 let projectActivationGeneration = 0;
 
@@ -93,6 +176,76 @@ const presetLabel = (preset: DiagnosticPreset) => ({
   "90d": lang("Last 90 days", "Letzte 90 Tage"),
   all: lang("All locally available evidence", "Alle lokal verfügbaren Evidenzen"),
 })[preset];
+
+const providerName = (provider: "codex" | "claude" | "gemini" | "custom") => ({
+  codex: "Codex",
+  claude: "Claude",
+  gemini: "Gemini",
+  custom: lang("Custom", "Eigene Verbindung"),
+})[provider];
+
+const providerVendor = (provider: "codex" | "claude" | "gemini" | "custom") => ({
+  codex: "OpenAI",
+  claude: "Anthropic",
+  gemini: "Google",
+  custom: lang("Custom bridge", "Eigene Bridge"),
+})[provider];
+
+const belongsToDiagnosticsProject = (project: ProviderProjectDescriptor | null, projectId: string) =>
+  project !== null && (project.projectId === projectId || project.stableProjectIdentity === projectId);
+
+const shortId = (value: string) => value.length > 22 ? `${value.slice(0, 10)}…${value.slice(-8)}` : value;
+const formatObservedAt = (value: string) => {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat(getLanguage() === "de" ? "de-DE" : "en-US", {
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(parsed);
+};
+
+async function refreshSessionEvidence(): Promise<void> {
+  const [codex, hooks] = await Promise.allSettled([
+    invoke<CodexReconciliation>("reconcile_codex_provider_sessions"),
+    invoke<HookReconciliation>("reconcile_provider_hook_sessions"),
+  ]);
+  if (codex.status === "fulfilled") {
+    state.sessions.codex = codex.value;
+    state.sessions.codexError = null;
+  } else {
+    state.sessions.codexError = codex.reason instanceof Error ? codex.reason.message : String(codex.reason);
+  }
+  if (hooks.status === "fulfilled") {
+    state.sessions.hooks = hooks.value;
+    state.sessions.hooksError = null;
+  } else {
+    state.sessions.hooksError = hooks.reason instanceof Error ? hooks.reason.message : String(hooks.reason);
+  }
+}
+
+const telemetryStateLabel = (state: DiagnosticsTelemetryProviderState["state"]) => ({
+  supported: lang("Included", "Enthalten"),
+  "supported-opt-in": lang("Opt-in available", "Opt-in verfügbar"),
+  "mcp-session-only": lang("No usage telemetry", "Keine Usage-Telemetrie"),
+  "provider-capable-not-integrated": lang("Provider can expose it · not integrated", "Provider kann sie liefern · nicht integriert"),
+  "not-integrated": lang("Not integrated", "Nicht integriert"),
+  "bridge-dependent": lang("Bridge-dependent", "Bridge-abhängig"),
+})[state];
+
+const renderTelemetryCoverage = (coverage: DiagnosticsTelemetryCoverage) => {
+  const rows = (["codex", "claude", "gemini", "custom"] as const).map((provider) => {
+    const value = coverage.providers[provider];
+    const name = provider === "codex" ? "Codex" : provider === "claude" ? "Claude" : provider === "gemini" ? "Gemini" : "Custom";
+    return `<div class="dc-telemetry-provider"><strong>${name}</strong><span>${telemetryStateLabel(value.state)}</span></div>`;
+  }).join("");
+  return `<section class="dc-telemetry-coverage">
+    <div>
+      <span>${lang("Telemetry coverage", "Telemetrie-Abdeckung")}</span>
+      <strong>${lang("These diagnostics currently include only qualified provider-owned usage evidence.", "Diese Diagnose enthält aktuell nur qualifizierte provider-eigene Usage-Evidence.")}</strong>
+      <p>${lang("A provider being connected does not mean its token or usage data is included. Missing provider telemetry stays missing.", "Eine Provider-Verbindung bedeutet nicht, dass deren Token- oder Usage-Daten enthalten sind. Fehlende Provider-Telemetrie bleibt fehlend.")}</p>
+    </div>
+    <div class="dc-telemetry-provider-grid">${rows}</div>
+  </section>`;
+};
 
 const rankGroups = (groups: ObservedAttributionGroup[], limit = 5) => {
   const tokenKnown = groups.some((group) => group.knownTotalTokenEvents > 0 && group.totalTokens > 0);
@@ -187,7 +340,7 @@ const renderAttributionDimension = (title: string, dimension: ObservedAttributio
 const renderOverview = (data: DiagnosticsSummary) => {
   if (!data.hasObservedData) {
     return `<section class="dc-view dc-overview">
-      <div class="dc-hero empty"><div class="dc-hero-icon">–</div><div class="dc-hero-copy"><span>${lang("No observed diagnostic evidence", "Keine beobachteten Diagnosedaten")}</span><h2>${lang("No observed activities in the selected period", "Keine beobachteten Aktivitäten im gewählten Zeitraum")}</h2><p>${lang("Livariant has no observed usage data for this period. Missing information stays unknown instead of being presented as a healthy state or a measured zero.", "Für diesen Zeitraum liegen keine beobachteten Nutzungsdaten vor. Fehlende Informationen bleiben unbekannt, statt als gesunder Zustand oder gemessene Null dargestellt zu werden.")}</p></div><div class="dc-hero-facts"><div><small>${lang("Known measurement data", "Bekannte Messdaten")}</small><strong>—</strong></div><div><small>${lang("Linked to a task", "Einer Aufgabe zugeordnet")}</small><strong>—</strong></div></div></div>
+      <div class="dc-hero empty"><div class="dc-hero-icon">–</div><div class="dc-hero-copy"><span>${lang("No observed diagnostic evidence", "Keine beobachteten Diagnosedaten")}</span><h2>${lang("No observed activities in the selected period", "Keine beobachteten Aktivitäten im gewählten Zeitraum")}</h2><p>${lang("Livariant has no qualified observed usage data for this project and period. This does not mean connected providers had zero usage; provider telemetry that Livariant cannot ingest remains unknown.", "Für dieses Projekt und diesen Zeitraum liegen keine qualifizierten beobachteten Nutzungsdaten vor. Das bedeutet nicht, dass verbundene Provider keine Nutzung hatten; nicht ingestierbare Provider-Telemetrie bleibt unbekannt.")}</p></div><div class="dc-hero-facts"><div><small>${lang("Known measurement data", "Bekannte Messdaten")}</small><strong>—</strong></div><div><small>${lang("Linked to a task", "Einer Aufgabe zugeordnet")}</small><strong>—</strong></div></div></div>
     </section>`;
   }
   const fieldTotal = data.observed.knownFieldCount + data.observed.unknownFieldCount;
@@ -206,22 +359,117 @@ const renderOverview = (data: DiagnosticsSummary) => {
 
 const renderUsage = (data: DiagnosticsSummary) => `<section class="dc-view"><div class="dc-section-intro"><div><span>${lang("Usage", "Nutzung")}</span><h2>${lang("What the recorded AI usage consists of", "Woraus die erfasste KI-Nutzung besteht")}</h2><p>${lang("These numbers describe recorded usage, not project progress, quality or money saved.", "Diese Zahlen beschreiben erfasste Nutzung – nicht Projektfortschritt, Qualität oder eingespartes Geld.")}</p></div></div><div class="dc-grid-main">${renderComposition(data)}<article class="dc-panel dc-evidence-summary"><div class="dc-panel-head"><div><h3>${lang("Observed / Avoided / Estimated", "Observed / Avoided / Estimated")}</h3></div></div>${renderEvidenceClasses(data)}</article></div><div class="dc-grid-2">${renderRankedBreakdown(lang("Provider", "Provider"), lang("Measured attribution by provider.", "Gemessene Zuordnung nach Provider."), data.attribution.provider)}${renderRankedBreakdown(lang("Projects", "Projekte"), lang("Measured attribution by project.", "Gemessene Zuordnung nach Projekt."), data.attribution.projectId)}</div>${renderRankedBreakdown(lang("Models", "Modelle"), lang("Model names appear only when reported by evidence.", "Modellnamen erscheinen nur, wenn sie durch Evidence gemeldet werden."), data.attribution.model)}</section>`;
 
+const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: DiagnosticsSummary) => {
+  if (provider === "codex") {
+    const reconciliation = state.sessions.codex;
+    if (!reconciliation) {
+      return `<div class="dc-session-empty">${esc(state.sessions.codexError ?? lang("Session evidence has not been loaded yet.", "Session-Evidence wurde noch nicht geladen."))}</div>`;
+    }
+    if (reconciliation.state !== "ready") {
+      return `<div class="dc-session-empty">${esc(reconciliation.detail || lang("Codex session evidence is unavailable.", "Codex-Session-Evidence ist nicht verfügbar."))}</div>`;
+    }
+    const renderCodexRows = (rows: CodexSessionBinding[]) => `<div class="dc-session-list">${rows.map((binding) => `<article class="dc-session-row">
+      <div><small>${lang("Thread", "Thread")}</small><strong title="${esc(binding.threadId)}">${esc(shortId(binding.threadId))}</strong></div>
+      <div><small>${lang("Session", "Sitzung")}</small><strong title="${esc(binding.sessionId)}">${esc(shortId(binding.sessionId))}</strong></div>
+      <div><small>cwd</small><strong title="${esc(binding.cwd)}">${esc(binding.cwd)}</strong></div>
+      <span class="dc-session-state ${binding.attribution === "unattributed" || binding.attribution.endsWith("-conflict") ? "warn" : "ok"}">${binding.attribution === "provider-context" ? lang("Direct Provider Context", "Direkter Provider Context") : binding.attribution === "provider-context-conflict" ? lang("Conflicting direct evidence", "Widersprüchliche direkte Evidence") : binding.attribution === "provider-workspace" ? lang("Codex runtime workspace", "Codex-Runtime-Workspace") : binding.attribution === "provider-workspace-conflict" ? lang("Conflicting runtime workspaces", "Widersprüchliche Runtime-Workspaces") : binding.attribution === "provider-project" ? lang("Codex project metadata", "Codex-Projektmetadaten") : binding.attribution === "provider-project-conflict" ? lang("Conflicting Codex project metadata", "Widersprüchliche Codex-Projektmetadaten") : binding.attribution === "cwd-exact" ? lang("Exact project", "Exaktes Projekt") : binding.attribution === "cwd-descendant" ? lang("Project subtree", "Projekt-Unterordner") : lang("Unattributed", "Nicht zugeordnet")}</span>
+    </article>`).join("")}</div>`;
+    const current = reconciliation.bindings.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
+    const other = reconciliation.bindings.filter((binding) => binding.project !== null && !belongsToDiagnosticsProject(binding.project, data.scope.projectId));
+    const unattributed = reconciliation.bindings.filter((binding) => binding.project === null);
+    const currentBody = current.length
+      ? renderCodexRows(current)
+      : `<div class="dc-session-empty">${lang("No Codex sessions are currently attributable to this project.", "Aktuell lassen sich diesem Projekt keine Codex-Sessions zuordnen.")}</div>`;
+    const diagnosticsGroups = [
+      other.length ? `<details class="dc-session-diagnostic-group"><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderCodexRows(other)}</div></details>` : "",
+      unattributed.length ? `<details class="dc-session-diagnostic-group warning"><summary><span>${lang("Unattributed provider threads", "Nicht zugeordnete Provider-Threads")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderCodexRows(unattributed)}</div></details>` : "",
+    ].join("");
+    const catalogSummary = `<div class="dc-session-catalog-summary"><span>${lang("Provider catalog", "Provider-Katalog")}</span><strong>${reconciliation.bindings.length} ${lang("threads", "Threads")}</strong><small>${current.length} ${lang("this project", "dieses Projekt")} · ${other.length} ${lang("other projects", "andere Projekte")} · ${unattributed.length} ${lang("unattributed", "nicht zugeordnet")}</small></div>`;
+    const runtimeWorkspace = reconciliation.runtimeWorkspaceEvidence;
+    const runtimeWorkspaceSummary = runtimeWorkspace
+      ? `<div class="dc-direct-evidence-summary runtime-workspace">
+          <span>${lang("Codex runtime workspace evidence", "Codex-Runtime-Workspace-Evidence")}</span>
+          <small>${runtimeWorkspace.threadsWithRuntimeWorkspaceRoots} ${lang("threads with runtime roots", "Threads mit Runtime-Roots")} · ${runtimeWorkspace.distinctRuntimeWorkspaceRoots} ${lang("distinct roots", "verschiedene Roots")} · ${runtimeWorkspace.bindingsUsingRuntimeWorkspace} ${lang("workspace bindings", "Workspace-Bindungen")}${runtimeWorkspace.bindingsWithRuntimeWorkspaceConflict ? ` · ${runtimeWorkspace.bindingsWithRuntimeWorkspaceConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
+        </div>`
+      : "";
+    const providerProject = reconciliation.providerProjectEvidence;
+    const providerProjectSummary = providerProject
+      ? `<div class="dc-direct-evidence-summary provider-project">
+          <span>${lang("Codex project metadata", "Codex-Projektmetadaten")}</span>
+          <small>${providerProject.projectsTotal} ${lang("provider projects", "Provider-Projekte")} · ${providerProject.threadsWithProviderProjectId} ${lang("threads with project id", "Threads mit Projekt-ID")} · ${providerProject.bindingsUsingProviderProject} ${lang("project bindings", "Projekt-Bindungen")}${providerProject.bindingsWithProviderProjectConflict ? ` · ${providerProject.bindingsWithProviderProjectConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
+        </div>`
+      : "";
+    const direct = reconciliation.directContextEvidence;
+    const directSummary = direct
+      ? `<div class="dc-direct-evidence-summary">
+          <span>${lang("Direct Provider Context evidence", "Direkte Provider-Context-Evidence")}</span>
+          <small>${direct.codexObservations} ${lang("Codex observations", "Codex-Beobachtungen")} · ${direct.codexObservationsWithThreadId} ${lang("with thread id", "mit Thread-ID")} · ${direct.observationsMatchingRegisteredProjectIdentity} ${lang("matching registered project identity", "mit passender registrierter Projektidentität")} · ${direct.distinctObservationThreadIdsMatchingCatalog} ${lang("thread ids found in provider catalog", "Thread-IDs im Provider-Katalog gefunden")} · ${direct.bindingsUsingDirectContext} ${lang("direct bindings", "direkte Bindungen")}${direct.bindingsWithDirectContextConflict ? ` · ${direct.bindingsWithDirectContextConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
+        </div>`
+      : `<div class="dc-direct-evidence-summary missing"><span>${lang("Direct Provider Context evidence", "Direkte Provider-Context-Evidence")}</span><small>${lang("No evidence diagnostics returned by the runtime.", "Die Runtime hat keine Evidence-Diagnosedaten zurückgegeben.")}</small></div>`;
+    return `${catalogSummary}${runtimeWorkspaceSummary}${providerProjectSummary}${directSummary}${currentBody}${diagnosticsGroups}`;
+  }
+
+  const reconciliation = state.sessions.hooks;
+  if (!reconciliation) {
+    return `<div class="dc-session-empty">${esc(state.sessions.hooksError ?? lang("No hook reconciliation evidence has been loaded yet.", "Es wurde noch keine Hook-Reconciliation-Evidence geladen."))}</div>`;
+  }
+  const rows = reconciliation.bindings.filter((binding) => binding.provider === provider && belongsToDiagnosticsProject(binding.project, data.scope.projectId));
+  if (!rows.length) {
+    return `<div class="dc-session-empty">${provider === "claude"
+      ? lang("No Claude hook sessions are currently attributable to this project. Live MCP isolation can still work without hook evidence.", "Aktuell lassen sich diesem Projekt keine Claude-Hook-Sessions zuordnen. Die Live-MCP-Trennung kann trotzdem ohne Hook-Evidence funktionieren.")
+      : lang("No Gemini hook sessions are currently attributable to this project. Hook evidence appears only after the provider hook is configured and emits it.", "Aktuell lassen sich diesem Projekt keine Gemini-Hook-Sessions zuordnen. Hook-Evidence erscheint erst, wenn der Provider-Hook eingerichtet ist und Daten liefert.")}</div>`;
+  }
+  return `<div class="dc-session-list">${rows.map((binding) => `<article class="dc-session-row">
+    <div><small>${lang("Session", "Sitzung")}</small><strong title="${esc(binding.sessionId)}">${esc(shortId(binding.sessionId))}</strong></div>
+    <div><small>cwd</small><strong title="${esc(binding.cwdEvidence.join(" · "))}">${esc(binding.cwdEvidence[0] ?? "—")}</strong></div>
+    <div><small>${lang("Last evidence", "Letzte Evidence")}</small><strong>${esc(formatObservedAt(binding.latestObservedAt))}</strong></div>
+    <span class="dc-session-state ${binding.attribution === "cwd-consistent" ? "ok" : "warn"}">${binding.attribution === "cwd-consistent" ? lang("Project matched", "Projekt zugeordnet") : binding.attribution === "mixed-projects" ? lang("Mixed projects", "Gemischte Projekte") : lang("Unattributed", "Nicht zugeordnet")}</span>
+    ${binding.transcriptPaths.length ? `<div class="dc-session-transcript"><small>Transcript</small><span title="${esc(binding.transcriptPaths.join(" · "))}">${esc(binding.transcriptPaths[0]!)}</span></div>` : ""}
+  </article>`).join("")}</div>`;
+};
+
+const renderProviderAccordion = (provider: "codex" | "claude" | "gemini" | "custom", data: DiagnosticsSummary) => {
+  const open = state.openProviders.has(provider);
+  const status = provider === "codex"
+    ? (state.sessions.codex?.state === "ready" ? lang("Provider threads", "Provider-Threads") : lang("Unavailable / loading", "Nicht verfügbar / lädt"))
+    : provider === "custom"
+      ? lang("Bridge-dependent", "Bridge-abhängig")
+      : lang("Hook + MCP evidence", "Hook- + MCP-Evidence");
+  const body = provider === "custom"
+    ? `<div class="dc-session-empty">${lang("Custom connections expose session evidence only when their bridge declares and implements it. Livariant does not invent missing session history.", "Eigene Verbindungen liefern Session-Evidence nur, wenn ihre Bridge diese Fähigkeit deklariert und implementiert. Livariant erfindet keine fehlende Session-Historie.")}</div>`
+    : renderSessionRows(provider, data);
+  return `<details class="dc-provider-accordion" data-dc-provider="${provider}" ${open ? "open" : ""}>
+    <summary>
+      <span class="dc-provider-brand">${providerBrandLogo(provider)}<span><small>${providerVendor(provider)}</small><strong>${providerName(provider)}</strong></span></span>
+      <span class="dc-provider-accordion-meta"><span>${status}</span><i>⌄</i></span>
+    </summary>
+    <div class="dc-provider-accordion-body">${body}</div>
+  </details>`;
+};
+
+const renderSessions = (data: DiagnosticsSummary) => `<section class="dc-view dc-sessions-view">
+  <div class="dc-section-intro"><div><span>${lang("Live provider evidence", "Live-Provider-Evidence")}</span><h2>${lang("Which real provider sessions belong to this project?", "Welche echten Provider-Sessions gehören zu diesem Projekt?")}</h2><p>${lang("This view uses provider/session evidence, not the temporary diagnostics measurement thread. Desktop project selection only filters the view; it does not define provider routing.", "Diese Ansicht nutzt Provider-/Session-Evidence und nicht den temporären Diagnose-Mess-Thread. Die Desktop-Projektauswahl filtert nur die Ansicht; sie definiert nicht das Provider-Routing.")}</p></div><span class="dc-live-pill"><i></i>${lang("Live reconciliation", "Live-Reconciliation")}</span></div>
+  <div class="dc-provider-accordions">${(["codex","claude","gemini","custom"] as const).map((provider) => renderProviderAccordion(provider, data)).join("")}</div>
+  <div class="dc-session-footnote">${lang("Codex can be reconstructed from provider-owned persisted thread metadata. Claude/Gemini retrospective evidence depends on configured provider hooks. Unknown history remains unknown.", "Codex kann aus provider-eigenen gespeicherten Thread-Metadaten rekonstruiert werden. Nachträgliche Claude-/Gemini-Evidence hängt von eingerichteten Provider-Hooks ab. Unbekannte Historie bleibt unbekannt.")}</div>
+</section>`;
+
 const renderAttribution = (data: DiagnosticsSummary) => `<section class="dc-view"><div class="dc-section-intro"><div><span>${lang("Where the data belongs", "Wozu die Daten gehören")}</span><h2>${lang("Can Livariant connect recorded usage to the right project, session and task?", "Kann Livariant die erfasste Nutzung dem richtigen Projekt, der richtigen Sitzung und Aufgabe zuordnen?")}</h2><p>${lang("Anything Livariant cannot assign remains visibly unassigned instead of disappearing from the picture.", "Was Livariant nicht zuordnen kann, bleibt sichtbar unzugeordnet, statt aus dem Bild zu verschwinden.")}</p></div></div><div class="dc-attribution-grid">${renderAttributionDimension("Provider", data.attribution.provider)}${renderAttributionDimension(lang("Model", "Modell"), data.attribution.model)}${renderAttributionDimension(lang("Project", "Projekt"), data.attribution.projectId)}${renderAttributionDimension(lang("Session", "Sitzung"), data.attribution.sessionId)}${renderAttributionDimension(lang("Task", "Aufgabe"), data.attribution.taskId)}</div></section>`;
 
 const renderDetails = (data: DiagnosticsSummary) => `<section class="dc-view"><div class="dc-section-intro"><div><span>${lang("Details", "Details")}</span><h2>${lang("How to interpret these measurements", "Wie diese Messwerte zu verstehen sind")}</h2></div></div><div class="dc-details-grid"><article class="dc-panel"><h3>${lang("Evidence boundary", "Evidence-Grenze")}</h3><dl><div><dt>Observed</dt><dd>${lang("Direct provider/runtime-owned observations.", "Direkte provider-/runtime-eigene Beobachtungen.")}</dd></div><div><dt>Avoided</dt><dd>${lang("Context that qualified host evidence records as not needed.", "Kontext, den qualifizierte Host-Evidence als nicht benötigt erfasst.")}</dd></div><div><dt>Estimated</dt><dd>${lang("Modeled values; not direct measurement.", "Modellierte Werte; keine direkte Messung.")}</dd></div><div><dt>${lang("Unknown", "Unbekannt")}</dt><dd>${lang("Missing evidence stays unknown and is never replaced by synthetic zero.", "Fehlende Evidence bleibt unbekannt und wird nie durch eine künstliche Null ersetzt.")}</dd></div></dl></article><article class="dc-panel"><h3>${lang("Current measurement", "Aktuelle Messung")}</h3><dl><div><dt>${lang("Period", "Zeitraum")}</dt><dd>${presetLabel(state.preset)}</dd></div><div><dt>${lang("Storage", "Speicher")}</dt><dd>${esc(data.storage || lang("Not exposed", "Nicht verfügbar"))}</dd></div><div><dt>${lang("Raw prompt capture", "Rohprompt-Erfassung")}</dt><dd>${lang("Not captured by default.", "Standardmäßig nicht erfasst.")}</dd></div><div><dt>${lang("Time series", "Zeitverlauf")}</dt><dd>${lang("Not exposed by the current aggregate contract.", "Vom aktuellen aggregierten Vertrag nicht bereitgestellt.")}</dd></div></dl></article></div><article class="dc-panel dc-definition-panel"><h3>${lang("Token field definitions", "Definitionen der Token-Felder")}</h3><div class="dc-definitions"><div><strong>Input</strong><span>${lang("Provider input tokens where reported.", "Vom Provider gemeldete Input-Tokens, sofern verfügbar.")}</span></div><div><strong>Output</strong><span>${lang("Provider output tokens where reported.", "Vom Provider gemeldete Output-Tokens, sofern verfügbar.")}</span></div><div><strong>Cache Read</strong><span>${lang("Cache-read input evidence; not automatically money or time saved.", "Cache-Read-Evidence; nicht automatisch eingespartes Geld oder Zeit.")}</span></div><div><strong>Cache Write</strong><span>${lang("Cache-write token evidence where reported.", "Cache-Write-Token-Evidence, sofern gemeldet.")}</span></div><div><strong>Reasoning</strong><span>${lang("Reasoning-token evidence where available; missing remains unknown.", "Reasoning-Token-Evidence, sofern verfügbar; fehlende Werte bleiben unbekannt.")}</span></div></div></article></section>`;
 
 const renderTabs = () => ([
   ["overview", lang("Overview", "Übersicht")],
+  ["sessions", lang("Live sessions", "Live-Sessions")],
   ["usage", lang("Usage", "Nutzung")],
   ["attribution", lang("Attribution", "Zuordnung")],
   ["details", lang("Details", "Details")],
 ] as const).map(([tab, label]) => `<button type="button" class="dc-tab ${state.tab === tab ? "active" : ""}" data-dc-tab="${tab}">${label}</button>`).join("");
 
-const renderBody = (data: DiagnosticsSummary) => state.tab === "usage" ? renderUsage(data) : state.tab === "attribution" ? renderAttribution(data) : state.tab === "details" ? renderDetails(data) : renderOverview(data);
+const renderBody = (data: DiagnosticsSummary) => state.tab === "sessions" ? renderSessions(data) : state.tab === "usage" ? renderUsage(data) : state.tab === "attribution" ? renderAttribution(data) : state.tab === "details" ? renderDetails(data) : renderOverview(data);
 
 const renderCockpit = (surface: HTMLElement) => {
   if (!state.data) return;
-  surface.innerHTML = `<div class="dc-shell"><header class="dc-header"><div><span class="dc-kicker">${lang("Measured evidence", "Gemessene Evidence")}</span><h1>${lang("Diagnostics", "Diagnose")}</h1><p>${lang("Understand how Livariant worked, what was observed and where evidence is incomplete.", "Verstehe, wie Livariant gearbeitet hat, was beobachtet wurde und wo Evidence unvollständig ist.")}</p></div><div class="dc-header-actions"><select class="dc-preset" aria-label="${lang("Diagnostics period", "Diagnosezeitraum")}" ${state.busy ? "disabled" : ""}>${(["1d","7d","30d","90d","all"] as DiagnosticPreset[]).map((preset) => `<option value="${preset}" ${state.preset === preset ? "selected" : ""}>${presetLabel(preset)}</option>`).join("")}</select><button type="button" class="button secondary dc-export" ${state.busy ? "disabled" : ""}>${lang("Export", "Exportieren")}</button><button type="button" class="button secondary dc-refresh" ${state.busy ? "disabled" : ""}>${state.busy ? lang("Refreshing…", "Aktualisiere…") : lang("Refresh", "Aktualisieren")}</button></div></header><nav class="dc-tabs" aria-label="${lang("Diagnostics sections", "Diagnosebereiche")}">${renderTabs()}</nav>${state.notice ? `<div class="dc-notice">${esc(state.notice)}</div>` : ""}${state.error ? `<div class="dc-error">${esc(state.error)}</div>` : ""}${renderBody(state.data)}<footer class="dc-footer">${lang("Observed ≠ Avoided ≠ Estimated. Unknown remains unknown.", "Observed ≠ Avoided ≠ Estimated. Unbekannt bleibt unbekannt.")}</footer></div>`;
+  surface.innerHTML = `<div class="dc-shell"><header class="dc-header"><div><span class="dc-kicker">${lang("Measured evidence", "Gemessene Evidence")}</span><h1>${lang("Diagnostics", "Diagnose")}</h1><p>${lang("Understand how Livariant worked, what was observed and where evidence is incomplete.", "Verstehe, wie Livariant gearbeitet hat, was beobachtet wurde und wo Evidence unvollständig ist.")}</p></div><div class="dc-header-actions"><select class="dc-preset" aria-label="${lang("Diagnostics period", "Diagnosezeitraum")}" ${state.busy ? "disabled" : ""}>${(["1d","7d","30d","90d","all"] as DiagnosticPreset[]).map((preset) => `<option value="${preset}" ${state.preset === preset ? "selected" : ""}>${presetLabel(preset)}</option>`).join("")}</select><button type="button" class="button secondary dc-export" ${state.busy ? "disabled" : ""}>${lang("Export", "Exportieren")}</button><button type="button" class="button secondary dc-refresh" ${state.busy ? "disabled" : ""}>${state.busy ? lang("Refreshing…", "Aktualisiere…") : lang("Refresh", "Aktualisieren")}</button></div></header>${renderTelemetryCoverage(state.data.telemetryCoverage)}<nav class="dc-tabs" aria-label="${lang("Diagnostics sections", "Diagnosebereiche")}">${renderTabs()}</nav>${state.notice ? `<div class="dc-notice">${esc(state.notice)}</div>` : ""}${state.error ? `<div class="dc-error">${esc(state.error)}</div>` : ""}${renderBody(state.data)}<footer class="dc-footer">${lang("Observed ≠ Avoided ≠ Estimated. Unknown remains unknown.", "Observed ≠ Avoided ≠ Estimated. Unbekannt bleibt unbekannt.")}</footer></div>`;
   bind(surface);
 };
 
@@ -237,7 +485,10 @@ const load = async (surface: HTMLElement) => {
   else surface.innerHTML = `<div class="dc-loading"><span></span><strong>${lang("Loading diagnostic evidence…", "Lade Diagnose-Evidence…")}</strong></div>`;
 
   try {
-    const next = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: state.preset });
+    const [next] = await Promise.all([
+      invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: state.preset }),
+      refreshSessionEvidence(),
+    ]);
     if (generation !== projectActivationGeneration) return;
     state.data = next;
   } catch (cause) {
@@ -260,6 +511,12 @@ const bind = (surface: HTMLElement) => {
     if (!tab || tab === state.tab) return;
     state.tab = tab;
     renderCockpit(surface);
+  }));
+  surface.querySelectorAll<HTMLDetailsElement>("[data-dc-provider]").forEach((details) => details.addEventListener("toggle", () => {
+    const provider = details.dataset.dcProvider as "codex" | "claude" | "gemini" | "custom" | undefined;
+    if (!provider) return;
+    if (details.open) state.openProviders.add(provider);
+    else state.openProviders.delete(provider);
   }));
   surface.querySelector<HTMLSelectElement>(".dc-preset")?.addEventListener("change", (event) => {
     const next = (event.currentTarget as HTMLSelectElement).value as DiagnosticPreset;
@@ -309,6 +566,7 @@ onDesktopProjectActivated(() => {
   state.busy = false;
   state.error = null;
   state.notice = null;
+  state.sessions = { codex: null, hooks: null, codexError: null, hooksError: null };
   const surface = document.querySelector<HTMLElement>("[data-surface='diagnostics']");
   if (surface?.dataset.diagnosticsCockpit === "mounted") return load(surface);
 });
@@ -316,3 +574,15 @@ onLanguageChange(() => {
   const surface = document.querySelector<HTMLElement>("[data-surface='diagnostics']");
   if (surface?.dataset.diagnosticsCockpit === "mounted" && state.data) renderCockpit(surface);
 });
+
+
+const LIVE_SESSION_REFRESH_MS = 15_000;
+window.setInterval(() => {
+  const surface = document.querySelector<HTMLElement>("[data-surface='diagnostics']");
+  if (!surface || surface.dataset.diagnosticsCockpit !== "mounted" || !state.data) return;
+  const generation = projectActivationGeneration;
+  void refreshSessionEvidence().then(() => {
+    if (generation !== projectActivationGeneration) return;
+    if (state.tab === "sessions") renderCockpit(surface);
+  });
+}, LIVE_SESSION_REFRESH_MS);

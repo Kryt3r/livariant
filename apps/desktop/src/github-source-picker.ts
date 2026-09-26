@@ -64,6 +64,7 @@ export async function mountGitHubSourcePicker(
   let status: GitHubConnectionStatus | null = null;
   let authorization: GitHubDeviceAuthorization | null = null;
   let repositories: GitHubRepositorySummary[] = [];
+  let repositoriesLoading = false;
   let error: string | null = null;
   let disposed = false;
   let timer: number | null = null;
@@ -74,12 +75,17 @@ export async function mountGitHubSourcePicker(
   };
 
   const loadRepositories = async () => {
+    repositoriesLoading = true;
+    render();
     try {
       repositories = await invoke<GitHubRepositorySummary[]>("github_list_repositories");
       error = null;
     } catch (cause) {
       error = githubPickerError("repositories");
       repositories = [];
+    } finally {
+      repositoriesLoading = false;
+      render();
     }
   };
 
@@ -104,7 +110,7 @@ export async function mountGitHubSourcePicker(
 
     container.innerHTML = `<div class="fr-github-card"><div class="fr-github-head"><div><strong>${text("GitHub connected", "GitHub verbunden")}</strong><span>${esc(status.login ?? "GitHub")}</span></div><span class="fr-provider-state ok">${text("Read access", "Lesezugriff")}</span></div>
       <label class="fr-github-search"><span>${text("Find repository", "Repository suchen")}</span><input data-gh-search type="search" placeholder="${text("Name or owner…", "Name oder Besitzer…")}"/></label>
-      <div class="fr-github-repositories" data-gh-list>${repositoryMarkup(repositories)}</div>
+      <div class="fr-github-repositories" data-gh-list>${repositoriesLoading ? `<div class="fr-empty"><strong>${text("Loading repositories…", "Repositories werden geladen…")}</strong></div>` : repositoryMarkup(repositories)}</div>
       ${error ? `<small class="fr-github-error">${esc(error)}</small>` : ""}</div>`;
 
     const search = container.querySelector<HTMLInputElement>("[data-gh-search]");
@@ -138,8 +144,8 @@ export async function mountGitHubSourcePicker(
         if (result.connected) {
           status = { state: "connected", connected: true, configured: true, login: result.login, detail: result.detail };
           authorization = null;
-          await loadRepositories();
           render();
+          await loadRepositories();
           return;
         }
         if (result.state === "pending") {
@@ -173,6 +179,7 @@ export async function mountGitHubSourcePicker(
 
   try {
     status = await invoke<GitHubConnectionStatus>("github_connection_status");
+    render();
     if (status.connected) await loadRepositories();
   } catch (cause) {
     status = { state: "disconnected", connected: false, configured: true, login: null, detail: githubPickerError("status") };

@@ -162,6 +162,22 @@ jobs:
 
           Write-Host "Staged Livariant Core $($rootPackage.version) from ${{ steps.source.outputs.sha }} with pinned Node v$nodeVersion."
 
+          $protectedAssets = Join-Path $runtimeDir "protected-bootstrap-assets"
+          New-Item -ItemType Directory -Path $protectedAssets -Force | Out-Null
+          node scripts/build-protected-bootstrap-assets.mjs --source-id github:Kryt3r/livariant --source-sha "${{ steps.source.outputs.sha }}" --channel development --output $protectedAssets
+          if ($LASTEXITCODE -ne 0) {
+            throw "Protected bootstrap asset staging failed."
+          }
+          $protectedManifest = Join-Path $protectedAssets "protected-bootstrap-assets.json"
+          $desktopStageA = Join-Path $protectedAssets "desktop-stage-a.ps1"
+          if (-not (Test-Path -LiteralPath $protectedManifest -PathType Leaf) -or -not (Test-Path -LiteralPath $desktopStageA -PathType Leaf)) {
+            throw "Desktop protected bootstrap assets are incomplete."
+          }
+          $protected = Get-Content -LiteralPath $protectedManifest -Raw | ConvertFrom-Json
+          if ($protected.sourceSha -ne "${{ steps.source.outputs.sha }}" -or $protected.authorityIssued -ne $false) {
+            throw "Desktop protected bootstrap asset identity does not match exact source or incorrectly claims Authority."
+          }
+
       - name: Generate Livariant NSIS branding
         shell: pwsh
         run: ./src-tauri/windows/generate-installer-branding.ps1
@@ -205,13 +221,13 @@ jobs:
         shell: pwsh
         run: |
           $installer = "${{ steps.installer.outputs.path }}"
-          $installDir = Join-Path $env:RUNNER_TEMP "Livariant Installer Smoke"
+          $installDir = Join-Path $env:ProgramFiles "Livariant"
 
           if (Test-Path -LiteralPath $installDir) {
             Remove-Item -LiteralPath $installDir -Recurse -Force
           }
 
-          $install = Start-Process -FilePath $installer -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
+          $install = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
           if ($install.ExitCode -ne 0) {
             throw "Silent NSIS install failed with exit code $($install.ExitCode)."
           }
@@ -222,8 +238,10 @@ jobs:
           $coreCli = Join-Path $installDir "runtime\core\dist\src\cli\index.js"
           $firstRunLifecycle = Join-Path $installDir "runtime\core\dist\src\project\desktop-first-run-lifecycle-cli.js"
           $nodeLicense = Join-Path $installDir "runtime\third-party\NODE-LICENSE.txt"
+          $protectedAssetsManifest = Join-Path $installDir "runtime\protected-bootstrap-assets\protected-bootstrap-assets.json"
+          $desktopStageA = Join-Path $installDir "runtime\protected-bootstrap-assets\desktop-stage-a.ps1"
 
-          foreach ($required in @($app, $node, $runtimeManifestPath, $coreCli, $firstRunLifecycle, $nodeLicense)) {
+          foreach ($required in @($app, $node, $runtimeManifestPath, $coreCli, $firstRunLifecycle, $nodeLicense, $protectedAssetsManifest, $desktopStageA)) {
             if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
               throw "Required installed Livariant runtime material not found: $required"
             }
@@ -308,6 +326,30 @@ jobs:
 
           Stop-Process -Id $process.Id -Force
           $process.WaitForExit()
+
+          $staleFixture = Join-Path $env:RUNNER_TEMP "livariant-stale-node-fixture.js"
+          Set-Content -LiteralPath $staleFixture -Value "setInterval(() => {}, 1000);" -Encoding utf8
+          $staleNode = Start-Process -FilePath $node -ArgumentList @($staleFixture) -PassThru
+          Start-Sleep -Seconds 1
+          $staleNode.Refresh()
+          if ($staleNode.HasExited) {
+            throw "Stale bundled Node fixture exited before overwrite acceptance could run."
+          }
+          $reinstall = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
+          if ($reinstall.ExitCode -ne 0) {
+            Stop-Process -Id $staleNode.Id -Force -ErrorAction SilentlyContinue
+            throw "Silent NSIS reinstall failed while exact installed livariant-node.exe was running; exit code $($reinstall.ExitCode)."
+          }
+          Start-Sleep -Milliseconds 500
+          $staleNode.Refresh()
+          if (-not $staleNode.HasExited) {
+            Stop-Process -Id $staleNode.Id -Force -ErrorAction SilentlyContinue
+            throw "NSIS preinstall did not terminate the stale exact-path Livariant Node runtime before replacement."
+          }
+          if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {
+            throw "Bundled Node runtime was not restored after exact-path overwrite acceptance."
+          }
+          Write-Host "Exact-path stale livariant-node.exe overwrite acceptance passed."
 
           $uninstallers = @(Get-ChildItem -LiteralPath $installDir -Filter "*uninstall*.exe" -File)
           if ($uninstallers.Count -ne 1) {

@@ -60,6 +60,23 @@ fn validate_export_for_save(value: &Value) -> Result<(), String> {
     {
         return Err("Diagnostics export projectScope unattributedEventCount is invalid.".to_owned());
     }
+    let telemetry = value
+        .get("telemetryCoverage")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "Diagnostics export telemetryCoverage is required.".to_owned())?;
+    if telemetry.get("evidenceContract").and_then(Value::as_str) != Some("qualified-provider-owned-usage") {
+        return Err("Diagnostics export telemetryCoverage evidenceContract is invalid.".to_owned());
+    }
+    if telemetry.get("connectionDoesNotImplyTelemetry").and_then(Value::as_bool) != Some(true) {
+        return Err("Diagnostics export must state that provider connection does not imply telemetry.".to_owned());
+    }
+    let qualified = telemetry
+        .get("qualifiedProviders")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Diagnostics export telemetryCoverage qualifiedProviders is invalid.".to_owned())?;
+    if !qualified.iter().any(|provider| provider.as_str() == Some("codex")) {
+        return Err("Diagnostics export telemetryCoverage must identify Codex as a qualified provider.".to_owned());
+    }
     for field in [
         "rawPromptsIncluded",
         "freeformReasonsIncluded",
@@ -162,6 +179,17 @@ mod tests {
                 "projectId": "project-a",
                 "unattributedEventCount": 2
             },
+            "telemetryCoverage": {
+                "evidenceContract": "qualified-provider-owned-usage",
+                "connectionDoesNotImplyTelemetry": true,
+                "qualifiedProviders": ["codex"],
+                "providers": {
+                    "codex": { "state": "supported" },
+                    "claude": { "state": "not-integrated" },
+                    "gemini": { "state": "provider-capable-not-integrated" },
+                    "custom": { "state": "bridge-dependent" }
+                }
+            },
             "privacy": {
                 "rawPromptsIncluded": false,
                 "freeformReasonsIncluded": false,
@@ -200,6 +228,21 @@ mod tests {
         let mut authority = valid_export();
         authority["boundaries"]["exportGrantsAuthority"] = json!(true);
         assert!(validate_export_for_save(&authority).is_err());
+    }
+
+    #[test]
+    fn rejects_export_without_truthful_telemetry_coverage() {
+        let mut missing = valid_export();
+        missing.as_object_mut().expect("object").remove("telemetryCoverage");
+        assert!(validate_export_for_save(&missing).is_err());
+
+        let mut connection_claim = valid_export();
+        connection_claim["telemetryCoverage"]["connectionDoesNotImplyTelemetry"] = json!(false);
+        assert!(validate_export_for_save(&connection_claim).is_err());
+
+        let mut no_codex = valid_export();
+        no_codex["telemetryCoverage"]["qualifiedProviders"] = json!([]);
+        assert!(validate_export_for_save(&no_codex).is_err());
     }
 
     #[test]

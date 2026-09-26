@@ -218,3 +218,19 @@ test("non-interactive agent cannot bootstrap integrity acceptance", async () => 
     assert.match(`${result.stdout}\n${result.stderr}`, /interactive local terminal/i);
   });
 });
+
+test("accepted integrity evidence carries a baseline-verifiable managed snapshot for Before/After review", async () => {
+  await withEnvironment(async (project, home) => {
+    await initialize(project);
+    const receipt = await recordAcceptedProjectBrainState(project, "manual-bootstrap", { homeDir: home });
+    assert.ok(receipt.managedSnapshot);
+    assert.match(receipt.managedSnapshot?.decisionsMd ?? "", /# Decisions/);
+
+    const path = await integrityReceiptPath(project, home);
+    const raw = JSON.parse(await readFile(path, "utf8")) as { managedSnapshot: { decisionsMd: string } };
+    raw.managedSnapshot.decisionsMd += "\n- forged previous state\n";
+    await writeFile(path, JSON.stringify(raw));
+    const inspected = await inspectProjectBrainIntegrity(project, { homeDir: home });
+    assert.equal(inspected.state, "invalid");
+  });
+});

@@ -30,6 +30,7 @@ import {
   type ProjectContextManagedInputName,
 } from "./project-context-material.js";
 import { readProjectBrainSemanticRegions } from "./project-brain-semantics.js";
+import { buildSemanticMutationPlan, type SemanticMutationPlan } from "./semantic-mutation-plan.js";
 
 export interface SemanticApplyOptions {
   beforeConsume?: () => void | Promise<void>;
@@ -188,6 +189,7 @@ export async function verifySemanticApplyPostcondition(
 async function executeAuthorizedMutation(
   proposal: ActionableProposal,
   projectRoot: string,
+  plan: SemanticMutationPlan,
   options: SemanticApplyOptions,
 ): Promise<void> {
   const beforePromote = async () => {
@@ -197,7 +199,11 @@ async function executeAuthorizedMutation(
   const scope = proposal.mutationScope;
 
   if (scope.domain === "project-decision" && scope.changeKind === "add") {
-    await recordAcceptedDecision(scope.proposedStatement, projectRoot, { authorized: true, beforePromote });
+    await recordAcceptedDecision(scope.proposedStatement, projectRoot, {
+      authorized: true,
+      beforePromote,
+      decisionId: plan.decisionIds.decisionId,
+    });
     return;
   }
   if (scope.domain === "project-decision" && scope.changeKind === "supersede") {
@@ -205,7 +211,12 @@ async function executeAuthorizedMutation(
     await supersedeAcceptedDecision({
       decisionId: scope.targetDecisionId,
       replacement: scope.proposedStatement,
-    }, projectRoot, { authorized: true, beforePromote });
+    }, projectRoot, {
+      authorized: true,
+      beforePromote,
+      replacementDecisionId: plan.decisionIds.replacementDecisionId,
+      supersededDecisionId: plan.decisionIds.supersededDecisionId,
+    });
     return;
   }
   if (scope.domain === "project-goal" && scope.changeKind === "add") {
@@ -315,6 +326,7 @@ export async function applyActionableProposal(
   const project = discoverProject(projectPath);
   let consumed = false;
   let authorityCompleted = false;
+  const mutationPlan = await buildSemanticMutationPlan(proposal, project.root);
 
   try {
     await enterApplyingState(authorizationId, proposal, project.root, options);
@@ -323,10 +335,14 @@ export async function applyActionableProposal(
     await assertProposalStillCurrent(proposal, project.root);
     const authorizedPreState = await captureAuthorizedPreState(proposal, project.root);
 
-    await executeAuthorizedMutation(proposal, project.root, options);
+    await executeAuthorizedMutation(proposal, project.root, mutationPlan, options);
 
     const writerPostState = await captureCoherentManagedState(project.root);
     assertExactManagedDelta(proposal, authorizedPreState, writerPostState);
+    const writerPostBaseline = buildProjectContextBaseline(writerPostState, proposal.baseline.schemaVersion);
+    if (!sameBaseline(writerPostBaseline, mutationPlan.expectedPostBaseline)) {
+      throw new Error("Semantic Apply produced a Project Brain state that does not match the exact user-authorized post-state.");
+    }
 
     await options.afterPromoteBeforeVerify?.();
     const verifiedPostState = await captureCoherentManagedState(project.root);

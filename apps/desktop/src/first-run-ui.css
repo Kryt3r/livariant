@@ -382,3 +382,156 @@
     padding-bottom: 56px;
   }
 }
+
+
+/* Provider connection hierarchy: recognizable marks, one bulk action, and manual paths only as fallback. */
+.fr-provider-icon .provider-brand-logo{width:26px;height:26px;display:block}
+.fr-provider-connect-all{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  margin-top:20px;padding:14px;border:1px solid rgba(151,126,255,.24);
+  border-radius:12px;background:linear-gradient(90deg,rgba(82,111,255,.10),rgba(169,76,255,.06))
+}
+.fr-provider-connect-all .button{min-width:260px}
+.fr-provider-connect-all small{color:var(--muted);font-size:11px}
+.fr-provider-single-action{justify-items:end;margin-top:8px}
+.fr-provider-fallback{margin-top:8px;padding:12px;border:1px solid rgba(153,176,224,.12);border-radius:11px;background:rgba(5,14,29,.46)}
+@media(max-width:720px){
+  .fr-provider-connect-all{align-items:stretch;flex-direction:column}
+  .fr-provider-connect-all .button{min-width:0;width:100%}
+}
+
+
+/* Provider onboarding fidelity pass: keep the action inside the provider card and use
+   recognizable provider marks without changing any connection behavior. */
+.fr-provider-list{
+  display:grid;
+  gap:10px;
+  margin-top:24px;
+}
+.fr-provider-block{
+  display:grid;
+  gap:8px;
+}
+.fr-provider-card.fr-provider-card-mockup{
+  margin-top:0;
+  min-height:78px;
+  grid-template-columns:44px minmax(0,1fr) auto;
+  gap:14px;
+  padding:13px 14px;
+  border-radius:12px;
+  background:
+    radial-gradient(circle at 94% 50%,rgba(88,105,255,.07),transparent 34%),
+    linear-gradient(180deg,rgba(21,37,65,.72),rgba(11,24,45,.78));
+}
+.fr-provider-copy{
+  min-width:0;
+}
+.fr-provider-copy small,
+.fr-provider-copy strong,
+.fr-provider-copy span{
+  display:block;
+}
+.fr-provider-copy small{
+  color:#7f8496;
+  font-size:10px;
+}
+.fr-provider-copy strong{
+  margin:2px 0 2px;
+  color:#f3f5ff;
+  font-size:14px;
+  line-height:1.25;
+}
+.fr-provider-copy span{
+  overflow:hidden;
+  color:#a2a9bb;
+  font-size:10.5px;
+  line-height:1.35;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.fr-provider-controls{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+}
+.fr-provider-controls .fr-provider-state{
+  flex:0 0 auto;
+}
+.fr-provider-connect-button{
+  min-width:104px;
+  height:34px;
+  padding:0 14px;
+  justify-content:center;
+  border-color:rgba(126,118,255,.42);
+  background:linear-gradient(105deg,#5577ff,#8a48ef);
+  box-shadow:0 8px 18px rgba(88,77,235,.17);
+}
+.fr-provider-connect-button span{
+  display:inline;
+  margin-left:5px;
+}
+.fr-provider-icon{
+  width:44px;
+  height:44px;
+  border-radius:10px;
+}
+.fr-provider-icon .provider-brand-logo{
+  width:27px;
+  height:27px;
+}
+.fr-provider-icon-codex{
+  color:#f4fff9;
+  border-color:rgba(76,221,179,.22);
+  background:
+    radial-gradient(circle at 35% 30%,rgba(101,230,190,.24),transparent 48%),
+    rgba(20,89,76,.38);
+  box-shadow:inset 0 1px 0 rgba(220,255,245,.07),0 0 18px rgba(46,190,151,.10);
+}
+.fr-provider-icon-claude{
+  color:#e3a56f;
+  border-color:rgba(213,132,78,.24);
+  background:
+    radial-gradient(circle at 38% 30%,rgba(232,158,103,.20),transparent 50%),
+    rgba(91,50,30,.40);
+}
+.fr-provider-icon-gemini{
+  border-color:rgba(78,130,255,.26);
+  background:
+    radial-gradient(circle at 38% 28%,rgba(54,117,238,.28),transparent 52%),
+    rgba(13,48,103,.46);
+}
+.fr-provider-icon-custom{
+  color:#c8a6ff;
+  border-color:rgba(156,111,255,.26);
+  background:
+    radial-gradient(circle at 38% 28%,rgba(140,91,255,.24),transparent 52%),
+    rgba(58,35,110,.40);
+}
+.fr-provider-fallback{
+  margin-top:0;
+  padding:10px 12px;
+  border-radius:10px;
+}
+.fr-provider-fallback label>span{
+  font-size:10px;
+}
+.fr-provider-connect-all{
+  margin-top:18px;
+}
+@media(max-width:760px){
+  .fr-provider-card.fr-provider-card-mockup{
+    grid-template-columns:42px minmax(0,1fr);
+  }
+  .fr-provider-controls{
+    grid-column:2;
+    justify-content:flex-start;
+    flex-wrap:wrap;
+  }
+  .fr-provider-connect-button{
+    min-width:0;
+  }
+  .fr-provider-copy span{
+    white-space:normal;
+  }
+}

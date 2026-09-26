@@ -4,6 +4,7 @@ import "./diagnostics-redesign.css";
 import { invoke } from "@tauri-apps/api/core";
 import { getLanguage, t } from "./i18n/runtime.js";
 import { onDesktopProjectActivated } from "./desktop-project-registry.js";
+import { providerBrandLogo } from "./provider-brand-assets.js";
 import {
   bindProjectConnectionsSettingsEvents,
   refreshProjectConnectionsSettings,
@@ -21,6 +22,7 @@ type ConnectorStatus = {
   detail: string;
   connectionMode?: "auto" | "manual";
   configuredCommand?: string | null;
+  capabilities?: ProviderCapabilities;
 };
 
 type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
@@ -77,6 +79,24 @@ type MeasureResult = { connection: ConnectorStatus; diagnostics: DiagnosticsSumm
 type DiagnosticsExportSaveResult = { saved: boolean; fileName?: string | null };
 type ProviderId = "codex" | "claude" | "gemini" | "custom";
 type LocalProviderId = Exclude<ProviderId, "codex">;
+type ProviderCapabilityId =
+  | "live-project-context"
+  | "live-session-correlation"
+  | "retrospective-session-attribution"
+  | "provider-owned-usage-telemetry";
+type ProviderCapabilityState =
+  | "supported"
+  | "supported-opt-in"
+  | "mcp-session-only"
+  | "provider-capable-not-integrated"
+  | "not-integrated"
+  | "bridge-dependent";
+type ProviderCapability = {
+  state: ProviderCapabilityState;
+  evidence: string;
+  detail: string;
+};
+type ProviderCapabilities = Partial<Record<ProviderCapabilityId, ProviderCapability>>;
 type ConnectorAction = "connect" | "disconnect" | null;
 type LocalProviderStatus = {
   provider: LocalProviderId;
@@ -88,6 +108,7 @@ type LocalProviderStatus = {
   connectionMode: "auto" | "manual";
   configuredPath?: string | null;
   launchSource?: string | null;
+  capabilities?: ProviderCapabilities;
 };
 
 let connector: ConnectorStatus | null = null;
@@ -101,6 +122,8 @@ let diagnosticsBusy: "measure" | "diagnostics" | "export" | null = null;
 let error: string | null = null;
 let diagnosticsNotice: string | null = null;
 let selectedProvider: ProviderId | null = null;
+let connectAllProvidersBusy = false;
+let connectAllProvidersNotice: string | null = null;
 let selectedDiagnosticsPreset: DiagnosticPreset = "30d";
 let diagnosticsProjectGeneration = 0;
 let activeDiagnosticsRerender: (() => void) | null = null;
@@ -165,10 +188,70 @@ const unknownTotalEvents = (dimension: ObservedAttributionDimension | undefined)
   dimension?.groups.reduce((sum, group) => sum + group.unknownTotalTokenEvents, 0) ?? 0;
 
 const providerGlyph = (provider: ProviderId) => {
-  if (provider === "codex") return '<span class="provider-glyph provider-glyph-codex">C</span>';
-  if (provider === "claude") return '<span class="provider-glyph provider-glyph-claude">A</span>';
-  if (provider === "gemini") return '<span class="provider-glyph provider-glyph-gemini">G</span>';
-  return '<span class="provider-glyph provider-glyph-custom">+</span>';
+  return `<span class="provider-glyph provider-glyph-${provider}">${providerBrandLogo(provider)}</span>`;
+};
+
+const capabilityLabel = (id: ProviderCapabilityId) => ({
+  "live-project-context": lang("Live project context", "Live-Projektkontext"),
+  "live-session-correlation": lang("Session separation", "Session-Trennung"),
+  "retrospective-session-attribution": lang("Later session recovery", "Nachträgliche Session-Zuordnung"),
+  "provider-owned-usage-telemetry": lang("Usage telemetry", "Usage-Telemetrie"),
+})[id];
+
+const capabilityStateLabel = (state: ProviderCapabilityState) => ({
+  supported: lang("Supported", "Unterstützt"),
+  "supported-opt-in": lang("Supported with opt-in hook", "Mit Opt-in-Hook unterstützt"),
+  "mcp-session-only": lang("MCP session only", "Nur MCP-Session"),
+  "provider-capable-not-integrated": lang("Provider supports it · not integrated yet", "Provider kann es · noch nicht integriert"),
+  "not-integrated": lang("Not integrated", "Nicht integriert"),
+  "bridge-dependent": lang("Depends on bridge", "Abhängig von Bridge"),
+})[state];
+
+const capabilityDetail = (provider: ProviderId, id: ProviderCapabilityId): string => {
+  if (provider === "codex") {
+    if (id === "live-project-context") return lang("Project-bound Livariant MCP context works without depending on the Desktop selection.", "Projektgebundener Livariant-MCP-Kontext funktioniert unabhängig von der Desktop-Auswahl.");
+    if (id === "live-session-correlation") return lang("Codex thread metadata is bound to the Livariant MCP roundtrip when available.", "Codex-Thread-Metadaten werden, wenn verfügbar, an den Livariant-MCP-Roundtrip gebunden.");
+    if (id === "retrospective-session-attribution") return lang("Saved Codex threads can be matched back to registered projects using their recorded working directory.", "Gespeicherte Codex-Threads können über ihr aufgezeichnetes Arbeitsverzeichnis nachträglich registrierten Projekten zugeordnet werden.");
+    return lang("Qualified provider-owned token usage is ingested from the Codex App Server.", "Qualifizierte provider-eigene Token-Nutzung wird aus dem Codex App Server übernommen.");
+  }
+  if (provider === "claude") {
+    if (id === "live-project-context") return lang("Claude Code can use Livariant through project-local MCP.", "Claude Code kann Livariant über projektlokales MCP verwenden.");
+    if (id === "live-session-correlation") return lang("Sessions are isolated by the running Livariant MCP session; Claude-native session IDs are not yet bound into tool calls.", "Sessions werden über die laufende Livariant-MCP-Session getrennt; Claude-eigene Session-IDs sind noch nicht an Tool-Aufrufe gebunden.");
+    if (id === "retrospective-session-attribution") return lang("With a user-configured Claude hook, Livariant can record session/cwd evidence while Desktop is closed and reconcile it later.", "Mit einem vom Nutzer eingerichteten Claude-Hook kann Livariant Session-/cwd-Evidence bei geschlossenem Desktop erfassen und später zuordnen.");
+    return lang("Livariant currently has no qualified provider-owned Claude token telemetry path.", "Livariant besitzt aktuell keinen qualifizierten provider-eigenen Claude-Token-Telemetriepfad.");
+  }
+  if (provider === "gemini") {
+    if (id === "live-project-context") return lang("Gemini CLI supports project-scoped MCP and can use Livariant Provider Context/Return.", "Gemini CLI unterstützt projektbezogenes MCP und kann Livariant Provider Context/Return verwenden.");
+    if (id === "live-session-correlation") return lang("Live isolation currently uses the Livariant MCP session. Gemini hook session IDs are not installed or consumed automatically.", "Die Live-Trennung nutzt aktuell die Livariant-MCP-Session. Gemini-Hook-Session-IDs werden nicht automatisch installiert oder verarbeitet.");
+    if (id === "retrospective-session-attribution") return lang("With a user-configured Gemini hook, Livariant can record session/cwd evidence while Desktop is closed and reconcile it later.", "Mit einem vom Nutzer eingerichteten Gemini-Hook kann Livariant Session-/cwd-Evidence bei geschlossenem Desktop erfassen und später zuordnen.");
+    return lang("Gemini exposes provider-owned usage metadata through hooks, but Livariant has not qualified that Diagnostics ingestion path yet.", "Gemini liefert provider-eigene Usage-Metadaten über Hooks; Livariant hat diesen Diagnose-Ingestionspfad aber noch nicht qualifiziert.");
+  }
+  return lang(
+    "A custom connection only proves that its local probe is ready. This capability requires explicit support from that bridge.",
+    "Eine eigene Verbindung beweist nur, dass ihr lokaler Probe bereit ist. Diese Fähigkeit erfordert ausdrückliche Unterstützung durch diese Bridge.",
+  );
+};
+
+const renderProviderCapabilities = (provider: ProviderId, capabilities: ProviderCapabilities | undefined) => {
+  const ids: ProviderCapabilityId[] = [
+    "live-project-context",
+    "live-session-correlation",
+    "retrospective-session-attribution",
+    "provider-owned-usage-telemetry",
+  ];
+  return `
+    <section class="provider-detail-section provider-capabilities">
+      <div class="provider-section-heading"><span>${lang("Livariant integration", "Livariant-Integration")}</span><small>${lang("Actual capabilities · connection alone does not imply feature parity", "Tatsächliche Fähigkeiten · eine Verbindung bedeutet nicht Funktionsgleichheit")}</small></div>
+      <div class="provider-detail-grid">
+        ${ids.map((id) => {
+          const capability = capabilities?.[id];
+          if (!capability) {
+            return `<div class="provider-detail provider-capability"><small>${capabilityLabel(id)}</small><strong>${lang("Unknown", "Unbekannt")}</strong><span>${lang("No qualified capability evidence is available.", "Es liegt keine qualifizierte Capability-Evidence vor.")}</span></div>`;
+          }
+          return `<div class="provider-detail provider-capability" title="${esc(capability.detail)}"><small>${capabilityLabel(id)}</small><strong>${capabilityStateLabel(capability.state)}</strong><span>${esc(capabilityDetail(provider, id))}</span></div>`;
+        }).join("")}
+      </div>
+    </section>`;
 };
 
 const localizedCodexDetail = (detail: string | null | undefined): string | null => {
@@ -298,6 +381,7 @@ const renderCodexModal = () => {
             <div class="provider-detail"><small>${lang("Approvals", "Freigaben")}</small><strong>${connector?.pendingApprovals ?? 0} ${lang("pending", "ausstehend")}</strong></div>
           </div>
         </section>
+        ${renderProviderCapabilities("codex", connector?.capabilities)}
         <footer class="provider-boundary provider-boundary-panel"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("Connecting Codex does not authorize file changes, commands, merges or releases.", "Das Verbinden von Codex autorisiert keine Dateiänderungen, Befehle, Merges oder Releases.")}</p></footer>
       </section>
     </div>`;
@@ -330,7 +414,7 @@ const renderLocalProviderModal = (provider: LocalProviderId) => {
               : `<button class="button primary local-provider-connect" type="button" ${busy || (provider !== "custom" && !available) ? "disabled" : ""}>${localProviderAction?.action === "connect" ? lang("Connecting…", "Verbinde…") : lang("Connect", "Verbinden")}</button>`}
           </div>
         </section>
-        ${provider === "custom" ? `<section class="provider-detail-section"><div class="provider-section-heading"><span>${lang("Executable", "Programmdatei")}</span><small>${lang("No shell scripts", "Keine Shell-Skripte")}</small></div><input class="provider-custom-path" type="text" value="${esc(status?.configuredPath ?? "")}" placeholder="${lang("Path to local provider executable", "Pfad zur lokalen Provider-Programmdatei")}" autocomplete="off" spellcheck="false"></section>` : ""}
+        ${!connected && !available ? `<section class="provider-detail-section provider-manual-fallback"><div class="provider-section-heading"><span>${provider === "custom" ? lang("Executable", "Programmdatei") : lang("Manual fallback", "Manueller Fallback")}</span><small>${lang("Shown because automatic discovery found no usable connection", "Wird angezeigt, weil die automatische Erkennung keine nutzbare Verbindung gefunden hat")}</small></div><input class="provider-custom-path" type="text" value="${esc(status?.configuredPath ?? "")}" placeholder="${lang("Path to local provider executable", "Pfad zur lokalen Provider-Programmdatei")}" autocomplete="off" spellcheck="false"></section>` : ""}
         <section class="provider-detail-section">
           <div class="provider-section-heading"><span>${lang("Connection details", "Verbindungsdetails")}</span><small>${lang("Observed locally", "Lokal beobachtet")}</small></div>
           <div class="provider-detail-grid">
@@ -340,6 +424,7 @@ const renderLocalProviderModal = (provider: LocalProviderId) => {
             <div class="provider-detail"><small>${lang("Connection method", "Verbindungsmethode")}</small><strong>${status?.connectionMode === "manual" ? lang("Explicit local executable", "Explizite lokale Programmdatei") : lang("Local CLI discovery", "Lokale CLI-Erkennung")}</strong></div>
           </div>
         </section>
+        ${renderProviderCapabilities(provider, status?.capabilities)}
         <footer class="provider-boundary provider-boundary-panel"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("This connection stores only local connection intent. Livariant does not import provider API keys or grant file, command, merge or release authority.", "Diese Verbindung speichert nur die lokale Verbindungsabsicht. Livariant importiert keine Provider-API-Schlüssel und erteilt keine Datei-, Befehls-, Merge- oder Release-Authority.")}</p></footer>
       </section>
     </div>`;
@@ -355,13 +440,24 @@ export function renderConnectionsSettingsView(): string {
   const connectedLabel = connectedCount === 1
     ? lang("1 provider connected", "1 Anbieter verbunden")
     : lang(`${connectedCount} providers connected`, `${connectedCount} Anbieter verbunden`);
+  const autoConnectable = [
+    ...(!connector?.connected && connector?.installationState === "available" ? ["codex"] : []),
+    ...(["claude", "gemini"] as LocalProviderId[]).filter((provider) => {
+      const status = localProviders[provider];
+      return !status?.connected && status?.installationState === "available" && status.authState !== "unavailable";
+    }),
+  ];
   return `
     <section class="settings-panel connections-settings" data-surface="connections">
       <div class="connections-heading">
         <div><span class="eyebrow">${lang("AI tools available to this project", "KI-Werkzeuge für dieses Projekt")}</span><h2>${t("connections.title")}</h2><p>${lang("Connect the AI tools you want Livariant to work alongside. A connection only makes a provider available; it does not give that provider permission to change files, run commands, merge or release anything.", "Verbinde die KI-Werkzeuge, mit denen Livariant zusammenarbeiten soll. Eine Verbindung macht einen Anbieter nur verfügbar; sie gibt ihm keine Erlaubnis, Dateien zu ändern, Befehle auszuführen, zu mergen oder etwas zu veröffentlichen.")}</p></div>
         <div class="connections-overview"><strong>${connectedCount}</strong><span>${lang("connected", "verbunden")}</span></div>
       </div>
-      <div class="connection-summary-row"><span><i class="summary-dot ${connectedCount > 0 ? "connected" : ""}"></i><strong>${connectedCount > 0 ? connectedLabel : t("connections.noProviders")}</strong></span></div>
+      <div class="connection-summary-row">
+        <span><i class="summary-dot ${connectedCount > 0 ? "connected" : ""}"></i><strong>${connectedCount > 0 ? connectedLabel : t("connections.noProviders")}</strong></span>
+        ${autoConnectable.length ? `<button class="button primary connect-all-providers" type="button" ${connectAllProvidersBusy ? "disabled" : ""}>${connectAllProvidersBusy ? lang("Connecting…", "Verbinde…") : lang("Connect all available providers", "Alle verfügbaren Anbieter verbinden")}</button>` : ""}
+      </div>
+      ${connectAllProvidersNotice ? `<div class="connections-bulk-notice">${esc(connectAllProvidersNotice)}</div>` : ""}
       <div class="provider-grid" aria-label="${lang("Available LLM and agent connections", "Verfügbare LLM- und Agent-Verbindungen")}">
         ${renderProviderCard("codex", "Codex", lang("OpenAI · local App Server", "OpenAI · lokaler App Server"), state.label, state.tone)}
         ${(["claude", "gemini", "custom"] as LocalProviderId[]).map((provider) => {
@@ -542,6 +638,36 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     });
   });
 
+  document.querySelector<HTMLButtonElement>(".connect-all-providers")?.addEventListener("click", async () => {
+    if (connectAllProvidersBusy) return;
+    connectAllProvidersBusy = true;
+    connectAllProvidersNotice = null;
+    rerenderConnectionsSurface(rerender);
+    const failures: string[] = [];
+    let connectedNow = 0;
+    try {
+      if (!connector?.connected && connector?.installationState === "available") {
+        try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); if (connector.connected) connectedNow += 1; }
+        catch { failures.push("Codex"); }
+      }
+      for (const provider of ["claude", "gemini"] as LocalProviderId[]) {
+        const status = localProviders[provider];
+        if (status?.connected || status?.installationState !== "available" || status.authState === "unavailable") continue;
+        try {
+          localProviders[provider] = await invoke<LocalProviderStatus>("local_provider_connect", { provider, manualPath: null });
+          if (localProviders[provider]?.connected) connectedNow += 1;
+        } catch { failures.push(localProviderCopy(provider).name); }
+      }
+      connectAllProvidersNotice = failures.length
+        ? lang(`${connectedNow} provider(s) connected; ${failures.join(", ")} could not be connected.`, `${connectedNow} Anbieter verbunden; ${failures.join(", ")} konnten nicht verbunden werden.`)
+        : lang(`${connectedNow} provider(s) connected.`, `${connectedNow} Anbieter verbunden.`);
+      notifyConnectionHealthChanged();
+    } finally {
+      connectAllProvidersBusy = false;
+      rerenderConnectionsSurface(rerender);
+    }
+  });
+
   document.querySelector<HTMLButtonElement>(".connector-refresh")?.addEventListener("click", async () => {
     const previousConnector = connector ? { ...connector } : null;
     const previousError = error;
@@ -594,9 +720,11 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
   document.querySelector<HTMLButtonElement>(".local-provider-connect")?.addEventListener("click", async () => {
     const provider = activeLocalProvider();
     if (!provider) return;
-    const manualPath = provider === "custom"
-      ? document.querySelector<HTMLInputElement>(".provider-custom-path")?.value.trim() || null
-      : null;
+    const status = localProviders[provider];
+    const automaticallyAvailable = status?.installationState === "available" && status.authState !== "unavailable";
+    const manualPath = automaticallyAvailable
+      ? null
+      : document.querySelector<HTMLInputElement>(".provider-custom-path")?.value.trim() || null;
     localProviderAction = { provider, action: "connect" };
     delete localProviderErrors[provider];
     rerenderConnectionsSurface(rerender);
@@ -699,6 +827,8 @@ onDesktopProjectActivated(() => {
   localProviders = {};
   localProviderErrors = {};
   error = null;
+  connectAllProvidersBusy = false;
+  connectAllProvidersNotice = null;
   notifyConnectionHealthChanged();
 
   const rerender = activeDiagnosticsRerender;

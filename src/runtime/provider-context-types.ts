@@ -1,7 +1,13 @@
 import type { DoctorFinding } from "./doctor.js";
 import type { ProjectContextBaseline, ProjectContextItem } from "./context-snapshot.js";
 
-export type ProviderContextProvider = "claude-code" | "codex";
+export type ProviderContextProvider = "claude-code" | "codex" | "gemini" | "custom";
+
+export interface ProviderContextSessionBinding {
+  id: string;
+  source: "mcp-session";
+  providerThreadId?: string;
+}
 
 export interface ProviderContextTask {
   value: string;
@@ -34,6 +40,7 @@ export interface ProviderContextBase {
   provider: ProviderContextProvider;
   projectLocator: string;
   stableProjectIdentity: string | null;
+  providerSession: ProviderContextSessionBinding | null;
   projection: ProviderContextProjection;
   mutationAuthorization: false;
   applySupported: false;

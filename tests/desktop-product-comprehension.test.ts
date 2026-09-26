@@ -36,7 +36,7 @@ test("normal-user surfaces explain meaning before technical detail", () => {
   const connections = readFileSync("apps/desktop/src/connections-diagnostics.ts", "utf8");
 
   assert.match(main, /purpose, direction and rules Livariant should use/i);
-  assert.match(main, /current Desktop editor is still a review preview/i);
+  assert.match(main, /Confirmed values on this page now come from the active project's canonical Project Brain/i);
   assert.match(sources, /Where your project information comes from/);
   assert.match(sources, /Nothing is treated as project truth automatically/);
   assert.match(diagnostics, /What Livariant actually observed/);
@@ -74,4 +74,34 @@ test("Block-A review follow-up does not leave duplicated function declarations o
   assert.doesNotMatch(polish, /const removeDuplicateOverviewComposition = \(\) => \{const removeDuplicateOverviewComposition/);
   assert.match(shell, /target: "\.connections-settings"/);
   assert.match(main, /\}\);\r?\n\r?\nonLanguageChange\(\(\) => \{/);
+});
+
+
+test("provider connection UX groups automatic connections and keeps executable paths as fallback", () => {
+  const onboarding = readFileSync("apps/desktop/src/first-run-ui.ts", "utf8");
+  const connections = readFileSync("apps/desktop/src/connections-diagnostics.ts", "utf8");
+  const brands = readFileSync("apps/desktop/src/provider-brand-assets.ts", "utf8");
+
+  assert.match(onboarding, /data-fr-connect-all-providers/);
+  assert.match(onboarding, /Alle verfügbaren Anbieter verbinden/);
+  assert.match(onboarding, /providerBrandLogo\("codex"\)/);
+  assert.match(onboarding, /providerBrandLogo\(provider\)/);
+  assert.match(onboarding, /data-fr-local-provider-path="\$\{provider\}"/);
+  assert.match(onboarding, /automatic discovery did not find a usable installation/);
+  assert.doesNotMatch(onboarding, /Oder expliziter Codex-Programmpfad/);
+  assert.match(onboarding, /fr-provider-card-mockup/);
+  assert.match(onboarding, /fr-provider-controls/);
+  assert.match(onboarding, /fr-provider-connect-button/);
+
+  assert.match(connections, /connect-all-providers/);
+  assert.match(connections, /Connect all available providers/);
+  assert.match(connections, /providerBrandLogo\(provider\)/);
+  assert.match(connections, /provider-manual-fallback/);
+  assert.match(connections, /automaticallyAvailable/);
+
+  assert.match(brands, /provider-brand-logo-openai/);
+  assert.match(brands, /provider-brand-logo-claude/);
+  assert.match(brands, /provider-brand-logo-google/);
+  assert.match(brands, /openai\/openai-cookbook/);
+  assert.match(brands, /anthropics\/anthropic-sdk-typescript/);
 });

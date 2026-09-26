@@ -20,7 +20,7 @@ function pathIsWithin(root: string, candidate: string): boolean {
   return rel === "" || (!isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`) && !rel.startsWith(sep));
 }
 
-async function integrityRequest(
+export async function projectBrainIntegrityGuardianRequest(
   identity: IntegrityIdentity,
   projectPath: string,
 ) {
@@ -41,7 +41,7 @@ export async function findProjectBrainIntegrityGuardianAuthority(
   identity: IntegrityIdentity,
   projectPath: string = process.cwd(),
 ) {
-  const material = await integrityRequest(identity, projectPath);
+  const material = await projectBrainIntegrityGuardianRequest(identity, projectPath);
   const record = await findMatchingActiveGuardianAuthority({
     consumer: "project-brain-integrity",
     mode: "persistent",
@@ -54,9 +54,14 @@ export async function findProjectBrainIntegrityGuardianAuthority(
 export async function issueProjectBrainIntegrityGuardianAuthority(
   identity: IntegrityIdentity,
   projectPath: string = process.cwd(),
+  options: { nativeConfirmationLanguage?: "de" | "en" } = {},
 ) {
-  const material = await integrityRequest(identity, projectPath);
-  const record = await issueGuardianAuthority({ request: material.request, projectPath });
+  const material = await projectBrainIntegrityGuardianRequest(identity, projectPath);
+  const record = await issueGuardianAuthority({
+    request: material.request,
+    projectPath,
+    nativeConfirmationLanguage: options.nativeConfirmationLanguage,
+  });
   if (record.consumer !== "project-brain-integrity"
     || record.mode !== "persistent"
     || record.state !== "active"

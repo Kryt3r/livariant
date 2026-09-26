@@ -85,3 +85,21 @@ test("project switcher contrast and popover states are explicit", async () => {
   assert.match(css, /\.project-activation-overlay/);
   assert.match(css, /data-project-activation-pending="true"/);
 });
+
+
+test("startup restores the persisted active project even when preserved pre-project First Run state is already classified not-needed", async () => {
+  const migration = await read("apps/desktop/src-tauri/src/desktop_project_migration.rs");
+  const branch = migration.slice(
+    migration.indexOf("if is_pre_project_first_run_progress(&material)?"),
+    migration.indexOf("let candidate = match candidate_from_material(material)", migration.indexOf("if is_pre_project_first_run_progress(&material)?")),
+  );
+
+  assert.match(branch, /if status\.project_count > 0/);
+  assert.match(branch, /status\.state == LegacyMigrationState::Pending/);
+  assert.match(branch, /mark_legacy_migration_not_needed\(app\)/);
+  assert.match(branch, /restore_last_active_project\(app, state\)/);
+  assert.ok(
+    branch.indexOf("restore_last_active_project(app, state)") > branch.indexOf("if status.project_count > 0"),
+    "persisted last-active project must be restored for both Pending and NotNeeded migration states",
+  );
+});

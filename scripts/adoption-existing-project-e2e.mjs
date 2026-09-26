@@ -24,6 +24,7 @@ import {
   consumeGuardianAuthorityRecord,
 } from "../dist/src/guardian/authority-record.js";
 import { buildSemanticGuardianAuthorityRequest } from "../dist/src/guardian/semantic-authority.js";
+import { buildSemanticMutationPlan } from "../dist/src/runtime/semantic-mutation-plan.js";
 
 const fixturePath = fileURLToPath(new URL("../tests/fixtures/existing-small", import.meta.url));
 const AUTH_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
@@ -178,10 +179,12 @@ async function stageConsumedCanonicalAuthority(projectPath, handoff, staging) {
     authorizedAt,
   }, null, 2)}\n`, "utf8");
 
+  const plan = await buildSemanticMutationPlan(proposal, projectPath);
   const material = buildSemanticGuardianAuthorityRequest({
     authorizationId: AUTH_ID,
     physicalProjectRoot: await realpath(projectPath),
     proposal,
+    expectedPostBaseline: plan.expectedPostBaseline,
   });
   const now = Date.now();
   const active = buildGuardianAuthorityRecord({

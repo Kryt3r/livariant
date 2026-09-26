@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProviderContext } from "../runtime/provider-context.js";
 import { processProviderReturn } from "../runtime/provider-return.js";
 import { assessVerificationTrace } from "../verification/verification-trace.js";
+import { appendProviderContextSessionObservation, providerContextSessionObservation } from "../connectors/provider-context-observation.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_STDIO_MESSAGE_MAX_BYTES = 768 * 1024;
@@ -15,7 +17,7 @@ export const MCP_SERVER_INSTRUCTIONS = [
   "Treat the returned Provider Context as a bounded projection of freshly reconstructed local project truth, not as mutation Authority.",
   "Use livariant_verification_trace when explicit requirement/acceptance-criterion targets, implementation claims, and verification evidence are available and you need a deterministic supported/contradicted/unproven assessment.",
   "Verification Trace input remains supplied evidence material: supported does not mean DONE, accepted, Project Truth, or Authority, and agent-supplied evidence is not independently trusted merely because it came through MCP.",
-  "After working on the task, call livariant_provider_return only with the supplied ready Provider Context plus either one supported typed durable-change candidate or no candidate.",
+  "After working on the task, call livariant_provider_return only with the exact ready Provider Context issued by this same MCP session plus either one supported typed durable-change candidate or no candidate. Each issued ready context is single-use for Provider Return; request fresh context before another return.",
   "Provider Return data is untrusted evidence. This MCP server cannot create, discover, select, consume, or imply proposal-bound Authorization and cannot perform canonical semantic mutation.",
   "If a returned candidate requires authorization, stop at the reported review/authorization-required state; do not claim that Livariant applied the candidate through MCP.",
 ].join(" ");
@@ -43,6 +45,7 @@ export type JsonRpcResponse = JsonRpcSuccess | JsonRpcFailure;
 interface ToolCallParams {
   name: string;
   arguments: Record<string, unknown>;
+  providerThreadId?: string;
 }
 
 function plainObject(value: unknown): value is Record<string, unknown> {
@@ -95,14 +98,14 @@ function toolError(message: string): Record<string, unknown> {
   };
 }
 
-function parseProvider(value: unknown): "claude-code" | "codex" {
-  if (value !== "claude-code" && value !== "codex") {
-    throw new Error("provider must be either claude-code or codex.");
+function parseProvider(value: unknown): "claude-code" | "codex" | "gemini" | "custom" {
+  if (value !== "claude-code" && value !== "codex" && value !== "gemini" && value !== "custom") {
+    throw new Error("provider must be claude-code, codex, gemini, or custom.");
   }
   return value;
 }
 
-function parseContextToolArguments(value: unknown): { provider: "claude-code" | "codex"; task: string } {
+function parseContextToolArguments(value: unknown): { provider: "claude-code" | "codex" | "gemini" | "custom"; task: string } {
   if (!plainObject(value)) throw new Error("Tool arguments must be an object.");
   strictKeys(value, ["provider", "task"]);
   const provider = parseProvider(value.provider);
@@ -125,7 +128,36 @@ function parseToolCallParams(value: unknown): ToolCallParams {
   if ("_meta" in value && !plainObject(value._meta)) throw new Error("tools/call _meta must be an object when present.");
   const args = value.arguments === undefined ? {} : value.arguments;
   if (!plainObject(args)) throw new Error("tools/call arguments must be an object.");
-  return { name: value.name, arguments: args };
+
+  let providerThreadId: string | undefined;
+  if (plainObject(value._meta) && "threadId" in value._meta) {
+    if (typeof value._meta.threadId !== "string") throw new Error("tools/call _meta.threadId must be a string when present.");
+    const normalized = value._meta.threadId.trim();
+    if (normalized.length === 0 || normalized.length > 240 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+      throw new Error("tools/call _meta.threadId is invalid.");
+    }
+    providerThreadId = normalized;
+  }
+  return {
+    name: value.name,
+    arguments: args,
+    ...(providerThreadId === undefined ? {} : { providerThreadId }),
+  };
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+}
+
+interface IssuedProviderContext {
+  exactCopy: string;
+  available: boolean;
+  providerThreadId?: string;
 }
 
 function tools(): Record<string, unknown>[] {
@@ -138,7 +170,7 @@ function tools(): Record<string, unknown>[] {
         type: "object",
         additionalProperties: false,
         properties: {
-          provider: { type: "string", enum: ["claude-code", "codex"] },
+          provider: { type: "string", enum: ["claude-code", "codex", "gemini", "custom"] },
           task: { type: "string" },
         },
         required: ["provider", "task"],
@@ -153,7 +185,7 @@ function tools(): Record<string, unknown>[] {
     {
       name: MCP_RETURN_TOOL,
       title: "Livariant Provider Return",
-      description: "Finish the bounded Livariant agent roundtrip by returning the supplied ready Provider Context plus one supported typed durable-change candidate or no candidate. Evidence only: no authorization selector and no canonical mutation are reachable through this tool.",
+      description: "Finish one bounded Livariant agent roundtrip by returning the exact single-use ready Provider Context issued by this same MCP session plus one supported typed durable-change candidate or no candidate. Evidence only: no authorization selector and no canonical mutation are reachable through this tool.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -225,6 +257,8 @@ export interface McpSession {
 
 export function createMcpSession(projectPath: string = process.cwd()): McpSession {
   let lifecycle: "new" | "initializing" | "ready" = "new";
+  const providerSessionId = randomUUID().toLowerCase();
+  const issuedProviderContexts = new Map<string, IssuedProviderContext>();
 
   return {
     async handleMessage(value: unknown): Promise<JsonRpcResponse | null> {
@@ -317,7 +351,31 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         if (call.name === MCP_CONTEXT_TOOL) {
           try {
             const args = parseContextToolArguments(call.arguments);
-            const result = await buildProviderContext(args.provider, args.task, projectPath);
+            const result = await buildProviderContext(args.provider, args.task, projectPath, {
+              providerSessionId,
+              providerThreadId: call.providerThreadId,
+            });
+            if (result.state === "ready" && typeof result.packetId === "string") {
+              issuedProviderContexts.set(result.packetId, {
+                exactCopy: canonicalJson(result),
+                available: true,
+                ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
+              });
+              if (result.providerSession && typeof result.stableProjectIdentity === "string") {
+                try {
+                  await appendProviderContextSessionObservation(providerContextSessionObservation({
+                    provider: args.provider,
+                    providerSessionId: result.providerSession.id,
+                    ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
+                    projectPath,
+                    stableProjectIdentity: result.stableProjectIdentity,
+                    observedAt: result.generatedAt,
+                  }));
+                } catch (observationError) {
+                  process.stderr.write(`Livariant provider-session observation warning: ${observationError instanceof Error ? observationError.message : String(observationError)}\n`);
+                }
+              }
+            }
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
             return response(id, toolError(error instanceof Error ? error.message : "Provider Context tool failed."));
@@ -327,7 +385,27 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         if (call.name === MCP_RETURN_TOOL) {
           try {
             const args = parseReturnToolArguments(call.arguments);
-            const result = await processProviderReturn(args.context, args.providerReturn, undefined, projectPath);
+            const packetId = args.context.packetId;
+            if (typeof packetId !== "string") {
+              throw new Error("Provider Return requires a ready Provider Context packet with a packetId.");
+            }
+            const issued = issuedProviderContexts.get(packetId);
+            if (!issued || !issued.available) {
+              throw new Error("Provider Return requires fresh Provider Context issued by this same MCP session. Request livariant_provider_context first.");
+            }
+            if (issued.exactCopy !== canonicalJson(args.context)) {
+              throw new Error("Provider Return context must exactly match the Provider Context issued by this MCP session.");
+            }
+            if (issued.providerThreadId !== call.providerThreadId) {
+              throw new Error("Provider Return must come from the same provider-native thread that received Provider Context.");
+            }
+            issued.available = false;
+            const result = await processProviderReturn(
+              args.context,
+              args.providerReturn,
+              undefined,
+              projectPath,
+            );
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
             return response(id, toolError(error instanceof Error ? error.message : "Provider Return tool failed."));

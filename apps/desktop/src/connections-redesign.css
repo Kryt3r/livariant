@@ -454,6 +454,17 @@
 .provider-detail small { color: var(--muted-2); font-size: 9px; }
 .provider-detail strong { margin-top: 5px; font-size: 11px; font-weight: 630; }
 
+.provider-capability span {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted-2);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.provider-capability strong {
+  line-height: 1.3;
+}
+
 .provider-boundary {
   display: flex;
   gap: 9px;
@@ -897,4 +908,62 @@
     margin-left: 18px;
     margin-right: 18px;
   }
+}
+
+
+/* Provider connection hierarchy: bulk-connect ready providers, keep manual executable entry a fallback. */
+.provider-glyph .provider-brand-logo{width:25px;height:25px;display:block}
+.provider-modal-header .provider-glyph .provider-brand-logo{width:30px;height:30px}
+.connections-bulk-notice{
+  margin-top:10px;padding:10px 12px;border:1px solid rgba(99,210,165,.16);
+  border-radius:10px;color:#a8e6c4;background:rgba(99,210,165,.055);font-size:11px
+}
+.provider-manual-fallback{
+  border-color:rgba(227,186,112,.16);
+  background:rgba(88,61,22,.045)
+}
+.provider-manual-fallback input{
+  width:100%;margin-top:12px;padding:11px 12px;border:1px solid rgba(152,175,226,.15);
+  border-radius:10px;outline:none;color:var(--text);background:rgba(4,11,20,.72);font:inherit;font-size:12px
+}
+.provider-manual-fallback input:focus{
+  border-color:rgba(160,129,255,.55);box-shadow:0 0 0 3px rgba(123,89,255,.09)
+}
+@media(max-width:840px){
+  .connection-summary-row .connect-all-providers{width:100%}
+}
+
+
+/* Provider brand marks aligned with the onboarding cards. */
+.provider-glyph .provider-brand-logo{
+  width:25px;
+  height:25px;
+  display:block;
+}
+.provider-glyph-codex{
+  color:#f4fff9;
+  border-color:rgba(76,221,179,.22);
+  background:
+    radial-gradient(circle at 35% 30%,rgba(101,230,190,.24),transparent 48%),
+    rgba(20,89,76,.38);
+}
+.provider-glyph-claude{
+  color:#e3a56f;
+  border-color:rgba(213,132,78,.24);
+  background:
+    radial-gradient(circle at 38% 30%,rgba(232,158,103,.20),transparent 50%),
+    rgba(91,50,30,.40);
+}
+.provider-glyph-gemini{
+  border-color:rgba(78,130,255,.26);
+  background:
+    radial-gradient(circle at 38% 28%,rgba(54,117,238,.28),transparent 52%),
+    rgba(13,48,103,.46);
+}
+.provider-glyph-custom{
+  color:#c8a6ff;
+  border-color:rgba(156,111,255,.26);
+  background:
+    radial-gradient(circle at 38% 28%,rgba(140,91,255,.24),transparent 52%),
+    rgba(58,35,110,.40);
 }

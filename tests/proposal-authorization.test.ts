@@ -157,6 +157,47 @@ test("tampering with actionable proposal material invalidates its digest", async
   });
 });
 
+
+
+test("actionable proposal prepared for project A is rejected against project B before any authorization state is written", async () => {
+  const root = await mkdtemp(resolve(tmpdir(), "livariant-cross-project-auth-"));
+  const projectA = resolve(root, "project-a");
+  const projectB = resolve(root, "project-b");
+  await mkdir(projectA);
+  await mkdir(projectB);
+  try {
+    await initializeProject(projectA, { authorized: true });
+    await initializeProject(projectB, { authorized: true });
+
+    const proposalA = await prepared(projectA, "Keep project A isolated");
+    const projectBStateBefore = await Promise.all(
+      semanticFiles.map((name) => readFile(resolve(projectB, ".project-brain", name))),
+    );
+
+    await assert.rejects(
+      authorizeActionableProposal(proposalA, projectB, {
+        localUserConfirmation: {
+          source: "desktop-local-ui",
+          proposalDigest: proposalA.materialDigest.digest,
+        },
+      }),
+      /no longer matches|cannot reproduce/i,
+    );
+
+    assert.deepEqual(await inspectAuthorizationAudit(projectB), { active: null, history: [] });
+    for (let index = 0; index < semanticFiles.length; index += 1) {
+      assert.deepEqual(
+        await readFile(resolve(projectB, ".project-brain", semanticFiles[index]!)),
+        projectBStateBefore[index],
+      );
+    }
+  } finally {
+    await cleanupMachineAuthority(projectA);
+    await cleanupMachineAuthority(projectB);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("authorization binds current baseline and refuses stale actionable proposal before user-presence prompt", async () => {
   await withProject(async (path) => {
     const proposal = await prepared(path);

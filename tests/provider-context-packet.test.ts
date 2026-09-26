@@ -47,9 +47,13 @@ test("provider context preserves canonical evidence, provider boundary, and read
 
     const claude = await buildProviderContext("claude-code", task, path);
     const codex = await buildProviderContext("codex", task, path);
+    const gemini = await buildProviderContext("gemini", task, path);
+    const custom = await buildProviderContext("custom", task, path);
     assert.equal(claude.state, "ready");
     assert.equal(codex.state, "ready");
-    if (claude.state !== "ready" || codex.state !== "ready") return;
+    assert.equal(gemini.state, "ready");
+    assert.equal(custom.state, "ready");
+    if (claude.state !== "ready" || codex.state !== "ready" || gemini.state !== "ready" || custom.state !== "ready") return;
 
     assert.equal(claude.changesMade, 0);
     assert.ok(isStableProjectIdentity(claude.stableProjectIdentity));
@@ -64,8 +68,16 @@ test("provider context preserves canonical evidence, provider boundary, and read
     assert.equal(claude.applySupported, false);
     assert.equal(claude.authorizationEligible, false);
     assert.deepEqual(claude.evidence, codex.evidence);
+    assert.deepEqual(claude.evidence, gemini.evidence);
+    assert.deepEqual(claude.evidence, custom.evidence);
     assert.equal(claude.baseline.digest, codex.baseline.digest);
+    assert.equal(claude.baseline.digest, gemini.baseline.digest);
+    assert.equal(claude.baseline.digest, custom.baseline.digest);
     assert.notEqual(claude.packetId, codex.packetId);
+    assert.notEqual(claude.packetId, gemini.packetId);
+    assert.notEqual(codex.packetId, gemini.packetId);
+    assert.notEqual(gemini.packetId, custom.packetId);
+    assert.notEqual(codex.packetId, custom.packetId);
     assert.ok(claude.evidence.confirmedGoals.some((item) => item.value === "Ship trustworthy provider context" && item.authorityClass === "canonical-project"));
     assert.ok(claude.evidence.knownFacts.some((item) => item.value === "Provider-returned context is not canonical truth" && item.authorityClass === "canonical-project"));
     assert.ok(claude.evidence.activeDecisions.some((item) => item.value === "Provider context remains read-only" && item.authorityClass === "canonical-project"));

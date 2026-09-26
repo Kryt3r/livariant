@@ -27,6 +27,8 @@ mod project_review_selection;
 mod project_scoped_persistence;
 mod public_resources;
 mod project_source_observation;
+mod provider_session_reconciliation;
+mod project_knowledge_bridge;
 mod project_source_review_async;
 mod project_source_review_bridge;
 mod updater;
@@ -196,14 +198,22 @@ fn runtime_health() -> RuntimeHealth {
 fn installer_language() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
-        let appdata = env::var_os("APPDATA")?;
-        let path = PathBuf::from(appdata).join("Livariant").join("installer-language.txt");
-        let raw = fs::read_to_string(path).ok()?;
-        return match raw.trim().to_ascii_lowercase().as_str() {
-            "de" | "german" => Some("de".to_owned()),
-            "en" | "english" => Some("en".to_owned()),
-            _ => None,
-        };
+        let mut candidates = Vec::new();
+        if let Some(appdata) = env::var_os("APPDATA") {
+            candidates.push(PathBuf::from(appdata).join("Livariant").join("installer-language.txt"));
+        }
+        if let Some(program_data) = env::var_os("PROGRAMDATA") {
+            candidates.push(PathBuf::from(program_data).join("Livariant").join("installer-language.txt"));
+        }
+        for path in candidates {
+            let Ok(raw) = fs::read_to_string(path) else { continue; };
+            match raw.trim().to_ascii_lowercase().as_str() {
+                "de" | "german" => return Some("de".to_owned()),
+                "en" | "english" => return Some("en".to_owned()),
+                _ => continue,
+            }
+        }
+        None
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -243,6 +253,8 @@ pub fn run() {
             #[cfg(feature = "ci-multi-project-acceptance")]
             ci_multi_project_acceptance::start_if_requested(app.handle().clone());
 
+            provider_session_reconciliation::start_background(app.handle().clone());
+
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let state = handle.state::<connector_host::ConnectorHostState>();
@@ -281,6 +293,13 @@ pub fn run() {
             operator_live_notice::operator_live_notice_list,
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
+            project_knowledge_bridge::project_knowledge_snapshot,
+            project_knowledge_bridge::prepare_project_knowledge_proposal,
+            project_knowledge_bridge::apply_project_knowledge_proposal,
+            project_knowledge_bridge::project_knowledge_protection_status,
+            project_knowledge_bridge::launch_project_knowledge_stage_a_setup,
+            project_knowledge_bridge::launch_project_knowledge_protection_setup,
+            project_knowledge_bridge::accept_project_knowledge_integrity,
             project_source_review_bridge::project_source_review_presentation,
             project_source_review_async::refresh_project_source_review_presentation_nonblocking,
             project_review_selection::inventory_project_source_review_paths,
@@ -290,6 +309,8 @@ pub fn run() {
             connector_host::codex_connector_status,
             connector_host::codex_connector_connect,
             connector_host::codex_connector_disconnect,
+            provider_session_reconciliation::reconcile_codex_provider_sessions,
+            provider_session_reconciliation::reconcile_provider_hook_sessions,
             local_provider_desktop::local_provider_status,
             local_provider_desktop::local_provider_connect,
             local_provider_desktop::local_provider_disconnect,

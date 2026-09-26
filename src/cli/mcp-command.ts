@@ -31,7 +31,7 @@ export async function handleMcpCommand(args: readonly string[]): Promise<void> {
     return;
   }
   if (args.length !== 0) {
-    throw new Error("Usage: livariant mcp | livariant mcp setup --provider <claude-code|codex> [--json]");
+    throw new Error("Usage: livariant mcp | livariant mcp setup --provider <claude-code|codex|gemini> [--json]");
   }
 
   let protectedSession: Promise<ReturnType<typeof createMcpSession>> | null = null;
