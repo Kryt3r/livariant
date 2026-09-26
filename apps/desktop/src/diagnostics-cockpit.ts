@@ -74,7 +74,7 @@ type CodexSessionBinding = {
   cwd: string;
   providerProjectId: string | null;
   project: ProviderProjectDescriptor | null;
-  attribution: "cwd-exact" | "cwd-descendant" | "unattributed";
+  attribution: "provider-context" | "provider-context-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
 };
 type CodexReconciliation = {
   schemaVersion: 1;
@@ -351,7 +351,7 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
       <div><small>${lang("Thread", "Thread")}</small><strong title="${esc(binding.threadId)}">${esc(shortId(binding.threadId))}</strong></div>
       <div><small>${lang("Session", "Sitzung")}</small><strong title="${esc(binding.sessionId)}">${esc(shortId(binding.sessionId))}</strong></div>
       <div><small>cwd</small><strong title="${esc(binding.cwd)}">${esc(binding.cwd)}</strong></div>
-      <span class="dc-session-state ${binding.attribution === "unattributed" ? "warn" : "ok"}">${binding.attribution === "cwd-exact" ? lang("Exact project", "Exaktes Projekt") : binding.attribution === "cwd-descendant" ? lang("Project subtree", "Projekt-Unterordner") : lang("Unattributed", "Nicht zugeordnet")}</span>
+      <span class="dc-session-state ${binding.attribution === "unattributed" || binding.attribution === "provider-context-conflict" ? "warn" : "ok"}">${binding.attribution === "provider-context" ? lang("Direct Provider Context", "Direkter Provider Context") : binding.attribution === "provider-context-conflict" ? lang("Conflicting direct evidence", "Widersprüchliche direkte Evidence") : binding.attribution === "cwd-exact" ? lang("Exact project", "Exaktes Projekt") : binding.attribution === "cwd-descendant" ? lang("Project subtree", "Projekt-Unterordner") : lang("Unattributed", "Nicht zugeordnet")}</span>
     </article>`).join("")}</div>`;
     const current = reconciliation.bindings.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
     const other = reconciliation.bindings.filter((binding) => binding.project !== null && !belongsToDiagnosticsProject(binding.project, data.scope.projectId));
