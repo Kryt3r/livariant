@@ -179,3 +179,31 @@ test("live Codex diagnostics exposes direct evidence pipeline counts", async () 
   assert.match(cockpit, /Thread-IDs im Provider-Katalog gefunden/);
   assert.match(css, /\.dc-direct-evidence-summary/);
 });
+
+
+test("Codex reconciliation can use provider-owned project roots before cwd fallback", async () => {
+  const appServer = await readFile("src/connectors/codex-app-server.ts", "utf8");
+  const runtime = await readFile("src/connectors/codex-runtime.ts", "utf8");
+  const projectCatalog = await readFile("src/connectors/codex-project-catalog.ts", "utf8");
+  const reconciliation = await readFile("src/connectors/codex-thread-reconciliation-cli.ts", "utf8");
+  const binding = await readFile("src/connectors/provider-project-binding.ts", "utf8");
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+
+  assert.match(appServer, /experimentalApi/);
+  assert.match(runtime, /experimentalApi\?: boolean/);
+  assert.match(projectCatalog, /project\/list/);
+  assert.match(projectCatalog, /projectId/);
+  assert.match(projectCatalog, /roots/);
+
+  assert.match(reconciliation, /listCodexProjects/);
+  assert.match(reconciliation, /experimentalApi: true/);
+  assert.match(reconciliation, /applyCodexProviderProjectBindings/);
+  assert.match(reconciliation, /providerProjectEvidence/);
+
+  assert.match(binding, /attribution: "provider-project"/);
+  assert.match(binding, /attribution: "provider-project-conflict"/);
+  assert.match(binding, /providerProject\.roots/);
+
+  assert.match(cockpit, /Codex-Projektmetadaten/);
+  assert.match(cockpit, /Threads mit Projekt-ID/);
+});
