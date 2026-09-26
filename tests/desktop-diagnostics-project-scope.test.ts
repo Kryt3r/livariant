@@ -154,7 +154,8 @@ test("Codex live reconciliation prefers direct Provider Context thread evidence 
   assert.match(reconciliation, /stableProjectIdentity === observation\.stableProjectIdentity/);
   assert.match(reconciliation, /attribution: "provider-context"/);
   assert.match(reconciliation, /attribution: "provider-context-conflict"/);
-  assert.match(reconciliation, /cwd as fallback only/);
+  assert.match(reconciliation, /provider-owned Codex project metadata/);
+  assert.match(reconciliation, /cwd as final fallback/);
 
   assert.match(cockpit, /Direkter Provider Context/);
   assert.match(cockpit, /Widersprüchliche direkte Evidence/);
