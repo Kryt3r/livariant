@@ -10,7 +10,7 @@ test("Claude and Gemini hook observations keep only bounded correlation evidence
   const claude = parseProviderHookObservation("claude", JSON.stringify({
     session_id: "claude-session-a",
     transcript_path: "C:\\Users\\Robin\\.claude\\projects\\a\\session.jsonl",
-    cwd: "C:\\work\\project-a",
+    cwd: "/work/project-a",
     hook_event_name: "SessionEnd",
     permission_mode: "default",
     arbitrary_secret_like_field: "must-not-be-persisted",
@@ -21,7 +21,7 @@ test("Claude and Gemini hook observations keep only bounded correlation evidence
     evidenceClass: "provider-hook-observation",
     provider: "claude",
     sessionId: "claude-session-a",
-    cwd: "C:\\work\\project-a",
+    cwd: "/work/project-a",
     transcriptPath: "C:\\Users\\Robin\\.claude\\projects\\a\\session.jsonl",
     hookEventName: "SessionEnd",
     providerTimestamp: null,
@@ -33,7 +33,7 @@ test("Claude and Gemini hook observations keep only bounded correlation evidence
   const gemini = parseProviderHookObservation("gemini", JSON.stringify({
     session_id: "gemini-session-b",
     transcript_path: "C:\\Users\\Robin\\.gemini\\tmp\\b.json",
-    cwd: "C:\\work\\project-b",
+    cwd: "/work/project-b",
     hook_event_name: "SessionStart",
     timestamp: "2026-09-26T09:59:59.000Z",
   }), "2026-09-26T10:00:00.000Z");
@@ -46,7 +46,7 @@ test("Claude and Gemini hook observations keep only bounded correlation evidence
   assert.throws(
     () => parseProviderHookObservation("gemini", JSON.stringify({
       session_id: "",
-      cwd: "C:\\work\\project-b",
+      cwd: "/work/project-b",
       hook_event_name: "SessionStart",
     })),
     /session_id must not be blank/i,
@@ -56,28 +56,28 @@ test("Claude and Gemini hook observations keep only bounded correlation evidence
 test("provider hook reconciliation maps consistent sessions and leaves mixed sessions unattributed", () => {
   const input = {
     projects: [
-      { desktopProjectId: "a", localRoot: "C:\\work\\project-a", projectId: "pa", stableProjectIdentity: null },
-      { desktopProjectId: "b", localRoot: "C:\\work\\project-b", projectId: "pb", stableProjectIdentity: null },
+      { desktopProjectId: "a", localRoot: "/work/project-a", projectId: "pa", stableProjectIdentity: null },
+      { desktopProjectId: "b", localRoot: "/work/project-b", projectId: "pb", stableProjectIdentity: null },
     ],
     observations: [
       {
-        provider: "claude", sessionId: "claude-a", cwd: "C:\\work\\project-a",
-        transcriptPath: "C:\\t\\a.jsonl", hookEventName: "SessionStart", observedAt: "2026-09-26T10:00:00Z",
+        provider: "claude", sessionId: "claude-a", cwd: "/work/project-a",
+        transcriptPath: "/tmp/a.jsonl", hookEventName: "SessionStart", observedAt: "2026-09-26T10:00:00Z",
       },
       {
-        provider: "claude", sessionId: "claude-a", cwd: "C:\\work\\project-a\\src",
-        transcriptPath: "C:\\t\\a.jsonl", hookEventName: "SessionEnd", observedAt: "2026-09-26T11:00:00Z",
+        provider: "claude", sessionId: "claude-a", cwd: "/work/project-a/src",
+        transcriptPath: "/tmp/a.jsonl", hookEventName: "SessionEnd", observedAt: "2026-09-26T11:00:00Z",
       },
       {
-        provider: "gemini", sessionId: "gemini-b", cwd: "C:\\work\\project-b",
-        transcriptPath: "C:\\t\\b.json", hookEventName: "SessionEnd", observedAt: "2026-09-26T12:00:00Z",
+        provider: "gemini", sessionId: "gemini-b", cwd: "/work/project-b",
+        transcriptPath: "/tmp/b.json", hookEventName: "SessionEnd", observedAt: "2026-09-26T12:00:00Z",
       },
       {
-        provider: "claude", sessionId: "mixed", cwd: "C:\\work\\project-a",
+        provider: "claude", sessionId: "mixed", cwd: "/work/project-a",
         transcriptPath: null, hookEventName: "SessionStart", observedAt: "2026-09-26T13:00:00Z",
       },
       {
-        provider: "claude", sessionId: "mixed", cwd: "C:\\work\\project-b",
+        provider: "claude", sessionId: "mixed", cwd: "/work/project-b",
         transcriptPath: null, hookEventName: "SessionEnd", observedAt: "2026-09-26T14:00:00Z",
       },
     ],
