@@ -25,7 +25,7 @@ import {
 } from "./localization.js";
 import { escapeTerminalControlText } from "./understand-command.js";
 
-export type FirstRunProvider = "claude-code" | "codex";
+export type FirstRunProvider = "claude-code" | "codex" | "gemini";
 
 type FirstRunActionId =
   | "install-protected-bootstrap"
@@ -134,7 +134,7 @@ function parseArgs(args: string[]): FirstRunArgs {
         externalSourcePath = value;
       } else {
         if (provider !== undefined) throw new Error("First-run accepts --provider at most once.");
-        if (value !== "claude-code" && value !== "codex") throw new Error("First-run provider must be 'claude-code' or 'codex'.");
+        if (value !== "claude-code" && value !== "codex" && value !== "gemini") throw new Error("First-run provider must be 'claude-code', 'codex', or 'gemini'.");
         provider = value;
       }
       index += 1;
