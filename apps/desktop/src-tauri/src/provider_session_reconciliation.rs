@@ -319,9 +319,10 @@ fn chrono_like_now() -> String {
 }
 
 pub(crate) fn start_background(app: tauri::AppHandle) {
-    std::thread::spawn(move || {
+    std::thread::spawn(move || loop {
         let _ = reconcile_codex_sessions_blocking(app.clone());
-        let _ = reconcile_provider_hook_sessions_blocking(app);
+        let _ = reconcile_provider_hook_sessions_blocking(app.clone());
+        std::thread::sleep(std::time::Duration::from_secs(30));
     });
 }
 
