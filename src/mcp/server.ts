@@ -97,14 +97,14 @@ function toolError(message: string): Record<string, unknown> {
   };
 }
 
-function parseProvider(value: unknown): "claude-code" | "codex" {
-  if (value !== "claude-code" && value !== "codex") {
-    throw new Error("provider must be either claude-code or codex.");
+function parseProvider(value: unknown): "claude-code" | "codex" | "gemini" {
+  if (value !== "claude-code" && value !== "codex" && value !== "gemini") {
+    throw new Error("provider must be claude-code, codex, or gemini.");
   }
   return value;
 }
 
-function parseContextToolArguments(value: unknown): { provider: "claude-code" | "codex"; task: string } {
+function parseContextToolArguments(value: unknown): { provider: "claude-code" | "codex" | "gemini"; task: string } {
   if (!plainObject(value)) throw new Error("Tool arguments must be an object.");
   strictKeys(value, ["provider", "task"]);
   const provider = parseProvider(value.provider);
@@ -169,7 +169,7 @@ function tools(): Record<string, unknown>[] {
         type: "object",
         additionalProperties: false,
         properties: {
-          provider: { type: "string", enum: ["claude-code", "codex"] },
+          provider: { type: "string", enum: ["claude-code", "codex", "gemini"] },
           task: { type: "string" },
         },
         required: ["provider", "task"],
