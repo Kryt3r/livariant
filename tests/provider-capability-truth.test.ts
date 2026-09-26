@@ -22,7 +22,7 @@ test("provider capability truth distinguishes Codex, Claude, Gemini and Custom",
   assert.equal(gemini["live-project-context"].state, "supported");
   assert.equal(gemini["live-session-correlation"].state, "mcp-session-only");
   assert.equal(gemini["retrospective-session-attribution"].state, "provider-capable-not-integrated");
-  assert.equal(gemini["provider-owned-usage-telemetry"].state, "not-integrated");
+  assert.equal(gemini["provider-owned-usage-telemetry"].state, "provider-capable-not-integrated");
 
   for (const capability of Object.values(custom)) {
     assert.equal(capability.state, "bridge-dependent");
