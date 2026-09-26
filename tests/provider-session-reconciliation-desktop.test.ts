@@ -16,6 +16,10 @@ test("provider session reconciliation is independent of the currently selected D
   assert.match(reconciliation, /providerSessionEvidenceGrantsAuthority["']?:?\s*false/);
   assert.match(lib, /provider_session_reconciliation::start_background\(app\.handle\(\)\.clone\(\)\)/);
   assert.match(lib, /provider_session_reconciliation::reconcile_codex_provider_sessions/);
+  assert.match(lib, /provider_session_reconciliation::reconcile_provider_hook_sessions/);
+  assert.match(reconciliation, /hook-observations\.jsonl/);
+  assert.match(reconciliation, /hook-bindings\.json/);
+  assert.match(reconciliation, /reconcile_provider_hook_sessions_blocking/);
 });
 
 test("Desktop registry no longer persists provider routing activation state", async () => {
