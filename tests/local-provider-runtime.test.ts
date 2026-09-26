@@ -116,6 +116,30 @@ test("custom provider requires the bounded Livariant probe schema", () => {
   assert.equal(ready.authState, "configured");
   assert.equal(ready.version, "1.2.3");
 
+  const declared = inspectCustomLocalProvider(
+    "/opt/custom-provider",
+    () => ({
+      status: 0,
+      stdout: JSON.stringify({
+        schemaVersion: 1,
+        ready: true,
+        capabilities: {
+          liveProjectContext: true,
+          liveSessionCorrelation: true,
+          retrospectiveSessionAttribution: false,
+          providerOwnedUsageTelemetry: false,
+        },
+      }),
+      stderr: "",
+    }),
+  );
+  assert.deepEqual(declared.customCapabilities, {
+    liveProjectContext: true,
+    liveSessionCorrelation: true,
+    retrospectiveSessionAttribution: false,
+    providerOwnedUsageTelemetry: false,
+  });
+
   const malformed = inspectCustomLocalProvider(
     "/opt/custom-provider",
     () => ({ status: 0, stdout: '{"ready":true}', stderr: "" }),
