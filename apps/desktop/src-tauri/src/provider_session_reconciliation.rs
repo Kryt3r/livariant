@@ -95,8 +95,38 @@ fn persist_ready_snapshot(app: &tauri::AppHandle, snapshot: &Value) -> Result<()
     Ok(())
 }
 
+fn read_provider_context_observations(app: &tauri::AppHandle) -> Result<Vec<Value>, String> {
+    let path = evidence_path(app, "context-observations.jsonl")?;
+    let raw = match fs::read_to_string(&path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("Provider context session observations could not be read: {error}")),
+    };
+    if raw.len() > 16 * 1024 * 1024 {
+        return Err("Provider context session observation spool exceeds the Desktop reconciliation safety bound.".to_owned());
+    }
+    let mut observations = Vec::new();
+    for (index, line) in raw.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let value: Value = serde_json::from_str(line)
+            .map_err(|error| format!("Provider context session observation line {} is invalid: {error}", index + 1))?;
+        if value.get("schemaVersion").and_then(Value::as_u64) != Some(1)
+            || value.get("evidenceClass").and_then(Value::as_str) != Some("provider-context-session-observation")
+            || value.get("projectTruth").and_then(Value::as_bool) != Some(false)
+            || value.get("grantsAuthority").and_then(Value::as_bool) != Some(false)
+        {
+            return Err(format!("Provider context session observation line {} violates the evidence boundary.", index + 1));
+        }
+        observations.push(value);
+    }
+    Ok(observations)
+}
+
 fn reconcile_codex_sessions_blocking(app: tauri::AppHandle) -> Result<Value, String> {
     let projects = registered_provider_projects(&app)?;
+    let context_observations = read_provider_context_observations(&app)?;
     if projects.is_empty() {
         return Ok(json!({
             "schemaVersion": 1,
@@ -145,7 +175,10 @@ fn reconcile_codex_sessions_blocking(app: tauri::AppHandle) -> Result<Value, Str
         return Err("Ordinary bundled runtime material must never claim Authority.".to_owned());
     }
 
-    let input = serde_json::to_vec(&json!({ "projects": projects }))
+    let input = serde_json::to_vec(&json!({
+        "projects": projects,
+        "contextObservations": context_observations
+    }))
         .map_err(|error| format!("Codex session reconciliation input could not be encoded: {error}"))?;
 
     let mut child = hidden_command(&node)
@@ -179,7 +212,8 @@ fn reconcile_codex_sessions_blocking(app: tauri::AppHandle) -> Result<Value, Str
     validate_snapshot(&snapshot)?;
     snapshot["boundaries"] = json!({
         "desktopSelectionControlsRouting": false,
-        "cwdDrivesProjectAttribution": true,
+        "directProviderContextDrivesProjectAttribution": true,
+        "cwdIsFallbackAttribution": true,
         "providerSessionEvidenceIsProjectTruth": false,
         "providerSessionEvidenceGrantsAuthority": false,
         "changesProjectOwnedFiles": false
