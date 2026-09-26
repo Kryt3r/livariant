@@ -92,9 +92,9 @@ const matrix: Record<ProviderCapabilityMatrix["provider"], ProviderCapabilityMat
         detail: "Gemini hooks expose session_id, transcript_path and cwd, but Livariant does not install provider hooks implicitly and has not qualified that reconciliation path yet.",
       },
       "provider-owned-usage-telemetry": {
-        state: "not-integrated",
+        state: "provider-capable-not-integrated",
         evidence: "provider-hooks",
-        detail: "No qualified Gemini provider-owned usage telemetry path is currently integrated into Livariant Diagnostics.",
+        detail: "Gemini AfterModel hooks expose provider-owned usage metadata, but Livariant has not qualified that Diagnostics ingestion path yet.",
       },
     },
   },
