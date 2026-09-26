@@ -22,6 +22,7 @@ type ConnectorStatus = {
   detail: string;
   connectionMode?: "auto" | "manual";
   configuredCommand?: string | null;
+  capabilities?: ProviderCapabilities;
 };
 
 type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
@@ -78,6 +79,23 @@ type MeasureResult = { connection: ConnectorStatus; diagnostics: DiagnosticsSumm
 type DiagnosticsExportSaveResult = { saved: boolean; fileName?: string | null };
 type ProviderId = "codex" | "claude" | "gemini" | "custom";
 type LocalProviderId = Exclude<ProviderId, "codex">;
+type ProviderCapabilityId =
+  | "live-project-context"
+  | "live-session-correlation"
+  | "retrospective-session-attribution"
+  | "provider-owned-usage-telemetry";
+type ProviderCapabilityState =
+  | "supported"
+  | "mcp-session-only"
+  | "provider-capable-not-integrated"
+  | "not-integrated"
+  | "bridge-dependent";
+type ProviderCapability = {
+  state: ProviderCapabilityState;
+  evidence: string;
+  detail: string;
+};
+type ProviderCapabilities = Partial<Record<ProviderCapabilityId, ProviderCapability>>;
 type ConnectorAction = "connect" | "disconnect" | null;
 type LocalProviderStatus = {
   provider: LocalProviderId;
@@ -89,6 +107,7 @@ type LocalProviderStatus = {
   connectionMode: "auto" | "manual";
   configuredPath?: string | null;
   launchSource?: string | null;
+  capabilities?: ProviderCapabilities;
 };
 
 let connector: ConnectorStatus | null = null;
@@ -169,6 +188,68 @@ const unknownTotalEvents = (dimension: ObservedAttributionDimension | undefined)
 
 const providerGlyph = (provider: ProviderId) => {
   return `<span class="provider-glyph provider-glyph-${provider}">${providerBrandLogo(provider)}</span>`;
+};
+
+const capabilityLabel = (id: ProviderCapabilityId) => ({
+  "live-project-context": lang("Live project context", "Live-Projektkontext"),
+  "live-session-correlation": lang("Session separation", "Session-Trennung"),
+  "retrospective-session-attribution": lang("Later session recovery", "Nachträgliche Session-Zuordnung"),
+  "provider-owned-usage-telemetry": lang("Usage telemetry", "Usage-Telemetrie"),
+})[id];
+
+const capabilityStateLabel = (state: ProviderCapabilityState) => ({
+  supported: lang("Supported", "Unterstützt"),
+  "mcp-session-only": lang("MCP session only", "Nur MCP-Session"),
+  "provider-capable-not-integrated": lang("Provider supports it · not integrated yet", "Provider kann es · noch nicht integriert"),
+  "not-integrated": lang("Not integrated", "Nicht integriert"),
+  "bridge-dependent": lang("Depends on bridge", "Abhängig von Bridge"),
+})[state];
+
+const capabilityDetail = (provider: ProviderId, id: ProviderCapabilityId, capability: ProviderCapability): string => {
+  if (provider === "codex") {
+    if (id === "live-project-context") return lang("Project-bound Livariant MCP context works without depending on the Desktop selection.", "Projektgebundener Livariant-MCP-Kontext funktioniert unabhängig von der Desktop-Auswahl.");
+    if (id === "live-session-correlation") return lang("Codex thread metadata is bound to the Livariant MCP roundtrip when available.", "Codex-Thread-Metadaten werden, wenn verfügbar, an den Livariant-MCP-Roundtrip gebunden.");
+    if (id === "retrospective-session-attribution") return lang("Saved Codex threads can be matched back to registered projects using their recorded working directory.", "Gespeicherte Codex-Threads können über ihr aufgezeichnetes Arbeitsverzeichnis nachträglich registrierten Projekten zugeordnet werden.");
+    return lang("Qualified provider-owned token usage is ingested from the Codex App Server.", "Qualifizierte provider-eigene Token-Nutzung wird aus dem Codex App Server übernommen.");
+  }
+  if (provider === "claude") {
+    if (id === "live-project-context") return lang("Claude Code can use Livariant through project-local MCP.", "Claude Code kann Livariant über projektlokales MCP verwenden.");
+    if (id === "live-session-correlation") return lang("Sessions are isolated by the running Livariant MCP session; Claude-native session IDs are not yet bound into tool calls.", "Sessions werden über die laufende Livariant-MCP-Session getrennt; Claude-eigene Session-IDs sind noch nicht an Tool-Aufrufe gebunden.");
+    if (id === "retrospective-session-attribution") return lang("Claude exposes session and working-directory metadata programmatically, but Livariant has not qualified historical session discovery yet.", "Claude stellt Session- und Arbeitsverzeichnis-Metadaten programmatisch bereit; Livariant hat die historische Session-Erkennung aber noch nicht qualifiziert.");
+    return lang("Livariant currently has no qualified provider-owned Claude token telemetry path.", "Livariant besitzt aktuell keinen qualifizierten provider-eigenen Claude-Token-Telemetriepfad.");
+  }
+  if (provider === "gemini") {
+    if (id === "live-project-context") return lang("Gemini CLI supports project-scoped MCP and can use Livariant Provider Context/Return.", "Gemini CLI unterstützt projektbezogenes MCP und kann Livariant Provider Context/Return verwenden.");
+    if (id === "live-session-correlation") return lang("Live isolation currently uses the Livariant MCP session. Gemini hook session IDs are not installed or consumed automatically.", "Die Live-Trennung nutzt aktuell die Livariant-MCP-Session. Gemini-Hook-Session-IDs werden nicht automatisch installiert oder verarbeitet.");
+    if (id === "retrospective-session-attribution") return lang("Gemini hooks expose session ID, transcript path and cwd, but that recovery path is not qualified in Livariant yet.", "Gemini-Hooks liefern Session-ID, Transcript-Pfad und cwd; dieser Wiederherstellungspfad ist in Livariant aber noch nicht qualifiziert.");
+    return lang("Livariant currently has no qualified provider-owned Gemini token telemetry path.", "Livariant besitzt aktuell keinen qualifizierten provider-eigenen Gemini-Token-Telemetriepfad.");
+  }
+  return lang(
+    "A custom connection only proves that its local probe is ready. This capability requires explicit support from that bridge.",
+    "Eine eigene Verbindung beweist nur, dass ihr lokaler Probe bereit ist. Diese Fähigkeit erfordert ausdrückliche Unterstützung durch diese Bridge.",
+  );
+};
+
+const renderProviderCapabilities = (provider: ProviderId, capabilities: ProviderCapabilities | undefined) => {
+  const ids: ProviderCapabilityId[] = [
+    "live-project-context",
+    "live-session-correlation",
+    "retrospective-session-attribution",
+    "provider-owned-usage-telemetry",
+  ];
+  return `
+    <section class="provider-detail-section provider-capabilities">
+      <div class="provider-section-heading"><span>${lang("Livariant integration", "Livariant-Integration")}</span><small>${lang("Actual capabilities · connection alone does not imply feature parity", "Tatsächliche Fähigkeiten · eine Verbindung bedeutet nicht Funktionsgleichheit")}</small></div>
+      <div class="provider-detail-grid">
+        ${ids.map((id) => {
+          const capability = capabilities?.[id];
+          if (!capability) {
+            return `<div class="provider-detail provider-capability"><small>${capabilityLabel(id)}</small><strong>${lang("Unknown", "Unbekannt")}</strong><span>${lang("No qualified capability evidence is available.", "Es liegt keine qualifizierte Capability-Evidence vor.")}</span></div>`;
+          }
+          return `<div class="provider-detail provider-capability" title="${esc(capability.detail)}"><small>${capabilityLabel(id)}</small><strong>${capabilityStateLabel(capability.state)}</strong><span>${esc(capabilityDetail(provider, id, capability))}</span></div>`;
+        }).join("")}
+      </div>
+    </section>`;
 };
 
 const localizedCodexDetail = (detail: string | null | undefined): string | null => {
@@ -298,6 +379,7 @@ const renderCodexModal = () => {
             <div class="provider-detail"><small>${lang("Approvals", "Freigaben")}</small><strong>${connector?.pendingApprovals ?? 0} ${lang("pending", "ausstehend")}</strong></div>
           </div>
         </section>
+        ${renderProviderCapabilities("codex", connector?.capabilities)}
         <footer class="provider-boundary provider-boundary-panel"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("Connecting Codex does not authorize file changes, commands, merges or releases.", "Das Verbinden von Codex autorisiert keine Dateiänderungen, Befehle, Merges oder Releases.")}</p></footer>
       </section>
     </div>`;
@@ -340,6 +422,7 @@ const renderLocalProviderModal = (provider: LocalProviderId) => {
             <div class="provider-detail"><small>${lang("Connection method", "Verbindungsmethode")}</small><strong>${status?.connectionMode === "manual" ? lang("Explicit local executable", "Explizite lokale Programmdatei") : lang("Local CLI discovery", "Lokale CLI-Erkennung")}</strong></div>
           </div>
         </section>
+        ${renderProviderCapabilities(provider, status?.capabilities)}
         <footer class="provider-boundary provider-boundary-panel"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("This connection stores only local connection intent. Livariant does not import provider API keys or grant file, command, merge or release authority.", "Diese Verbindung speichert nur die lokale Verbindungsabsicht. Livariant importiert keine Provider-API-Schlüssel und erteilt keine Datei-, Befehls-, Merge- oder Release-Authority.")}</p></footer>
       </section>
     </div>`;
