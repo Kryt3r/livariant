@@ -205,7 +205,7 @@ const capabilityStateLabel = (state: ProviderCapabilityState) => ({
   "bridge-dependent": lang("Depends on bridge", "Abhängig von Bridge"),
 })[state];
 
-const capabilityDetail = (provider: ProviderId, id: ProviderCapabilityId, capability: ProviderCapability): string => {
+const capabilityDetail = (provider: ProviderId, id: ProviderCapabilityId): string => {
   if (provider === "codex") {
     if (id === "live-project-context") return lang("Project-bound Livariant MCP context works without depending on the Desktop selection.", "Projektgebundener Livariant-MCP-Kontext funktioniert unabhängig von der Desktop-Auswahl.");
     if (id === "live-session-correlation") return lang("Codex thread metadata is bound to the Livariant MCP roundtrip when available.", "Codex-Thread-Metadaten werden, wenn verfügbar, an den Livariant-MCP-Roundtrip gebunden.");
@@ -246,7 +246,7 @@ const renderProviderCapabilities = (provider: ProviderId, capabilities: Provider
           if (!capability) {
             return `<div class="provider-detail provider-capability"><small>${capabilityLabel(id)}</small><strong>${lang("Unknown", "Unbekannt")}</strong><span>${lang("No qualified capability evidence is available.", "Es liegt keine qualifizierte Capability-Evidence vor.")}</span></div>`;
           }
-          return `<div class="provider-detail provider-capability" title="${esc(capability.detail)}"><small>${capabilityLabel(id)}</small><strong>${capabilityStateLabel(capability.state)}</strong><span>${esc(capabilityDetail(provider, id, capability))}</span></div>`;
+          return `<div class="provider-detail provider-capability" title="${esc(capability.detail)}"><small>${capabilityLabel(id)}</small><strong>${capabilityStateLabel(capability.state)}</strong><span>${esc(capabilityDetail(provider, id))}</span></div>`;
         }).join("")}
       </div>
     </section>`;
