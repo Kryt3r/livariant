@@ -86,6 +86,7 @@ type ProviderCapabilityId =
   | "provider-owned-usage-telemetry";
 type ProviderCapabilityState =
   | "supported"
+  | "supported-opt-in"
   | "mcp-session-only"
   | "provider-capable-not-integrated"
   | "not-integrated"
@@ -199,6 +200,7 @@ const capabilityLabel = (id: ProviderCapabilityId) => ({
 
 const capabilityStateLabel = (state: ProviderCapabilityState) => ({
   supported: lang("Supported", "Unterstützt"),
+  "supported-opt-in": lang("Supported with opt-in hook", "Mit Opt-in-Hook unterstützt"),
   "mcp-session-only": lang("MCP session only", "Nur MCP-Session"),
   "provider-capable-not-integrated": lang("Provider supports it · not integrated yet", "Provider kann es · noch nicht integriert"),
   "not-integrated": lang("Not integrated", "Nicht integriert"),
@@ -215,13 +217,13 @@ const capabilityDetail = (provider: ProviderId, id: ProviderCapabilityId): strin
   if (provider === "claude") {
     if (id === "live-project-context") return lang("Claude Code can use Livariant through project-local MCP.", "Claude Code kann Livariant über projektlokales MCP verwenden.");
     if (id === "live-session-correlation") return lang("Sessions are isolated by the running Livariant MCP session; Claude-native session IDs are not yet bound into tool calls.", "Sessions werden über die laufende Livariant-MCP-Session getrennt; Claude-eigene Session-IDs sind noch nicht an Tool-Aufrufe gebunden.");
-    if (id === "retrospective-session-attribution") return lang("Claude exposes session and working-directory metadata programmatically, but Livariant has not qualified historical session discovery yet.", "Claude stellt Session- und Arbeitsverzeichnis-Metadaten programmatisch bereit; Livariant hat die historische Session-Erkennung aber noch nicht qualifiziert.");
+    if (id === "retrospective-session-attribution") return lang("With a user-configured Claude hook, Livariant can record session/cwd evidence while Desktop is closed and reconcile it later.", "Mit einem vom Nutzer eingerichteten Claude-Hook kann Livariant Session-/cwd-Evidence bei geschlossenem Desktop erfassen und später zuordnen.");
     return lang("Livariant currently has no qualified provider-owned Claude token telemetry path.", "Livariant besitzt aktuell keinen qualifizierten provider-eigenen Claude-Token-Telemetriepfad.");
   }
   if (provider === "gemini") {
     if (id === "live-project-context") return lang("Gemini CLI supports project-scoped MCP and can use Livariant Provider Context/Return.", "Gemini CLI unterstützt projektbezogenes MCP und kann Livariant Provider Context/Return verwenden.");
     if (id === "live-session-correlation") return lang("Live isolation currently uses the Livariant MCP session. Gemini hook session IDs are not installed or consumed automatically.", "Die Live-Trennung nutzt aktuell die Livariant-MCP-Session. Gemini-Hook-Session-IDs werden nicht automatisch installiert oder verarbeitet.");
-    if (id === "retrospective-session-attribution") return lang("Gemini hooks expose session ID, transcript path and cwd, but that recovery path is not qualified in Livariant yet.", "Gemini-Hooks liefern Session-ID, Transcript-Pfad und cwd; dieser Wiederherstellungspfad ist in Livariant aber noch nicht qualifiziert.");
+    if (id === "retrospective-session-attribution") return lang("With a user-configured Gemini hook, Livariant can record session/cwd evidence while Desktop is closed and reconcile it later.", "Mit einem vom Nutzer eingerichteten Gemini-Hook kann Livariant Session-/cwd-Evidence bei geschlossenem Desktop erfassen und später zuordnen.");
     return lang("Gemini exposes provider-owned usage metadata through hooks, but Livariant has not qualified that Diagnostics ingestion path yet.", "Gemini liefert provider-eigene Usage-Metadaten über Hooks; Livariant hat diesen Diagnose-Ingestionspfad aber noch nicht qualifiziert.");
   }
   return lang(
