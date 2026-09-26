@@ -17,6 +17,17 @@ const diagnosticFixture = {
   range: { start: "2026-08-18T00:00:00Z", end: "2026-09-16T23:59:59Z" },
   hasObservedData: true,
   storage: "Local diagnostics history",
+  telemetryCoverage: {
+    evidenceContract: "qualified-provider-owned-usage",
+    connectionDoesNotImplyTelemetry: true,
+    qualifiedProviders: ["codex"],
+    providers: {
+      codex: { state: "supported", evidence: "provider-runtime", detail: "Qualified Codex App Server usage evidence." },
+      claude: { state: "not-integrated", evidence: "provider-runtime", detail: "Connection does not imply token telemetry." },
+      gemini: { state: "provider-capable-not-integrated", evidence: "provider-hooks", detail: "Provider usage metadata exists but is not yet ingested." },
+      custom: { state: "bridge-dependent", evidence: "custom-bridge", detail: "Telemetry requires an explicitly capable custom bridge." },
+    },
+  },
   observed: {
     eventCount: 286,
     inputTokens: 184200,
@@ -32,21 +43,17 @@ const diagnosticFixture = {
   estimated: { eventCount: 17, tokens: 32900 },
   attribution: {
     provider: {
-      attributedEventCount: 280,
-      unattributedEventCount: 6,
+      attributedEventCount: 286,
+      unattributedEventCount: 0,
       groups: [
-        { value: "Codex", eventCount: 178, totalTokens: 261400, knownTotalTokenEvents: 174, unknownTotalTokenEvents: 4 },
-        { value: "Claude", eventCount: 72, totalTokens: 104300, knownTotalTokenEvents: 71, unknownTotalTokenEvents: 1 },
-        { value: "Gemini", eventCount: 30, totalTokens: 46200, knownTotalTokenEvents: 29, unknownTotalTokenEvents: 1 },
+        { value: "Codex", eventCount: 286, totalTokens: 411900, knownTotalTokenEvents: 282, unknownTotalTokenEvents: 4 },
       ],
     },
     model: {
       attributedEventCount: 254,
       unattributedEventCount: 32,
       groups: [
-        { value: "gpt-5.6-sol", eventCount: 146, totalTokens: 218700, knownTotalTokenEvents: 143, unknownTotalTokenEvents: 3 },
-        { value: "claude-sonnet-4.6", eventCount: 71, totalTokens: 103100, knownTotalTokenEvents: 70, unknownTotalTokenEvents: 1 },
-        { value: "gemini-2.5-pro", eventCount: 37, totalTokens: 50900, knownTotalTokenEvents: 36, unknownTotalTokenEvents: 1 },
+        { value: "gpt-5.6-sol", eventCount: 254, totalTokens: 411900, knownTotalTokenEvents: 250, unknownTotalTokenEvents: 4 },
       ],
     },
     projectId: {
