@@ -54,7 +54,7 @@ function renderHelp(): void {
   console.log("  decisions supersede <id> <replacement> [--reason <reason>]  # plan only");
   console.log("  update --manifest <release-manifest.json> [--authorize | --apply --artifact <runtime.tgz> --trusted-source <source-id>]");
   console.log("  recover [--authorize | --apply]");
-  console.log("  first-run [--language <preferred-language>] [--autonomy-profile <ask-always|ask-important|continue-without-confirmation>] [--acknowledge-autonomy-risk] [--external-source-type <local-directory> --external-source <source-path>] [--provider <claude-code|codex>] [--json]");
+  console.log("  first-run [--language <preferred-language>] [--autonomy-profile <ask-always|ask-important|continue-without-confirmation>] [--acknowledge-autonomy-risk] [--external-source-type <local-directory> --external-source <source-path>] [--provider <claude-code|codex|gemini>] [--json]");
   console.log("  autonomy show [--json]");
   console.log("  autonomy set --profile <ask-always|ask-important|continue-without-confirmation> [--acknowledge-risk] [--json]");
   console.log("  findings [--json]");
@@ -64,14 +64,14 @@ function renderHelp(): void {
   console.log("  understand [--input <review.json>] [--external-source-type <local-directory> --external-source <source-path>] [--json]");
   console.log("  adopt-understanding --input <review.json> --select <candidate-id> [--json]");
   console.log("  drift --input <observation.json> [--json]");
-  console.log("  provider-context --provider <claude-code|codex> --task <task.txt> [--json]");
+  console.log("  provider-context --provider <claude-code|codex|gemini> --task <task.txt> [--json]");
   console.log("  provider-return --context <provider-context.json> --input <provider-return.json> [--authorization <authorization-id>] [--json]");
   console.log("  prepare --input <candidate.json> [--json]");
   console.log("  authorize --input <actionable-proposal.json> [--json]");
   console.log("  apply --authorization <authorization-id> --input <actionable-proposal.json> [--json]");
   console.log("  maintain --input <candidate.json> [--authorization <authorization-id>] [--json]");
   console.log("  mcp");
-  console.log("  mcp setup --provider <claude-code|codex> [--json]");
+  console.log("  mcp setup --provider <claude-code|codex|gemini> [--json]");
   console.log("");
   console.log("Legacy goals/knowledge/decisions commands are list/plan surfaces only; their --apply mutation path is retired.");
   console.log("Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
