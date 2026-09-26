@@ -347,14 +347,24 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
     if (reconciliation.state !== "ready") {
       return `<div class="dc-session-empty">${esc(reconciliation.detail || lang("Codex session evidence is unavailable.", "Codex-Session-Evidence ist nicht verfügbar."))}</div>`;
     }
-    const rows = reconciliation.bindings.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
-    if (!rows.length) return `<div class="dc-session-empty">${lang("No Codex sessions are currently attributable to this project.", "Aktuell lassen sich diesem Projekt keine Codex-Sessions zuordnen.")}</div>`;
-    return `<div class="dc-session-list">${rows.map((binding) => `<article class="dc-session-row">
+    const renderCodexRows = (rows: CodexSessionBinding[]) => `<div class="dc-session-list">${rows.map((binding) => `<article class="dc-session-row">
       <div><small>${lang("Thread", "Thread")}</small><strong title="${esc(binding.threadId)}">${esc(shortId(binding.threadId))}</strong></div>
       <div><small>${lang("Session", "Sitzung")}</small><strong title="${esc(binding.sessionId)}">${esc(shortId(binding.sessionId))}</strong></div>
       <div><small>cwd</small><strong title="${esc(binding.cwd)}">${esc(binding.cwd)}</strong></div>
       <span class="dc-session-state ${binding.attribution === "unattributed" ? "warn" : "ok"}">${binding.attribution === "cwd-exact" ? lang("Exact project", "Exaktes Projekt") : binding.attribution === "cwd-descendant" ? lang("Project subtree", "Projekt-Unterordner") : lang("Unattributed", "Nicht zugeordnet")}</span>
     </article>`).join("")}</div>`;
+    const current = reconciliation.bindings.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
+    const other = reconciliation.bindings.filter((binding) => binding.project !== null && !belongsToDiagnosticsProject(binding.project, data.scope.projectId));
+    const unattributed = reconciliation.bindings.filter((binding) => binding.project === null);
+    const currentBody = current.length
+      ? renderCodexRows(current)
+      : `<div class="dc-session-empty">${lang("No Codex sessions are currently attributable to this project.", "Aktuell lassen sich diesem Projekt keine Codex-Sessions zuordnen.")}</div>`;
+    const diagnosticsGroups = [
+      other.length ? `<details class="dc-session-diagnostic-group"><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderCodexRows(other)}</div></details>` : "",
+      unattributed.length ? `<details class="dc-session-diagnostic-group warning"><summary><span>${lang("Unattributed provider threads", "Nicht zugeordnete Provider-Threads")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderCodexRows(unattributed)}</div></details>` : "",
+    ].join("");
+    const catalogSummary = `<div class="dc-session-catalog-summary"><span>${lang("Provider catalog", "Provider-Katalog")}</span><strong>${reconciliation.bindings.length} ${lang("threads", "Threads")}</strong><small>${current.length} ${lang("this project", "dieses Projekt")} · ${other.length} ${lang("other projects", "andere Projekte")} · ${unattributed.length} ${lang("unattributed", "nicht zugeordnet")}</small></div>`;
+    return `${catalogSummary}${currentBody}${diagnosticsGroups}`;
   }
 
   const reconciliation = state.sessions.hooks;
