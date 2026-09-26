@@ -1,5 +1,6 @@
 import { isAbsolute, normalize, relative, resolve, sep } from "node:path";
 import type { CodexThreadCatalogEntry } from "./codex-thread-catalog.js";
+import type { CodexProjectCatalogEntry } from "./codex-project-catalog.js";
 
 export interface ProviderProjectDescriptor {
   desktopProjectId: string;
@@ -21,7 +22,7 @@ export interface CodexThreadProjectBinding {
   cwd: string;
   providerProjectId: string | null;
   project: ProviderProjectDescriptor | null;
-  attribution: "provider-context" | "provider-context-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
+  attribution: "provider-context" | "provider-context-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
 }
 
 function pathKey(value: string): string {
@@ -81,6 +82,48 @@ export function bindCodexThreadsToProjects(
   });
 }
 
+
+
+export function applyCodexProviderProjectBindings(
+  bindings: readonly CodexThreadProjectBinding[],
+  providerProjects: readonly CodexProjectCatalogEntry[],
+  projects: readonly ProviderProjectDescriptor[],
+): CodexThreadProjectBinding[] {
+  const providerById = new Map(providerProjects.map((project) => [project.projectId, project]));
+  const normalizedLivariant = projects.map((project) => ({ project, root: pathKey(project.localRoot) }));
+
+  return bindings.map((binding) => {
+    if (binding.providerProjectId === null || binding.attribution === "provider-context" || binding.attribution === "provider-context-conflict") {
+      return binding;
+    }
+    const providerProject = providerById.get(binding.providerProjectId);
+    if (!providerProject) return binding;
+
+    const candidates = new Map<string, ProviderProjectDescriptor>();
+    for (const root of providerProject.roots.map(pathKey)) {
+      for (const candidate of normalizedLivariant) {
+        const relation = relativeInside(candidate.root, root);
+        const reverse = relativeInside(root, candidate.root);
+        if (relation.matches || reverse.matches) candidates.set(candidate.project.desktopProjectId, candidate.project);
+      }
+    }
+    if (candidates.size === 1) {
+      return {
+        ...binding,
+        project: { ...[...candidates.values()][0]! },
+        attribution: "provider-project" as const,
+      };
+    }
+    if (candidates.size > 1) {
+      return {
+        ...binding,
+        project: null,
+        attribution: "provider-project-conflict" as const,
+      };
+    }
+    return binding;
+  });
+}
 
 export function summarizeCodexSessionProjects(
   bindings: readonly CodexThreadProjectBinding[],
