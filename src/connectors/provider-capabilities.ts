@@ -1,3 +1,4 @@
+import type { CustomProviderCapabilityDeclaration } from "./local-provider-runtime.js";
 export type ProviderCapabilityId =
   | "live-project-context"
   | "live-session-correlation"
@@ -126,11 +127,47 @@ const matrix: Record<ProviderCapabilityMatrix["provider"], ProviderCapabilityMat
   },
 };
 
-export function providerCapabilityMatrix(provider: ProviderCapabilityMatrix["provider"]): ProviderCapabilityMatrix {
+export function providerCapabilityMatrix(
+  provider: ProviderCapabilityMatrix["provider"],
+  customDeclaration?: CustomProviderCapabilityDeclaration,
+): ProviderCapabilityMatrix {
+  if (provider !== "custom" || !customDeclaration) {
+    return {
+      provider,
+      capabilities: Object.fromEntries(
+        Object.entries(matrix[provider].capabilities).map(([id, capability]) => [id, { ...capability }]),
+      ) as ProviderCapabilityMatrix["capabilities"],
+    };
+  }
+
+  const declared = {
+    "live-project-context": customDeclaration.liveProjectContext,
+    "live-session-correlation": customDeclaration.liveSessionCorrelation,
+    "retrospective-session-attribution": customDeclaration.retrospectiveSessionAttribution,
+    "provider-owned-usage-telemetry": customDeclaration.providerOwnedUsageTelemetry,
+  } as const;
+
   return {
     provider,
     capabilities: Object.fromEntries(
-      Object.entries(matrix[provider].capabilities).map(([id, capability]) => [id, { ...capability }]),
+      Object.entries(matrix.custom.capabilities).map(([id, fallback]) => {
+        const value = declared[id as keyof typeof declared];
+        if (value === true) {
+          return [id, {
+            state: "provider-capable-not-integrated",
+            evidence: "custom-bridge",
+            detail: "The custom bridge explicitly declares this capability, but Livariant requires provider-isolation acceptance before treating it as qualified.",
+          }];
+        }
+        if (value === false) {
+          return [id, {
+            state: "not-integrated",
+            evidence: "custom-bridge",
+            detail: "The custom bridge explicitly declares that this capability is unavailable.",
+          }];
+        }
+        return [id, { ...fallback }];
+      }),
     ) as ProviderCapabilityMatrix["capabilities"],
   };
 }
