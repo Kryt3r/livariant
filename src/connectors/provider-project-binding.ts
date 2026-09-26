@@ -21,7 +21,7 @@ export interface CodexThreadProjectBinding {
   cwd: string;
   providerProjectId: string | null;
   project: ProviderProjectDescriptor | null;
-  attribution: "cwd-exact" | "cwd-descendant" | "unattributed";
+  attribution: "provider-context" | "provider-context-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
 }
 
 function pathKey(value: string): string {
