@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { resolveCodexCommand, type CodexCommandResolution } from "./codex-command.js";
+import { providerCapabilityMatrix } from "./provider-capabilities.js";
 import {
   connectCodexAppServer,
   inspectCodexInstallation,
@@ -151,6 +152,7 @@ function connectionStatus() {
     launchSource: resolution?.source ?? null,
     connectionMode: selectedResolution ? selectedMode : "auto",
     configuredCommand: selectedResolution?.command ?? null,
+    capabilities: providerCapabilityMatrix("codex").capabilities,
     detail: lastRestoreError ? `Codex remains configured to reconnect, but automatic reconnection failed: ${lastRestoreError}` : baseDetail,
   };
 }
