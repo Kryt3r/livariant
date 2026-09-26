@@ -1572,7 +1572,7 @@ mod tests {
             serde_json::to_vec(&serde_json::json!({
                 "projectBrain": {
                     "schemaVersion": 2,
-                    "projectId": stable,
+                    "projectId": stable.clone(),
                 }
             })).expect("metadata"),
         ).expect("write metadata");
