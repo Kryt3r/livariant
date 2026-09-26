@@ -109,3 +109,19 @@ test("diagnostics exposes live provider sessions as branded provider accordions"
   assert.match(reconciliation, /reconcile_codex_sessions_blocking\(app\.clone\(\)\)/);
   assert.match(reconciliation, /reconcile_provider_hook_sessions_blocking\(app\.clone\(\)\)/);
 });
+
+
+test("live Codex diagnostics keeps unmatched provider evidence visible", async () => {
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const css = await readFile("apps/desktop/src/diagnostics-cockpit.css", "utf8");
+
+  assert.match(cockpit, /Provider catalog/);
+  assert.match(cockpit, /Andere registrierte Projekte/);
+  assert.match(cockpit, /Nicht zugeordnete Provider-Threads/);
+  assert.match(cockpit, /binding\.project === null/);
+  assert.match(cockpit, /binding\.project !== null && !belongsToDiagnosticsProject/);
+  assert.match(cockpit, /binding\.cwd/);
+
+  assert.match(css, /\.dc-session-catalog-summary/);
+  assert.match(css, /\.dc-session-diagnostic-group/);
+});
