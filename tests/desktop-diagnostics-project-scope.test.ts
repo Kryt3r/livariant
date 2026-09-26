@@ -7,7 +7,10 @@ test("Desktop diagnostics commands bind to the active logical project id", async
   const host = await readFile("apps/desktop/src-tauri/src/connector_host.rs", "utf8");
 
   assert.match(registry, /pub\(crate\) fn active_diagnostics_project_id/);
-  assert.match(registry, /active Desktop project has no logical projectId/i);
+  assert.match(registry, /observed_machine_local_stable_project_identity/);
+  assert.match(registry, /diagnostics_project_id/);
+  assert.match(registry, /neither a logical projectId nor a stable Project Brain identity/i);
+  assert.match(registry, /bind_stable_project_identity_at/);
   assert.match(host, /diagnosticsProjectId/);
   assert.match(host, /active_diagnostics_project_id\(&app, registry\.inner\(\)\)\?/);
   assert.match(host, /"diagnostics", None, preset, Some\(&project_id\)/);
