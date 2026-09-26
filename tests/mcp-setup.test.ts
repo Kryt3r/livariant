@@ -34,9 +34,20 @@ test("Codex setup renders native CLI registration plus a project-bound TOML opti
   assert.match(plan.projectScopedConfig ?? "", /cwd = "C:\\\\work\\\\livariant demo"/);
 });
 
+test("Gemini setup renders project-scoped native MCP registration without writing provider config", () => {
+  const parsed = parseMcpSetupArgs(["--provider", "gemini"]);
+  assert.deepEqual(parsed, { provider: "gemini", json: false });
+  const plan = buildMcpSetupPlan(parsed.provider, "/tmp/project");
+  assert.equal(plan.mutatesProviderConfiguration, false);
+  assert.equal(plan.registrationCommand, "gemini mcp add --scope project livariant livariant mcp");
+  assert.deepEqual(plan.verificationCommands, ["gemini mcp list"]);
+  assert.match(plan.notes.join("\n"), /project-scoped MCP/i);
+  assert.match(plan.notes.join("\n"), /does not install provider hooks implicitly/i);
+});
+
 test("MCP setup parsing rejects ambiguous or unsupported setup requests", () => {
   assert.throws(() => parseMcpSetupArgs([]), /Usage:/);
-  assert.throws(() => parseMcpSetupArgs(["--provider", "unknown"]), /claude-code or codex/);
+  assert.throws(() => parseMcpSetupArgs(["--provider", "unknown"]), /claude-code, codex, or gemini/);
   assert.throws(() => parseMcpSetupArgs(["--provider", "codex", "--apply"]), /Usage:/);
   assert.throws(
     () => parseMcpSetupArgs(["--provider", "codex", "--provider", "claude-code"]),
