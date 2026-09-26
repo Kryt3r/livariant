@@ -34,6 +34,9 @@ export interface CodexInitializeRequest {
       title: "Livariant";
       version: string;
     };
+    capabilities?: {
+      experimentalApi: true;
+    };
   };
 }
 
@@ -42,7 +45,7 @@ export interface CodexInitializedNotification {
   params: Record<string, never>;
 }
 
-export function createCodexInitializeRequest(clientVersion: string, id = 0): CodexInitializeRequest {
+export function createCodexInitializeRequest(clientVersion: string, id = 0, experimentalApi = false): CodexInitializeRequest {
   if (clientVersion.trim().length === 0) {
     throw new Error("Livariant client version must not be blank.");
   }
@@ -59,6 +62,7 @@ export function createCodexInitializeRequest(clientVersion: string, id = 0): Cod
         title: "Livariant",
         version: clientVersion,
       },
+      ...(experimentalApi ? { capabilities: { experimentalApi: true as const } } : {}),
     },
   };
 }
