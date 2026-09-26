@@ -159,3 +159,23 @@ test("Codex live reconciliation prefers direct Provider Context thread evidence 
   assert.match(cockpit, /Direkter Provider Context/);
   assert.match(cockpit, /Widersprüchliche direkte Evidence/);
 });
+
+
+test("live Codex diagnostics exposes direct evidence pipeline counts", async () => {
+  const reconciliation = await readFile("src/connectors/codex-thread-reconciliation-cli.ts", "utf8");
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const css = await readFile("apps/desktop/src/diagnostics-cockpit.css", "utf8");
+
+  assert.match(reconciliation, /directContextEvidence/);
+  assert.match(reconciliation, /codexObservationsWithThreadId/);
+  assert.match(reconciliation, /observationsMatchingRegisteredProjectIdentity/);
+  assert.match(reconciliation, /distinctObservationThreadIdsMatchingCatalog/);
+  assert.match(reconciliation, /bindingsUsingDirectContext/);
+  assert.match(reconciliation, /bindingsWithDirectContextConflict/);
+
+  assert.match(cockpit, /Direkte Provider-Context-Evidence/);
+  assert.match(cockpit, /mit Thread-ID/);
+  assert.match(cockpit, /passender registrierter Projektidentität/);
+  assert.match(cockpit, /Thread-IDs im Provider-Katalog gefunden/);
+  assert.match(css, /\.dc-direct-evidence-summary/);
+});
