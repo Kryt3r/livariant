@@ -17,6 +17,18 @@ type ObservedAttributionDimension = {
   unattributedEventCount: number;
   groups: ObservedAttributionGroup[];
 };
+type DiagnosticsTelemetryProviderState = {
+  state: "supported" | "supported-opt-in" | "mcp-session-only" | "provider-capable-not-integrated" | "not-integrated" | "bridge-dependent";
+  evidence: string;
+  detail: string;
+};
+type DiagnosticsTelemetryCoverage = {
+  evidenceContract: "qualified-provider-owned-usage";
+  connectionDoesNotImplyTelemetry: true;
+  qualifiedProviders: string[];
+  providers: Record<"codex" | "claude" | "gemini" | "custom", DiagnosticsTelemetryProviderState>;
+};
+
 type DiagnosticsSummary = {
   preset: DiagnosticPreset;
   range: { start?: string; end?: string };
@@ -27,6 +39,7 @@ type DiagnosticsSummary = {
   };
   hasObservedData: boolean;
   storage: string;
+  telemetryCoverage: DiagnosticsTelemetryCoverage;
   observed: {
     eventCount: number;
     inputTokens: number;
@@ -93,6 +106,31 @@ const presetLabel = (preset: DiagnosticPreset) => ({
   "90d": lang("Last 90 days", "Letzte 90 Tage"),
   all: lang("All locally available evidence", "Alle lokal verfügbaren Evidenzen"),
 })[preset];
+
+const telemetryStateLabel = (state: DiagnosticsTelemetryProviderState["state"]) => ({
+  supported: lang("Included", "Enthalten"),
+  "supported-opt-in": lang("Opt-in available", "Opt-in verfügbar"),
+  "mcp-session-only": lang("No usage telemetry", "Keine Usage-Telemetrie"),
+  "provider-capable-not-integrated": lang("Provider can expose it · not integrated", "Provider kann sie liefern · nicht integriert"),
+  "not-integrated": lang("Not integrated", "Nicht integriert"),
+  "bridge-dependent": lang("Bridge-dependent", "Bridge-abhängig"),
+})[state];
+
+const renderTelemetryCoverage = (coverage: DiagnosticsTelemetryCoverage) => {
+  const rows = (["codex", "claude", "gemini", "custom"] as const).map((provider) => {
+    const value = coverage.providers[provider];
+    const name = provider === "codex" ? "Codex" : provider === "claude" ? "Claude" : provider === "gemini" ? "Gemini" : "Custom";
+    return `<div class="dc-telemetry-provider"><strong>${name}</strong><span>${telemetryStateLabel(value.state)}</span></div>`;
+  }).join("");
+  return `<section class="dc-telemetry-coverage">
+    <div>
+      <span>${lang("Telemetry coverage", "Telemetrie-Abdeckung")}</span>
+      <strong>${lang("These diagnostics currently include only qualified provider-owned usage evidence.", "Diese Diagnose enthält aktuell nur qualifizierte provider-eigene Usage-Evidence.")}</strong>
+      <p>${lang("A provider being connected does not mean its token or usage data is included. Missing provider telemetry stays missing.", "Eine Provider-Verbindung bedeutet nicht, dass deren Token- oder Usage-Daten enthalten sind. Fehlende Provider-Telemetrie bleibt fehlend.")}</p>
+    </div>
+    <div class="dc-telemetry-provider-grid">${rows}</div>
+  </section>`;
+};
 
 const rankGroups = (groups: ObservedAttributionGroup[], limit = 5) => {
   const tokenKnown = groups.some((group) => group.knownTotalTokenEvents > 0 && group.totalTokens > 0);
@@ -187,7 +225,7 @@ const renderAttributionDimension = (title: string, dimension: ObservedAttributio
 const renderOverview = (data: DiagnosticsSummary) => {
   if (!data.hasObservedData) {
     return `<section class="dc-view dc-overview">
-      <div class="dc-hero empty"><div class="dc-hero-icon">–</div><div class="dc-hero-copy"><span>${lang("No observed diagnostic evidence", "Keine beobachteten Diagnosedaten")}</span><h2>${lang("No observed activities in the selected period", "Keine beobachteten Aktivitäten im gewählten Zeitraum")}</h2><p>${lang("Livariant has no observed usage data for this period. Missing information stays unknown instead of being presented as a healthy state or a measured zero.", "Für diesen Zeitraum liegen keine beobachteten Nutzungsdaten vor. Fehlende Informationen bleiben unbekannt, statt als gesunder Zustand oder gemessene Null dargestellt zu werden.")}</p></div><div class="dc-hero-facts"><div><small>${lang("Known measurement data", "Bekannte Messdaten")}</small><strong>—</strong></div><div><small>${lang("Linked to a task", "Einer Aufgabe zugeordnet")}</small><strong>—</strong></div></div></div>
+      <div class="dc-hero empty"><div class="dc-hero-icon">–</div><div class="dc-hero-copy"><span>${lang("No observed diagnostic evidence", "Keine beobachteten Diagnosedaten")}</span><h2>${lang("No observed activities in the selected period", "Keine beobachteten Aktivitäten im gewählten Zeitraum")}</h2><p>${lang("Livariant has no qualified observed usage data for this project and period. This does not mean connected providers had zero usage; provider telemetry that Livariant cannot ingest remains unknown.", "Für dieses Projekt und diesen Zeitraum liegen keine qualifizierten beobachteten Nutzungsdaten vor. Das bedeutet nicht, dass verbundene Provider keine Nutzung hatten; nicht ingestierbare Provider-Telemetrie bleibt unbekannt.")}</p></div><div class="dc-hero-facts"><div><small>${lang("Known measurement data", "Bekannte Messdaten")}</small><strong>—</strong></div><div><small>${lang("Linked to a task", "Einer Aufgabe zugeordnet")}</small><strong>—</strong></div></div></div>
     </section>`;
   }
   const fieldTotal = data.observed.knownFieldCount + data.observed.unknownFieldCount;
@@ -221,7 +259,7 @@ const renderBody = (data: DiagnosticsSummary) => state.tab === "usage" ? renderU
 
 const renderCockpit = (surface: HTMLElement) => {
   if (!state.data) return;
-  surface.innerHTML = `<div class="dc-shell"><header class="dc-header"><div><span class="dc-kicker">${lang("Measured evidence", "Gemessene Evidence")}</span><h1>${lang("Diagnostics", "Diagnose")}</h1><p>${lang("Understand how Livariant worked, what was observed and where evidence is incomplete.", "Verstehe, wie Livariant gearbeitet hat, was beobachtet wurde und wo Evidence unvollständig ist.")}</p></div><div class="dc-header-actions"><select class="dc-preset" aria-label="${lang("Diagnostics period", "Diagnosezeitraum")}" ${state.busy ? "disabled" : ""}>${(["1d","7d","30d","90d","all"] as DiagnosticPreset[]).map((preset) => `<option value="${preset}" ${state.preset === preset ? "selected" : ""}>${presetLabel(preset)}</option>`).join("")}</select><button type="button" class="button secondary dc-export" ${state.busy ? "disabled" : ""}>${lang("Export", "Exportieren")}</button><button type="button" class="button secondary dc-refresh" ${state.busy ? "disabled" : ""}>${state.busy ? lang("Refreshing…", "Aktualisiere…") : lang("Refresh", "Aktualisieren")}</button></div></header><nav class="dc-tabs" aria-label="${lang("Diagnostics sections", "Diagnosebereiche")}">${renderTabs()}</nav>${state.notice ? `<div class="dc-notice">${esc(state.notice)}</div>` : ""}${state.error ? `<div class="dc-error">${esc(state.error)}</div>` : ""}${renderBody(state.data)}<footer class="dc-footer">${lang("Observed ≠ Avoided ≠ Estimated. Unknown remains unknown.", "Observed ≠ Avoided ≠ Estimated. Unbekannt bleibt unbekannt.")}</footer></div>`;
+  surface.innerHTML = `<div class="dc-shell"><header class="dc-header"><div><span class="dc-kicker">${lang("Measured evidence", "Gemessene Evidence")}</span><h1>${lang("Diagnostics", "Diagnose")}</h1><p>${lang("Understand how Livariant worked, what was observed and where evidence is incomplete.", "Verstehe, wie Livariant gearbeitet hat, was beobachtet wurde und wo Evidence unvollständig ist.")}</p></div><div class="dc-header-actions"><select class="dc-preset" aria-label="${lang("Diagnostics period", "Diagnosezeitraum")}" ${state.busy ? "disabled" : ""}>${(["1d","7d","30d","90d","all"] as DiagnosticPreset[]).map((preset) => `<option value="${preset}" ${state.preset === preset ? "selected" : ""}>${presetLabel(preset)}</option>`).join("")}</select><button type="button" class="button secondary dc-export" ${state.busy ? "disabled" : ""}>${lang("Export", "Exportieren")}</button><button type="button" class="button secondary dc-refresh" ${state.busy ? "disabled" : ""}>${state.busy ? lang("Refreshing…", "Aktualisiere…") : lang("Refresh", "Aktualisieren")}</button></div></header>${renderTelemetryCoverage(state.data.telemetryCoverage)}<nav class="dc-tabs" aria-label="${lang("Diagnostics sections", "Diagnosebereiche")}">${renderTabs()}</nav>${state.notice ? `<div class="dc-notice">${esc(state.notice)}</div>` : ""}${state.error ? `<div class="dc-error">${esc(state.error)}</div>` : ""}${renderBody(state.data)}<footer class="dc-footer">${lang("Observed ≠ Avoided ≠ Estimated. Unknown remains unknown.", "Observed ≠ Avoided ≠ Estimated. Unbekannt bleibt unbekannt.")}</footer></div>`;
   bind(surface);
 };
 
