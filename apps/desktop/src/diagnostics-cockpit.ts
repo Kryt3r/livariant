@@ -82,6 +82,15 @@ type CodexReconciliation = {
   provider: "codex";
   observedAt: string;
   detail: string;
+  directContextEvidence?: {
+    observationsTotal: number;
+    codexObservations: number;
+    codexObservationsWithThreadId: number;
+    observationsMatchingRegisteredProjectIdentity: number;
+    distinctObservationThreadIdsMatchingCatalog: number;
+    bindingsUsingDirectContext: number;
+    bindingsWithDirectContextConflict: number;
+  };
   bindings: CodexSessionBinding[];
 };
 type HookSessionBinding = {
@@ -364,7 +373,14 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
       unattributed.length ? `<details class="dc-session-diagnostic-group warning"><summary><span>${lang("Unattributed provider threads", "Nicht zugeordnete Provider-Threads")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderCodexRows(unattributed)}</div></details>` : "",
     ].join("");
     const catalogSummary = `<div class="dc-session-catalog-summary"><span>${lang("Provider catalog", "Provider-Katalog")}</span><strong>${reconciliation.bindings.length} ${lang("threads", "Threads")}</strong><small>${current.length} ${lang("this project", "dieses Projekt")} · ${other.length} ${lang("other projects", "andere Projekte")} · ${unattributed.length} ${lang("unattributed", "nicht zugeordnet")}</small></div>`;
-    return `${catalogSummary}${currentBody}${diagnosticsGroups}`;
+    const direct = reconciliation.directContextEvidence;
+    const directSummary = direct
+      ? `<div class="dc-direct-evidence-summary">
+          <span>${lang("Direct Provider Context evidence", "Direkte Provider-Context-Evidence")}</span>
+          <small>${direct.codexObservations} ${lang("Codex observations", "Codex-Beobachtungen")} · ${direct.codexObservationsWithThreadId} ${lang("with thread id", "mit Thread-ID")} · ${direct.observationsMatchingRegisteredProjectIdentity} ${lang("matching registered project identity", "mit passender registrierter Projektidentität")} · ${direct.distinctObservationThreadIdsMatchingCatalog} ${lang("thread ids found in provider catalog", "Thread-IDs im Provider-Katalog gefunden")} · ${direct.bindingsUsingDirectContext} ${lang("direct bindings", "direkte Bindungen")}${direct.bindingsWithDirectContextConflict ? ` · ${direct.bindingsWithDirectContextConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
+        </div>`
+      : `<div class="dc-direct-evidence-summary missing"><span>${lang("Direct Provider Context evidence", "Direkte Provider-Context-Evidence")}</span><small>${lang("No evidence diagnostics returned by the runtime.", "Die Runtime hat keine Evidence-Diagnosedaten zurückgegeben.")}</small></div>`;
+    return `${catalogSummary}${directSummary}${currentBody}${diagnosticsGroups}`;
   }
 
   const reconciliation = state.sessions.hooks;
