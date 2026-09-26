@@ -12,6 +12,7 @@ use uuid::Uuid;
 const REGISTRY_SCHEMA_VERSION: u32 = 1;
 const PROJECTS_DIR: &str = "projects";
 const REGISTRY_FILE: &str = "registry.json";
+const PROJECT_BRAIN_METADATA_MAX_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -942,6 +943,103 @@ pub(crate) fn registered_provider_projects(
     Ok(projects)
 }
 
+fn observed_machine_local_stable_project_identity(
+    projects_root: &Path,
+    desktop_project_id: &str,
+) -> Result<Option<String>, String> {
+    let state_root = project_state_root(projects_root, desktop_project_id)?;
+    let brain_root = state_root.join(".project-brain");
+    let brain_metadata = match fs::symlink_metadata(&brain_root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("Machine-local Project Brain could not be inspected for Diagnostics: {error}")),
+    };
+    if !brain_metadata.is_dir() || brain_metadata.file_type().is_symlink() {
+        return Err("Machine-local Project Brain must be a real non-symbolic-link directory for Diagnostics.".to_owned());
+    }
+
+    let metadata_path = brain_root.join("metadata.json");
+    let metadata = match fs::symlink_metadata(&metadata_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("Machine-local Project Brain metadata could not be inspected for Diagnostics: {error}")),
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err("Machine-local Project Brain metadata must be a real non-symbolic-link file for Diagnostics.".to_owned());
+    }
+    if metadata.len() > PROJECT_BRAIN_METADATA_MAX_BYTES {
+        return Err("Machine-local Project Brain metadata exceeds the Diagnostics identity size bound.".to_owned());
+    }
+
+    let value: serde_json::Value = serde_json::from_slice(
+        &fs::read(&metadata_path)
+            .map_err(|error| format!("Machine-local Project Brain metadata could not be read for Diagnostics: {error}"))?,
+    )
+    .map_err(|error| format!("Machine-local Project Brain metadata is invalid JSON: {error}"))?;
+    let project_brain = value
+        .get("projectBrain")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| "Machine-local Project Brain metadata omits projectBrain.".to_owned())?;
+    if project_brain.get("schemaVersion").and_then(serde_json::Value::as_u64) != Some(2) {
+        return Ok(None);
+    }
+    let project_id = project_brain
+        .get("projectId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "Schema-2 machine-local Project Brain metadata omits stable project identity.".to_owned())?;
+    Ok(Some(canonical_uuid(project_id, "stableProjectIdentity")?))
+}
+
+fn bind_stable_project_identity_at(
+    projects_root: &Path,
+    desktop_project_id: &str,
+    stable_project_identity: &str,
+) -> Result<(), String> {
+    let id = canonical_uuid(desktop_project_id, "desktopProjectId")?;
+    let stable = canonical_uuid(stable_project_identity, "stableProjectIdentity")?;
+    let mut registry = load_registry(projects_root)?;
+    let project = registry
+        .projects
+        .iter_mut()
+        .find(|project| project.desktop_project_id == id)
+        .ok_or_else(|| "Desktop project is not registered.".to_owned())?;
+    match project.stable_project_identity.as_deref() {
+        Some(existing) if existing != stable => {
+            return Err("Desktop project registry stable identity conflicts with the machine-local Project Brain.".to_owned());
+        }
+        Some(_) => return Ok(()),
+        None => project.stable_project_identity = Some(stable),
+    }
+    write_registry(projects_root, &registry)
+}
+
+fn diagnostics_project_id(
+    projects_root: &Path,
+    record: &DesktopProjectRecord,
+) -> Result<String, String> {
+    if let Some(project_id) = record
+        .project_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if project_id.chars().count() > 240 {
+            return Err("Active Desktop project projectId exceeds the supported Diagnostics scope length.".to_owned());
+        }
+        return Ok(project_id.to_owned());
+    }
+
+    if let Some(stable) = record.stable_project_identity.as_deref() {
+        return canonical_uuid(stable, "stableProjectIdentity");
+    }
+
+    if let Some(stable) = observed_machine_local_stable_project_identity(projects_root, &record.desktop_project_id)? {
+        return Ok(stable);
+    }
+
+    Err("Project-focused Diagnostics is unavailable because the active Desktop project has neither a logical projectId nor a stable Project Brain identity.".to_owned())
+}
+
 pub(crate) fn active_diagnostics_project_id(
     app: &tauri::AppHandle,
     state: &DesktopProjectRegistryState,
@@ -967,16 +1065,7 @@ pub(crate) fn active_diagnostics_project_id(
     if record.state != DesktopProjectRegistrationState::Registered || availability(record) != "available" {
         return Err("Active Desktop project is no longer safely available for Diagnostics.".to_owned());
     }
-    let project_id = record
-        .project_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "Project-focused Diagnostics is unavailable because the active Desktop project has no logical projectId.".to_owned())?;
-    if project_id.chars().count() > 240 {
-        return Err("Active Desktop project projectId exceeds the supported Diagnostics scope length.".to_owned());
-    }
-    Ok(project_id.to_owned())
+    diagnostics_project_id(&projects_root, record)
 }
 
 pub(crate) fn active_project_scope(
@@ -1396,6 +1485,9 @@ pub fn desktop_project_activate(
     let projects_root = projects_root(&app)?;
     let (local_root, state_root) = registered_project_roots(&projects_root, &desktop_project_id)?;
     crate::project_knowledge_bridge::ensure_project_brain_storage_for_roots(&local_root, &state_root)?;
+    let stable_project_identity = observed_machine_local_stable_project_identity(&projects_root, &desktop_project_id)?
+        .ok_or_else(|| "Project activation completed without a stable machine-local Project Brain identity.".to_owned())?;
+    bind_stable_project_identity_at(&projects_root, &desktop_project_id, &stable_project_identity)?;
     let mut runtime = state
         .runtime
         .lock()
@@ -1456,6 +1548,65 @@ mod tests {
             display_name: display_name.map(str::to_owned),
             project_id: Some("logical-project".to_owned()),
         }
+    }
+
+    #[test]
+    fn diagnostics_identity_uses_machine_local_project_brain_when_logical_project_id_is_missing() {
+        let root = test_root("diagnostics-stable-identity");
+        let projects = root.join("app-data").join("projects");
+        let local = project(&root, "checkout");
+        let runtime = ActiveProjectRuntime::default();
+        let registered = register_at(&projects, &runtime, DesktopProjectRegisterInput {
+            local_root: local.to_string_lossy().to_string(),
+            display_name: Some("Diagnostics project".to_owned()),
+            project_id: None,
+        }).expect("register project");
+        let record = registered.snapshot.projects.first().expect("registered project");
+        let desktop_id = record.desktop_project_id.clone();
+        let stable = Uuid::new_v4().hyphenated().to_string();
+        let state_root = project_state_root(&projects, &desktop_id).expect("state root");
+        let brain = state_root.join(".project-brain");
+        fs::create_dir(&brain).expect("brain directory");
+        fs::write(
+            brain.join("metadata.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "projectBrain": {
+                    "schemaVersion": 2,
+                    "projectId": stable,
+                }
+            })).expect("metadata"),
+        ).expect("write metadata");
+
+        let registry = load_registry(&projects).expect("registry");
+        let stored = registry.projects.iter().find(|project| project.desktop_project_id == desktop_id).expect("project");
+        assert_eq!(diagnostics_project_id(&projects, stored).expect("diagnostics identity"), stable);
+
+        bind_stable_project_identity_at(&projects, &desktop_id, &stable).expect("bind identity");
+        let rebound = load_registry(&projects).expect("rebound registry");
+        let rebound_project = rebound.projects.iter().find(|project| project.desktop_project_id == desktop_id).expect("rebound project");
+        assert_eq!(rebound_project.stable_project_identity.as_deref(), Some(stable.as_str()));
+
+        fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn diagnostics_identity_rejects_conflicting_machine_local_project_brain_identity() {
+        let root = test_root("diagnostics-identity-conflict");
+        let projects = root.join("app-data").join("projects");
+        let local = project(&root, "checkout");
+        let runtime = ActiveProjectRuntime::default();
+        let registered = register_at(&projects, &runtime, DesktopProjectRegisterInput {
+            local_root: local.to_string_lossy().to_string(),
+            display_name: None,
+            project_id: None,
+        }).expect("register project");
+        let desktop_id = registered.snapshot.projects.first().expect("registered project").desktop_project_id.clone();
+        let first = Uuid::new_v4().hyphenated().to_string();
+        let second = Uuid::new_v4().hyphenated().to_string();
+        bind_stable_project_identity_at(&projects, &desktop_id, &first).expect("first bind");
+        let error = bind_stable_project_identity_at(&projects, &desktop_id, &second).expect_err("conflict rejected");
+        assert!(error.contains("conflicts with the machine-local Project Brain"));
+        fs::remove_dir_all(&root).expect("cleanup");
     }
 
     #[test]
