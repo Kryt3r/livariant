@@ -30,5 +30,8 @@ const result = provider === "custom"
 
 process.stdout.write(`${JSON.stringify({
   ...result,
-  capabilities: providerCapabilityMatrix(provider).capabilities,
+  capabilities: providerCapabilityMatrix(
+    provider,
+    provider === "custom" ? result.customCapabilities : undefined,
+  ).capabilities,
 })}\n`);
