@@ -28,7 +28,7 @@ export async function buildProviderContext(
   projectPath: string = process.cwd(),
   options: ProviderContextBuildOptions = {},
 ): Promise<ProviderContextPacket> {
-  if (provider !== "claude-code" && provider !== "codex" && provider !== "gemini") throw new Error("Unsupported provider context target.");
+  if (provider !== "claude-code" && provider !== "codex" && provider !== "gemini" && provider !== "custom") throw new Error("Unsupported provider context target.");
   validateProviderContextTask(task);
   if (options.providerSessionId !== undefined && !isStableProjectIdentity(options.providerSessionId)) {
     throw new Error("Provider session id must be a canonical UUID.");
