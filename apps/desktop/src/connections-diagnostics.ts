@@ -222,7 +222,7 @@ const capabilityDetail = (provider: ProviderId, id: ProviderCapabilityId, capabi
     if (id === "live-project-context") return lang("Gemini CLI supports project-scoped MCP and can use Livariant Provider Context/Return.", "Gemini CLI unterstützt projektbezogenes MCP und kann Livariant Provider Context/Return verwenden.");
     if (id === "live-session-correlation") return lang("Live isolation currently uses the Livariant MCP session. Gemini hook session IDs are not installed or consumed automatically.", "Die Live-Trennung nutzt aktuell die Livariant-MCP-Session. Gemini-Hook-Session-IDs werden nicht automatisch installiert oder verarbeitet.");
     if (id === "retrospective-session-attribution") return lang("Gemini hooks expose session ID, transcript path and cwd, but that recovery path is not qualified in Livariant yet.", "Gemini-Hooks liefern Session-ID, Transcript-Pfad und cwd; dieser Wiederherstellungspfad ist in Livariant aber noch nicht qualifiziert.");
-    return lang("Livariant currently has no qualified provider-owned Gemini token telemetry path.", "Livariant besitzt aktuell keinen qualifizierten provider-eigenen Gemini-Token-Telemetriepfad.");
+    return lang("Gemini exposes provider-owned usage metadata through hooks, but Livariant has not qualified that Diagnostics ingestion path yet.", "Gemini liefert provider-eigene Usage-Metadaten über Hooks; Livariant hat diesen Diagnose-Ingestionspfad aber noch nicht qualifiziert.");
   }
   return lang(
     "A custom connection only proves that its local probe is ready. This capability requires explicit support from that bridge.",
