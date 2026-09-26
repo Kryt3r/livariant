@@ -17,7 +17,7 @@ export function parseProviderContextArgs(args: string[]): ProviderContextCliArgs
       if (provider !== null) throw new Error("--provider must be supplied exactly once.");
       const value = args[index + 1];
       if (!value || value.startsWith("--")) throw new Error("--provider requires a value.");
-      if (value !== "claude-code" && value !== "codex") throw new Error("Unsupported provider context target.");
+      if (value !== "claude-code" && value !== "codex" && value !== "gemini") throw new Error("Unsupported provider context target.");
       provider = value;
       index += 1;
       continue;
