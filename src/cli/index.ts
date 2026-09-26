@@ -72,6 +72,8 @@ function renderHelp(): void {
   console.log("  maintain --input <candidate.json> [--authorization <authorization-id>] [--json]");
   console.log("  mcp");
   console.log("  mcp setup --provider <claude-code|codex|gemini> [--json]");
+  console.log("  provider-session setup --provider <claude|gemini>");
+  console.log("  provider-session observe --provider <claude|gemini>  # provider hook stdin; machine-local evidence only");
   console.log("");
   console.log("Legacy goals/knowledge/decisions commands are list/plan surfaces only; their --apply mutation path is retired.");
   console.log("Canonical semantic mutation uses proposal-bound Authorization through prepare/authorize/apply or maintain.");
@@ -93,7 +95,7 @@ async function entry(): Promise<void> {
     process.exitCode = 3;
     return;
   }
-  if (command !== "init" && command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "findings" && command !== "verification-trace" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp") {
+  if (command !== "init" && command !== "first-run" && command !== "integrity" && command !== "guardian" && command !== "autonomy" && command !== "findings" && command !== "verification-trace" && command !== "discover" && command !== "external-source" && command !== "understand" && command !== "adopt-understanding" && command !== "drift" && command !== "provider-context" && command !== "provider-return" && command !== "prepare" && command !== "authorize" && command !== "apply" && command !== "maintain" && command !== "mcp" && command !== "provider-session") {
     await import("./legacy-main.js");
     return;
   }
@@ -104,6 +106,14 @@ async function entry(): Promise<void> {
   if (command === "guardian") {
     const { handleGuardianCommand } = await import("./guardian-command.js");
     await handleGuardianCommand(process.argv.slice(3));
+    return;
+  }
+
+  // Provider hook observation is machine-local correlation evidence. It must remain
+  // usable while Desktop is closed and must not depend on project runtime delegation.
+  if (command === "provider-session") {
+    const { handleProviderSessionCommand } = await import("./provider-session-command.js");
+    await handleProviderSessionCommand(process.argv.slice(3));
     return;
   }
 
