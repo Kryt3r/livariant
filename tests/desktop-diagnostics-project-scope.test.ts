@@ -58,3 +58,24 @@ test("diagnostics renderer state is invalidated on project activation", async ()
   assert.doesNotMatch(empty, /codex_diagnostics_summary/);
   assert.match(empty, /DiagnosticsSummary\.hasObservedData/);
 });
+
+
+test("diagnostics data contract separates provider connection from qualified telemetry", async () => {
+  const host = await readFile("src/connectors/desktop-connector-host.ts", "utf8");
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const preview = await readFile("apps/desktop/src/visual-preview-entry.ts", "utf8");
+
+  assert.match(host, /connectionDoesNotImplyTelemetry: true/);
+  assert.match(host, /evidenceContract: "qualified-provider-owned-usage"/);
+  assert.match(host, /providerCapabilityMatrix\(provider\)\.capabilities\["provider-owned-usage-telemetry"\]/);
+  assert.match(host, /telemetryCoverage: diagnosticsTelemetryCoverage\(\)/);
+
+  assert.match(cockpit, /Telemetry coverage/);
+  assert.match(cockpit, /Eine Provider-Verbindung bedeutet nicht/);
+  assert.match(cockpit, /Missing provider telemetry stays missing/);
+  assert.match(cockpit, /verbundene Provider keine Nutzung hatten/);
+
+  assert.match(preview, /qualifiedProviders: \["codex"\]/);
+  assert.doesNotMatch(preview, /value: "Claude", eventCount/);
+  assert.doesNotMatch(preview, /value: "Gemini", eventCount/);
+});
