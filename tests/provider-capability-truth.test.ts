@@ -27,6 +27,17 @@ test("provider capability truth distinguishes Codex, Claude, Gemini and Custom",
   for (const capability of Object.values(custom)) {
     assert.equal(capability.state, "bridge-dependent");
   }
+
+  const declaredCustom = providerCapabilityMatrix("custom", {
+    liveProjectContext: true,
+    liveSessionCorrelation: true,
+    retrospectiveSessionAttribution: false,
+    providerOwnedUsageTelemetry: false,
+  }).capabilities;
+  assert.equal(declaredCustom["live-project-context"].state, "provider-capable-not-integrated");
+  assert.equal(declaredCustom["live-session-correlation"].state, "provider-capable-not-integrated");
+  assert.equal(declaredCustom["retrospective-session-attribution"].state, "not-integrated");
+  assert.equal(declaredCustom["provider-owned-usage-telemetry"].state, "not-integrated");
 });
 
 test("Desktop provider UI presents capabilities separately from connection state", async () => {
