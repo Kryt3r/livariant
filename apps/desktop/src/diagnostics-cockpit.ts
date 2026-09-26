@@ -74,7 +74,7 @@ type CodexSessionBinding = {
   cwd: string;
   providerProjectId: string | null;
   project: ProviderProjectDescriptor | null;
-  attribution: "provider-context" | "provider-context-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
+  attribution: "provider-context" | "provider-context-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
 };
 type CodexReconciliation = {
   schemaVersion: 1;
@@ -82,6 +82,12 @@ type CodexReconciliation = {
   provider: "codex";
   observedAt: string;
   detail: string;
+  providerProjectEvidence?: {
+    projectsTotal: number;
+    threadsWithProviderProjectId: number;
+    bindingsUsingProviderProject: number;
+    bindingsWithProviderProjectConflict: number;
+  };
   directContextEvidence?: {
     observationsTotal: number;
     codexObservations: number;
@@ -360,7 +366,7 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
       <div><small>${lang("Thread", "Thread")}</small><strong title="${esc(binding.threadId)}">${esc(shortId(binding.threadId))}</strong></div>
       <div><small>${lang("Session", "Sitzung")}</small><strong title="${esc(binding.sessionId)}">${esc(shortId(binding.sessionId))}</strong></div>
       <div><small>cwd</small><strong title="${esc(binding.cwd)}">${esc(binding.cwd)}</strong></div>
-      <span class="dc-session-state ${binding.attribution === "unattributed" || binding.attribution === "provider-context-conflict" ? "warn" : "ok"}">${binding.attribution === "provider-context" ? lang("Direct Provider Context", "Direkter Provider Context") : binding.attribution === "provider-context-conflict" ? lang("Conflicting direct evidence", "Widersprüchliche direkte Evidence") : binding.attribution === "cwd-exact" ? lang("Exact project", "Exaktes Projekt") : binding.attribution === "cwd-descendant" ? lang("Project subtree", "Projekt-Unterordner") : lang("Unattributed", "Nicht zugeordnet")}</span>
+      <span class="dc-session-state ${binding.attribution === "unattributed" || binding.attribution === "provider-context-conflict" || binding.attribution === "provider-project-conflict" ? "warn" : "ok"}">${binding.attribution === "provider-context" ? lang("Direct Provider Context", "Direkter Provider Context") : binding.attribution === "provider-context-conflict" ? lang("Conflicting direct evidence", "Widersprüchliche direkte Evidence") : binding.attribution === "provider-project" ? lang("Codex project metadata", "Codex-Projektmetadaten") : binding.attribution === "provider-project-conflict" ? lang("Conflicting Codex project metadata", "Widersprüchliche Codex-Projektmetadaten") : binding.attribution === "cwd-exact" ? lang("Exact project", "Exaktes Projekt") : binding.attribution === "cwd-descendant" ? lang("Project subtree", "Projekt-Unterordner") : lang("Unattributed", "Nicht zugeordnet")}</span>
     </article>`).join("")}</div>`;
     const current = reconciliation.bindings.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
     const other = reconciliation.bindings.filter((binding) => binding.project !== null && !belongsToDiagnosticsProject(binding.project, data.scope.projectId));
@@ -373,6 +379,13 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
       unattributed.length ? `<details class="dc-session-diagnostic-group warning"><summary><span>${lang("Unattributed provider threads", "Nicht zugeordnete Provider-Threads")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderCodexRows(unattributed)}</div></details>` : "",
     ].join("");
     const catalogSummary = `<div class="dc-session-catalog-summary"><span>${lang("Provider catalog", "Provider-Katalog")}</span><strong>${reconciliation.bindings.length} ${lang("threads", "Threads")}</strong><small>${current.length} ${lang("this project", "dieses Projekt")} · ${other.length} ${lang("other projects", "andere Projekte")} · ${unattributed.length} ${lang("unattributed", "nicht zugeordnet")}</small></div>`;
+    const providerProject = reconciliation.providerProjectEvidence;
+    const providerProjectSummary = providerProject
+      ? `<div class="dc-direct-evidence-summary provider-project">
+          <span>${lang("Codex project metadata", "Codex-Projektmetadaten")}</span>
+          <small>${providerProject.projectsTotal} ${lang("provider projects", "Provider-Projekte")} · ${providerProject.threadsWithProviderProjectId} ${lang("threads with project id", "Threads mit Projekt-ID")} · ${providerProject.bindingsUsingProviderProject} ${lang("project bindings", "Projekt-Bindungen")}${providerProject.bindingsWithProviderProjectConflict ? ` · ${providerProject.bindingsWithProviderProjectConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
+        </div>`
+      : "";
     const direct = reconciliation.directContextEvidence;
     const directSummary = direct
       ? `<div class="dc-direct-evidence-summary">
@@ -380,7 +393,7 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
           <small>${direct.codexObservations} ${lang("Codex observations", "Codex-Beobachtungen")} · ${direct.codexObservationsWithThreadId} ${lang("with thread id", "mit Thread-ID")} · ${direct.observationsMatchingRegisteredProjectIdentity} ${lang("matching registered project identity", "mit passender registrierter Projektidentität")} · ${direct.distinctObservationThreadIdsMatchingCatalog} ${lang("thread ids found in provider catalog", "Thread-IDs im Provider-Katalog gefunden")} · ${direct.bindingsUsingDirectContext} ${lang("direct bindings", "direkte Bindungen")}${direct.bindingsWithDirectContextConflict ? ` · ${direct.bindingsWithDirectContextConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
         </div>`
       : `<div class="dc-direct-evidence-summary missing"><span>${lang("Direct Provider Context evidence", "Direkte Provider-Context-Evidence")}</span><small>${lang("No evidence diagnostics returned by the runtime.", "Die Runtime hat keine Evidence-Diagnosedaten zurückgegeben.")}</small></div>`;
-    return `${catalogSummary}${directSummary}${currentBody}${diagnosticsGroups}`;
+    return `${catalogSummary}${providerProjectSummary}${directSummary}${currentBody}${diagnosticsGroups}`;
   }
 
   const reconciliation = state.sessions.hooks;
