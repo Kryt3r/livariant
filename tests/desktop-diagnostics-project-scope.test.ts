@@ -154,6 +154,7 @@ test("Codex live reconciliation prefers direct Provider Context thread evidence 
   assert.match(reconciliation, /stableProjectIdentity === observation\.stableProjectIdentity/);
   assert.match(reconciliation, /attribution: "provider-context"/);
   assert.match(reconciliation, /attribution: "provider-context-conflict"/);
+  assert.match(reconciliation, /runtime workspace roots/);
   assert.match(reconciliation, /provider-owned Codex project metadata/);
   assert.match(reconciliation, /cwd as final fallback/);
 
@@ -207,4 +208,31 @@ test("Codex reconciliation can use provider-owned project roots before cwd fallb
 
   assert.match(cockpit, /Codex-Projektmetadaten/);
   assert.match(cockpit, /Threads mit Projekt-ID/);
+});
+
+
+test("Codex reconciliation can use loaded runtime workspace roots without resuming threads", async () => {
+  const catalog = await readFile("src/connectors/codex-thread-catalog.ts", "utf8");
+  const reconciliation = await readFile("src/connectors/codex-thread-reconciliation-cli.ts", "utf8");
+  const binding = await readFile("src/connectors/provider-project-binding.ts", "utf8");
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+
+  assert.match(catalog, /runtimeWorkspaceRoots/);
+  assert.match(catalog, /thread\.environments/);
+  assert.match(catalog, /environments must be an array or null/);
+
+  assert.match(binding, /applyCodexRuntimeWorkspaceBindings/);
+  assert.match(binding, /attribution: "provider-workspace"/);
+  assert.match(binding, /attribution: "provider-workspace-conflict"/);
+  assert.match(binding, /thread\.runtimeWorkspaceRoots/);
+
+  assert.match(reconciliation, /applyCodexRuntimeWorkspaceBindings/);
+  assert.match(reconciliation, /runtimeWorkspaceEvidence/);
+  assert.match(reconciliation, /threadsWithRuntimeWorkspaceRoots/);
+  assert.match(reconciliation, /bindingsUsingRuntimeWorkspace/);
+  assert.doesNotMatch(reconciliation, /thread\/resume/);
+
+  assert.match(cockpit, /Codex-Runtime-Workspace-Evidence/);
+  assert.match(cockpit, /Threads mit Runtime-Roots/);
+  assert.match(cockpit, /Codex-Runtime-Workspace/);
 });
