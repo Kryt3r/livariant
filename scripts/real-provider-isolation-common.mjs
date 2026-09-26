@@ -47,13 +47,13 @@ export function parseJsonLines(text) {
     });
 }
 
-export async function runProcess(command, args, cwd, timeoutMs = 180_000) {
+export async function runProcess(command, args, cwd, timeoutMs = 180_000, env = process.env) {
   return await new Promise((resolveRun, rejectRun) => {
     const child = spawn(command, args, {
       cwd,
       shell: false,
       windowsHide: true,
-      env: process.env,
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
