@@ -48,8 +48,8 @@ test("Codex thread catalog preserves provider-owned thread/session/cwd identity 
     id: firstId,
     result: {
       data: [
-        { id: "thread-a1", sessionId: "session-a", cwd: "/work/project-a", projectId: "codex-project-a" },
-        { id: "thread-a2", sessionId: "session-a", cwd: "/work/project-a/packages/api", projectId: null },
+        { id: "thread-a1", sessionId: "session-a", cwd: "/work/project-a", projectId: "codex-project-a", runtimeWorkspaceRoots: [] },
+        { id: "thread-a2", sessionId: "session-a", cwd: "/work/project-a/packages/api", projectId: null, runtimeWorkspaceRoots: [] },
       ],
       nextCursor: "next-1",
     },
@@ -62,16 +62,16 @@ test("Codex thread catalog preserves provider-owned thread/session/cwd identity 
     id: secondId,
     result: {
       data: [
-        { id: "thread-b1", sessionId: "session-b", cwd: "/work/project-b", projectId: "codex-project-b" },
+        { id: "thread-b1", sessionId: "session-b", cwd: "/work/project-b", projectId: "codex-project-b", runtimeWorkspaceRoots: [] },
       ],
       nextCursor: null,
     },
   });
 
   assert.deepEqual(await pending, [
-    { threadId: "thread-a1", sessionId: "session-a", cwd: "/work/project-a", projectId: "codex-project-a" },
-    { threadId: "thread-a2", sessionId: "session-a", cwd: "/work/project-a/packages/api", projectId: null },
-    { threadId: "thread-b1", sessionId: "session-b", cwd: "/work/project-b", projectId: "codex-project-b" },
+    { threadId: "thread-a1", sessionId: "session-a", cwd: "/work/project-a", projectId: "codex-project-a", runtimeWorkspaceRoots: [] },
+    { threadId: "thread-a2", sessionId: "session-a", cwd: "/work/project-a/packages/api", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "thread-b1", sessionId: "session-b", cwd: "/work/project-b", projectId: "codex-project-b", runtimeWorkspaceRoots: [] },
   ]);
 });
 
@@ -91,10 +91,10 @@ test("multiple Codex threads and sessions can bind to the same project while ano
     },
   ];
   const threads = [
-    { threadId: "thread-a1", sessionId: "session-a1", cwd: "/work/project-a", projectId: null },
-    { threadId: "thread-a2", sessionId: "session-a2", cwd: "/work/project-a/packages/api", projectId: null },
-    { threadId: "thread-b1", sessionId: "session-b1", cwd: "/work/project-b", projectId: null },
-    { threadId: "thread-foreign", sessionId: "session-x", cwd: "/work/other", projectId: null },
+    { threadId: "thread-a1", sessionId: "session-a1", cwd: "/work/project-a", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "thread-a2", sessionId: "session-a2", cwd: "/work/project-a/packages/api", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "thread-b1", sessionId: "session-b1", cwd: "/work/project-b", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "thread-foreign", sessionId: "session-x", cwd: "/work/other", projectId: null, runtimeWorkspaceRoots: [] },
   ];
 
   const bindings = bindCodexThreadsToProjects(threads, projects);
@@ -112,7 +112,7 @@ test("multiple Codex threads and sessions can bind to the same project while ano
 
 test("nested registered project root wins over broader parent root", () => {
   const bindings = bindCodexThreadsToProjects(
-    [{ threadId: "thread-nested", sessionId: "session-nested", cwd: "/work/mono/apps/service", projectId: null }],
+    [{ threadId: "thread-nested", sessionId: "session-nested", cwd: "/work/mono/apps/service", projectId: null, runtimeWorkspaceRoots: [] }],
     [
       { desktopProjectId: "mono", localRoot: "/work/mono", projectId: null, stableProjectIdentity: null },
       { desktopProjectId: "service", localRoot: "/work/mono/apps/service", projectId: null, stableProjectIdentity: null },
@@ -129,11 +129,11 @@ test("session summary keeps multiple same-project Codex sessions separate and ma
     { desktopProjectId: "desktop-b", localRoot: "/work/b", projectId: "b", stableProjectIdentity: null },
   ];
   const bindings = bindCodexThreadsToProjects([
-    { threadId: "a-1", sessionId: "session-a-1", cwd: "/work/a", projectId: null },
-    { threadId: "a-2", sessionId: "session-a-2", cwd: "/work/a/sub", projectId: null },
-    { threadId: "b-1", sessionId: "session-b-1", cwd: "/work/b", projectId: null },
-    { threadId: "mixed-a", sessionId: "session-mixed", cwd: "/work/a", projectId: null },
-    { threadId: "mixed-b", sessionId: "session-mixed", cwd: "/work/b", projectId: null },
+    { threadId: "a-1", sessionId: "session-a-1", cwd: "/work/a", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "a-2", sessionId: "session-a-2", cwd: "/work/a/sub", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "b-1", sessionId: "session-b-1", cwd: "/work/b", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "mixed-a", sessionId: "session-mixed", cwd: "/work/a", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "mixed-b", sessionId: "session-mixed", cwd: "/work/b", projectId: null, runtimeWorkspaceRoots: [] },
   ], projects);
 
   const sessions = summarizeCodexSessionProjects(bindings);
