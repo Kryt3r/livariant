@@ -22,7 +22,7 @@ export interface CodexThreadProjectBinding {
   cwd: string;
   providerProjectId: string | null;
   project: ProviderProjectDescriptor | null;
-  attribution: "provider-context" | "provider-context-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
+  attribution: "provider-context" | "provider-context-conflict" | "provider-workspace" | "provider-workspace-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
 }
 
 function pathKey(value: string): string {
@@ -83,6 +83,45 @@ export function bindCodexThreadsToProjects(
 }
 
 
+
+export function applyCodexRuntimeWorkspaceBindings(
+  bindings: readonly CodexThreadProjectBinding[],
+  threads: readonly CodexThreadCatalogEntry[],
+  projects: readonly ProviderProjectDescriptor[],
+): CodexThreadProjectBinding[] {
+  const threadById = new Map(threads.map((thread) => [thread.threadId, thread]));
+  const normalizedLivariant = projects.map((project) => ({ project, root: pathKey(project.localRoot) }));
+
+  return bindings.map((binding) => {
+    if (binding.attribution === "provider-context" || binding.attribution === "provider-context-conflict") return binding;
+    const thread = threadById.get(binding.threadId);
+    if (!thread || thread.runtimeWorkspaceRoots.length === 0) return binding;
+
+    const candidates = new Map<string, ProviderProjectDescriptor>();
+    for (const root of thread.runtimeWorkspaceRoots.map(pathKey)) {
+      for (const candidate of normalizedLivariant) {
+        const relation = relativeInside(candidate.root, root);
+        const reverse = relativeInside(root, candidate.root);
+        if (relation.matches || reverse.matches) candidates.set(candidate.project.desktopProjectId, candidate.project);
+      }
+    }
+    if (candidates.size === 1) {
+      return {
+        ...binding,
+        project: { ...[...candidates.values()][0]! },
+        attribution: "provider-workspace" as const,
+      };
+    }
+    if (candidates.size > 1) {
+      return {
+        ...binding,
+        project: null,
+        attribution: "provider-workspace-conflict" as const,
+      };
+    }
+    return binding;
+  });
+}
 
 export function applyCodexProviderProjectBindings(
   bindings: readonly CodexThreadProjectBinding[],
