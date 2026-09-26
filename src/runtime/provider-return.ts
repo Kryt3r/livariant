@@ -124,7 +124,7 @@ function strictKeys(value: Record<string, unknown>, required: readonly string[])
 }
 
 function parseProvider(value: unknown): ProviderContextProvider {
-  if (value !== "claude-code" && value !== "codex" && value !== "gemini") throw new Error("Provider roundtrip provider is unsupported.");
+  if (value !== "claude-code" && value !== "codex" && value !== "gemini" && value !== "custom") throw new Error("Provider roundtrip provider is unsupported.");
   return value;
 }
 
