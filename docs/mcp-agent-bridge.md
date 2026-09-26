@@ -25,7 +25,8 @@ WP-013 adds read-only setup rendering for the currently supported local MCP path
 ```text
 livariant mcp setup --provider claude-code
 livariant mcp setup --provider codex
-livariant mcp setup --provider <claude-code|codex> --json
+livariant mcp setup --provider gemini
+livariant mcp setup --provider <claude-code|codex|gemini> --json
 ```
 
 The setup helper **does not execute Claude Code or Codex and does not write provider configuration**. It only renders provider-native commands/configuration material for the user to review and apply.
@@ -95,10 +96,11 @@ Input:
 }
 ```
 
-Supported providers remain those already supported by Provider Context:
+Supported Provider Context targets are:
 
 - `codex`
 - `claude-code`
+- `gemini`
 
 The tool delegates directly to `buildProviderContext()`.
 
