@@ -1,32 +1,18 @@
 import assert from "node:assert/strict";
-import { access, realpath } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 if (process.env.LIVARIANT_REAL_PROVIDER_ACCEPTANCE !== "1") {
-  throw new Error(
-    "Real Codex acceptance is opt-in. Set LIVARIANT_REAL_PROVIDER_ACCEPTANCE=1 and provide LIVARIANT_REAL_CODEX_PROJECT_A / LIVARIANT_REAL_CODEX_PROJECT_B."
-  );
+  throw new Error("Real Codex acceptance is opt-in. Set LIVARIANT_REAL_PROVIDER_ACCEPTANCE=1.");
 }
 
-const rawProjectA = process.env.LIVARIANT_REAL_CODEX_PROJECT_A?.trim();
-const rawProjectB = process.env.LIVARIANT_REAL_CODEX_PROJECT_B?.trim();
-if (!rawProjectA || !rawProjectB) {
-  throw new Error("LIVARIANT_REAL_CODEX_PROJECT_A and LIVARIANT_REAL_CODEX_PROJECT_B are required.");
-}
-
-const projectA = await realpath(resolve(rawProjectA));
-const projectB = await realpath(resolve(rawProjectB));
-assert.notEqual(projectA, projectB, "Real Codex acceptance requires two distinct project roots.");
-
-for (const [label, project] of [["A", projectA], ["B", projectB]]) {
-  await access(project);
-  await access(resolve(project, ".codex", "config.toml")).catch(() => {
-    throw new Error(
-      `Project ${label} is missing .codex/config.toml. Configure Livariant MCP project-locally first; this acceptance harness never writes provider configuration.`
-    );
-  });
-}
+const tempRoot = await mkdtemp(resolve(tmpdir(), "livariant-real-codex-isolation-"));
+const projectA = resolve(tempRoot, "project-a");
+const projectB = resolve(tempRoot, "project-b");
+await mkdir(projectA);
+await mkdir(projectB);
 
 const root = process.cwd();
 const dist = (path) => pathToFileURL(resolve(root, "dist", "src", ...path)).href;
@@ -37,6 +23,24 @@ const { listCodexThreads } = await import(dist(["connectors", "codex-thread-cata
 const { bindCodexThreadsToProjects, summarizeCodexSessionProjects } = await import(
   dist(["connectors", "provider-project-binding.js"])
 );
+const { initializeProject } = await import(dist(["runtime", "index.js"]));
+
+await initializeProject(projectA, { authorized: true });
+await initializeProject(projectB, { authorized: true });
+
+const livariantCli = resolve(root, "dist", "src", "cli", "index.js");
+const livariantMcpConfig = (cwd) => ({
+  "mcp_servers.livariant": {
+    command: process.execPath,
+    args: [livariantCli, "mcp"],
+    cwd,
+    enabled_tools: [
+      "livariant_provider_context",
+      "livariant_provider_return",
+      "livariant_verification_trace",
+    ],
+  },
+});
 
 const resolution = resolveCodexCommand();
 if (!resolution) throw new Error("A local Codex installation could not be resolved safely.");
@@ -126,9 +130,9 @@ try {
   // Three independent real Codex threads through one real App Server process:
   // A1 + A2 target the same project; B1 targets a different project.
   const [a1, a2, b1] = await Promise.all([
-    workflow.startThread({ cwd: projectA }),
-    workflow.startThread({ cwd: projectA }),
-    workflow.startThread({ cwd: projectB }),
+    workflow.startThread({ cwd: projectA, config: livariantMcpConfig(projectA) }),
+    workflow.startThread({ cwd: projectA, config: livariantMcpConfig(projectA) }),
+    workflow.startThread({ cwd: projectB, config: livariantMcpConfig(projectB) }),
   ]);
   assert.notEqual(a1.threadId, a2.threadId);
   assert.notEqual(a1.threadId, b1.threadId);
@@ -201,6 +205,8 @@ try {
     realProvider: true,
     desktopSelectionRequired: false,
     globalProviderConfigurationMutated: false,
+    projectProviderConfigurationWritten: false,
+    temporaryProjects: true,
     threads: {
       projectA: [a1.threadId, a2.threadId],
       projectB: [b1.threadId],
@@ -217,4 +223,5 @@ try {
   unsubscribeWorkflow();
   workflow.close();
   session.close();
+  await rm(tempRoot, { recursive: true, force: true });
 }
