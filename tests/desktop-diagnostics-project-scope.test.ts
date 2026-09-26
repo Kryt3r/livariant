@@ -125,3 +125,37 @@ test("live Codex diagnostics keeps unmatched provider evidence visible", async (
   assert.match(css, /\.dc-session-catalog-summary/);
   assert.match(css, /\.dc-session-diagnostic-group/);
 });
+
+
+test("Codex live reconciliation prefers direct Provider Context thread evidence over provider cwd fallback", async () => {
+  const server = await readFile("src/mcp/server.ts", "utf8");
+  const observation = await readFile("src/connectors/provider-context-observation.ts", "utf8");
+  const reconciliation = await readFile("src/connectors/codex-thread-reconciliation-cli.ts", "utf8");
+  const desktop = await readFile("apps/desktop/src-tauri/src/provider_session_reconciliation.rs", "utf8");
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+
+  assert.match(server, /_meta\.threadId/);
+  assert.match(server, /appendProviderContextSessionObservation/);
+  assert.match(server, /stableProjectIdentity: result\.stableProjectIdentity/);
+  assert.match(server, /projectPath/);
+
+  assert.match(observation, /provider-context-session-observation/);
+  assert.match(observation, /context-observations\.jsonl/);
+  assert.match(observation, /projectTruth: false/);
+  assert.match(observation, /grantsAuthority: false/);
+
+  assert.match(desktop, /read_provider_context_observations/);
+  assert.match(desktop, /contextObservations/);
+  assert.match(desktop, /directProviderContextDrivesProjectAttribution/);
+  assert.match(desktop, /cwdIsFallbackAttribution/);
+
+  assert.match(reconciliation, /applyDirectProviderContextEvidence/);
+  assert.match(reconciliation, /providerThreadId === binding\.threadId/);
+  assert.match(reconciliation, /stableProjectIdentity === observation\.stableProjectIdentity/);
+  assert.match(reconciliation, /attribution: "provider-context"/);
+  assert.match(reconciliation, /attribution: "provider-context-conflict"/);
+  assert.match(reconciliation, /cwd as fallback only/);
+
+  assert.match(cockpit, /Direkter Provider Context/);
+  assert.match(cockpit, /Widersprüchliche direkte Evidence/);
+});
