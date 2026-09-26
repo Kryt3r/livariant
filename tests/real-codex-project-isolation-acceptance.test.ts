@@ -11,8 +11,10 @@ test("real Codex project-isolation acceptance is explicit opt-in and does not wr
     "npm run build && node scripts/real-codex-project-isolation-acceptance.mjs",
   );
   assert.match(source, /LIVARIANT_REAL_PROVIDER_ACCEPTANCE !== "1"/);
-  assert.match(source, /LIVARIANT_REAL_CODEX_PROJECT_A/);
-  assert.match(source, /LIVARIANT_REAL_CODEX_PROJECT_B/);
+  assert.match(source, /mkdtemp/);
+  assert.match(source, /initializeProject\(projectA/);
+  assert.match(source, /initializeProject\(projectB/);
+  assert.match(source, /"mcp_servers\.livariant"/);
   assert.match(source, /connectCodexAppServer/);
   assert.match(source, /new CodexWorkflowClient/);
   assert.match(source, /startThread\(\{ cwd: projectA \}\)/);
@@ -24,8 +26,9 @@ test("real Codex project-isolation acceptance is explicit opt-in and does not wr
   assert.match(source, /summarizeCodexSessionProjects/);
   assert.match(source, /globalProviderConfigurationMutated: false/);
 
-  assert.doesNotMatch(source, /writeFile|appendFile|mkdir\(resolve\(project|codex mcp add/);
-  assert.match(source, /missing \.codex\/config\.toml/);
+  assert.doesNotMatch(source, /codex mcp add|\.codex\/config\.toml|LIVARIANT_REAL_CODEX_PROJECT_/);
+  assert.match(source, /projectProviderConfigurationWritten: false/);
+  assert.match(source, /temporaryProjects: true/);
 });
 
 test("real Codex acceptance explicitly exercises two same-project threads and one other-project thread", async () => {
