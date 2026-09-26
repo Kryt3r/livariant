@@ -27,7 +27,10 @@
     "release:dossier": "node scripts/build-release-decision-dossier.mjs",
     "prepack": "npm run build",
     "dev": "npm run build && node dist/src/cli/index.js",
-    "acceptance:real-codex-project-isolation": "npm run build && node scripts/real-codex-project-isolation-acceptance.mjs"
+    "acceptance:real-codex-project-isolation": "npm run build && node scripts/real-codex-project-isolation-acceptance.mjs",
+    "acceptance:real-claude-project-isolation": "npm run build && node scripts/real-claude-project-isolation-acceptance.mjs",
+    "acceptance:real-gemini-project-isolation": "npm run build && node scripts/real-gemini-project-isolation-acceptance.mjs",
+    "acceptance:real-provider-project-isolation": "npm run build && node scripts/real-provider-project-isolation-acceptance.mjs"
   },
   "engines": {
     "node": ">=20"
