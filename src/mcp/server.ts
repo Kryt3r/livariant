@@ -3,6 +3,7 @@ import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProviderContext } from "../runtime/provider-context.js";
 import { processProviderReturn } from "../runtime/provider-return.js";
 import { assessVerificationTrace } from "../verification/verification-trace.js";
+import { appendProviderContextSessionObservation, providerContextSessionObservation } from "../connectors/provider-context-observation.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_STDIO_MESSAGE_MAX_BYTES = 768 * 1024;
@@ -360,6 +361,20 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
                 available: true,
                 ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
               });
+              if (result.providerSession && typeof result.stableProjectIdentity === "string") {
+                try {
+                  await appendProviderContextSessionObservation(providerContextSessionObservation({
+                    provider: args.provider,
+                    providerSessionId: result.providerSession.id,
+                    ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
+                    projectPath,
+                    stableProjectIdentity: result.stableProjectIdentity,
+                    observedAt: result.generatedAt,
+                  }));
+                } catch (observationError) {
+                  process.stderr.write(`Livariant provider-session observation warning: ${observationError instanceof Error ? observationError.message : String(observationError)}\n`);
+                }
+              }
             }
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
