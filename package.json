@@ -26,7 +26,8 @@
     "release:bundle": "node scripts/build-release-bundle.mjs",
     "release:dossier": "node scripts/build-release-decision-dossier.mjs",
     "prepack": "npm run build",
-    "dev": "npm run build && node dist/src/cli/index.js"
+    "dev": "npm run build && node dist/src/cli/index.js",
+    "acceptance:real-codex-project-isolation": "npm run build && node scripts/real-codex-project-isolation-acceptance.mjs"
   },
   "engines": {
     "node": ">=20"
