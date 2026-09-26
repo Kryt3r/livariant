@@ -34,7 +34,7 @@ fn hidden_command(program: &Path) -> Command {
     command
 }
 
-fn evidence_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn evidence_path(app: &tauri::AppHandle, file_name: &str) -> Result<PathBuf, String> {
     let root = app
         .path()
         .app_data_dir()
@@ -52,7 +52,7 @@ fn evidence_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         }
         Err(error) => return Err(format!("Provider session evidence root could not be inspected: {error}")),
     }
-    Ok(root.join("codex-bindings.json"))
+    Ok(root.join(file_name))
 }
 
 fn validate_snapshot(value: &Value) -> Result<(), String> {
@@ -79,7 +79,7 @@ fn persist_ready_snapshot(app: &tauri::AppHandle, snapshot: &Value) -> Result<()
     if snapshot.get("state").and_then(Value::as_str) != Some("ready") {
         return Ok(());
     }
-    let target = evidence_path(app)?;
+    let target = evidence_path(app, "codex-bindings.json")?;
     let parent = target.parent().ok_or_else(|| "Provider session evidence path has no parent.".to_owned())?;
     let temporary = parent.join(format!(".codex-bindings-{}.tmp", std::process::id()));
     let bytes = serde_json::to_vec_pretty(snapshot)
@@ -188,6 +188,131 @@ fn reconcile_codex_sessions_blocking(app: tauri::AppHandle) -> Result<Value, Str
     Ok(snapshot)
 }
 
+
+fn read_hook_observations(app: &tauri::AppHandle) -> Result<Vec<Value>, String> {
+    let path = evidence_path(app, "hook-observations.jsonl")?;
+    let raw = match fs::read_to_string(&path) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("Provider hook observations could not be read: {error}")),
+    };
+    if raw.len() > 16 * 1024 * 1024 {
+        return Err("Provider hook observation spool exceeds the Desktop reconciliation safety bound.".to_owned());
+    }
+    let mut observations = Vec::new();
+    for (index, line) in raw.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let value: Value = serde_json::from_str(line)
+            .map_err(|error| format!("Provider hook observation line {} is invalid: {error}", index + 1))?;
+        if value.get("schemaVersion").and_then(Value::as_u64) != Some(1)
+            || value.get("evidenceClass").and_then(Value::as_str) != Some("provider-hook-observation")
+            || value.get("projectTruth").and_then(Value::as_bool) != Some(false)
+            || value.get("grantsAuthority").and_then(Value::as_bool) != Some(false)
+        {
+            return Err(format!("Provider hook observation line {} violates the evidence boundary.", index + 1));
+        }
+        observations.push(value);
+    }
+    Ok(observations)
+}
+
+fn persist_hook_snapshot(app: &tauri::AppHandle, snapshot: &Value) -> Result<(), String> {
+    let target = evidence_path(app, "hook-bindings.json")?;
+    let parent = target.parent().ok_or_else(|| "Provider hook binding path has no parent.".to_owned())?;
+    let temporary = parent.join(format!(".hook-bindings-{}.tmp", std::process::id()));
+    let bytes = serde_json::to_vec_pretty(snapshot)
+        .map_err(|error| format!("Provider hook binding evidence could not be serialized: {error}"))?;
+    fs::write(&temporary, bytes)
+        .map_err(|error| format!("Provider hook binding temp file could not be written: {error}"))?;
+    if target.exists() {
+        fs::remove_file(&target)
+            .map_err(|error| format!("Previous provider hook binding evidence could not be replaced: {error}"))?;
+    }
+    fs::rename(&temporary, &target)
+        .map_err(|error| format!("Provider hook binding evidence could not be committed: {error}"))?;
+    Ok(())
+}
+
+fn reconcile_provider_hook_sessions_blocking(app: tauri::AppHandle) -> Result<Value, String> {
+    let projects = registered_provider_projects(&app)?;
+    let observations = read_hook_observations(&app)?;
+    if observations.is_empty() {
+        return Ok(json!({
+            "schemaVersion": 1,
+            "state": "ready",
+            "observedAt": chrono_like_now(),
+            "bindings": [],
+            "detail": "No Claude/Gemini hook session evidence is currently available.",
+            "boundaries": {
+                "desktopSelectionControlsRouting": false,
+                "evidenceIsProjectTruth": false,
+                "evidenceGrantsAuthority": false,
+                "changesProjectOwnedFiles": false
+            }
+        }));
+    }
+
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
+    let install_root = executable
+        .parent()
+        .ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
+    let node = bundled_node_path(install_root);
+    let script = install_root
+        .join("runtime")
+        .join("core")
+        .join("dist")
+        .join("src")
+        .join("connectors")
+        .join("provider-hook-reconciliation-cli.js");
+    if !node.is_file() || !script.is_file() {
+        return Err("Bundled provider hook reconciliation runtime is not present.".to_owned());
+    }
+
+    let input = serde_json::to_vec(&json!({
+        "projects": projects,
+        "observations": observations
+    })).map_err(|error| format!("Provider hook reconciliation input could not be encoded: {error}"))?;
+
+    let mut child = hidden_command(&node)
+        .arg(&script)
+        .current_dir(install_root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Provider hook reconciliation runtime could not be started: {error}"))?;
+    {
+        let mut stdin = child.stdin.take().ok_or_else(|| "Provider hook reconciliation stdin was unavailable.".to_owned())?;
+        stdin.write_all(&input)
+            .map_err(|error| format!("Provider hook reconciliation input could not be written: {error}"))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("Provider hook reconciliation runtime could not be awaited: {error}"))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() {
+            "Provider hook reconciliation failed closed.".to_owned()
+        } else {
+            format!("Provider hook reconciliation failed closed: {detail}")
+        });
+    }
+
+    let snapshot: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Provider hook reconciliation returned invalid JSON: {error}"))?;
+    if snapshot.get("schemaVersion").and_then(Value::as_u64) != Some(1)
+        || snapshot.get("state").and_then(Value::as_str) != Some("ready")
+        || !snapshot.get("bindings").is_some_and(Value::is_array)
+    {
+        return Err("Provider hook reconciliation output is invalid.".to_owned());
+    }
+    persist_hook_snapshot(&app, &snapshot)?;
+    Ok(snapshot)
+}
+
 fn chrono_like_now() -> String {
     // Avoid a new time dependency in Desktop; this path is informational only.
     format!("{:?}", std::time::SystemTime::now())
@@ -195,7 +320,8 @@ fn chrono_like_now() -> String {
 
 pub(crate) fn start_background(app: tauri::AppHandle) {
     std::thread::spawn(move || {
-        let _ = reconcile_codex_sessions_blocking(app);
+        let _ = reconcile_codex_sessions_blocking(app.clone());
+        let _ = reconcile_provider_hook_sessions_blocking(app);
     });
 }
 
@@ -204,4 +330,12 @@ pub async fn reconcile_codex_provider_sessions(app: tauri::AppHandle) -> Result<
     tauri::async_runtime::spawn_blocking(move || reconcile_codex_sessions_blocking(app))
         .await
         .map_err(|error| format!("Codex session reconciliation worker failed: {error}"))?
+}
+
+
+#[tauri::command]
+pub async fn reconcile_provider_hook_sessions(app: tauri::AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || reconcile_provider_hook_sessions_blocking(app))
+        .await
+        .map_err(|error| format!("Provider hook session reconciliation worker failed: {error}"))?
 }
