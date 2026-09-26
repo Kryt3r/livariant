@@ -53,6 +53,9 @@ test("Desktop provider UI presents capabilities separately from connection state
 test("local provider probe and Codex host expose the central capability matrix", async () => {
   const local = await readFile("src/connectors/local-provider-desktop-cli.ts", "utf8");
   const codex = await readFile("src/connectors/desktop-connector-host.ts", "utf8");
-  assert.match(local, /providerCapabilityMatrix\(provider\)\.capabilities/);
+  assert.match(
+    local,
+    /providerCapabilityMatrix\(\s*provider,\s*provider === "custom" \? result\.customCapabilities : undefined,\s*\)\.capabilities/s,
+  );
   assert.match(codex, /providerCapabilityMatrix\("codex"\)\.capabilities/);
 });
