@@ -3,7 +3,8 @@ import { stdout } from "node:process";
 import { resolveCodexCommand } from "./codex-command.js";
 import { connectCodexAppServer } from "./codex-runtime.js";
 import { listCodexThreads } from "./codex-thread-catalog.js";
-import { bindCodexThreadsToProjects, summarizeCodexSessionProjects, type ProviderProjectDescriptor } from "./provider-project-binding.js";
+import { listCodexProjects } from "./codex-project-catalog.js";
+import { applyCodexProviderProjectBindings, bindCodexThreadsToProjects, summarizeCodexSessionProjects, type ProviderProjectDescriptor } from "./provider-project-binding.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -130,6 +131,7 @@ async function main(): Promise<void> {
       command: resolution.command,
       argsPrefix: resolution.argsPrefix,
       timeoutMs: 5000,
+      experimentalApi: true,
     });
   } catch (error) {
     stdout.write(JSON.stringify({
@@ -144,10 +146,18 @@ async function main(): Promise<void> {
   }
 
   try {
-    const threads = await listCodexThreads(session);
+    const [threads, providerProjects] = await Promise.all([
+      listCodexThreads(session),
+      listCodexProjects(session),
+    ]);
     const cwdBindings = bindCodexThreadsToProjects(threads, projects);
-    const bindings = applyDirectProviderContextEvidence(
+    const providerProjectBindings = applyCodexProviderProjectBindings(
       cwdBindings,
+      providerProjects,
+      projects,
+    );
+    const bindings = applyDirectProviderContextEvidence(
+      providerProjectBindings,
       projects,
       contextObservations,
     );
@@ -171,7 +181,13 @@ async function main(): Promise<void> {
       state: "ready",
       provider: "codex",
       observedAt: new Date().toISOString(),
-      detail: "Codex persisted threads were reconciled using direct Livariant Provider Context thread evidence first, with provider-owned cwd as fallback only.",
+      detail: "Codex persisted threads were reconciled using direct Livariant Provider Context evidence first, then provider-owned Codex project metadata, with provider-owned cwd as final fallback.",
+      providerProjectEvidence: {
+        projectsTotal: providerProjects.length,
+        threadsWithProviderProjectId: threads.filter((thread) => thread.projectId !== null).length,
+        bindingsUsingProviderProject: bindings.filter((binding) => binding.attribution === "provider-project").length,
+        bindingsWithProviderProjectConflict: bindings.filter((binding) => binding.attribution === "provider-project-conflict").length,
+      },
       directContextEvidence: {
         observationsTotal: contextObservations.length,
         codexObservations: codexObservations.length,
