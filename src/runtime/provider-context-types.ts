@@ -1,7 +1,7 @@
 import type { DoctorFinding } from "./doctor.js";
 import type { ProjectContextBaseline, ProjectContextItem } from "./context-snapshot.js";
 
-export type ProviderContextProvider = "claude-code" | "codex";
+export type ProviderContextProvider = "claude-code" | "codex" | "gemini";
 
 export interface ProviderContextSessionBinding {
   id: string;
