@@ -4,7 +4,7 @@ import { resolveCodexCommand } from "./codex-command.js";
 import { connectCodexAppServer } from "./codex-runtime.js";
 import { listCodexThreads } from "./codex-thread-catalog.js";
 import { listCodexProjects } from "./codex-project-catalog.js";
-import { applyCodexProviderProjectBindings, bindCodexThreadsToProjects, summarizeCodexSessionProjects, type ProviderProjectDescriptor } from "./provider-project-binding.js";
+import { applyCodexProviderProjectBindings, applyCodexRuntimeWorkspaceBindings, bindCodexThreadsToProjects, summarizeCodexSessionProjects, type ProviderProjectDescriptor } from "./provider-project-binding.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -156,8 +156,13 @@ async function main(): Promise<void> {
       providerProjects,
       projects,
     );
-    const bindings = applyDirectProviderContextEvidence(
+    const providerWorkspaceBindings = applyCodexRuntimeWorkspaceBindings(
       providerProjectBindings,
+      threads,
+      projects,
+    );
+    const bindings = applyDirectProviderContextEvidence(
+      providerWorkspaceBindings,
       projects,
       contextObservations,
     );
@@ -181,7 +186,13 @@ async function main(): Promise<void> {
       state: "ready",
       provider: "codex",
       observedAt: new Date().toISOString(),
-      detail: "Codex persisted threads were reconciled using direct Livariant Provider Context evidence first, then provider-owned Codex project metadata, with provider-owned cwd as final fallback.",
+      detail: "Codex persisted threads were reconciled using direct Livariant Provider Context evidence first, then provider-owned runtime workspace roots, then provider-owned Codex project metadata, with provider-owned cwd as final fallback.",
+      runtimeWorkspaceEvidence: {
+        threadsWithRuntimeWorkspaceRoots: threads.filter((thread) => thread.runtimeWorkspaceRoots.length > 0).length,
+        distinctRuntimeWorkspaceRoots: new Set(threads.flatMap((thread) => thread.runtimeWorkspaceRoots)).size,
+        bindingsUsingRuntimeWorkspace: bindings.filter((binding) => binding.attribution === "provider-workspace").length,
+        bindingsWithRuntimeWorkspaceConflict: bindings.filter((binding) => binding.attribution === "provider-workspace-conflict").length,
+      },
       providerProjectEvidence: {
         projectsTotal: providerProjects.length,
         threadsWithProviderProjectId: threads.filter((thread) => thread.projectId !== null).length,
