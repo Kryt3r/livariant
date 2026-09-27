@@ -475,19 +475,45 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
   if (!reconciliation) {
     return `<div class="dc-session-empty">${esc(state.sessions.hooksError ?? lang("No hook reconciliation evidence has been loaded yet.", "Es wurde noch keine Hook-Reconciliation-Evidence geladen."))}</div>`;
   }
-  const rows = reconciliation.bindings.filter((binding) => binding.provider === provider && belongsToDiagnosticsProject(binding.project, data.scope.projectId));
-  if (!rows.length) {
-    return `<div class="dc-session-empty">${provider === "claude"
-      ? lang("No Claude hook sessions are currently attributable to this project. Live MCP isolation can still work without hook evidence.", "Aktuell lassen sich diesem Projekt keine Claude-Hook-Sessions zuordnen. Die Live-MCP-Trennung kann trotzdem ohne Hook-Evidence funktionieren.")
-      : lang("No Gemini hook sessions are currently attributable to this project. Hook evidence appears only after the provider hook is configured and emits it.", "Aktuell lassen sich diesem Projekt keine Gemini-Hook-Sessions zuordnen. Hook-Evidence erscheint erst, wenn der Provider-Hook eingerichtet ist und Daten liefert.")}</div>`;
+  const providerRows = reconciliation.bindings.filter((binding) => binding.provider === provider);
+  const current = providerRows.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
+  const other = providerRows.filter((binding) => binding.project !== null && !belongsToDiagnosticsProject(binding.project, data.scope.projectId));
+  const unattributed = providerRows.filter((binding) => binding.project === null);
+  const renderHookRows = (rows: HookSessionBinding[], relation: "current" | "other" | "unattributed") => renderLimitedSessionRows(rows.map((binding) => {
+    const primaryAction = relation === "current"
+      ? renderSessionAction(provider, binding.sessionId, "unassign")
+      : renderSessionAction(provider, binding.sessionId, "assign");
+    const automaticAction = binding.attribution === "user-unassigned"
+      ? renderSessionAction(provider, binding.sessionId, "automatic")
+      : "";
+    const stateClass = binding.attribution === "manual" || binding.attribution === "cwd-consistent" ? "ok" : "warn";
+    const label = binding.attribution === "manual"
+      ? lang("Manually assigned", "Manuell zugeordnet")
+      : binding.attribution === "user-unassigned"
+        ? lang("Assignment removed", "Zuordnung entfernt")
+        : binding.attribution === "manual-project-unavailable"
+          ? lang("Manual project unavailable", "Manuelles Projekt nicht verfügbar")
+          : binding.attribution === "cwd-consistent"
+            ? lang("Project matched", "Projekt zugeordnet")
+            : binding.attribution === "mixed-projects"
+              ? lang("Mixed projects", "Gemischte Projekte")
+              : lang("Unattributed", "Nicht zugeordnet");
+    return `<article class="dc-session-row">
+      <div><small>${lang("Session", "Sitzung")}</small><strong title="${esc(binding.sessionId)}">${esc(shortId(binding.sessionId))}</strong></div>
+      <div><small>${lang("Last evidence", "Letzte Evidence")}</small><strong>${esc(formatObservedAt(binding.latestObservedAt))}</strong></div>
+      <div><small>cwd</small><strong title="${esc(binding.cwdEvidence.join(" · "))}">${esc(binding.cwdEvidence[0] ?? "—")}</strong></div>
+      <span class="dc-session-state ${stateClass}">${label}</span>
+      <div class="dc-session-actions">${primaryAction}${automaticAction}</div>
+    </article>`;
+  }));
+  if (!providerRows.length) {
+    return `<div class="dc-session-empty">${lang("No provider session evidence is currently available.", "Aktuell ist keine Provider-Session-Evidence verfügbar.")}</div>`;
   }
-  return `<div class="dc-session-list">${rows.map((binding) => `<article class="dc-session-row">
-    <div><small>${lang("Session", "Sitzung")}</small><strong title="${esc(binding.sessionId)}">${esc(shortId(binding.sessionId))}</strong></div>
-    <div><small>cwd</small><strong title="${esc(binding.cwdEvidence.join(" · "))}">${esc(binding.cwdEvidence[0] ?? "—")}</strong></div>
-    <div><small>${lang("Last evidence", "Letzte Evidence")}</small><strong>${esc(formatObservedAt(binding.latestObservedAt))}</strong></div>
-    <span class="dc-session-state ${binding.attribution === "cwd-consistent" ? "ok" : "warn"}">${binding.attribution === "cwd-consistent" ? lang("Project matched", "Projekt zugeordnet") : binding.attribution === "mixed-projects" ? lang("Mixed projects", "Gemischte Projekte") : lang("Unattributed", "Nicht zugeordnet")}</span>
-    ${binding.transcriptPaths.length ? `<div class="dc-session-transcript"><small>Transcript</small><span title="${esc(binding.transcriptPaths.join(" · "))}">${esc(binding.transcriptPaths[0]!)}</span></div>` : ""}
-  </article>`).join("")}</div>`;
+  return [
+    current.length ? `<section class="dc-session-section"><div class="dc-session-section-head"><span>${lang("Assigned to this project", "Diesem Projekt zugeordnet")}</span><strong>${current.length}</strong></div>${renderHookRows(current, "current")}</section>` : "",
+    unattributed.length ? `<details class="dc-session-diagnostic-group warning"><summary><span>${lang("Unassigned sessions", "Nicht zugeordnete Sessions")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderHookRows(unattributed, "unattributed")}</div></details>` : "",
+    other.length ? `<details class="dc-session-diagnostic-group"><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderHookRows(other, "other")}</div></details>` : "",
+  ].join("");
 };
 
 const renderProviderAccordion = (provider: "codex" | "claude" | "gemini" | "custom", data: DiagnosticsSummary) => {
