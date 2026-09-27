@@ -105,3 +105,19 @@ test("provider connection UX groups automatic connections and keeps executable p
   assert.match(brands, /openai\/openai-cookbook/);
   assert.match(brands, /anthropics\/anthropic-sdk-typescript/);
 });
+
+
+test("Overview is a real app route and background Project Knowledge refresh cannot replace it", () => {
+  const main = readFileSync("apps/desktop/src/main.ts", "utf8");
+  const shell = readFileSync("apps/desktop/src/shell-redesign.ts", "utf8");
+
+  assert.match(main, /type View = "overview" \| "steps"/);
+  assert.match(main, /let currentView: View = "overview"/);
+  assert.match(main, /data-shell-overview-host/);
+  assert.match(main, /data-view="overview"/);
+  assert.match(main, /view === "overview"/);
+  assert.match(main, /if \(renderAfter && currentView === "steps"\) render\(\)/);
+  assert.doesNotMatch(shell, /initialLandingApplied/);
+  assert.match(shell, /\[data-shell-overview-host\]/);
+  assert.match(shell, /content\.innerHTML = renderOverview\(\)/);
+});
