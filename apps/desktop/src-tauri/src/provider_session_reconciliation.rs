@@ -494,7 +494,7 @@ pub fn assign_provider_session_to_active_project(
 }
 
 #[tauri::command]
-pub fn unassign_provider_session(
+pub fn block_provider_session_automatic_assignment(
     app: tauri::AppHandle,
     provider: String,
     provider_item_id: String,
