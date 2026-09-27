@@ -13,7 +13,7 @@ test("provider session reconciliation is independent of the currently selected D
   assert.ok(manualCommandOffset > 0);
   const automaticReconciliation = reconciliation.slice(0, manualCommandOffset);
   assert.doesNotMatch(automaticReconciliation, /active_project_scope|active_diagnostics_project_id/);
-  assert.match(reconciliation, /assign_provider_session_to_active_project[\\s\\S]*active_project_scope/);
+  assert.match(reconciliation, /assign_provider_session_to_active_project[\s\S]*active_project_scope/);
   assert.match(reconciliation, /provider-sessions/);
   assert.match(reconciliation, /desktopSelectionControlsRouting["']?:?\s*false/);
   assert.match(reconciliation, /providerSessionEvidenceIsProjectTruth["']?:?\s*false/);
