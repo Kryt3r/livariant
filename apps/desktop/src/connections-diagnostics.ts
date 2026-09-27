@@ -25,6 +25,13 @@ type ConnectorStatus = {
   capabilities?: ProviderCapabilities;
 };
 
+type CodexMcpIntegrationStatus = {
+  state: "registered" | "not-registered" | "conflict" | "unavailable";
+  registered: boolean;
+  expectedRuntime: boolean;
+  detail: string;
+};
+
 type DiagnosticPreset = "1d" | "7d" | "30d" | "90d" | "all";
 
 type ObservedAttributionGroup = {
@@ -112,6 +119,9 @@ type LocalProviderStatus = {
 };
 
 let connector: ConnectorStatus | null = null;
+let codexMcp: CodexMcpIntegrationStatus | null = null;
+let codexMcpBusy: "connect" | "disconnect" | null = null;
+let codexMcpError: string | null = null;
 let diagnostics: DiagnosticsSummary | null = null;
 let checkingConnector = false;
 let connectorAction: ConnectorAction = null;
@@ -140,6 +150,26 @@ const formatNumber = (value: number) => new Intl.NumberFormat(getLanguage() === 
 const measured = (value: number) => diagnostics?.hasObservedData ? formatNumber(value) : "—";
 const connectorMutating = () => connectorAction !== null;
 const lang = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
+
+const codexMcpErrorCopy = (): string => lang(
+  "The Livariant MCP integration could not be changed. Existing Codex configuration was kept; try again.",
+  "Die Livariant-MCP-Integration konnte nicht geändert werden. Die bestehende Codex-Konfiguration wurde beibehalten; versuche es erneut.",
+);
+
+const refreshCodexMcp = async (): Promise<void> => {
+  if (connector?.connected !== true) {
+    codexMcp = null;
+    codexMcpError = null;
+    return;
+  }
+  try {
+    codexMcp = await invoke<CodexMcpIntegrationStatus>("codex_mcp_integration_status");
+    codexMcpError = null;
+  } catch {
+    codexMcp = null;
+    codexMcpError = codexMcpErrorCopy();
+  }
+};
 
 const connectionSurfaceError = (area: "connector" | "diagnostics" | "export" | "measure"): string => {
   if (area === "connector") return lang(
