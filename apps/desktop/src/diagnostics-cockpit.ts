@@ -235,12 +235,14 @@ const codexAttributionLabel = (value: CodexSessionBinding["attribution"]) => ({
   unattributed: lang("Unattributed", "Nicht zugeordnet"),
 })[value];
 
-const renderSessionAction = (provider: "codex" | "claude" | "gemini", providerItemId: string, action: "assign" | "unassign" | "automatic") => {
+const renderSessionAction = (provider: "codex" | "claude" | "gemini", providerItemId: string, action: "assign" | "remove-manual" | "block-auto" | "allow-auto") => {
   const label = action === "assign"
     ? lang("Assign to this project", "Diesem Projekt zuordnen")
-    : action === "unassign"
-      ? lang("Remove assignment", "Zuordnung entfernen")
-      : lang("Allow automatic assignment", "Automatik wieder zulassen");
+    : action === "remove-manual"
+      ? lang("Remove manual assignment", "Manuelle Zuordnung entfernen")
+      : action === "block-auto"
+        ? lang("Block automatic assignment", "Automatische Zuordnung blockieren")
+        : lang("Allow automatic assignment", "Automatik wieder zulassen");
   return `<button type="button" class="button secondary dc-session-action" data-provider-session-action="${action}" data-provider="${provider}" data-provider-item-id="${esc(providerItemId)}">${label}</button>`;
 };
 
@@ -423,17 +425,23 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
         || binding.attribution === "manual-project-unavailable"
         || binding.attribution.endsWith("-conflict") ? "warn" : "ok";
       const primaryAction = relation === "current"
-        ? renderSessionAction("codex", binding.threadId, "unassign")
+        ? (binding.attribution === "manual"
+            ? renderSessionAction("codex", binding.threadId, "remove-manual")
+            : renderSessionAction("codex", binding.threadId, "block-auto"))
         : renderSessionAction("codex", binding.threadId, "assign");
-      const automaticAction = binding.attribution === "user-unassigned"
-        ? renderSessionAction("codex", binding.threadId, "automatic")
-        : "";
+      const secondaryAction = binding.attribution === "user-unassigned"
+        ? renderSessionAction("codex", binding.threadId, "allow-auto")
+        : relation !== "current" && binding.attribution === "manual"
+          ? renderSessionAction("codex", binding.threadId, "remove-manual")
+          : relation !== "current" && binding.project !== null
+            ? renderSessionAction("codex", binding.threadId, "block-auto")
+            : "";
       return `<article class="dc-session-row">
         <div class="dc-session-title"><small>${lang("Thread", "Thread")}</small><strong title="${esc(binding.threadId)}">${esc(title)}</strong><span>${esc(shortId(binding.threadId))}</span></div>
         <div><small>${lang("Last activity", "Letzte Aktivität")}</small><strong>${esc(formatThreadUpdatedAt(binding.updatedAt))}</strong></div>
         <div><small>cwd</small><strong title="${esc(binding.cwd)}">${esc(binding.cwd)}</strong></div>
         <span class="dc-session-state ${stateClass}">${codexAttributionLabel(binding.attribution)}</span>
-        <div class="dc-session-actions">${primaryAction}${automaticAction}</div>
+        <div class="dc-session-actions">${primaryAction}${secondaryAction}</div>
       </article>`;
     }));
     const current = reconciliation.bindings.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
@@ -481,11 +489,17 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
   const unattributed = providerRows.filter((binding) => binding.project === null);
   const renderHookRows = (rows: HookSessionBinding[], relation: "current" | "other" | "unattributed") => renderLimitedSessionRows(rows.map((binding) => {
     const primaryAction = relation === "current"
-      ? renderSessionAction(provider, binding.sessionId, "unassign")
+      ? (binding.attribution === "manual"
+          ? renderSessionAction(provider, binding.sessionId, "remove-manual")
+          : renderSessionAction(provider, binding.sessionId, "block-auto"))
       : renderSessionAction(provider, binding.sessionId, "assign");
-    const automaticAction = binding.attribution === "user-unassigned"
-      ? renderSessionAction(provider, binding.sessionId, "automatic")
-      : "";
+    const secondaryAction = binding.attribution === "user-unassigned"
+      ? renderSessionAction(provider, binding.sessionId, "allow-auto")
+      : relation !== "current" && binding.attribution === "manual"
+        ? renderSessionAction(provider, binding.sessionId, "remove-manual")
+        : relation !== "current" && binding.project !== null
+          ? renderSessionAction(provider, binding.sessionId, "block-auto")
+          : "";
     const stateClass = binding.attribution === "manual" || binding.attribution === "cwd-consistent" ? "ok" : "warn";
     const label = binding.attribution === "manual"
       ? lang("Manually assigned", "Manuell zugeordnet")
@@ -503,7 +517,7 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
       <div><small>${lang("Last evidence", "Letzte Evidence")}</small><strong>${esc(formatObservedAt(binding.latestObservedAt))}</strong></div>
       <div><small>cwd</small><strong title="${esc(binding.cwdEvidence.join(" · "))}">${esc(binding.cwdEvidence[0] ?? "—")}</strong></div>
       <span class="dc-session-state ${stateClass}">${label}</span>
-      <div class="dc-session-actions">${primaryAction}${automaticAction}</div>
+      <div class="dc-session-actions">${primaryAction}${secondaryAction}</div>
     </article>`;
   }));
   if (!providerRows.length) {
