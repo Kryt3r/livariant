@@ -313,7 +313,10 @@ const codexState = () => {
 export async function refreshConnector(): Promise<void> {
   checkingConnector = true;
   error = null;
-  try { connector = await invoke<ConnectorStatus>("codex_connector_status"); }
+  try {
+    connector = await invoke<ConnectorStatus>("codex_connector_status");
+    await refreshCodexMcp();
+  }
   catch (_cause) { error = connectionSurfaceError("connector"); }
   finally { checkingConnector = false; }
 }
@@ -698,7 +701,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     let connectedNow = 0;
     try {
       if (!connector?.connected && connector?.installationState === "available") {
-        try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); if (connector.connected) connectedNow += 1; }
+        try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); await refreshCodexMcp(); if (connector.connected) connectedNow += 1; }
         catch { failures.push("Codex"); }
       }
       for (const provider of ["claude", "gemini"] as LocalProviderId[]) {
