@@ -99,6 +99,7 @@ type CodexReconciliation = {
     codexObservations: number;
     codexObservationsWithThreadId: number;
     observationsMatchingRegisteredProjectIdentity: number;
+    observationsMatchingRegisteredProjectPath: number;
     distinctObservationThreadIdsMatchingCatalog: number;
     bindingsUsingDirectContext: number;
     bindingsWithDirectContextConflict: number;
@@ -403,7 +404,7 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
     const directSummary = direct
       ? `<div class="dc-direct-evidence-summary">
           <span>${lang("Direct Provider Context evidence", "Direkte Provider-Context-Evidence")}</span>
-          <small>${direct.codexObservations} ${lang("Codex observations", "Codex-Beobachtungen")} · ${direct.codexObservationsWithThreadId} ${lang("with thread id", "mit Thread-ID")} · ${direct.observationsMatchingRegisteredProjectIdentity} ${lang("matching registered project identity", "mit passender registrierter Projektidentität")} · ${direct.distinctObservationThreadIdsMatchingCatalog} ${lang("thread ids found in provider catalog", "Thread-IDs im Provider-Katalog gefunden")} · ${direct.bindingsUsingDirectContext} ${lang("direct bindings", "direkte Bindungen")}${direct.bindingsWithDirectContextConflict ? ` · ${direct.bindingsWithDirectContextConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
+          <small>${direct.codexObservations} ${lang("Codex observations", "Codex-Beobachtungen")} · ${direct.codexObservationsWithThreadId} ${lang("with thread id", "mit Thread-ID")} · ${direct.observationsMatchingRegisteredProjectIdentity} ${lang("matching registered project identity", "mit passender registrierter Projektidentität")} · ${direct.observationsMatchingRegisteredProjectPath} ${lang("matching registered project path", "mit passendem registrierten Projektpfad")} · ${direct.distinctObservationThreadIdsMatchingCatalog} ${lang("thread ids found in provider catalog", "Thread-IDs im Provider-Katalog gefunden")} · ${direct.bindingsUsingDirectContext} ${lang("direct bindings", "direkte Bindungen")}${direct.bindingsWithDirectContextConflict ? ` · ${direct.bindingsWithDirectContextConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
         </div>`
       : `<div class="dc-direct-evidence-summary missing"><span>${lang("Direct Provider Context evidence", "Direkte Provider-Context-Evidence")}</span><small>${lang("No evidence diagnostics returned by the runtime.", "Die Runtime hat keine Evidence-Diagnosedaten zurückgegeben.")}</small></div>`;
     return `${catalogSummary}${runtimeWorkspaceSummary}${providerProjectSummary}${directSummary}${currentBody}${diagnosticsGroups}`;
