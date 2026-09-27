@@ -117,7 +117,7 @@ test("live Codex diagnostics keeps unmatched provider evidence visible", async (
 
   assert.match(cockpit, /Provider catalog/);
   assert.match(cockpit, /Andere registrierte Projekte/);
-  assert.match(cockpit, /Nicht zugeordnete Provider-Threads/);
+  assert.match(cockpit, /Nicht zugeordnete Sessions/);
   assert.match(cockpit, /binding\.project === null/);
   assert.match(cockpit, /binding\.project !== null && !belongsToDiagnosticsProject/);
   assert.match(cockpit, /binding\.cwd/);
@@ -155,8 +155,8 @@ test("Codex live reconciliation prefers direct Provider Context thread evidence 
   assert.match(reconciliation, /attribution: "provider-context"/);
   assert.match(reconciliation, /attribution: "provider-context-conflict"/);
   assert.match(reconciliation, /runtime workspace roots/);
-  assert.match(reconciliation, /provider-owned Codex project metadata/);
-  assert.match(reconciliation, /cwd as final fallback/);
+  assert.match(reconciliation, /provider project metadata/);
+  assert.match(reconciliation, /provider-owned cwd as fallback/);
 
   assert.match(cockpit, /Direkter Provider Context/);
   assert.match(cockpit, /Widersprüchliche direkte Evidence/);
@@ -260,4 +260,41 @@ test("Codex session attribution captures MCP toolcall workspace evidence before 
   assert.match(reconciliation, /direct MCP tool-call thread\/workspace evidence first/);
 
   assert.match(cockpit, /passendem registrierten Projektpfad/);
+});
+
+test("hybrid provider session attribution keeps user decisions explicit and reversible", async () => {
+  const desktop = await readFile("apps/desktop/src-tauri/src/provider_session_reconciliation.rs", "utf8");
+  const lib = await readFile("apps/desktop/src-tauri/src/lib.rs", "utf8");
+  const reconciliation = await readFile("src/connectors/codex-thread-reconciliation-cli.ts", "utf8");
+  const binding = await readFile("src/connectors/provider-project-binding.ts", "utf8");
+  const hook = await readFile("src/connectors/provider-hook-reconciliation-cli.ts", "utf8");
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const css = await readFile("apps/desktop/src/diagnostics-cockpit.css", "utf8");
+
+  assert.match(desktop, /manual-session-decisions\.json/);
+  assert.match(desktop, /assign_provider_session_to_active_project/);
+  assert.match(desktop, /unassign_provider_session/);
+  assert.match(desktop, /clear_provider_session_manual_decision/);
+  assert.match(desktop, /changesProjectOwnedFiles.*false/);
+  assert.match(desktop, /grantsAuthority.*false/);
+  assert.match(lib, /assign_provider_session_to_active_project/);
+
+  assert.match(binding, /applyManualCodexSessionDecisions/);
+  assert.match(binding, /attribution: "manual"/);
+  assert.match(binding, /attribution: "user-unassigned"/);
+  assert.match(binding, /manual-project-unavailable/);
+  assert.match(reconciliation, /manualDecisionEvidence/);
+  assert.match(hook, /manualDecisions/);
+  assert.match(hook, /user-unassigned/);
+
+  assert.match(cockpit, /Diesem Projekt zuordnen/);
+  assert.match(cockpit, /Zuordnung entfernen/);
+  assert.match(cockpit, /Automatik wieder zulassen/);
+  assert.match(cockpit, /Ältere Sessions anzeigen/);
+  assert.match(cockpit, /data-provider-session-action/);
+  assert.match(cockpit, /assign_provider_session_to_active_project/);
+  assert.match(cockpit, /unassign_provider_session/);
+  assert.match(cockpit, /clear_provider_session_manual_decision/);
+  assert.match(css, /\.dc-session-actions/);
+  assert.match(css, /\.dc-session-more/);
 });
