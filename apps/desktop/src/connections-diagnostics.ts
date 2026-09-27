@@ -402,11 +402,32 @@ const renderCodexModal = () => {
               : `<button class="button primary connector-connect" type="button" ${connectorMutating() || !detected ? "disabled" : ""}>${connectorAction === "connect" ? lang("Connecting…", "Verbinde…") : t("connections.connectCodex")}</button>`}
           </div>
         </section>
+        <section class="provider-primary-card">
+          <div>
+            <span class="provider-card-kicker">Livariant MCP</span>
+            <h3>${codexMcp?.state === "registered"
+              ? lang("Livariant tools are available to new Codex sessions", "Livariant-Tools sind für neue Codex-Sessions verfügbar")
+              : codexMcp?.state === "conflict"
+                ? lang("MCP configuration needs attention", "MCP-Konfiguration benötigt Aufmerksamkeit")
+                : lang("Enable Livariant tools in Codex", "Livariant-Tools in Codex aktivieren")}</h3>
+            <p>${esc(codexMcpError ?? (codexMcp?.state === "registered"
+              ? lang("Codex owns this MCP registration. Start a new Codex session after changes so its tool inventory refreshes.", "Codex verwaltet diese MCP-Registrierung. Starte nach Änderungen eine neue Codex-Session, damit die Tool-Liste neu geladen wird.")
+              : codexMcp?.state === "conflict"
+                ? lang("An existing Codex MCP entry named Livariant points somewhere else or is disabled. Livariant will not overwrite it automatically.", "Ein vorhandener Codex-MCP-Eintrag namens Livariant zeigt auf eine andere Runtime oder ist deaktiviert. Livariant überschreibt ihn nicht automatisch.")
+                : lang("This registers Livariant through Codex's native MCP configuration so normal Codex sessions can call Provider Context. It does not select or route a Livariant project.", "Damit wird Livariant über Codex' native MCP-Konfiguration registriert, sodass normale Codex-Sessions Provider Context aufrufen können. Dadurch wird kein Livariant-Projekt ausgewählt oder geroutet.")))}</p>
+          </div>
+          <div class="provider-primary-actions">
+            ${codexMcp?.state === "registered"
+              ? `<button class="button secondary codex-mcp-disconnect" type="button" ${codexMcpBusy ? "disabled" : ""}>${codexMcpBusy === "disconnect" ? lang("Disabling…", "Deaktiviere…") : lang("Disable Livariant MCP", "Livariant MCP deaktivieren")}</button>`
+              : `<button class="button primary codex-mcp-connect" type="button" ${codexMcpBusy || !connected || codexMcp?.state === "conflict" ? "disabled" : ""}>${codexMcpBusy === "connect" ? lang("Enabling…", "Aktiviere…") : lang("Enable Livariant MCP", "Livariant MCP aktivieren")}</button>`}
+          </div>
+        </section>
         <section class="provider-detail-section">
           <div class="provider-section-heading"><span>${lang("Connection details", "Verbindungsdetails")}</span><small>${lang("Observed locally", "Lokal beobachtet")}</small></div>
           <div class="provider-detail-grid" aria-label="${lang("Codex connection details", "Codex-Verbindungsdetails")}">
             <div class="provider-detail"><small>${lang("Installation", "Installation")}</small><strong>${detected ? `Codex ${esc(connector?.version ?? "")}` : connector?.installationState === "unusable" ? lang("Unusable", "Nicht nutzbar") : lang("Not detected", "Nicht erkannt")}</strong></div>
             <div class="provider-detail"><small>App Server</small><strong>${connected ? t("connections.connected") : lang("Disconnected", "Getrennt")}</strong></div>
+            <div class="provider-detail"><small>Livariant MCP</small><strong>${codexMcp?.state === "registered" ? lang("Active", "Aktiv") : codexMcp?.state === "conflict" ? lang("Conflict", "Konflikt") : codexMcp?.state === "unavailable" ? lang("Unavailable", "Nicht verfügbar") : lang("Not active", "Nicht aktiv")}</strong></div>
             <div class="provider-detail"><small>${lang("Connection method", "Verbindungsmethode")}</small><strong>${connected ? (mode === "manual" ? lang("Local fallback", "Lokaler Fallback") : lang("Automatic", "Automatisch")) : lang("Not active", "Nicht aktiv")}</strong></div>
             <div class="provider-detail"><small>${lang("Approvals", "Freigaben")}</small><strong>${connector?.pendingApprovals ?? 0} ${lang("pending", "ausstehend")}</strong></div>
           </div>
