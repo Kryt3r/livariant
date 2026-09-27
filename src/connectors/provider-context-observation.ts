@@ -10,7 +10,8 @@ export interface ProviderContextSessionObservation {
   providerSessionId: string;
   providerThreadId: string | null;
   projectPath: string;
-  stableProjectIdentity: string;
+  providerWorkspacePaths: string[];
+  stableProjectIdentity: string | null;
   observedAt: string;
   projectTruth: false;
   grantsAuthority: false;
@@ -64,7 +65,8 @@ export function providerContextSessionObservation(input: {
   providerSessionId: string;
   providerThreadId?: string;
   projectPath: string;
-  stableProjectIdentity: string;
+  providerWorkspacePaths?: string[];
+  stableProjectIdentity?: string;
   observedAt?: string;
 }): ProviderContextSessionObservation {
   return {
@@ -76,7 +78,12 @@ export function providerContextSessionObservation(input: {
       ? null
       : boundedText(input.providerThreadId, "providerThreadId", MAX_PROVIDER_THREAD_ID_BYTES),
     projectPath: boundedText(input.projectPath, "projectPath", MAX_PATH_BYTES),
-    stableProjectIdentity: boundedText(input.stableProjectIdentity, "stableProjectIdentity", 128),
+    providerWorkspacePaths: [...new Set((input.providerWorkspacePaths ?? []).map((value, index) =>
+      boundedText(value, `providerWorkspacePaths[${index}]`, MAX_PATH_BYTES)
+    ))].slice(0, 16),
+    stableProjectIdentity: input.stableProjectIdentity === undefined
+      ? null
+      : boundedText(input.stableProjectIdentity, "stableProjectIdentity", 128),
     observedAt: input.observedAt ?? new Date().toISOString(),
     projectTruth: false,
     grantsAuthority: false,
