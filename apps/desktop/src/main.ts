@@ -565,6 +565,13 @@ const renderProjectTruthView = () => {
     </div>`;
 };
 
+const renderContent = () => {
+  if (currentView === "overview") return '<div data-shell-overview-host></div>';
+  if (currentView === "connections") return renderConnectionsView();
+  if (currentView === "diagnostics") return `<div class="diagnostics-surface" data-surface="diagnostics" data-diagnostics-preset="30d"></div>`;
+  return renderProjectTruthView();
+};
+
 const renderUpdatesSettingsView = () => `
     <section class="settings-panel settings-updates" data-settings-surface="updates">
       <span class="eyebrow">${uiText("Desktop lifecycle", "Desktop-Lebenszyklus")}</span><h2>Updates</h2>
