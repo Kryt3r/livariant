@@ -19,6 +19,15 @@ interface Observation {
   observedAt: string;
 }
 
+
+interface ManualDecision {
+  provider: "codex" | "claude" | "gemini" | "custom";
+  providerItemId: string;
+  decision: "assigned" | "unassigned";
+  desktopProjectId: string | null;
+  updatedAtUnixMs: number;
+}
+
 function object(value: unknown, field: string): JsonObject {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${field} must be an object.`);
   return value as JsonObject;
@@ -48,6 +57,8 @@ const input = object(JSON.parse(readFileSync(0, "utf8")) as unknown, "input");
 if (!Array.isArray(input.projects) || !Array.isArray(input.observations)) {
   throw new Error("Provider hook reconciliation input must contain projects and observations arrays.");
 }
+const manualRaw = input.manualDecisions === undefined ? [] : input.manualDecisions;
+if (!Array.isArray(manualRaw)) throw new Error("manualDecisions must be an array.");
 
 const projects: Project[] = input.projects.map((raw, index) => {
   const value = object(raw, `projects[${index}]`);
@@ -72,13 +83,31 @@ const observations: Observation[] = input.observations.map((raw, index) => {
   };
 });
 
+const manualDecisions: ManualDecision[] = manualRaw.map((raw, index) => {
+  const value = object(raw, `manualDecisions[${index}]`);
+  const provider = value.provider;
+  if (provider !== "codex" && provider !== "claude" && provider !== "gemini" && provider !== "custom") {
+    throw new Error(`manualDecisions[${index}].provider is unsupported.`);
+  }
+  if (value.decision !== "assigned" && value.decision !== "unassigned") {
+    throw new Error(`manualDecisions[${index}].decision is unsupported.`);
+  }
+  return {
+    provider,
+    providerItemId: text(value.providerItemId, `manualDecisions[${index}].providerItemId`),
+    decision: value.decision,
+    desktopProjectId: nullableText(value.desktopProjectId, `manualDecisions[${index}].desktopProjectId`),
+    updatedAtUnixMs: typeof value.updatedAtUnixMs === "number" && Number.isFinite(value.updatedAtUnixMs) ? value.updatedAtUnixMs : 0,
+  };
+});
+
 const groups = new Map<string, Observation[]>();
 for (const observation of observations) {
   const key = `${observation.provider}\u0000${observation.sessionId}`;
   groups.set(key, [...(groups.get(key) ?? []), observation]);
 }
 
-const bindings = [...groups.values()].map((events) => {
+const automaticBindings = [...groups.values()].map((events) => {
   const first = events[0]!;
   const matchedProjects = new Map<string, Project>();
   let unattributed = false;
@@ -114,6 +143,24 @@ const bindings = [...groups.values()].map((events) => {
     latestObservedAt: latest.observedAt,
     eventCount: events.length,
   };
+});
+
+const latestManual = new Map(
+  manualDecisions
+    .filter((decision) => decision.provider === "claude" || decision.provider === "gemini")
+    .sort((a, b) => a.updatedAtUnixMs - b.updatedAtUnixMs)
+    .map((decision) => [`${decision.provider}\u0000${decision.providerItemId}`, decision] as const),
+);
+const projectById = new Map(projects.map((project) => [project.desktopProjectId, project]));
+const bindings = automaticBindings.map((binding) => {
+  const decision = latestManual.get(`${binding.provider}\u0000${binding.sessionId}`);
+  if (!decision) return binding;
+  if (decision.decision === "unassigned") {
+    return { ...binding, project: null, attribution: "user-unassigned" as const };
+  }
+  const project = decision.desktopProjectId === null ? undefined : projectById.get(decision.desktopProjectId);
+  if (!project) return { ...binding, project: null, attribution: "manual-project-unavailable" as const };
+  return { ...binding, project, attribution: "manual" as const };
 });
 
 process.stdout.write(JSON.stringify({
