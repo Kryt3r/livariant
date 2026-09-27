@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { initializeProject } from "../src/runtime/index.js";
 import { buildProviderContext } from "../src/runtime/provider-context.js";
@@ -113,6 +114,52 @@ function traceEvidence(
     grantsAuthority: false,
   });
 }
+
+test("MCP advertises Codex sandbox-state metadata and binds Provider Context to provider toolcall cwd", async () => {
+  await withProject(async (path) => {
+    const session = createMcpSession(resolve(path, "wrong-process-cwd"));
+    const initialize = successResult(await session.handleMessage({
+      jsonrpc: "2.0",
+      id: 101,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "codex-test", version: "1" },
+      },
+    }));
+    const capabilities = initialize.capabilities as {
+      experimental?: Record<string, unknown>;
+    };
+    assert.ok(capabilities.experimental?.["codex/sandbox-state-meta"]);
+
+    await session.handleMessage({ jsonrpc: "2.0", method: "notifications/initialized" });
+    const context = structuredToolResult(await session.handleMessage({
+      jsonrpc: "2.0",
+      id: 102,
+      method: "tools/call",
+      params: {
+        name: MCP_CONTEXT_TOOL,
+        arguments: { provider: "codex", task: "Use provider-owned workspace metadata" },
+        _meta: {
+          threadId: "codex-thread-sandbox",
+          sessionId: "codex-session-sandbox",
+          "codex/sandbox-state-meta": {
+            sandbox_cwd: pathToFileURL(path).href,
+          },
+        },
+      },
+    }));
+
+    assert.equal(context.state, "ready");
+    const providerSession = context.providerSession as {
+      id: string;
+      providerThreadId?: string;
+    };
+    assert.equal(providerSession.id, "codex-session-sandbox");
+    assert.equal(providerSession.providerThreadId, "codex-thread-sandbox");
+  });
+});
 
 test("MCP lifecycle blocks tools before initialization and lists only bounded tools after initialization", async () => {
   await withProject(async (path) => {
