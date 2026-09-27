@@ -7,9 +7,9 @@ export interface CodexThreadCatalogEntry {
   cwd: string;
   projectId: string | null;
   runtimeWorkspaceRoots: string[];
-  name: string | null;
-  preview: string;
-  updatedAt: number;
+  name?: string | null;
+  preview?: string;
+  updatedAt?: number;
 }
 
 type JsonObject = Record<string, unknown>;
