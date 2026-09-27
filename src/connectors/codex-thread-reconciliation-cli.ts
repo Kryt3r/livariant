@@ -5,7 +5,7 @@ import { resolveCodexCommand } from "./codex-command.js";
 import { connectCodexAppServer } from "./codex-runtime.js";
 import { listCodexThreads } from "./codex-thread-catalog.js";
 import { listCodexProjects } from "./codex-project-catalog.js";
-import { applyCodexProviderProjectBindings, applyCodexRuntimeWorkspaceBindings, bindCodexThreadsToProjects, summarizeCodexSessionProjects, type ProviderProjectDescriptor } from "./provider-project-binding.js";
+import { applyCodexProviderProjectBindings, applyCodexRuntimeWorkspaceBindings, applyManualCodexSessionDecisions, bindCodexThreadsToProjects, summarizeCodexSessionProjects, type ProviderProjectDescriptor } from "./provider-project-binding.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -66,31 +66,6 @@ function parseManualDecisions(value: unknown): ManualSessionDecision[] {
   });
 }
 
-function applyManualDecisions(
-  bindings: ReturnType<typeof bindCodexThreadsToProjects>,
-  projects: ProviderProjectDescriptor[],
-  decisions: ManualSessionDecision[],
-) {
-  const byThread = new Map(
-    decisions
-      .filter((decision) => decision.provider === "codex")
-      .sort((a, b) => a.updatedAtUnixMs - b.updatedAtUnixMs)
-      .map((decision) => [decision.providerItemId, decision] as const),
-  );
-  const projectById = new Map(projects.map((project) => [project.desktopProjectId, project]));
-  return bindings.map((binding) => {
-    const decision = byThread.get(binding.threadId);
-    if (!decision) return binding;
-    if (decision.decision === "unassigned") {
-      return { ...binding, project: null, attribution: "user-unassigned" as const };
-    }
-    const project = decision.desktopProjectId === null ? undefined : projectById.get(decision.desktopProjectId);
-    if (!project) {
-      return { ...binding, project: null, attribution: "manual-project-unavailable" as const };
-    }
-    return { ...binding, project: { ...project }, attribution: "manual" as const };
-  });
-}
 function parseProjects(value: unknown): ProviderProjectDescriptor[] {
   if (!isObject(value) || !Array.isArray(value.projects)) {
     throw new Error("Codex session reconciliation input must contain projects.");
@@ -255,7 +230,7 @@ async function main(): Promise<void> {
       projects,
       contextObservations,
     );
-    const bindings = applyManualDecisions(
+    const bindings = applyManualCodexSessionDecisions(
       evidenceBindings,
       projects,
       manualDecisions,
