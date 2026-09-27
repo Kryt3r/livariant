@@ -33,6 +33,64 @@ interface ProviderContextObservation {
   observedAt: string;
 }
 
+
+interface ManualSessionDecision {
+  provider: "codex" | "claude" | "gemini" | "custom";
+  providerItemId: string;
+  decision: "assigned" | "unassigned";
+  desktopProjectId: string | null;
+  updatedAtUnixMs: number;
+}
+
+function parseManualDecisions(value: unknown): ManualSessionDecision[] {
+  if (!isObject(value)) throw new Error("Codex session reconciliation input must be an object.");
+  const raw = value.manualDecisions;
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) throw new Error("manualDecisions must be an array.");
+  return raw.map((item, index) => {
+    if (!isObject(item)) throw new Error(`manualDecisions[${index}] must be an object.`);
+    const provider = item.provider;
+    if (provider !== "codex" && provider !== "claude" && provider !== "gemini" && provider !== "custom") {
+      throw new Error(`manualDecisions[${index}].provider is unsupported.`);
+    }
+    if (item.decision !== "assigned" && item.decision !== "unassigned") {
+      throw new Error(`manualDecisions[${index}].decision is unsupported.`);
+    }
+    return {
+      provider,
+      providerItemId: requireText(item.providerItemId, `manualDecisions[${index}].providerItemId`),
+      decision: item.decision,
+      desktopProjectId: optionalText(item.desktopProjectId, `manualDecisions[${index}].desktopProjectId`),
+      updatedAtUnixMs: typeof item.updatedAtUnixMs === "number" && Number.isFinite(item.updatedAtUnixMs) ? item.updatedAtUnixMs : 0,
+    };
+  });
+}
+
+function applyManualDecisions(
+  bindings: ReturnType<typeof bindCodexThreadsToProjects>,
+  projects: ProviderProjectDescriptor[],
+  decisions: ManualSessionDecision[],
+) {
+  const byThread = new Map(
+    decisions
+      .filter((decision) => decision.provider === "codex")
+      .sort((a, b) => a.updatedAtUnixMs - b.updatedAtUnixMs)
+      .map((decision) => [decision.providerItemId, decision] as const),
+  );
+  const projectById = new Map(projects.map((project) => [project.desktopProjectId, project]));
+  return bindings.map((binding) => {
+    const decision = byThread.get(binding.threadId);
+    if (!decision) return binding;
+    if (decision.decision === "unassigned") {
+      return { ...binding, project: null, attribution: "user-unassigned" as const };
+    }
+    const project = decision.desktopProjectId === null ? undefined : projectById.get(decision.desktopProjectId);
+    if (!project) {
+      return { ...binding, project: null, attribution: "manual-project-unavailable" as const };
+    }
+    return { ...binding, project: { ...project }, attribution: "manual" as const };
+  });
+}
 function parseProjects(value: unknown): ProviderProjectDescriptor[] {
   if (!isObject(value) || !Array.isArray(value.projects)) {
     throw new Error("Codex session reconciliation input must contain projects.");
@@ -140,6 +198,7 @@ async function main(): Promise<void> {
   const input = JSON.parse(readFileSync(0, "utf8")) as unknown;
   const projects = parseProjects(input);
   const contextObservations = parseContextObservations(input);
+  const manualDecisions = parseManualDecisions(input);
   const resolution = resolveCodexCommand();
   if (!resolution) {
     stdout.write(JSON.stringify({
@@ -191,10 +250,15 @@ async function main(): Promise<void> {
       threads,
       projects,
     );
-    const bindings = applyDirectProviderContextEvidence(
+    const evidenceBindings = applyDirectProviderContextEvidence(
       providerWorkspaceBindings,
       projects,
       contextObservations,
+    );
+    const bindings = applyManualDecisions(
+      evidenceBindings,
+      projects,
+      manualDecisions,
     );
     const sessions = summarizeCodexSessionProjects(bindings);
     const codexObservations = contextObservations.filter((observation) => observation.provider === "codex");
@@ -221,7 +285,13 @@ async function main(): Promise<void> {
       state: "ready",
       provider: "codex",
       observedAt: new Date().toISOString(),
-      detail: "Codex persisted threads were reconciled using direct MCP tool-call thread/workspace evidence first, then provider-owned runtime workspace roots, then provider-owned Codex project metadata, with provider-owned cwd as final fallback.",
+      detail: "Codex persisted threads were reconciled with user-confirmed manual decisions first, then direct MCP tool-call thread/workspace evidence, runtime workspace roots, provider project metadata, and provider-owned cwd as fallback.",
+      manualDecisionEvidence: {
+        decisionsTotal: manualDecisions.filter((decision) => decision.provider === "codex").length,
+        bindingsUsingManualAssignment: bindings.filter((binding) => binding.attribution === "manual").length,
+        bindingsExplicitlyUnassigned: bindings.filter((binding) => binding.attribution === "user-unassigned").length,
+        bindingsWithUnavailableManualProject: bindings.filter((binding) => binding.attribution === "manual-project-unavailable").length,
+      },
       runtimeWorkspaceEvidence: {
         threadsWithRuntimeWorkspaceRoots: threads.filter((thread) => thread.runtimeWorkspaceRoots.length > 0).length,
         distinctRuntimeWorkspaceRoots: new Set(threads.flatMap((thread) => thread.runtimeWorkspaceRoots)).size,
