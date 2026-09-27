@@ -73,69 +73,8 @@ const applyAccordionState = () => {
   });
 };
 
-const updatesContent = (): HTMLElement | null => {
-  if (!document.querySelector(".nav-item.active[data-view='updates']")) return null;
-  return document.querySelector<HTMLElement>(".content");
-};
-
-const enhanceUpdates = () => {
-  const content = updatesContent();
-  if (!content || content.dataset.updatesRedesigned === "true") return;
-
-  const statusPanel = content.querySelector<HTMLElement>(".progress-panel");
-  const oldSteps = content.querySelector<HTMLElement>(".steps");
-  if (!statusPanel || !oldSteps) return;
-  content.dataset.updatesRedesigned = "true";
-
-  const statusCopy = statusPanel.querySelector<HTMLElement>(":scope > div");
-  const actions = [...statusPanel.querySelectorAll<HTMLButtonElement>(".check-updates, .install-update")];
-
-  const workspace = document.createElement("section");
-  workspace.className = "updates-workspace";
-  workspace.dataset.updateSurface = "true";
-
-  const statusCard = document.createElement("section");
-  statusCard.className = "updates-status-card";
-  if (statusCopy) statusCard.append(statusCopy);
-  actions.forEach((action) => statusCard.append(action));
-  workspace.append(statusCard);
-
-  const versionStrip = document.createElement("section");
-  versionStrip.className = "updates-version-strip";
-  versionStrip.setAttribute("aria-label", "Installed component versions");
-  versionStrip.innerHTML = `
-    <div class="updates-version-badge" data-update-version="desktop"><small>Desktop</small><strong>Loading…</strong></div>
-    <div class="updates-version-badge" data-update-version="core"><small>Core</small><strong>Loading…</strong></div>
-    <div class="updates-version-badge" data-update-version="runtime"><small>Runtime</small><strong>Loading…</strong></div>`;
-  workspace.append(versionStrip);
-
-  const flow = document.createElement("section");
-  flow.className = "updates-flow";
-  flow.setAttribute("aria-label", "Update lifecycle");
-  flow.innerHTML = `
-    <article class="update-phase active" data-update-phase="check"><div class="update-phase-head"><span class="update-phase-index">01</span><span class="update-phase-state">Ready</span></div><h3>Check availability</h3><p>Ask the fixed host-side updater boundary whether a newer trusted update exists.</p></article>
-    <article class="update-phase" data-update-phase="download"><div class="update-phase-head"><span class="update-phase-index">02</span><span class="update-phase-state">Not exposed yet</span></div><h3>Download & verify</h3><p>Future progress belongs here only when the Desktop contract exposes real artifact download and verification state.</p></article>
-    <article class="update-phase" data-update-phase="install"><div class="update-phase-head"><span class="update-phase-index">03</span><span class="update-phase-state">User authorized</span></div><h3>Install & restart</h3><p>Installation remains a separate explicit action. Availability alone never authorizes replacing installed code.</p></article>`;
-  workspace.append(flow);
-
-  const details = document.createElement("details");
-  details.className = "updates-details";
-  details.innerHTML = `
-    <summary><span><strong>Update details</strong><small>Trust boundary, authority and release metadata</small></span><span class="updates-details-chevron">⌄</span></summary>
-    <div class="updates-details-body">
-      <article class="updates-boundary-card"><small>Update identity</small><strong>Fixed trusted boundary</strong><span>The renderer cannot supply arbitrary update URLs or executable paths.</span></article>
-      <article class="updates-boundary-card"><small>Install authority</small><strong>Separate user action</strong><span>A successful check does not authorize installation, restart or replacement of installed code.</span></article>
-      <article class="updates-boundary-card"><small>Release information</small><strong>Not exposed yet</strong><span>The current Desktop result does not carry structured release notes, so Livariant does not invent them.</span></article>
-    </div>`;
-  workspace.append(details);
-
-  statusPanel.replaceWith(workspace);
-  oldSteps.remove();
-};
-
 const apply = () => {
   applyAccordionState();
-  enhanceUpdates();
 };
 
 // Structural polish is synchronous in the mutation microtask. It never waits for a paint frame
