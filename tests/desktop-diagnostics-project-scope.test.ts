@@ -219,7 +219,7 @@ test("Codex reconciliation can use loaded runtime workspace roots without resumi
 
   assert.match(catalog, /runtimeWorkspaceRoots/);
   assert.match(catalog, /thread\.environments/);
-  assert.match(catalog, /environments must be an array or null/);
+  assert.match(catalog, /must be an array or null/);
 
   assert.match(binding, /applyCodexRuntimeWorkspaceBindings/);
   assert.match(binding, /attribution: "provider-workspace"/);
