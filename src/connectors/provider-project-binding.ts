@@ -93,6 +93,39 @@ export function bindCodexThreadsToProjects(
 
 
 
+export interface ManualProviderSessionDecision {
+  provider: "codex" | "claude" | "gemini" | "custom";
+  providerItemId: string;
+  decision: "assigned" | "unassigned";
+  desktopProjectId: string | null;
+  updatedAtUnixMs: number;
+}
+
+export function applyManualCodexSessionDecisions(
+  bindings: readonly CodexThreadProjectBinding[],
+  projects: readonly ProviderProjectDescriptor[],
+  decisions: readonly ManualProviderSessionDecision[],
+): CodexThreadProjectBinding[] {
+  const latestByThread = new Map(
+    decisions
+      .filter((decision) => decision.provider === "codex")
+      .sort((a, b) => a.updatedAtUnixMs - b.updatedAtUnixMs)
+      .map((decision) => [decision.providerItemId, decision] as const),
+  );
+  const projectById = new Map(projects.map((project) => [project.desktopProjectId, project]));
+  return bindings.map((binding) => {
+    const decision = latestByThread.get(binding.threadId);
+    if (!decision) return binding;
+    if (decision.decision === "unassigned") {
+      return { ...binding, project: null, attribution: "user-unassigned" as const };
+    }
+    const project = decision.desktopProjectId === null ? undefined : projectById.get(decision.desktopProjectId);
+    if (!project) {
+      return { ...binding, project: null, attribution: "manual-project-unavailable" as const };
+    }
+    return { ...binding, project: { ...project }, attribution: "manual" as const };
+  });
+}
 export function applyCodexRuntimeWorkspaceBindings(
   bindings: readonly CodexThreadProjectBinding[],
   threads: readonly CodexThreadCatalogEntry[],
