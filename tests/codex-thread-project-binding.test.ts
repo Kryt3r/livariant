@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bindCodexThreadsToProjects, summarizeCodexSessionProjects } from "../src/connectors/provider-project-binding.js";
+import { applyManualCodexSessionDecisions, bindCodexThreadsToProjects, summarizeCodexSessionProjects } from "../src/connectors/provider-project-binding.js";
 import { listCodexThreads } from "../src/connectors/codex-thread-catalog.js";
 import type { CodexAppServerSession } from "../src/connectors/codex-runtime.js";
 import type { ConnectorInstance } from "../src/connectors/connector-registry.js";
@@ -48,8 +48,8 @@ test("Codex thread catalog preserves provider-owned thread/session/cwd identity 
     id: firstId,
     result: {
       data: [
-        { id: "thread-a1", sessionId: "session-a", cwd: "/work/project-a", projectId: "codex-project-a", runtimeWorkspaceRoots: [] },
-        { id: "thread-a2", sessionId: "session-a", cwd: "/work/project-a/packages/api", projectId: null, runtimeWorkspaceRoots: [] },
+        { id: "thread-a1", sessionId: "session-a", cwd: "/work/project-a", projectId: "codex-project-a", environments: null, name: "A1", preview: "First A thread", updatedAt: 100 },
+        { id: "thread-a2", sessionId: "session-a", cwd: "/work/project-a/packages/api", projectId: null, environments: null, name: null, preview: "Second A thread", updatedAt: 90 },
       ],
       nextCursor: "next-1",
     },
@@ -62,16 +62,16 @@ test("Codex thread catalog preserves provider-owned thread/session/cwd identity 
     id: secondId,
     result: {
       data: [
-        { id: "thread-b1", sessionId: "session-b", cwd: "/work/project-b", projectId: "codex-project-b", runtimeWorkspaceRoots: [] },
+        { id: "thread-b1", sessionId: "session-b", cwd: "/work/project-b", projectId: "codex-project-b", environments: null, name: "B1", preview: "B thread", updatedAt: 80 },
       ],
       nextCursor: null,
     },
   });
 
   assert.deepEqual(await pending, [
-    { threadId: "thread-a1", sessionId: "session-a", cwd: "/work/project-a", projectId: "codex-project-a", runtimeWorkspaceRoots: [] },
-    { threadId: "thread-a2", sessionId: "session-a", cwd: "/work/project-a/packages/api", projectId: null, runtimeWorkspaceRoots: [] },
-    { threadId: "thread-b1", sessionId: "session-b", cwd: "/work/project-b", projectId: "codex-project-b", runtimeWorkspaceRoots: [] },
+    { threadId: "thread-a1", sessionId: "session-a", cwd: "/work/project-a", projectId: "codex-project-a", runtimeWorkspaceRoots: [], name: "A1", preview: "First A thread", updatedAt: 100 },
+    { threadId: "thread-a2", sessionId: "session-a", cwd: "/work/project-a/packages/api", projectId: null, runtimeWorkspaceRoots: [], name: null, preview: "Second A thread", updatedAt: 90 },
+    { threadId: "thread-b1", sessionId: "session-b", cwd: "/work/project-b", projectId: "codex-project-b", runtimeWorkspaceRoots: [], name: "B1", preview: "B thread", updatedAt: 80 },
   ]);
 });
 
@@ -143,4 +143,35 @@ test("session summary keeps multiple same-project Codex sessions separate and ma
   assert.equal(byId.get("session-b-1")?.project?.desktopProjectId, "desktop-b");
   assert.equal(byId.get("session-mixed")?.project, null);
   assert.equal(byId.get("session-mixed")?.attribution, "mixed-projects");
+});
+
+test("manual Codex decisions override automatic evidence and explicit unassign suppresses rebound", () => {
+  const projects = [
+    { desktopProjectId: "desktop-a", localRoot: "/work/a", projectId: "a", stableProjectIdentity: null },
+    { desktopProjectId: "desktop-b", localRoot: "/work/b", projectId: "b", stableProjectIdentity: null },
+  ];
+  const automatic = bindCodexThreadsToProjects([
+    { threadId: "thread-one", sessionId: "session-one", cwd: "/work/a", projectId: null, runtimeWorkspaceRoots: [] },
+    { threadId: "thread-two", sessionId: "session-two", cwd: "/work/a", projectId: null, runtimeWorkspaceRoots: [] },
+  ], projects);
+  const manual = applyManualCodexSessionDecisions(automatic, projects, [
+    { provider: "codex", providerItemId: "thread-one", decision: "assigned", desktopProjectId: "desktop-b", updatedAtUnixMs: 10 },
+    { provider: "codex", providerItemId: "thread-two", decision: "unassigned", desktopProjectId: null, updatedAtUnixMs: 11 },
+  ]);
+  assert.equal(manual[0]?.project?.desktopProjectId, "desktop-b");
+  assert.equal(manual[0]?.attribution, "manual");
+  assert.equal(manual[1]?.project, null);
+  assert.equal(manual[1]?.attribution, "user-unassigned");
+});
+
+test("manual Codex assignment fails closed when its Livariant project is unavailable", () => {
+  const bindings = bindCodexThreadsToProjects(
+    [{ threadId: "thread-one", sessionId: "session-one", cwd: "/work/elsewhere", projectId: null, runtimeWorkspaceRoots: [] }],
+    [{ desktopProjectId: "desktop-a", localRoot: "/work/a", projectId: "a", stableProjectIdentity: null }],
+  );
+  const result = applyManualCodexSessionDecisions(bindings, [], [
+    { provider: "codex", providerItemId: "thread-one", decision: "assigned", desktopProjectId: "desktop-a", updatedAtUnixMs: 12 },
+  ]);
+  assert.equal(result[0]?.project, null);
+  assert.equal(result[0]?.attribution, "manual-project-unavailable");
 });
