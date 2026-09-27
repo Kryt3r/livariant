@@ -143,7 +143,7 @@ test("MCP advertises Codex sandbox-state metadata and binds Provider Context to 
         arguments: { provider: "codex", task: "Use provider-owned workspace metadata" },
         _meta: {
           threadId: "codex-thread-sandbox",
-          sessionId: "codex-session-sandbox",
+          sessionId: "11111111-1111-4111-8111-111111111111",
           "codex/sandbox-state-meta": {
             sandbox_cwd: pathToFileURL(path).href,
           },
@@ -156,7 +156,7 @@ test("MCP advertises Codex sandbox-state metadata and binds Provider Context to 
       id: string;
       providerThreadId?: string;
     };
-    assert.equal(providerSession.id, "codex-session-sandbox");
+    assert.equal(providerSession.id, "11111111-1111-4111-8111-111111111111");
     assert.equal(providerSession.providerThreadId, "codex-thread-sandbox");
   });
 });
