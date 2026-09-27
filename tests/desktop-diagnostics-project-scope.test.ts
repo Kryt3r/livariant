@@ -314,3 +314,17 @@ test("hybrid provider session attribution keeps user decisions explicit and reve
   assert.match(css, /\.dc-session-actions/);
   assert.match(css, /\.dc-session-more/);
 });
+
+
+test("live-session disclosure state survives the 15-second reconciliation rerender", async () => {
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+
+  assert.match(cockpit, /sessionDisclosureState: Map<string, boolean>/);
+  assert.match(cockpit, /sessionDisclosureOpen/);
+  assert.match(cockpit, /data-dc-session-disclosure="codex:unattributed"/);
+  assert.match(cockpit, /sessionDisclosureOpen\("codex:unattributed", true\)/);
+  assert.match(cockpit, /data-dc-session-disclosure="codex:technical"/);
+  assert.match(cockpit, /\[data-dc-session-disclosure\]/);
+  assert.match(cockpit, /state\.sessionDisclosureState\.set\(key, details\.open\)/);
+  assert.match(cockpit, /LIVE_SESSION_REFRESH_MS = 15_000/);
+});
