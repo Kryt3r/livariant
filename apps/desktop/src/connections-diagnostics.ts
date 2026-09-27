@@ -83,6 +83,7 @@ type DiagnosticsSummary = {
 };
 
 type MeasureResult = { connection: ConnectorStatus; diagnostics: DiagnosticsSummary };
+type CodexProviderConnectionResult = { connection: ConnectorStatus; mcp: CodexMcpIntegrationStatus };
 type DiagnosticsExportSaveResult = { saved: boolean; fileName?: string | null };
 type ProviderId = "codex" | "claude" | "gemini" | "custom";
 type LocalProviderId = Exclude<ProviderId, "codex">;
@@ -270,8 +271,9 @@ const renderProviderCapabilities = (provider: ProviderId, capabilities: Provider
     "provider-owned-usage-telemetry",
   ];
   return `
-    <section class="provider-detail-section provider-capabilities">
-      <div class="provider-section-heading"><span>${lang("Livariant integration", "Livariant-Integration")}</span><small>${lang("Actual capabilities · connection alone does not imply feature parity", "Tatsächliche Fähigkeiten · eine Verbindung bedeutet nicht Funktionsgleichheit")}</small></div>
+    <details class="provider-disclosure provider-capabilities">
+      <summary><span>${lang("Functions", "Funktionen")}</span><small>${lang("Available Livariant integrations", "Verfügbare Livariant-Integrationen")}</small><i>⌄</i></summary>
+      <div class="provider-disclosure-body"><div class="provider-section-heading"><span>${lang("Livariant integration", "Livariant-Integration")}</span><small>${lang("Actual capabilities · connection alone does not imply feature parity", "Tatsächliche Fähigkeiten · eine Verbindung bedeutet nicht Funktionsgleichheit")}</small></div>
       <div class="provider-detail-grid">
         ${ids.map((id) => {
           const capability = capabilities?.[id];
@@ -280,30 +282,16 @@ const renderProviderCapabilities = (provider: ProviderId, capabilities: Provider
           }
           return `<div class="provider-detail provider-capability" title="${esc(capability.detail)}"><small>${capabilityLabel(id)}</small><strong>${capabilityStateLabel(capability.state)}</strong><span>${esc(capabilityDetail(provider, id))}</span></div>`;
         }).join("")}
-      </div>
-    </section>`;
-};
-
-const localizedCodexDetail = (detail: string | null | undefined): string | null => {
-  if (!detail) return null;
-  if (detail === "Codex was found only through a Windows command shim whose native executable could not be resolved without invoking a shell.") {
-    return lang(
-      "Codex was found through a Windows command shim, but Livariant could not resolve its native executable safely.",
-      "Codex wurde über einen Windows-Befehls-Shim gefunden, aber Livariant konnte die native Programmdatei nicht sicher auflösen.",
-    );
-  }
-  if (detail === "The configured Codex executable is no longer a native executable that Livariant can validate without a shell.") {
-    return lang(
-      "The configured Codex executable is no longer available as a native executable.",
-      "Die konfigurierte native Codex-Programmdatei ist nicht mehr verfügbar.",
-    );
-  }
-  return detail;
+      </div></div>
+    </details>`;
 };
 
 const codexState = () => {
   if (checkingConnector) return { label: lang("Checking", "Prüft"), tone: "checking", detail: lang("Inspecting the local Codex installation…", "Lokale Codex-Installation wird geprüft…") };
-  if (connector?.connected) return { label: t("connections.connected"), tone: "connected", detail: lang(`Codex ${connector.version ?? ""} · App Server connected`, `Codex ${connector.version ?? ""} · App Server verbunden`) };
+  if (connector?.connected && codexMcp?.state === "registered") return { label: t("connections.connected"), tone: "connected", detail: lang("All available integrations are configured.", "Alle verfügbaren Integrationen sind eingerichtet.") };
+  if (codexMcp?.state === "conflict") return { label: t("connections.needsAttention"), tone: "warning", detail: lang("The existing Livariant MCP configuration needs attention.", "Die vorhandene Livariant-MCP-Konfiguration benötigt Aufmerksamkeit.") };
+  if (codexMcp?.state === "unavailable") return { label: t("connections.needsAttention"), tone: "warning", detail: lang("The Livariant MCP configuration could not be inspected or changed safely.", "Die Livariant-MCP-Konfiguration konnte nicht sicher geprüft oder geändert werden.") };
+  if (connector?.connected) return { label: lang("Setup incomplete", "Einrichtung unvollständig"), tone: "warning", detail: lang("Codex App Server is connected. Livariant tools still need to be verified.", "Der Codex App Server ist verbunden. Die Livariant-Tools müssen noch geprüft werden.") };
   if (connector?.installationState === "available") return { label: t("common.ready"), tone: "ready", detail: lang(`Codex ${connector.version ?? ""} detected locally`, `Codex ${connector.version ?? ""} lokal erkannt`) };
   if (connector?.installationState === "unusable") return { label: t("connections.needsAttention"), tone: "warning", detail: lang("Codex was found but cannot be used yet", "Codex wurde gefunden, kann aber noch nicht verwendet werden") };
   if (connector?.installationState === "not-found") return { label: t("connections.setupNeeded"), tone: "warning", detail: lang("Codex CLI was not found on this machine", "Codex CLI wurde auf diesem Gerät nicht gefunden") };
@@ -397,7 +385,7 @@ const renderCodexModal = () => {
         </header>
         ${error ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${t("connections.needsAttention")}</strong><p>${esc(error)}</p></div></div>` : ""}
         <section class="provider-primary-card provider-primary-card-emphasis">
-          <div><span class="provider-card-kicker">${lang("Connection", "Verbindung")}</span><h3>${connected ? lang("Codex is connected", "Codex ist verbunden") : detected ? lang("Ready for one-click connection", "Bereit für die Ein-Klick-Verbindung") : lang("Codex setup required", "Codex-Einrichtung erforderlich")}</h3><p>${esc(error ?? localizedCodexDetail(connector?.detail) ?? state.detail)}</p></div>
+          <div><span class="provider-card-kicker">${lang("Connection", "Verbindung")}</span><h3>${connected && codexMcp?.state === "registered" ? lang("Codex is connected to Livariant", "Codex ist mit Livariant verbunden") : codexMcp?.state === "conflict" || codexMcp?.state === "unavailable" || connected ? lang("Codex setup needs attention", "Codex-Einrichtung benötigt Aufmerksamkeit") : detected ? lang("Ready for one-click connection", "Bereit für die Ein-Klick-Verbindung") : lang("Codex setup required", "Codex-Einrichtung erforderlich")}</h3><p>${esc(error ?? codexMcpError ?? state.detail)}</p></div>
           <div class="provider-primary-actions">
             <button class="button secondary connector-refresh" type="button" ${checkingConnector || connectorMutating() ? "disabled" : ""}>${checkingConnector ? lang("Checking…", "Prüfe…") : t("common.refresh")}</button>
             ${connected
@@ -405,36 +393,20 @@ const renderCodexModal = () => {
               : `<button class="button primary connector-connect" type="button" ${connectorMutating() || !detected ? "disabled" : ""}>${connectorAction === "connect" ? lang("Connecting…", "Verbinde…") : t("connections.connectCodex")}</button>`}
           </div>
         </section>
-        <section class="provider-primary-card">
-          <div>
-            <span class="provider-card-kicker">Livariant MCP</span>
-            <h3>${codexMcp?.state === "registered"
-              ? lang("Livariant tools are available to new Codex sessions", "Livariant-Tools sind für neue Codex-Sessions verfügbar")
-              : codexMcp?.state === "conflict"
-                ? lang("MCP configuration needs attention", "MCP-Konfiguration benötigt Aufmerksamkeit")
-                : lang("Enable Livariant tools in Codex", "Livariant-Tools in Codex aktivieren")}</h3>
-            <p>${esc(codexMcpError ?? (codexMcp?.state === "registered"
-              ? lang("Codex owns this MCP registration. Start a new Codex session after changes so its tool inventory refreshes.", "Codex verwaltet diese MCP-Registrierung. Starte nach Änderungen eine neue Codex-Session, damit die Tool-Liste neu geladen wird.")
-              : codexMcp?.state === "conflict"
-                ? lang("An existing Codex MCP entry named Livariant points somewhere else or is disabled. Livariant will not overwrite it automatically.", "Ein vorhandener Codex-MCP-Eintrag namens Livariant zeigt auf eine andere Runtime oder ist deaktiviert. Livariant überschreibt ihn nicht automatisch.")
-                : lang("This registers Livariant through Codex's native MCP configuration so normal Codex sessions can call Provider Context. It does not select or route a Livariant project.", "Damit wird Livariant über Codex' native MCP-Konfiguration registriert, sodass normale Codex-Sessions Provider Context aufrufen können. Dadurch wird kein Livariant-Projekt ausgewählt oder geroutet.")))}</p>
-          </div>
-          <div class="provider-primary-actions">
-            ${codexMcp?.state === "registered"
-              ? `<button class="button secondary codex-mcp-disconnect" type="button" ${codexMcpBusy ? "disabled" : ""}>${codexMcpBusy === "disconnect" ? lang("Disabling…", "Deaktiviere…") : lang("Disable Livariant MCP", "Livariant MCP deaktivieren")}</button>`
-              : `<button class="button primary codex-mcp-connect" type="button" ${codexMcpBusy || !connected || codexMcp?.state === "conflict" ? "disabled" : ""}>${codexMcpBusy === "connect" ? lang("Enabling…", "Aktiviere…") : lang("Enable Livariant MCP", "Livariant MCP aktivieren")}</button>`}
-          </div>
-        </section>
-        <section class="provider-detail-section">
-          <div class="provider-section-heading"><span>${lang("Connection details", "Verbindungsdetails")}</span><small>${lang("Observed locally", "Lokal beobachtet")}</small></div>
+        ${connected && codexMcp?.state === "registered" ? `<div class="provider-setup-note"><strong>${lang("Start a new Codex session", "Neue Codex-Session starten")}</strong><span>${lang("New sessions automatically load the current Livariant tool inventory.", "Neue Sessions laden automatisch die aktuelle Livariant-Tool-Liste.")}</span></div>` : ""}
+        ${codexMcp?.state === "conflict" ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${lang("Existing MCP configuration kept", "Vorhandene MCP-Konfiguration beibehalten")}</strong><p>${lang("The Livariant entry points somewhere else or is disabled. Correct it in Codex, then check the connection again.", "Der Livariant-Eintrag zeigt auf eine andere Runtime oder ist deaktiviert. Korrigiere ihn in Codex und prüfe die Verbindung danach erneut.")}</p></div></div>` : ""}
+        ${codexMcp?.state === "unavailable" ? `<div class="provider-alert provider-alert-error"><div class="provider-alert-copy"><strong>${lang("MCP configuration was not changed", "MCP-Konfiguration wurde nicht geändert")}</strong><p>${lang("Livariant could not inspect or change the effective Codex configuration safely. Resolve the Codex configuration issue, then check the connection again.", "Livariant konnte die wirksame Codex-Konfiguration nicht sicher prüfen oder ändern. Behebe das Codex-Konfigurationsproblem und prüfe die Verbindung danach erneut.")}</p></div></div>` : ""}
+        <details class="provider-disclosure">
+          <summary><span>${lang("Technical details", "Technische Details")}</span><small>${lang("Connection layers and recovery", "Verbindungsschichten und Recovery")}</small><i>⌄</i></summary>
+          <div class="provider-disclosure-body"><div class="provider-section-heading"><span>${lang("Connection details", "Verbindungsdetails")}</span><small>${lang("Observed locally", "Lokal beobachtet")}</small></div>
           <div class="provider-detail-grid" aria-label="${lang("Codex connection details", "Codex-Verbindungsdetails")}">
             <div class="provider-detail"><small>${lang("Installation", "Installation")}</small><strong>${detected ? `Codex ${esc(connector?.version ?? "")}` : connector?.installationState === "unusable" ? lang("Unusable", "Nicht nutzbar") : lang("Not detected", "Nicht erkannt")}</strong></div>
             <div class="provider-detail"><small>App Server</small><strong>${connected ? t("connections.connected") : lang("Disconnected", "Getrennt")}</strong></div>
             <div class="provider-detail"><small>Livariant MCP</small><strong>${codexMcp?.state === "registered" ? lang("Active", "Aktiv") : codexMcp?.state === "conflict" ? lang("Conflict", "Konflikt") : codexMcp?.state === "unavailable" ? lang("Unavailable", "Nicht verfügbar") : lang("Not active", "Nicht aktiv")}</strong></div>
             <div class="provider-detail"><small>${lang("Connection method", "Verbindungsmethode")}</small><strong>${connected ? (mode === "manual" ? lang("Local fallback", "Lokaler Fallback") : lang("Automatic", "Automatisch")) : lang("Not active", "Nicht aktiv")}</strong></div>
             <div class="provider-detail"><small>${lang("Approvals", "Freigaben")}</small><strong>${connector?.pendingApprovals ?? 0} ${lang("pending", "ausstehend")}</strong></div>
-          </div>
-        </section>
+          </div>${connected ? `<div class="provider-technical-actions">${codexMcp?.state === "registered" ? `<button class="button secondary codex-mcp-disconnect" type="button" ${codexMcpBusy ? "disabled" : ""}>${codexMcpBusy === "disconnect" ? lang("Disabling…", "Deaktiviere…") : lang("Disable Livariant MCP", "Livariant MCP deaktivieren")}</button>` : `<button class="button secondary codex-mcp-connect" type="button" ${codexMcpBusy || codexMcp?.state === "conflict" ? "disabled" : ""}>${codexMcpBusy === "connect" ? lang("Checking…", "Prüfe…") : lang("Retry Livariant setup", "Livariant-Einrichtung erneut versuchen")}</button>`}</div>` : ""}</div>
+        </details>
         ${renderProviderCapabilities("codex", connector?.capabilities)}
         <footer class="provider-boundary provider-boundary-panel"><span>i</span><p><strong>${lang("Authority stays separate.", "Authority bleibt getrennt.")}</strong> ${lang("Connecting Codex does not authorize file changes, commands, merges or releases.", "Das Verbinden von Codex autorisiert keine Dateiänderungen, Befehle, Merges oder Releases.")}</p></footer>
       </section>
@@ -490,12 +462,11 @@ const renderProviderModal = () => selectedProvider
 
 export function renderConnectionsSettingsView(): string {
   const state = codexState();
-  const connectedCount = (connector?.connected ? 1 : 0) + (["claude", "gemini", "custom"] as LocalProviderId[]).filter((provider) => localProviders[provider]?.connected).length;
+  const connectedCount = (connector?.connected && codexMcp?.state === "registered" ? 1 : 0) + (["claude", "gemini", "custom"] as LocalProviderId[]).filter((provider) => localProviders[provider]?.connected).length;
   const connectedLabel = connectedCount === 1
     ? lang("1 provider connected", "1 Anbieter verbunden")
     : lang(`${connectedCount} providers connected`, `${connectedCount} Anbieter verbunden`);
   const autoConnectable = [
-    ...(!connector?.connected && connector?.installationState === "available" ? ["codex"] : []),
     ...(["claude", "gemini"] as LocalProviderId[]).filter((provider) => {
       const status = localProviders[provider];
       return !status?.connected && status?.installationState === "available" && status.authState !== "unavailable";
@@ -700,10 +671,6 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     const failures: string[] = [];
     let connectedNow = 0;
     try {
-      if (!connector?.connected && connector?.installationState === "available") {
-        try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); await refreshCodexMcp(); if (connector.connected) connectedNow += 1; }
-        catch { failures.push("Codex"); }
-      }
       for (const provider of ["claude", "gemini"] as LocalProviderId[]) {
         const status = localProviders[provider];
         if (status?.connected || status?.installationState !== "available" || status.authState === "unavailable") continue;
@@ -728,7 +695,10 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     checkingConnector = true;
     setRefreshVisualState(true);
     try { connector = await invoke<ConnectorStatus>("codex_connector_status"); await refreshCodexMcp(); error = null; notifyConnectionHealthChanged(); }
-    catch (_cause) { error = connectionSurfaceError("connector"); }
+    catch (_cause) {
+      await refreshConnector();
+      error = connectionSurfaceError("connector");
+    }
     finally {
       checkingConnector = false;
       const changed = !sameConnectorStatus(previousConnector, connector) || previousError !== error;
@@ -738,15 +708,33 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
 
   document.querySelector<HTMLButtonElement>(".connector-connect")?.addEventListener("click", async () => {
     connectorAction = "connect"; error = null; rerenderConnectionsSurface(rerender);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); await refreshCodexMcp(); notifyConnectionHealthChanged(); }
-    catch (_cause) { error = connectionSurfaceError("connector"); }
+    try {
+      const result = await invoke<CodexProviderConnectionResult>("codex_provider_connect", { manualPath: null });
+      connector = result.connection;
+      codexMcp = result.mcp;
+      codexMcpError = null;
+      notifyConnectionHealthChanged();
+    }
+    catch (_cause) {
+      await refreshConnector();
+      error = connectionSurfaceError("connector");
+    }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
 
   document.querySelector<HTMLButtonElement>(".connector-disconnect")?.addEventListener("click", async () => {
     connectorAction = "disconnect"; error = null; rerenderConnectionsSurface(rerender);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); codexMcp = null; codexMcpError = null; notifyConnectionHealthChanged(); }
-    catch (_cause) { error = connectionSurfaceError("connector"); }
+    try {
+      const result = await invoke<CodexProviderConnectionResult>("codex_provider_disconnect");
+      connector = result.connection;
+      codexMcp = result.mcp;
+      codexMcpError = null;
+      notifyConnectionHealthChanged();
+    }
+    catch (_cause) {
+      await refreshConnector();
+      error = connectionSurfaceError("connector");
+    }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
 

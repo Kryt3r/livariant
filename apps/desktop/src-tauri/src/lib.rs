@@ -308,6 +308,8 @@ pub fn run() {
             updater::apply_update,
             connector_host::codex_connector_status,
             connector_host::codex_connector_connect,
+            connector_host::codex_provider_connect,
+            connector_host::codex_provider_disconnect,
             connector_host::codex_connector_disconnect,
             connector_host::codex_mcp_integration_status,
             connector_host::codex_mcp_integration_connect,

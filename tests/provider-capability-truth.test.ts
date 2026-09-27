@@ -42,6 +42,8 @@ test("provider capability truth distinguishes Codex, Claude, Gemini and Custom",
 
 test("Desktop provider UI presents capabilities separately from connection state", async () => {
   const source = await readFile("apps/desktop/src/connections-diagnostics.ts", "utf8");
+  assert.match(source, /<details class="provider-disclosure provider-capabilities">/);
+  assert.match(source, /lang\("Functions", "Funktionen"\)/);
   assert.match(source, /Actual capabilities · connection alone does not imply feature parity/);
   assert.match(source, /Tatsächliche Fähigkeiten · eine Verbindung bedeutet nicht Funktionsgleichheit/);
   assert.match(source, /renderProviderCapabilities\("codex", connector\?\.capabilities\)/);

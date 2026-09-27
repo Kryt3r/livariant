@@ -115,7 +115,8 @@ test("live Codex diagnostics keeps unmatched provider evidence visible", async (
   const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
   const css = await readFile("apps/desktop/src/diagnostics-cockpit.css", "utf8");
 
-  assert.match(cockpit, /Provider catalog/);
+  assert.match(cockpit, /erkannte Sessions/);
+  assert.match(cockpit, /Das Projekt konnte nicht automatisch erkannt werden/);
   assert.match(cockpit, /Andere registrierte Projekte/);
   assert.match(cockpit, /Nicht zugeordnete Sessions/);
   assert.match(cockpit, /binding\.project === null/);
@@ -124,6 +125,20 @@ test("live Codex diagnostics keeps unmatched provider evidence visible", async (
 
   assert.match(css, /\.dc-session-catalog-summary/);
   assert.match(css, /\.dc-session-diagnostic-group/);
+});
+
+test("live-session technical evidence remains available in a closed disclosure", async () => {
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const css = await readFile("apps/desktop/src/diagnostics-cockpit.css", "utf8");
+
+  const disclosure = cockpit.slice(cockpit.indexOf('class="dc-session-technical-details"'), cockpit.indexOf("return `${catalogSummary}"));
+  assert.match(disclosure, /Technische Details/);
+  assert.match(disclosure, /runtimeWorkspaceSummary/);
+  assert.match(disclosure, /providerProjectSummary/);
+  assert.match(disclosure, /directSummary/);
+  assert.doesNotMatch(disclosure, /<details[^>]*open/);
+  assert.match(css, /\.dc-session-technical-details/);
+  assert.match(css, /:focus-visible/);
 });
 
 

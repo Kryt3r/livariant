@@ -592,31 +592,43 @@ pub fn codex_mcp_integration_status(
     codex_mcp_status_inner(&app, &state, registry.inner())
 }
 
-#[tauri::command]
-pub fn codex_mcp_integration_connect(
-    app: AppHandle,
-    state: State<'_, ConnectorHostState>,
-    registry: State<'_, DesktopProjectRegistryState>,
+fn codex_mcp_connect_inner(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
 ) -> Result<Value, String> {
-    let before = codex_mcp_status_inner(&app, &state, registry.inner())?;
-    if before.get("state").and_then(Value::as_str) == Some("registered") {
+    let before = codex_mcp_status_inner(app, state, registry)?;
+    let before_state = before.get("state").and_then(Value::as_str);
+    if before_state == Some("registered") {
         return Ok(before);
     }
-    if before.get("state").and_then(Value::as_str) == Some("conflict") {
-        return Err(before.get("detail").and_then(Value::as_str).unwrap_or("Existing Livariant MCP entry conflicts with this installation.").to_owned());
+    if !codex_mcp_registration_is_safe(before_state) {
+        return Err(before
+            .get("detail")
+            .and_then(Value::as_str)
+            .unwrap_or("Codex MCP configuration could not be changed safely.")
+            .to_owned());
     }
-    let command = codex_connector_command(&app, &state, registry.inner())?;
-    let (node, cli) = codex_mcp_runtime_paths(&app)?;
+    let command = codex_connector_command(app, state, registry)?;
+    let (node, cli) = codex_mcp_runtime_paths(app)?;
     let node_text = node.to_string_lossy().to_string();
     let cli_text = cli.to_string_lossy().to_string();
     let output = run_codex_mcp_command(
         &command,
-        &["mcp", "add", "livariant", "--", &node_text, &cli_text, "mcp"],
+        &[
+            "mcp",
+            "add",
+            "livariant",
+            "--",
+            &node_text,
+            &cli_text,
+            "mcp",
+        ],
     )?;
     if !output.status.success() {
         return Err("Codex rejected the Livariant MCP registration.".to_owned());
     }
-    let after = codex_mcp_status_inner(&app, &state, registry.inner())?;
+    let after = codex_mcp_status_inner(app, state, registry)?;
     if after.get("state").and_then(Value::as_str) != Some("registered")
         || after.get("expectedRuntime").and_then(Value::as_bool) != Some(true)
     {
@@ -625,13 +637,43 @@ pub fn codex_mcp_integration_connect(
     Ok(after)
 }
 
+fn codex_mcp_registration_is_safe(state: Option<&str>) -> bool {
+    state == Some("not-registered")
+}
+
+fn unavailable_mcp_status(detail: &str) -> Value {
+    json!({
+        "state": "unavailable",
+        "registered": false,
+        "expectedRuntime": false,
+        "detail": detail
+    })
+}
+
+#[tauri::command]
+pub fn codex_mcp_integration_connect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    codex_mcp_connect_inner(&app, &state, registry.inner())
+}
+
 #[tauri::command]
 pub fn codex_mcp_integration_disconnect(
     app: AppHandle,
     state: State<'_, ConnectorHostState>,
     registry: State<'_, DesktopProjectRegistryState>,
 ) -> Result<Value, String> {
-    let before = codex_mcp_status_inner(&app, &state, registry.inner())?;
+    codex_mcp_disconnect_inner(&app, &state, registry.inner())
+}
+
+fn codex_mcp_disconnect_inner(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
+) -> Result<Value, String> {
+    let before = codex_mcp_status_inner(app, state, registry)?;
     if before.get("state").and_then(Value::as_str) == Some("not-registered") {
         return Ok(before);
     }
@@ -640,12 +682,12 @@ pub fn codex_mcp_integration_disconnect(
     {
         return Err("Livariant will not remove an MCP entry it cannot verify as its own.".to_owned());
     }
-    let command = codex_connector_command(&app, &state, registry.inner())?;
+    let command = codex_connector_command(app, state, registry)?;
     let output = run_codex_mcp_command(&command, &["mcp", "remove", "livariant"])?;
     if !output.status.success() {
         return Err("Codex rejected removal of the Livariant MCP registration.".to_owned());
     }
-    let after = codex_mcp_status_inner(&app, &state, registry.inner())?;
+    let after = codex_mcp_status_inner(app, state, registry)?;
     if after.get("state").and_then(Value::as_str) != Some("not-registered") {
         return Err("Codex MCP removal could not be verified after the change.".to_owned());
     }
@@ -677,6 +719,69 @@ pub fn codex_connector_connect(
     manual_path: Option<String>,
 ) -> Result<Value, String> {
     request(&app, &state, registry.inner(), "connect", manual_path.as_deref(), None, None)
+}
+
+#[tauri::command]
+pub fn codex_provider_connect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+    manual_path: Option<String>,
+) -> Result<Value, String> {
+    let connection = request(
+        &app,
+        &state,
+        registry.inner(),
+        "connect",
+        manual_path.as_deref(),
+        None,
+        None,
+    )?;
+    let mcp = match codex_mcp_status_inner(&app, &state, registry.inner()) {
+        Ok(inspected_mcp) => match inspected_mcp.get("state").and_then(Value::as_str) {
+            Some("registered") => inspected_mcp,
+            Some("not-registered") => codex_mcp_connect_inner(&app, &state, registry.inner())
+                .unwrap_or_else(|_| unavailable_mcp_status("Livariant MCP registration could not be completed safely. Existing Codex configuration was kept.")),
+            _ => inspected_mcp,
+        },
+        Err(_) => unavailable_mcp_status(
+            "Livariant MCP configuration could not be inspected safely. Existing Codex configuration was kept.",
+        ),
+    };
+    Ok(json!({ "connection": connection, "mcp": mcp }))
+}
+
+#[tauri::command]
+pub fn codex_provider_disconnect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    let mcp = match codex_mcp_status_inner(&app, &state, registry.inner()) {
+        Ok(inspected_mcp)
+            if inspected_mcp.get("state").and_then(Value::as_str) == Some("registered") =>
+        {
+            codex_mcp_disconnect_inner(&app, &state, registry.inner()).unwrap_or_else(|_| {
+                unavailable_mcp_status(
+                    "Livariant MCP could not be removed safely. Existing Codex configuration was kept.",
+                )
+            })
+        }
+        Ok(inspected_mcp) => inspected_mcp,
+        Err(_) => unavailable_mcp_status(
+            "Livariant MCP configuration could not be inspected safely. Existing Codex configuration was kept.",
+        ),
+    };
+    let connection = request(
+        &app,
+        &state,
+        registry.inner(),
+        "disconnect",
+        None,
+        None,
+        None,
+    )?;
+    Ok(json!({ "connection": connection, "mcp": mcp }))
 }
 
 #[tauri::command]
@@ -726,7 +831,18 @@ pub fn codex_diagnostics_measure(
 
 #[cfg(test)]
 mod tests {
-    use super::{persisted_connection_desired, validate_diagnostics_preset};
+    use super::{
+        codex_mcp_registration_is_safe, persisted_connection_desired,
+        validate_diagnostics_preset,
+    };
+
+    #[test]
+    fn registers_codex_mcp_only_when_the_entry_is_verified_missing() {
+        assert!(codex_mcp_registration_is_safe(Some("not-registered")));
+        for state in [Some("registered"), Some("conflict"), Some("unavailable"), None] {
+            assert!(!codex_mcp_registration_is_safe(state));
+        }
+    }
 
     #[test]
     fn accepts_supported_diagnostics_presets() {
