@@ -632,7 +632,7 @@ const bind = (surface: HTMLElement) => {
           : lang("Automatic assignment is enabled again.", "Automatische Zuordnung ist wieder aktiviert.");
     } catch (cause) {
       if (generation !== projectActivationGeneration) return;
-      state.error = cause instanceof Error ? cause.message : String(cause);
+      state.error = lang("The session assignment could not be changed. Existing assignments were kept; try again.", "Die Session-Zuordnung konnte nicht geändert werden. Bestehende Zuordnungen wurden beibehalten; versuche es erneut.");
     } finally {
       if (generation === projectActivationGeneration && state.data) renderCockpit(surface);
     }
