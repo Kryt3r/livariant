@@ -236,3 +236,28 @@ test("Codex reconciliation can use loaded runtime workspace roots without resumi
   assert.match(cockpit, /Threads mit Runtime-Roots/);
   assert.match(cockpit, /Codex-Runtime-Workspace/);
 });
+
+
+test("Codex session attribution captures MCP toolcall workspace evidence before Provider Context readiness", async () => {
+  const server = await readFile("src/mcp/server.ts", "utf8");
+  const observation = await readFile("src/connectors/provider-context-observation.ts", "utf8");
+  const reconciliation = await readFile("src/connectors/codex-thread-reconciliation-cli.ts", "utf8");
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+
+  assert.match(server, /experimental: \{ "codex\/sandbox-state-meta": \{\} \}/);
+  assert.match(server, /codex\/sandbox-state-meta/);
+  assert.match(server, /x-codex-turn-metadata/);
+  assert.match(server, /providerWorkspacePaths/);
+  assert.match(server, /pre-context observation warning/);
+  assert.match(server, /effectiveProjectPath = call\.providerWorkspacePaths\[0\] \?\? projectPath/);
+
+  assert.match(observation, /providerWorkspacePaths: string\[\]/);
+  assert.match(observation, /stableProjectIdentity: string \| null/);
+
+  assert.match(reconciliation, /pathsOverlap/);
+  assert.match(reconciliation, /observation\.providerWorkspacePaths/);
+  assert.match(reconciliation, /observationsMatchingRegisteredProjectPath/);
+  assert.match(reconciliation, /direct MCP tool-call thread\/workspace evidence first/);
+
+  assert.match(cockpit, /passendem registrierten Projektpfad/);
+});
