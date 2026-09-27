@@ -9,7 +9,9 @@ test("provider session reconciliation is independent of the currently selected D
 
   assert.match(registry, /pub\(crate\) fn registered_provider_projects/);
   assert.match(reconciliation, /registered_provider_projects\(&app\)/);
-  const automaticReconciliation = reconciliation.split("#[tauri::command]\\npub fn assign_provider_session_to_active_project")[0] ?? reconciliation;
+  const manualCommandOffset = reconciliation.indexOf("pub fn assign_provider_session_to_active_project");
+  assert.ok(manualCommandOffset > 0);
+  const automaticReconciliation = reconciliation.slice(0, manualCommandOffset);
   assert.doesNotMatch(automaticReconciliation, /active_project_scope|active_diagnostics_project_id/);
   assert.match(reconciliation, /assign_provider_session_to_active_project[\\s\\S]*active_project_scope/);
   assert.match(reconciliation, /provider-sessions/);
