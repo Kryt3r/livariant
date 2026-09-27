@@ -416,23 +416,37 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
     if (reconciliation.state !== "ready") {
       return `<div class="dc-session-empty">${esc(reconciliation.detail || lang("Codex session evidence is unavailable.", "Codex-Session-Evidence ist nicht verfügbar."))}</div>`;
     }
-    const renderCodexRows = (rows: CodexSessionBinding[]) => `<div class="dc-session-list">${rows.map((binding) => `<article class="dc-session-row">
-      <div><small>${lang("Thread", "Thread")}</small><strong title="${esc(binding.threadId)}">${esc(shortId(binding.threadId))}</strong></div>
-      <div><small>${lang("Session", "Sitzung")}</small><strong title="${esc(binding.sessionId)}">${esc(shortId(binding.sessionId))}</strong></div>
-      <div><small>cwd</small><strong title="${esc(binding.cwd)}">${esc(binding.cwd)}</strong></div>
-      <span class="dc-session-state ${binding.attribution === "unattributed" || binding.attribution.endsWith("-conflict") ? "warn" : "ok"}">${binding.attribution === "provider-context" ? lang("Direct Provider Context", "Direkter Provider Context") : binding.attribution === "provider-context-conflict" ? lang("Conflicting direct evidence", "Widersprüchliche direkte Evidence") : binding.attribution === "provider-workspace" ? lang("Codex runtime workspace", "Codex-Runtime-Workspace") : binding.attribution === "provider-workspace-conflict" ? lang("Conflicting runtime workspaces", "Widersprüchliche Runtime-Workspaces") : binding.attribution === "provider-project" ? lang("Codex project metadata", "Codex-Projektmetadaten") : binding.attribution === "provider-project-conflict" ? lang("Conflicting Codex project metadata", "Widersprüchliche Codex-Projektmetadaten") : binding.attribution === "cwd-exact" ? lang("Exact project", "Exaktes Projekt") : binding.attribution === "cwd-descendant" ? lang("Project subtree", "Projekt-Unterordner") : lang("Unattributed", "Nicht zugeordnet")}</span>
-    </article>`).join("")}</div>`;
+    const renderCodexRows = (rows: CodexSessionBinding[], relation: "current" | "other" | "unattributed") => renderLimitedSessionRows(rows.map((binding) => {
+      const title = binding.name?.trim() || binding.preview?.trim() || shortId(binding.threadId);
+      const stateClass = binding.attribution === "unattributed"
+        || binding.attribution === "user-unassigned"
+        || binding.attribution === "manual-project-unavailable"
+        || binding.attribution.endsWith("-conflict") ? "warn" : "ok";
+      const primaryAction = relation === "current"
+        ? renderSessionAction("codex", binding.threadId, "unassign")
+        : renderSessionAction("codex", binding.threadId, "assign");
+      const automaticAction = binding.attribution === "user-unassigned"
+        ? renderSessionAction("codex", binding.threadId, "automatic")
+        : "";
+      return `<article class="dc-session-row">
+        <div class="dc-session-title"><small>${lang("Thread", "Thread")}</small><strong title="${esc(binding.threadId)}">${esc(title)}</strong><span>${esc(shortId(binding.threadId))}</span></div>
+        <div><small>${lang("Last activity", "Letzte Aktivität")}</small><strong>${esc(formatThreadUpdatedAt(binding.updatedAt))}</strong></div>
+        <div><small>cwd</small><strong title="${esc(binding.cwd)}">${esc(binding.cwd)}</strong></div>
+        <span class="dc-session-state ${stateClass}">${codexAttributionLabel(binding.attribution)}</span>
+        <div class="dc-session-actions">${primaryAction}${automaticAction}</div>
+      </article>`;
+    }));
     const current = reconciliation.bindings.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
     const other = reconciliation.bindings.filter((binding) => binding.project !== null && !belongsToDiagnosticsProject(binding.project, data.scope.projectId));
     const unattributed = reconciliation.bindings.filter((binding) => binding.project === null);
     const currentBody = current.length
-      ? renderCodexRows(current)
-      : `<div class="dc-session-empty">${lang("No Codex sessions are currently attributable to this project.", "Aktuell lassen sich diesem Projekt keine Codex-Sessions zuordnen.")}</div>`;
+      ? `<section class="dc-session-section"><div class="dc-session-section-head"><span>${lang("Assigned to this project", "Diesem Projekt zugeordnet")}</span><strong>${current.length}</strong></div>${renderCodexRows(current, "current")}</section>`
+      : `<div class="dc-session-empty">${lang("No Codex sessions are currently assigned to this project.", "Aktuell ist diesem Projekt keine Codex-Session zugeordnet.")}</div>`;
     const diagnosticsGroups = [
-      other.length ? `<details class="dc-session-diagnostic-group"><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderCodexRows(other)}</div></details>` : "",
-      unattributed.length ? `<details class="dc-session-diagnostic-group warning"><summary><span>${lang("Unattributed provider threads", "Nicht zugeordnete Provider-Threads")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderCodexRows(unattributed)}</div></details>` : "",
+      unattributed.length ? `<details class="dc-session-diagnostic-group warning" open><summary><span>${lang("Unassigned sessions", "Nicht zugeordnete Sessions")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderCodexRows(unattributed, "unattributed")}</div></details>` : "",
+      other.length ? `<details class="dc-session-diagnostic-group"><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderCodexRows(other, "other")}</div></details>` : "",
     ].join("");
-    const catalogSummary = `<div class="dc-session-catalog-summary"><span>${lang("Provider catalog", "Provider-Katalog")}</span><strong>${reconciliation.bindings.length} ${lang("threads", "Threads")}</strong><small>${current.length} ${lang("this project", "dieses Projekt")} · ${other.length} ${lang("other projects", "andere Projekte")} · ${unattributed.length} ${lang("unattributed", "nicht zugeordnet")}</small></div>`;
+    const catalogSummary = `<div class="dc-session-catalog-summary"><span>${lang("Provider catalog", "Provider-Katalog")}</span><strong>${reconciliation.bindings.length} ${lang("threads", "Threads")}</strong><small>${current.length} ${lang("this project", "dieses Projekt")} · ${other.length} ${lang("other projects", "andere Projekte")} · ${unattributed.length} ${lang("unassigned", "nicht zugeordnet")}</small></div>`;
     const runtimeWorkspace = reconciliation.runtimeWorkspaceEvidence;
     const runtimeWorkspaceSummary = runtimeWorkspace
       ? `<div class="dc-direct-evidence-summary runtime-workspace">
