@@ -37,14 +37,13 @@ const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).hr
 const appWindow = getCurrentWindow();
 const uiText = (en: string, de: string) => getLanguage() === "de" ? de : en;
 
-type View = "overview" | "steps" | "updates" | "connections" | "diagnostics";
+type View = "overview" | "steps" | "connections" | "diagnostics";
 type SettingsSection = "general" | "projects" | "connections" | "updates" | "system" | "about";
 type NoticeKind = "info" | "success" | "warning" | "error";
 type AreaState = "open" | "deferred" | "review" | "confirmed";
 type TruthFilter = "all" | "review" | "open" | "conflicts";
 type TruthImpact = "new" | "extends" | "refines" | "replaces" | "unchanged";
 type SourceMode = "rendered" | "raw";
-type UpdateState = "idle" | "checking" | "not-configured" | "invalid-config" | "available" | "current" | "error";
 type TruthRevision = { value: string; reason: "accepted" | "merged" };
 type TruthArea = {
   id: string;
@@ -61,12 +60,6 @@ type TruthArea = {
   preparedProposal: ProjectKnowledgePreparedProposal["proposal"] | null;
 };
 type Notice = { kind: NoticeKind; title: string; detail?: string };
-type UpdateCheckResult = {
-  state: Exclude<UpdateState, "idle" | "checking">;
-  currentVersion: string;
-  availableVersion: string | null;
-  detail: string;
-};
 type TruthProposal = {
   impact: TruthImpact;
   label: string;
@@ -136,8 +129,6 @@ let projectKnowledgeApplying = false;
 let projectKnowledgeIntegrityInFlight = false;
 let projectKnowledgeProtection: ProjectKnowledgeProtectionStatus | null = null;
 let projectKnowledgeError: string | null = null;
-let updateState: UpdateState = "idle";
-let updateResult: UpdateCheckResult | null = null;
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Livariant desktop root not found");
 
@@ -575,41 +566,7 @@ const renderProjectTruthView = () => {
     </div>`;
 };
 
-const updateCopy = () => {
-  if (updateState === "checking") return { eyebrow: "Checking update channel", title: "Checking for updates…", detail: "Livariant is asking the fixed host-side updater boundary for update state." };
-  if (updateResult?.state === "available") return { eyebrow: "Update available", title: `${updateResult.availableVersion ?? "A newer version"} is available`, detail: updateResult.detail };
-  if (updateResult?.state === "current") return { eyebrow: "Up to date", title: `Livariant ${updateResult.currentVersion}`, detail: updateResult.detail };
-  if (updateResult?.state === "not-configured") return { eyebrow: "Updater foundation", title: "Update channel not configured yet", detail: updateResult.detail };
-  if (updateResult?.state === "invalid-config" || updateResult?.state === "error") return { eyebrow: "Update check needs attention", title: "Update check did not complete", detail: updateResult.detail };
-  return { eyebrow: "Secure preview updates", title: "Check before changing anything", detail: "Update checks remain behind the fixed host-side updater boundary." };
-};
-
-const renderUpdatesView = () => {
-  const copy = updateCopy();
-  const checking = updateState === "checking";
-  const showCheckButton = updateResult?.state !== "available";
-  return `
-    <header class="topbar"><div><span class="eyebrow">Desktop lifecycle</span><h1>Updates</h1><p>Update availability is evidence. Livariant will not replace installed code until artifact and update authority are explicitly verified.</p></div></header>
-    <section class="progress-panel"><div><span class="eyebrow">${copy.eyebrow}</span><h2>${escapeHtml(copy.title)}</h2><p>${escapeHtml(copy.detail)}</p></div>${showCheckButton ? `<button class="button primary check-updates" type="button" ${checking ? "disabled" : ""}>${checking ? "Checking…" : "Check for updates"}</button>` : ""}</section>
-    <section class="steps">
-      <article class="step-card state-open"><div class="step-head"><div class="step-number">01</div><div class="step-copy"><div class="step-title-row"><h3>Signed update identity</h3><span class="state-pill">Verified boundary</span></div><p>The renderer cannot supply arbitrary update URLs or executable paths.</p></div></div></article>
-      <article class="step-card state-open"><div class="step-head"><div class="step-number">02</div><div class="step-copy"><div class="step-title-row"><h3>Install authority</h3><span class="state-pill">User triggered</span></div><p>A successful availability check alone never authorizes installation or restart.</p></div></div></article>
-    </section>`;
-};
-
-const renderContent = () => {
-  if (currentView === "overview") return '<div data-shell-overview-host></div>';
-  if (currentView === "updates") return renderUpdatesView();
-  if (currentView === "connections") return renderConnectionsView();
-  if (currentView === "diagnostics") return `<div class="diagnostics-surface" data-surface="diagnostics" data-diagnostics-preset="30d"></div>`;
-  return renderProjectTruthView();
-};
-
-const renderUpdatesSettingsView = () => {
-  const copy = updateCopy();
-  const checking = updateState === "checking";
-  const showCheckButton = updateResult?.state !== "available";
-  return `
+const renderUpdatesSettingsView = () => `
     <section class="settings-panel settings-updates" data-settings-surface="updates">
       <span class="eyebrow">${uiText("Desktop lifecycle", "Desktop-Lebenszyklus")}</span><h2>Updates</h2>
       <p>${uiText(
@@ -617,16 +574,21 @@ const renderUpdatesSettingsView = () => {
         "Update-Prüfungen bleiben innerhalb der festen hostseitigen Livariant-Grenze. Verfügbarkeit autorisiert niemals Installation oder Neustart.",
       )}</p>
       <div class="settings-status-hero">
-        <div><small>${escapeHtml(copy.eyebrow)}</small><strong>${escapeHtml(copy.title)}</strong><span>${escapeHtml(copy.detail)}</span></div>
-        ${showCheckButton ? `<button class="button primary check-updates" type="button" ${checking ? "disabled" : ""}>${checking ? uiText("Checking…", "Prüfe…") : uiText("Check for updates", "Nach Updates suchen")}</button>` : ""}
+        <div>
+          <small>${uiText("Secure preview updates", "Sichere Vorschau-Updates")}</small>
+          <strong>${uiText("Check before changing anything", "Prüfen, bevor etwas verändert wird")}</strong>
+          <span>${uiText(
+            "Update checks remain behind the fixed host-side updater boundary.",
+            "Update-Prüfungen bleiben hinter der festen hostseitigen Updater-Grenze.",
+          )}</span>
+        </div>
+        <button class="button primary check-updates" type="button">${uiText("Check for updates", "Nach Updates suchen")}</button>
       </div>
       <div class="settings-safety-grid">
         <article><span>01</span><div><strong>${uiText("Signed update identity", "Signierte Update-Identität")}</strong><p>${uiText("The renderer cannot provide arbitrary update URLs or executable paths.", "Der Renderer kann keine beliebigen Update-URLs oder ausführbaren Pfade vorgeben.")}</p></div></article>
         <article><span>02</span><div><strong>${uiText("Install authority", "Installationsfreigabe")}</strong><p>${uiText("An available update remains evidence only until the user explicitly starts the qualified install path.", "Ein verfügbares Update bleibt zunächst nur Evidence, bis der Nutzer den qualifizierten Installationspfad ausdrücklich startet.")}</p></div></article>
       </div>
     </section>`;
-};
-
 const renderSettingsContent = () => {
   if (settingsSection === "projects") return renderProjectSettingsView();
   if (settingsSection === "connections") return renderConnectionsSettingsView();
@@ -694,36 +656,6 @@ const applyTruthFilters = () => {
   if (empty) empty.hidden = visibleCount > 0;
 };
 
-const updateHostFailureCopy = () => uiText(
-  "The update check could not be completed. The existing installation was not changed. Check your connection and try again.",
-  "Die Update-Prüfung konnte nicht abgeschlossen werden. Die bestehende Installation wurde nicht verändert. Prüfe deine Verbindung und versuche es erneut.",
-);
-
-const bindUpdateCheckEvent = () => {
-  document.querySelectorAll<HTMLButtonElement>(".check-updates").forEach((button) => {
-    if (button.dataset.updateCheckBound === "true") return;
-    button.dataset.updateCheckBound = "true";
-    button.addEventListener("click", async () => {
-      updateState = "checking";
-      notice = { kind: "info", title: "Checking for updates", detail: "Livariant is contacting the verified update boundary." };
-      render();
-      try {
-        updateResult = await invoke<UpdateCheckResult>("check_for_update");
-        updateState = updateResult.state;
-        if (updateResult.state === "available") notice = { kind: "success", title: "Update available", detail: updateResult.detail };
-        else if (updateResult.state === "current") notice = { kind: "success", title: "Livariant is up to date", detail: updateResult.detail };
-        else if (updateResult.state === "not-configured") notice = { kind: "warning", title: "Update channel not configured", detail: updateResult.detail };
-        else notice = { kind: "error", title: "Update check needs attention", detail: updateResult.detail };
-      } catch {
-        updateResult = { state: "error", currentVersion: "unknown", availableVersion: null, detail: updateHostFailureCopy() };
-        updateState = "error";
-        notice = { kind: "error", title: "Update check failed", detail: updateResult.detail };
-      }
-      render();
-    });
-  });
-};
-
 const renderSettingsSectionOnly = () => {
   const body = document.querySelector<HTMLElement>(".settings-content-body");
   if (!body) { render(); return; }
@@ -731,7 +663,6 @@ const renderSettingsSectionOnly = () => {
   document.querySelectorAll<HTMLButtonElement>("[data-settings-section]").forEach((button) => {
     button.classList.toggle("active", button.dataset.settingsSection === settingsSection);
   });
-  bindUpdateCheckEvent();
   bindConnectionDiagnosticsEvents(renderSettingsSectionOnly);
   bindAboutSupportSettingsEvents(renderSettingsSectionOnly);
   bindProjectSettingsEvents(renderSettingsSectionOnly, closeSettings);
@@ -757,7 +688,6 @@ const render = () => {
           <button class="nav-item ${currentView === "overview" ? "active" : ""}" data-view="overview">${icon("home")}<span>Overview</span></button>
           <button class="nav-item ${currentView === "steps" ? "active" : ""}" data-view="steps">${icon("steps")}<span>${uiText("Project knowledge", "Projektwissen")}</span><b>${attentionCount}</b></button>
           <button class="nav-item ${currentView === "diagnostics" ? "active" : ""}" data-view="diagnostics">${icon("diagnostics")}<span>Diagnostics</span></button>
-          <button class="nav-item ${currentView === "updates" ? "active" : ""}" data-view="updates">${icon("updates")}<span>Updates</span></button>
         </nav>
         <div class="sidebar-lower">
           <button class="nav-item settings-launcher ${settingsOpen ? "active" : ""}" type="button" data-open-settings>${icon("settings")}<span>Settings</span></button>
@@ -809,7 +739,7 @@ const bindEvents = () => {
   document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       const view = button.dataset.view;
-      if (view === "overview" || view === "steps" || view === "updates" || view === "connections" || view === "diagnostics") void activateView(view);
+      if (view === "overview" || view === "steps" || view === "connections" || view === "diagnostics") void activateView(view);
     });
   });
 
@@ -1081,7 +1011,6 @@ const bindEvents = () => {
 
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });
 
-  bindUpdateCheckEvent();
 
   bindConnectionDiagnosticsEvents(settingsOpen && settingsSection === "connections" ? renderSettingsSectionOnly : render);
 
