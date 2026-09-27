@@ -7,6 +7,9 @@ export interface CodexThreadCatalogEntry {
   cwd: string;
   projectId: string | null;
   runtimeWorkspaceRoots: string[];
+  name: string | null;
+  preview: string;
+  updatedAt: number;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -98,6 +101,14 @@ async function requestThreadPage(
         thread.environments,
         `Codex thread/list result.data[${index}].environments`,
       ),
+      name: optionalText(thread.name, `Codex thread/list result.data[${index}].name`),
+      preview: requireText(thread.preview, `Codex thread/list result.data[${index}].preview`),
+      updatedAt: (() => {
+        if (typeof thread.updatedAt !== "number" || !Number.isSafeInteger(thread.updatedAt) || thread.updatedAt < 0) {
+          throw new Error(`Codex thread/list result.data[${index}].updatedAt must be a non-negative safe integer.`);
+        }
+        return thread.updatedAt;
+      })(),
     };
   });
   const nextCursor = result.nextCursor === null || result.nextCursor === undefined
