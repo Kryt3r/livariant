@@ -312,7 +312,7 @@ pub fn run() {
             provider_session_reconciliation::reconcile_codex_provider_sessions,
             provider_session_reconciliation::reconcile_provider_hook_sessions,
             provider_session_reconciliation::assign_provider_session_to_active_project,
-            provider_session_reconciliation::unassign_provider_session,
+            provider_session_reconciliation::block_provider_session_automatic_assignment,
             provider_session_reconciliation::clear_provider_session_manual_decision,
             local_provider_desktop::local_provider_status,
             local_provider_desktop::local_provider_connect,
