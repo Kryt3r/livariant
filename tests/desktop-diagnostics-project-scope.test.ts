@@ -273,7 +273,7 @@ test("hybrid provider session attribution keeps user decisions explicit and reve
 
   assert.match(desktop, /manual-session-decisions\.json/);
   assert.match(desktop, /assign_provider_session_to_active_project/);
-  assert.match(desktop, /unassign_provider_session/);
+  assert.match(desktop, /block_provider_session_automatic_assignment/);
   assert.match(desktop, /clear_provider_session_manual_decision/);
   assert.match(desktop, /changesProjectOwnedFiles.*false/);
   assert.match(desktop, /grantsAuthority.*false/);
@@ -288,12 +288,13 @@ test("hybrid provider session attribution keeps user decisions explicit and reve
   assert.match(hook, /user-unassigned/);
 
   assert.match(cockpit, /Diesem Projekt zuordnen/);
-  assert.match(cockpit, /Zuordnung entfernen/);
+  assert.match(cockpit, /Manuelle Zuordnung entfernen/);
+  assert.match(cockpit, /Automatische Zuordnung blockieren/);
   assert.match(cockpit, /Automatik wieder zulassen/);
   assert.match(cockpit, /Ältere Sessions anzeigen/);
   assert.match(cockpit, /data-provider-session-action/);
   assert.match(cockpit, /assign_provider_session_to_active_project/);
-  assert.match(cockpit, /unassign_provider_session/);
+  assert.match(cockpit, /block_provider_session_automatic_assignment/);
   assert.match(cockpit, /clear_provider_session_manual_decision/);
   assert.match(css, /\.dc-session-actions/);
   assert.match(css, /\.dc-session-more/);
