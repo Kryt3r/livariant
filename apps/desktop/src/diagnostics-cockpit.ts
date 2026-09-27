@@ -73,8 +73,11 @@ type CodexSessionBinding = {
   sessionId: string;
   cwd: string;
   providerProjectId: string | null;
+  name?: string | null;
+  preview?: string;
+  updatedAt?: number;
   project: ProviderProjectDescriptor | null;
-  attribution: "provider-context" | "provider-context-conflict" | "provider-workspace" | "provider-workspace-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
+  attribution: "manual" | "user-unassigned" | "manual-project-unavailable" | "provider-context" | "provider-context-conflict" | "provider-workspace" | "provider-workspace-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
 };
 type CodexReconciliation = {
   schemaVersion: 1;
@@ -82,6 +85,12 @@ type CodexReconciliation = {
   provider: "codex";
   observedAt: string;
   detail: string;
+  manualDecisionEvidence?: {
+    decisionsTotal: number;
+    bindingsUsingManualAssignment: number;
+    bindingsExplicitlyUnassigned: number;
+    bindingsWithUnavailableManualProject: number;
+  };
   runtimeWorkspaceEvidence?: {
     threadsWithRuntimeWorkspaceRoots: number;
     distinctRuntimeWorkspaceRoots: number;
@@ -110,7 +119,7 @@ type HookSessionBinding = {
   provider: "claude" | "gemini";
   sessionId: string;
   project: ProviderProjectDescriptor | null;
-  attribution: "cwd-consistent" | "mixed-projects" | "unattributed";
+  attribution: "manual" | "user-unassigned" | "manual-project-unavailable" | "cwd-consistent" | "mixed-projects" | "unattributed";
   cwdEvidence: string[];
   transcriptPaths: string[];
   latestObservedAt: string;
