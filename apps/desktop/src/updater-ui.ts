@@ -33,17 +33,10 @@ type UpdateProgress = {
 type UiCopy = {
   checking: string;
   check: string;
-  configured: string;
-  checked: string;
-  ready: string;
-  waiting: string;
   preparing: string;
   downloading: string;
   downloaded: string;
-  verified: string;
-  authorized: string;
   installing: string;
-  installed: string;
   restart: string;
   availableEyebrow: string;
   availableTitle: (version: string) => string;
@@ -63,13 +56,6 @@ type UiCopy = {
   restartingTitle: string;
   restartingDetail: (version: string) => string;
   releaseNotesLabel: string;
-  noReleaseNotes: string;
-  phaseCheckTitle: string;
-  phaseCheckDetail: string;
-  phaseDownloadTitle: string;
-  phaseDownloadDetail: string;
-  phaseInstallTitle: string;
-  phaseInstallDetail: string;
 };
 
 const updaterHostFailureCopy = (kind: "check" | "install"): string => {
@@ -87,17 +73,10 @@ const updaterHostFailureCopy = (kind: "check" | "install"): string => {
 const copy = (): UiCopy => document.documentElement.lang.toLowerCase().startsWith("de") ? {
   checking: "Prüfe…",
   check: "Nach Updates suchen",
-  configured: "Bereit",
-  checked: "Geprüft",
-  ready: "Bereit",
-  waiting: "Wartet auf Freigabe",
   preparing: "Wird vorbereitet",
   downloading: "Wird heruntergeladen",
   downloaded: "Heruntergeladen",
-  verified: "Verifiziert",
-  authorized: "Freigegeben",
   installing: "Wird installiert",
-  installed: "Installiert",
   restart: "Neustart",
   availableEyebrow: "Desktop-Update verfügbar",
   availableTitle: (version) => `${version} ist verfügbar`,
@@ -117,27 +96,13 @@ const copy = (): UiCopy => document.documentElement.lang.toLowerCase().startsWit
   restartingTitle: "Livariant startet neu…",
   restartingDetail: (version) => `${version} wurde installiert. Livariant wird jetzt mit der neuen Desktop-Version neu gestartet.`,
   releaseNotesLabel: "Was ist neu?",
-  noReleaseNotes: "Für dieses Update wurden keine strukturierten Patch Notes bereitgestellt.",
-  phaseCheckTitle: "Verfügbarkeit prüfen",
-  phaseCheckDetail: "Livariant fragt ausschließlich den fest konfigurierten, vertrauenswürdigen Update-Kanal ab.",
-  phaseDownloadTitle: "Herunterladen & verifizieren",
-  phaseDownloadDetail: "Download-Fortschritt und Verifikation werden nur aus echten Updater-Ereignissen abgeleitet.",
-  phaseInstallTitle: "Installieren & neu starten",
-  phaseInstallDetail: "Code wird erst nach deiner ausdrücklichen Freigabe ersetzt. Danach startet Livariant kontrolliert neu.",
 } : {
   checking: "Checking…",
   check: "Check for updates",
-  configured: "Ready",
-  checked: "Checked",
-  ready: "Ready",
-  waiting: "Awaiting approval",
   preparing: "Preparing",
   downloading: "Downloading",
   downloaded: "Downloaded",
-  verified: "Verified",
-  authorized: "Authorized",
   installing: "Installing",
-  installed: "Installed",
   restart: "Restart",
   availableEyebrow: "Desktop update available",
   availableTitle: (version) => `${version} is available`,
@@ -157,13 +122,6 @@ const copy = (): UiCopy => document.documentElement.lang.toLowerCase().startsWit
   restartingTitle: "Livariant is restarting…",
   restartingDetail: (version) => `${version} has been installed. Livariant will now restart with the new Desktop version.`,
   releaseNotesLabel: "What's new?",
-  noReleaseNotes: "No structured patch notes were supplied for this update.",
-  phaseCheckTitle: "Check availability",
-  phaseCheckDetail: "Livariant queries only the fixed, trusted update channel.",
-  phaseDownloadTitle: "Download & verify",
-  phaseDownloadDetail: "Download progress and verification state are derived only from real updater events.",
-  phaseInstallTitle: "Install & restart",
-  phaseInstallDetail: "Installed code is replaced only after your explicit approval, then Livariant restarts in a controlled way.",
 };
 
 let cachedResult: UpdateResult | null = null;
@@ -171,34 +129,21 @@ let busy: "checking" | "installing" | null = null;
 let progress: UpdateProgress | null = null;
 
 const updateSurfaceRoot = (): HTMLElement | null =>
-  document.querySelector<HTMLElement>("[data-settings-surface='updates']")
-  ?? (document.querySelector(".nav-item.active[data-view='updates']")
-    ? document.querySelector<HTMLElement>(".content")
-    : null);
+  document.querySelector<HTMLElement>("[data-settings-surface='updates']");
 
-const updatesVisible = () => updateSurfaceRoot() !== null;
-
-const updateStatusPanel = () => {
-  const root = updateSurfaceRoot();
-  return root?.querySelector<HTMLElement>(".settings-status-hero, .updates-status-card, .progress-panel") ?? null;
-};
+const statusHero = () =>
+  updateSurfaceRoot()?.querySelector<HTMLElement>(".settings-status-hero") ?? null;
 
 const setText = (node: HTMLElement | null | undefined, value: string) => {
   if (node && node.textContent !== value) node.textContent = value;
 };
 
 const setCopy = (eyebrow: string, title: string, detail: string) => {
-  const panel = updateStatusPanel();
+  const panel = statusHero();
   if (!panel) return;
-  if (panel.classList.contains("settings-status-hero")) {
-    setText(panel.querySelector<HTMLElement>("small"), eyebrow);
-    setText(panel.querySelector<HTMLElement>("strong"), title);
-    setText(panel.querySelector<HTMLElement>("span"), detail);
-    return;
-  }
-  setText(panel.querySelector<HTMLElement>(".eyebrow"), eyebrow);
-  setText(panel.querySelector<HTMLElement>("h2"), title);
-  setText(panel.querySelector<HTMLElement>("p"), detail);
+  setText(panel.querySelector<HTMLElement>("small"), eyebrow);
+  setText(panel.querySelector<HTMLElement>("strong"), title);
+  setText(panel.querySelector<HTMLElement>("span"), detail);
 };
 
 const preferredNotes = (notes: LocalizedReleaseNotes | null): ReleaseNotesLocale | null => {
@@ -207,10 +152,10 @@ const preferredNotes = (notes: LocalizedReleaseNotes | null): ReleaseNotesLocale
 };
 
 const renderReleaseNotes = () => {
-  const workspace = document.querySelector<HTMLElement>(".updates-workspace");
-  if (!workspace) return;
+  const root = updateSurfaceRoot();
+  if (!root) return;
 
-  const existing = workspace.querySelector<HTMLElement>(".update-release-notes");
+  const existing = root.querySelector<HTMLElement>(".settings-update-release-notes");
   const notes = cachedResult?.state === "available" || cachedResult?.state === "changed"
     ? preferredNotes(cachedResult.releaseNotes)
     : null;
@@ -221,18 +166,16 @@ const renderReleaseNotes = () => {
   }
 
   const card = existing ?? document.createElement("section");
-  card.className = "update-release-notes";
+  card.className = "settings-update-release-notes";
   card.setAttribute("aria-live", "polite");
-  card.innerHTML = "";
+  card.replaceChildren();
 
-  const intro = document.createElement("div");
-  intro.className = "update-release-notes-heading";
-  const label = document.createElement("span");
-  label.className = "eyebrow";
+  const heading = document.createElement("div");
+  const label = document.createElement("small");
   label.textContent = copy().releaseNotesLabel;
-  const title = document.createElement("h3");
+  const title = document.createElement("strong");
   title.textContent = notes.title;
-  intro.append(label, title);
+  heading.append(label, title);
 
   const list = document.createElement("ul");
   notes.items.forEach((item) => {
@@ -240,19 +183,16 @@ const renderReleaseNotes = () => {
     li.textContent = item;
     list.append(li);
   });
-  card.append(intro, list);
+  card.append(heading, list);
 
-  if (!existing) {
-    const statusCard = workspace.querySelector(".updates-status-card");
-    statusCard?.insertAdjacentElement("afterend", card);
-  }
+  if (!existing) statusHero()?.insertAdjacentElement("afterend", card);
 };
 
 const renderLiveProgress = () => {
-  const workspace = document.querySelector<HTMLElement>(".updates-workspace");
-  if (!workspace) return;
+  const root = updateSurfaceRoot();
+  if (!root) return;
 
-  let panel = workspace.querySelector<HTMLElement>(".updater-live-progress");
+  let panel = root.querySelector<HTMLElement>(".settings-updater-progress");
   const shouldShow = busy === "installing" || progress !== null;
   if (!shouldShow) {
     panel?.remove();
@@ -261,21 +201,20 @@ const renderLiveProgress = () => {
 
   if (!panel) {
     panel = document.createElement("section");
-    panel.className = "updater-live-progress";
+    panel.className = "settings-updater-progress";
+    panel.setAttribute("aria-live", "polite");
     panel.innerHTML = `
-      <div class="updater-live-orb" aria-hidden="true"><span></span></div>
-      <div class="updater-live-copy"><strong></strong><span></span></div>
-      <div class="updater-progress-track" role="progressbar"><span></span></div>`;
-    const notes = workspace.querySelector(".update-release-notes");
-    const status = workspace.querySelector(".updates-status-card");
-    (notes ?? status)?.insertAdjacentElement("afterend", panel);
+      <div class="settings-updater-progress-copy"><strong></strong><span></span></div>
+      <div class="settings-updater-progress-track" role="progressbar"><span></span></div>`;
+    const anchor = root.querySelector(".settings-update-release-notes") ?? statusHero();
+    anchor?.insertAdjacentElement("afterend", panel);
   }
 
   const values = copy();
-  const title = panel.querySelector<HTMLElement>(".updater-live-copy strong");
-  const detail = panel.querySelector<HTMLElement>(".updater-live-copy > span");
-  const track = panel.querySelector<HTMLElement>(".updater-progress-track");
-  const fill = panel.querySelector<HTMLElement>(".updater-progress-track > span");
+  const title = panel.querySelector<HTMLElement>(".settings-updater-progress-copy strong");
+  const detail = panel.querySelector<HTMLElement>(".settings-updater-progress-copy span");
+  const track = panel.querySelector<HTMLElement>(".settings-updater-progress-track");
+  const fill = panel.querySelector<HTMLElement>(".settings-updater-progress-track > span");
 
   let stateTitle = values.preparing;
   let stateDetail = values.preparingDetail;
@@ -292,7 +231,6 @@ const renderLiveProgress = () => {
 
   setText(title, stateTitle);
   setText(detail, stateDetail);
-  panel.dataset.phase = progress?.phase ?? "preparing";
 
   const percent = progress?.percent;
   if (track && fill) {
@@ -310,99 +248,19 @@ const renderLiveProgress = () => {
   }
 };
 
-const setPhase = (index: number, state: string, mode: "idle" | "active" | "complete") => {
-  const card = document.querySelectorAll<HTMLElement>(".updates-flow .update-phase")[index];
-  if (!card) return;
-  card.classList.toggle("active", mode === "active");
-  card.classList.toggle("complete", mode === "complete");
-  setText(card.querySelector<HTMLElement>(".update-phase-state"), state);
-};
-
-const renderFlow = () => {
-  const values = copy();
-  const cards = document.querySelectorAll<HTMLElement>(".updates-flow .update-phase");
-  if (cards.length < 3) return;
-
-  setText(cards[0].querySelector<HTMLElement>("h3"), values.phaseCheckTitle);
-  setText(cards[0].querySelector<HTMLElement>("p"), values.phaseCheckDetail);
-  setText(cards[1].querySelector<HTMLElement>("h3"), values.phaseDownloadTitle);
-  setText(cards[1].querySelector<HTMLElement>("p"), values.phaseDownloadDetail);
-  setText(cards[2].querySelector<HTMLElement>("h3"), values.phaseInstallTitle);
-  setText(cards[2].querySelector<HTMLElement>("p"), values.phaseInstallDetail);
-
-  if (busy === "checking") {
-    setPhase(0, values.checking, "active");
-    setPhase(1, values.ready, "idle");
-    setPhase(2, values.waiting, "idle");
-    return;
-  }
-
-  if (busy === "installing") {
-    setPhase(0, values.checked, "complete");
-    if (progress?.phase === "restarting") {
-      setPhase(1, values.verified, "complete");
-      setPhase(2, values.installed, "complete");
-    } else if (progress?.phase === "downloaded") {
-      setPhase(1, values.downloaded, "complete");
-      setPhase(2, values.installing, "active");
-    } else {
-      setPhase(1, progress?.phase === "downloading" ? values.downloading : values.preparing, "active");
-      setPhase(2, values.authorized, "idle");
-    }
-    return;
-  }
-
-  if (cachedResult?.state === "available") {
-    setPhase(0, values.checked, "complete");
-    setPhase(1, values.ready, "active");
-    setPhase(2, values.waiting, "idle");
-    return;
-  }
-
-  if (cachedResult?.state === "current") {
-    setPhase(0, values.checked, "complete");
-    setPhase(1, values.ready, "idle");
-    setPhase(2, values.waiting, "idle");
-    return;
-  }
-
-  setPhase(0, values.ready, "active");
-  setPhase(1, values.ready, "idle");
-  setPhase(2, values.waiting, "idle");
-};
-
-const updateReleaseInformationBoundary = () => {
-  const cards = document.querySelectorAll<HTMLElement>(".updates-boundary-card");
-  const card = cards[2];
-  if (!card) return;
-  const values = copy();
-  const notes = preferredNotes(cachedResult?.releaseNotes ?? null);
-  const small = card.querySelector<HTMLElement>("small");
-  const strong = card.querySelector<HTMLElement>("strong");
-  const detail = card.querySelector<HTMLElement>("span");
-  setText(small, document.documentElement.lang.toLowerCase().startsWith("de") ? "Release-Information" : "Release information");
-  setText(strong, notes ? values.releaseNotesLabel : (document.documentElement.lang.toLowerCase().startsWith("de") ? "Nicht verfügbar" : "Not available"));
-  setText(detail, notes
-    ? (document.documentElement.lang.toLowerCase().startsWith("de") ? "Strukturierte Patch Notes sind vorhanden und folgen der aktuell gewählten App-Sprache." : "Structured patch notes are available and follow the currently selected app language.")
-    : values.noReleaseNotes);
-};
-
 const reconcile = () => {
-  if (!updatesVisible()) return;
+  const root = updateSurfaceRoot();
+  if (!root) return;
   const values = copy();
 
-  const root = updateSurfaceRoot();
-  const checkButton = root?.querySelector<HTMLButtonElement>(".check-updates") ?? null;
+  const checkButton = root.querySelector<HTMLButtonElement>(".check-updates");
   if (checkButton) {
     checkButton.disabled = busy !== null;
     checkButton.hidden = cachedResult?.state === "available" && busy === null;
     checkButton.textContent = busy === "checking" ? values.checking : values.check;
   }
 
-  const signedIdentity = document.querySelector<HTMLElement>(".steps .step-card:first-child .state-pill");
-  if (signedIdentity) signedIdentity.textContent = values.configured;
-
-  let installButton = root?.querySelector<HTMLButtonElement>(".install-update") ?? null;
+  let installButton = root.querySelector<HTMLButtonElement>(".install-update");
 
   if (busy === "installing") {
     installButton?.remove();
@@ -419,8 +277,6 @@ const reconcile = () => {
     }
     renderReleaseNotes();
     renderLiveProgress();
-    renderFlow();
-    updateReleaseInformationBoundary();
     return;
   }
 
@@ -428,15 +284,13 @@ const reconcile = () => {
     installButton?.remove();
     renderReleaseNotes();
     renderLiveProgress();
-    renderFlow();
-    updateReleaseInformationBoundary();
     return;
   }
 
   if (cachedResult.state === "available" && cachedResult.availableVersion) {
     const displayVersion = formatDesktopVersion(cachedResult.availableVersion);
     setCopy(values.availableEyebrow, values.availableTitle(displayVersion), values.availableDetail(displayVersion));
-    const panel = updateStatusPanel();
+    const panel = statusHero();
     const button = installButton ?? document.createElement("button");
     button.type = "button";
     button.className = "button primary install-update";
@@ -459,8 +313,6 @@ const reconcile = () => {
 
   renderReleaseNotes();
   renderLiveProgress();
-  renderFlow();
-  updateReleaseInformationBoundary();
 };
 
 const checkForUpdates = async () => {
@@ -496,8 +348,6 @@ const installUpdate = async (expectedVersion: string) => {
   };
   reconcile();
 
-  // A brief transition makes the explicit user-authorized boundary visible before the native
-  // updater starts. It never substitutes for real progress or verification state.
   await wait(360);
 
   try {
@@ -526,9 +376,12 @@ void listen<UpdateProgress>("livariant://updater-progress", (event) => {
 document.addEventListener(
   "click",
   (event) => {
+    const root = updateSurfaceRoot();
+    if (!root) return;
     const target = event.target instanceof Element ? event.target : null;
+
     const checkButton = target?.closest<HTMLButtonElement>(".check-updates");
-    if (checkButton) {
+    if (checkButton && root.contains(checkButton)) {
       event.preventDefault();
       event.stopImmediatePropagation();
       if (!busy) void checkForUpdates();
@@ -536,15 +389,12 @@ document.addEventListener(
     }
 
     const installButton = target?.closest<HTMLButtonElement>(".install-update");
-    if (installButton) {
+    if (installButton && root.contains(installButton)) {
       event.preventDefault();
       event.stopImmediatePropagation();
       const expectedVersion = installButton.dataset.version;
       if (!busy && expectedVersion) void installUpdate(expectedVersion);
-      return;
     }
-
-    queueMicrotask(reconcile);
   },
   { capture: true },
 );
@@ -554,18 +404,18 @@ new MutationObserver(() => reconcile()).observe(document.documentElement, {
   attributeFilter: ["lang"],
 });
 
-let workspaceScheduled = false;
+let settingsSurfaceScheduled = false;
 new MutationObserver((mutations) => {
-  const updaterSurfaceAdded = mutations.some((mutation) => [...mutation.addedNodes].some((node) =>
+  const settingsSurfaceAdded = mutations.some((mutation) => [...mutation.addedNodes].some((node) =>
     node instanceof Element && (
-      node.matches(".updates-workspace, [data-settings-surface='updates']")
-      || Boolean(node.querySelector(".updates-workspace, [data-settings-surface='updates']"))
+      node.matches("[data-settings-surface='updates']")
+      || Boolean(node.querySelector("[data-settings-surface='updates']"))
     ),
   ));
-  if (!updaterSurfaceAdded || workspaceScheduled) return;
-  workspaceScheduled = true;
-  requestAnimationFrame(() => {
-    workspaceScheduled = false;
+  if (!settingsSurfaceAdded || settingsSurfaceScheduled) return;
+  settingsSurfaceScheduled = true;
+  queueMicrotask(() => {
+    settingsSurfaceScheduled = false;
     reconcile();
   });
 }).observe(document.documentElement, { childList: true, subtree: true });
