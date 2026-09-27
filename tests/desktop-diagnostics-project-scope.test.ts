@@ -257,7 +257,7 @@ test("Codex session attribution captures MCP toolcall workspace evidence before 
   assert.match(reconciliation, /pathsOverlap/);
   assert.match(reconciliation, /observation\.providerWorkspacePaths/);
   assert.match(reconciliation, /observationsMatchingRegisteredProjectPath/);
-  assert.match(reconciliation, /direct MCP tool-call thread\/workspace evidence first/);
+  assert.match(reconciliation, /manual decisions first, then direct MCP tool-call thread\/workspace evidence/);
 
   assert.match(cockpit, /passendem registrierten Projektpfad/);
 });
