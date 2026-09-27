@@ -213,6 +213,44 @@ const formatObservedAt = (value: string) => {
   }).format(parsed);
 };
 
+const formatThreadUpdatedAt = (value?: number) => value === undefined
+  ? "—"
+  : new Intl.DateTimeFormat(getLanguage() === "de" ? "de-DE" : "en-US", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(value * 1000));
+
+const codexAttributionLabel = (value: CodexSessionBinding["attribution"]) => ({
+  manual: lang("Manually assigned", "Manuell zugeordnet"),
+  "user-unassigned": lang("Assignment removed", "Zuordnung entfernt"),
+  "manual-project-unavailable": lang("Manual project unavailable", "Manuelles Projekt nicht verfügbar"),
+  "provider-context": lang("Direct Provider Context", "Direkter Provider Context"),
+  "provider-context-conflict": lang("Conflicting direct evidence", "Widersprüchliche direkte Evidence"),
+  "provider-workspace": lang("Codex runtime workspace", "Codex-Runtime-Workspace"),
+  "provider-workspace-conflict": lang("Conflicting runtime workspaces", "Widersprüchliche Runtime-Workspaces"),
+  "provider-project": lang("Codex project metadata", "Codex-Projektmetadaten"),
+  "provider-project-conflict": lang("Conflicting Codex project metadata", "Widersprüchliche Codex-Projektmetadaten"),
+  "cwd-exact": lang("Exact project", "Exaktes Projekt"),
+  "cwd-descendant": lang("Project subtree", "Projekt-Unterordner"),
+  unattributed: lang("Unattributed", "Nicht zugeordnet"),
+})[value];
+
+const renderSessionAction = (provider: "codex" | "claude" | "gemini", providerItemId: string, action: "assign" | "unassign" | "automatic") => {
+  const label = action === "assign"
+    ? lang("Assign to this project", "Diesem Projekt zuordnen")
+    : action === "unassign"
+      ? lang("Remove assignment", "Zuordnung entfernen")
+      : lang("Allow automatic assignment", "Automatik wieder zulassen");
+  return `<button type="button" class="button secondary dc-session-action" data-provider-session-action="${action}" data-provider="${provider}" data-provider-item-id="${esc(providerItemId)}">${label}</button>`;
+};
+
+const renderLimitedSessionRows = (rows: string[], initial = 12) => {
+  const visible = rows.slice(0, initial).join("");
+  const older = rows.slice(initial);
+  return `<div class="dc-session-list">${visible}</div>${older.length
+    ? `<details class="dc-session-more"><summary>${lang("Show older sessions", "Ältere Sessions anzeigen")} <strong>${older.length}</strong></summary><div class="dc-session-list">${older.join("")}</div></details>`
+    : ""}`;
+};
 async function refreshSessionEvidence(): Promise<void> {
   const [codex, hooks] = await Promise.allSettled([
     invoke<CodexReconciliation>("reconcile_codex_provider_sessions"),
