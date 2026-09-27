@@ -1,5 +1,5 @@
 use crate::desktop_project_registry::registered_provider_projects;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -7,7 +7,125 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-use tauri::Manager;
+use tauri::{Manager, State};
+
+const MANUAL_DECISIONS_FILE: &str = "manual-session-decisions.json";
+const MANUAL_DECISIONS_MAX_BYTES: u64 = 1024 * 1024;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ManualSessionDecision {
+    provider: String,
+    provider_item_id: String,
+    decision: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    desktop_project_id: Option<String>,
+    updated_at_unix_ms: u128,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ManualSessionDecisionStore {
+    schema_version: u32,
+    decisions: Vec<ManualSessionDecision>,
+}
+
+fn validate_provider(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if !matches!(value, "codex" | "claude" | "gemini" | "custom") {
+        return Err("Provider session decision provider is unsupported.".to_owned());
+    }
+    Ok(value.to_owned())
+}
+
+fn validate_provider_item_id(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.is_empty() || value.chars().count() > 240 || value.chars().any(|ch| ch == '\0' || ch.is_control()) {
+        return Err("Provider session decision item id is invalid.".to_owned());
+    }
+    Ok(value.to_owned())
+}
+
+fn read_manual_decisions(app: &tauri::AppHandle) -> Result<ManualSessionDecisionStore, String> {
+    let path = evidence_path(app, MANUAL_DECISIONS_FILE)?;
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(ManualSessionDecisionStore { schema_version: 1, decisions: Vec::new() });
+        }
+        Err(error) => return Err(format!("Manual provider session decisions could not be inspected: {error}")),
+    };
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err("Manual provider session decisions must be a real non-symbolic-link file.".to_owned());
+    }
+    if metadata.len() > MANUAL_DECISIONS_MAX_BYTES {
+        return Err("Manual provider session decisions exceed the safety bound.".to_owned());
+    }
+    let store: ManualSessionDecisionStore = serde_json::from_slice(
+        &fs::read(&path).map_err(|error| format!("Manual provider session decisions could not be read: {error}"))?
+    ).map_err(|error| format!("Manual provider session decisions are invalid JSON: {error}"))?;
+    if store.schema_version != 1 || store.decisions.len() > 10_000 {
+        return Err("Manual provider session decisions schema or count is unsupported.".to_owned());
+    }
+    for item in &store.decisions {
+        validate_provider(&item.provider)?;
+        validate_provider_item_id(&item.provider_item_id)?;
+        if !matches!(item.decision.as_str(), "assigned" | "unassigned") {
+            return Err("Manual provider session decision is invalid.".to_owned());
+        }
+        if item.decision == "assigned" && item.desktop_project_id.as_deref().map(str::trim).filter(|value| !value.is_empty()).is_none() {
+            return Err("Assigned manual provider session decision requires a Desktop project id.".to_owned());
+        }
+        if item.decision == "unassigned" && item.desktop_project_id.is_some() {
+            return Err("Unassigned manual provider session decision must not carry a Desktop project id.".to_owned());
+        }
+    }
+    Ok(store)
+}
+
+fn write_manual_decisions(app: &tauri::AppHandle, store: &ManualSessionDecisionStore) -> Result<(), String> {
+    let target = evidence_path(app, MANUAL_DECISIONS_FILE)?;
+    let parent = target.parent().ok_or_else(|| "Manual provider session decision path has no parent.".to_owned())?;
+    let temporary = parent.join(format!(".manual-session-decisions-{}.tmp", std::process::id()));
+    let bytes = serde_json::to_vec_pretty(store)
+        .map_err(|error| format!("Manual provider session decisions could not be serialized: {error}"))?;
+    if bytes.len() > MANUAL_DECISIONS_MAX_BYTES as usize {
+        return Err("Manual provider session decisions exceed the safety bound.".to_owned());
+    }
+    fs::write(&temporary, bytes)
+        .map_err(|error| format!("Manual provider session decision temp file could not be written: {error}"))?;
+    if target.exists() {
+        fs::remove_file(&target)
+            .map_err(|error| format!("Previous manual provider session decisions could not be replaced: {error}"))?;
+    }
+    fs::rename(&temporary, &target)
+        .map_err(|error| format!("Manual provider session decisions could not be committed: {error}"))
+}
+
+fn upsert_manual_decision(
+    app: &tauri::AppHandle,
+    provider: &str,
+    provider_item_id: &str,
+    decision: &str,
+    desktop_project_id: Option<String>,
+) -> Result<Value, String> {
+    let provider = validate_provider(provider)?;
+    let provider_item_id = validate_provider_item_id(provider_item_id)?;
+    let mut store = read_manual_decisions(app)?;
+    store.decisions.retain(|item| !(item.provider == provider && item.provider_item_id == provider_item_id));
+    store.decisions.push(ManualSessionDecision {
+        provider,
+        provider_item_id,
+        decision: decision.to_owned(),
+        desktop_project_id,
+        updated_at_unix_ms: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| "System time is before UNIX epoch.".to_owned())?
+            .as_millis(),
+    });
+    write_manual_decisions(app, &store)?;
+    Ok(json!({ "state": decision, "changesProjectOwnedFiles": false, "grantsAuthority": false }))
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -127,6 +245,7 @@ fn read_provider_context_observations(app: &tauri::AppHandle) -> Result<Vec<Valu
 fn reconcile_codex_sessions_blocking(app: tauri::AppHandle) -> Result<Value, String> {
     let projects = registered_provider_projects(&app)?;
     let context_observations = read_provider_context_observations(&app)?;
+    let manual_decisions = read_manual_decisions(&app)?.decisions;
     if projects.is_empty() {
         return Ok(json!({
             "schemaVersion": 1,
@@ -177,7 +296,8 @@ fn reconcile_codex_sessions_blocking(app: tauri::AppHandle) -> Result<Value, Str
 
     let input = serde_json::to_vec(&json!({
         "projects": projects,
-        "contextObservations": context_observations
+        "contextObservations": context_observations,
+        "manualDecisions": manual_decisions
     }))
         .map_err(|error| format!("Codex session reconciliation input could not be encoded: {error}"))?;
 
@@ -272,6 +392,7 @@ fn persist_hook_snapshot(app: &tauri::AppHandle, snapshot: &Value) -> Result<(),
 fn reconcile_provider_hook_sessions_blocking(app: tauri::AppHandle) -> Result<Value, String> {
     let projects = registered_provider_projects(&app)?;
     let observations = read_hook_observations(&app)?;
+    let manual_decisions = read_manual_decisions(&app)?.decisions;
     if observations.is_empty() {
         return Ok(json!({
             "schemaVersion": 1,
@@ -307,7 +428,8 @@ fn reconcile_provider_hook_sessions_blocking(app: tauri::AppHandle) -> Result<Va
 
     let input = serde_json::to_vec(&json!({
         "projects": projects,
-        "observations": observations
+        "observations": observations,
+        "manualDecisions": manual_decisions
     })).map_err(|error| format!("Provider hook reconciliation input could not be encoded: {error}"))?;
 
     let mut child = hidden_command(&node)
@@ -358,6 +480,43 @@ pub(crate) fn start_background(app: tauri::AppHandle) {
         let _ = reconcile_provider_hook_sessions_blocking(app.clone());
         std::thread::sleep(std::time::Duration::from_secs(30));
     });
+}
+
+#[tauri::command]
+pub fn assign_provider_session_to_active_project(
+    app: tauri::AppHandle,
+    state: State<'_, crate::desktop_project_registry::DesktopProjectRegistryState>,
+    provider: String,
+    provider_item_id: String,
+) -> Result<Value, String> {
+    let active = crate::desktop_project_registry::active_project_scope(&app, state.inner())?;
+    upsert_manual_decision(&app, &provider, &provider_item_id, "assigned", Some(active.desktop_project_id))
+}
+
+#[tauri::command]
+pub fn unassign_provider_session(
+    app: tauri::AppHandle,
+    provider: String,
+    provider_item_id: String,
+) -> Result<Value, String> {
+    upsert_manual_decision(&app, &provider, &provider_item_id, "unassigned", None)
+}
+
+#[tauri::command]
+pub fn clear_provider_session_manual_decision(
+    app: tauri::AppHandle,
+    provider: String,
+    provider_item_id: String,
+) -> Result<Value, String> {
+    let provider = validate_provider(&provider)?;
+    let provider_item_id = validate_provider_item_id(&provider_item_id)?;
+    let mut store = read_manual_decisions(&app)?;
+    let before = store.decisions.len();
+    store.decisions.retain(|item| !(item.provider == provider && item.provider_item_id == provider_item_id));
+    if store.decisions.len() != before {
+        write_manual_decisions(&app, &store)?;
+    }
+    Ok(json!({ "state": "automatic", "changesProjectOwnedFiles": false, "grantsAuthority": false }))
 }
 
 #[tauri::command]
