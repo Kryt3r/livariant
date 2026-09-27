@@ -22,7 +22,7 @@ export interface CodexThreadProjectBinding {
   cwd: string;
   providerProjectId: string | null;
   project: ProviderProjectDescriptor | null;
-  attribution: "provider-context" | "provider-context-conflict" | "provider-workspace" | "provider-workspace-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
+  attribution: "manual" | "user-unassigned" | "manual-project-unavailable" | "provider-context" | "provider-context-conflict" | "provider-workspace" | "provider-workspace-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
 }
 
 function pathKey(value: string): string {
