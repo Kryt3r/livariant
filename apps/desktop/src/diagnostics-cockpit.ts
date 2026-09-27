@@ -148,6 +148,7 @@ type CockpitState = {
   notice: string | null;
   sessions: ProviderSessionEvidence;
   openProviders: Set<"codex" | "claude" | "gemini" | "custom">;
+  sessionDisclosureState: Map<string, boolean>;
 };
 
 const state: CockpitState = {
@@ -159,6 +160,7 @@ const state: CockpitState = {
   notice: null,
   sessions: { codex: null, hooks: null, codexError: null, hooksError: null },
   openProviders: new Set(["codex"]),
+  sessionDisclosureState: new Map(),
 };
 let projectActivationGeneration = 0;
 
@@ -234,6 +236,9 @@ const codexAttributionLabel = (value: CodexSessionBinding["attribution"]) => ({
   "cwd-descendant": lang("Project subtree", "Projekt-Unterordner"),
   unattributed: lang("Unattributed", "Nicht zugeordnet"),
 })[value];
+
+const sessionDisclosureOpen = (key: string, defaultOpen = false) =>
+  state.sessionDisclosureState.has(key) ? state.sessionDisclosureState.get(key) === true : defaultOpen;
 
 const renderSessionAction = (provider: "codex" | "claude" | "gemini", providerItemId: string, action: "assign" | "remove-manual" | "block-auto" | "allow-auto") => {
   const label = action === "assign"
@@ -451,8 +456,8 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
       ? `<section class="dc-session-section"><div class="dc-session-section-head"><span>${lang("Assigned to this project", "Diesem Projekt zugeordnet")}</span><strong>${current.length}</strong></div>${renderCodexRows(current, "current")}</section>`
       : `<div class="dc-session-empty">${lang("No Codex sessions are currently assigned to this project.", "Aktuell ist diesem Projekt keine Codex-Session zugeordnet.")}</div>`;
     const diagnosticsGroups = [
-      unattributed.length ? `<details class="dc-session-diagnostic-group warning" open><summary><span>${lang("Unassigned sessions", "Nicht zugeordnete Sessions")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div><p class="dc-session-guidance">${lang("The project could not be detected automatically. Assign only sessions you recognize.", "Das Projekt konnte nicht automatisch erkannt werden. Ordne nur Sessions zu, die du erkennst.")}</p>${renderCodexRows(unattributed, "unattributed")}</div></details>` : "",
-      other.length ? `<details class="dc-session-diagnostic-group"><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderCodexRows(other, "other")}</div></details>` : "",
+      unattributed.length ? `<details class="dc-session-diagnostic-group warning" data-dc-session-disclosure="codex:unattributed" ${sessionDisclosureOpen("codex:unattributed", true) ? "open" : ""}><summary><span>${lang("Unassigned sessions", "Nicht zugeordnete Sessions")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div><p class="dc-session-guidance">${lang("The project could not be detected automatically. Assign only sessions you recognize.", "Das Projekt konnte nicht automatisch erkannt werden. Ordne nur Sessions zu, die du erkennst.")}</p>${renderCodexRows(unattributed, "unattributed")}</div></details>` : "",
+      other.length ? `<details class="dc-session-diagnostic-group" data-dc-session-disclosure="codex:other" ${sessionDisclosureOpen("codex:other") ? "open" : ""}><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderCodexRows(other, "other")}</div></details>` : "",
     ].join("");
     const catalogSummary = `<div class="dc-session-catalog-summary"><span>Codex</span><strong>${reconciliation.bindings.length} ${lang("detected sessions", "erkannte Sessions")}</strong><small>${current.length} ${lang("assigned to this project", "diesem Projekt zugeordnet")} · ${unattributed.length} ${lang("unassigned", "nicht zugeordnet")}</small></div>`;
     const runtimeWorkspace = reconciliation.runtimeWorkspaceEvidence;
@@ -476,7 +481,7 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
           <small>${direct.codexObservations} ${lang("Codex observations", "Codex-Beobachtungen")} · ${direct.codexObservationsWithThreadId} ${lang("with thread id", "mit Thread-ID")} · ${direct.observationsMatchingRegisteredProjectIdentity} ${lang("matching registered project identity", "mit passender registrierter Projektidentität")} · ${direct.observationsMatchingRegisteredProjectPath} ${lang("matching registered project path", "mit passendem registrierten Projektpfad")} · ${direct.distinctObservationThreadIdsMatchingCatalog} ${lang("thread ids found in provider catalog", "Thread-IDs im Provider-Katalog gefunden")} · ${direct.bindingsUsingDirectContext} ${lang("direct bindings", "direkte Bindungen")}${direct.bindingsWithDirectContextConflict ? ` · ${direct.bindingsWithDirectContextConflict} ${lang("conflicts", "Konflikte")}` : ""}</small>
         </div>`
       : `<div class="dc-direct-evidence-summary missing"><span>${lang("Direct Provider Context evidence", "Direkte Provider-Context-Evidence")}</span><small>${lang("No evidence diagnostics returned by the runtime.", "Die Runtime hat keine Evidence-Diagnosedaten zurückgegeben.")}</small></div>`;
-    const technicalDetails = `<details class="dc-session-technical-details"><summary><span>${lang("Technical details", "Technische Details")}</span><small>${other.length} ${lang("sessions assigned to other registered projects", "Sessions anderen registrierten Projekten zugeordnet")}</small><i>⌄</i></summary><div>${runtimeWorkspaceSummary}${providerProjectSummary}${directSummary}</div></details>`;
+    const technicalDetails = `<details class="dc-session-technical-details" data-dc-session-disclosure="codex:technical" ${sessionDisclosureOpen("codex:technical") ? "open" : ""}><summary><span>${lang("Technical details", "Technische Details")}</span><small>${other.length} ${lang("sessions assigned to other registered projects", "Sessions anderen registrierten Projekten zugeordnet")}</small><i>⌄</i></summary><div>${runtimeWorkspaceSummary}${providerProjectSummary}${directSummary}</div></details>`;
     return `${catalogSummary}${currentBody}${diagnosticsGroups}${technicalDetails}`;
   }
 
@@ -526,8 +531,8 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
   }
   return [
     current.length ? `<section class="dc-session-section"><div class="dc-session-section-head"><span>${lang("Assigned to this project", "Diesem Projekt zugeordnet")}</span><strong>${current.length}</strong></div>${renderHookRows(current, "current")}</section>` : "",
-    unattributed.length ? `<details class="dc-session-diagnostic-group warning"><summary><span>${lang("Unassigned sessions", "Nicht zugeordnete Sessions")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderHookRows(unattributed, "unattributed")}</div></details>` : "",
-    other.length ? `<details class="dc-session-diagnostic-group"><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderHookRows(other, "other")}</div></details>` : "",
+    unattributed.length ? `<details class="dc-session-diagnostic-group warning" data-dc-session-disclosure="${provider}:unattributed" ${sessionDisclosureOpen(`${provider}:unattributed`) ? "open" : ""}><summary><span>${lang("Unassigned sessions", "Nicht zugeordnete Sessions")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderHookRows(unattributed, "unattributed")}</div></details>` : "",
+    other.length ? `<details class="dc-session-diagnostic-group" data-dc-session-disclosure="${provider}:other" ${sessionDisclosureOpen(`${provider}:other`) ? "open" : ""}><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderHookRows(other, "other")}</div></details>` : "",
   ].join("");
 };
 
@@ -620,6 +625,11 @@ const bind = (surface: HTMLElement) => {
     if (!provider) return;
     if (details.open) state.openProviders.add(provider);
     else state.openProviders.delete(provider);
+  }));
+  surface.querySelectorAll<HTMLDetailsElement>("[data-dc-session-disclosure]").forEach((details) => details.addEventListener("toggle", () => {
+    const key = details.dataset.dcSessionDisclosure;
+    if (!key) return;
+    state.sessionDisclosureState.set(key, details.open);
   }));
   surface.querySelectorAll<HTMLButtonElement>("[data-provider-session-action]").forEach((button) => button.addEventListener("click", async () => {
     const action = button.dataset.providerSessionAction as "assign" | "remove-manual" | "block-auto" | "allow-auto" | undefined;
