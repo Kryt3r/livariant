@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import { stdout } from "node:process";
 import { resolveCodexCommand } from "./codex-command.js";
 import { connectCodexAppServer } from "./codex-runtime.js";
@@ -27,7 +28,8 @@ interface ProviderContextObservation {
   providerSessionId: string;
   providerThreadId: string | null;
   projectPath: string;
-  stableProjectIdentity: string;
+  providerWorkspacePaths: string[];
+  stableProjectIdentity: string | null;
   observedAt: string;
 }
 
@@ -63,10 +65,34 @@ function parseContextObservations(value: unknown): ProviderContextObservation[] 
       providerSessionId: requireText(item.providerSessionId, `contextObservations[${index}].providerSessionId`),
       providerThreadId: optionalText(item.providerThreadId, `contextObservations[${index}].providerThreadId`),
       projectPath: requireText(item.projectPath, `contextObservations[${index}].projectPath`),
-      stableProjectIdentity: requireText(item.stableProjectIdentity, `contextObservations[${index}].stableProjectIdentity`),
+      providerWorkspacePaths: item.providerWorkspacePaths === undefined
+        ? []
+        : (() => {
+            if (!Array.isArray(item.providerWorkspacePaths)) {
+              throw new Error(`contextObservations[${index}].providerWorkspacePaths must be an array.`);
+            }
+            return item.providerWorkspacePaths.map((value, pathIndex) =>
+              requireText(value, `contextObservations[${index}].providerWorkspacePaths[${pathIndex}]`)
+            );
+          })(),
+      stableProjectIdentity: optionalText(item.stableProjectIdentity, `contextObservations[${index}].stableProjectIdentity`),
       observedAt: requireText(item.observedAt, `contextObservations[${index}].observedAt`),
     };
   });
+}
+
+function normalizedPath(value: string): string {
+  return resolve(value);
+}
+
+function pathsOverlap(projectRoot: string, evidencePath: string): boolean {
+  if (!isAbsolute(projectRoot) || !isAbsolute(evidencePath)) return false;
+  const project = normalizedPath(projectRoot);
+  const evidence = normalizedPath(evidencePath);
+  const fromProject = relative(project, evidence);
+  const fromEvidence = relative(evidence, project);
+  const inside = (value: string) => value === "" || (!value.startsWith("..") && !isAbsolute(value));
+  return inside(fromProject) || inside(fromEvidence);
 }
 
 function applyDirectProviderContextEvidence(
@@ -81,9 +107,13 @@ function applyDirectProviderContextEvidence(
 
     const directProjects = new Map<string, ProviderProjectDescriptor>();
     for (const observation of matching) {
+      const workspaceCandidates = [observation.projectPath, ...observation.providerWorkspacePaths];
       for (const project of projects) {
-        if (project.stableProjectIdentity === observation.stableProjectIdentity
-          || project.projectId === observation.stableProjectIdentity) {
+        const identityMatches = observation.stableProjectIdentity !== null
+          && (project.stableProjectIdentity === observation.stableProjectIdentity
+            || project.projectId === observation.stableProjectIdentity);
+        const pathMatches = workspaceCandidates.some((candidate) => pathsOverlap(project.localRoot, candidate));
+        if (identityMatches || pathMatches) {
           directProjects.set(project.desktopProjectId, project);
         }
       }
@@ -179,14 +209,19 @@ async function main(): Promise<void> {
       projects.flatMap((project) => [project.stableProjectIdentity, project.projectId]).filter((value): value is string => value !== null),
     );
     const projectMatchedObservations = codexThreadObservations.filter(
-      (observation) => knownProjectIdentities.has(observation.stableProjectIdentity),
+      (observation) => observation.stableProjectIdentity !== null
+        && knownProjectIdentities.has(observation.stableProjectIdentity),
     );
+    const pathMatchedObservations = codexThreadObservations.filter((observation) => {
+      const workspaceCandidates = [observation.projectPath, ...observation.providerWorkspacePaths];
+      return projects.some((project) => workspaceCandidates.some((candidate) => pathsOverlap(project.localRoot, candidate)));
+    });
     stdout.write(JSON.stringify({
       schemaVersion: 1,
       state: "ready",
       provider: "codex",
       observedAt: new Date().toISOString(),
-      detail: "Codex persisted threads were reconciled using direct Livariant Provider Context evidence first, then provider-owned runtime workspace roots, then provider-owned Codex project metadata, with provider-owned cwd as final fallback.",
+      detail: "Codex persisted threads were reconciled using direct MCP tool-call thread/workspace evidence first, then provider-owned runtime workspace roots, then provider-owned Codex project metadata, with provider-owned cwd as final fallback.",
       runtimeWorkspaceEvidence: {
         threadsWithRuntimeWorkspaceRoots: threads.filter((thread) => thread.runtimeWorkspaceRoots.length > 0).length,
         distinctRuntimeWorkspaceRoots: new Set(threads.flatMap((thread) => thread.runtimeWorkspaceRoots)).size,
@@ -204,6 +239,7 @@ async function main(): Promise<void> {
         codexObservations: codexObservations.length,
         codexObservationsWithThreadId: codexThreadObservations.length,
         observationsMatchingRegisteredProjectIdentity: projectMatchedObservations.length,
+        observationsMatchingRegisteredProjectPath: pathMatchedObservations.length,
         distinctObservationThreadIdsMatchingCatalog: matchedObservationThreadIds.size,
         bindingsUsingDirectContext: bindings.filter((binding) => binding.attribution === "provider-context").length,
         bindingsWithDirectContextConflict: bindings.filter((binding) => binding.attribution === "provider-context-conflict").length,
