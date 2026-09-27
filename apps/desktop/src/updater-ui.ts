@@ -170,11 +170,18 @@ let cachedResult: UpdateResult | null = null;
 let busy: "checking" | "installing" | null = null;
 let progress: UpdateProgress | null = null;
 
-const updatesVisible = () => document.querySelector(".nav-item.active[data-view='updates']") !== null;
+const updateSurfaceRoot = (): HTMLElement | null =>
+  document.querySelector<HTMLElement>("[data-settings-surface='updates']")
+  ?? (document.querySelector(".nav-item.active[data-view='updates']")
+    ? document.querySelector<HTMLElement>(".content")
+    : null);
 
-const updateStatusPanel = () => document.querySelector<HTMLElement>(
-  ".content .updates-status-card, .content .progress-panel",
-);
+const updatesVisible = () => updateSurfaceRoot() !== null;
+
+const updateStatusPanel = () => {
+  const root = updateSurfaceRoot();
+  return root?.querySelector<HTMLElement>(".settings-status-hero, .updates-status-card, .progress-panel") ?? null;
+};
 
 const setText = (node: HTMLElement | null | undefined, value: string) => {
   if (node && node.textContent !== value) node.textContent = value;
@@ -182,9 +189,16 @@ const setText = (node: HTMLElement | null | undefined, value: string) => {
 
 const setCopy = (eyebrow: string, title: string, detail: string) => {
   const panel = updateStatusPanel();
-  setText(panel?.querySelector<HTMLElement>(".eyebrow"), eyebrow);
-  setText(panel?.querySelector<HTMLElement>("h2"), title);
-  setText(panel?.querySelector<HTMLElement>("p"), detail);
+  if (!panel) return;
+  if (panel.classList.contains("settings-status-hero")) {
+    setText(panel.querySelector<HTMLElement>("small"), eyebrow);
+    setText(panel.querySelector<HTMLElement>("strong"), title);
+    setText(panel.querySelector<HTMLElement>("span"), detail);
+    return;
+  }
+  setText(panel.querySelector<HTMLElement>(".eyebrow"), eyebrow);
+  setText(panel.querySelector<HTMLElement>("h2"), title);
+  setText(panel.querySelector<HTMLElement>("p"), detail);
 };
 
 const preferredNotes = (notes: LocalizedReleaseNotes | null): ReleaseNotesLocale | null => {
@@ -377,7 +391,8 @@ const reconcile = () => {
   if (!updatesVisible()) return;
   const values = copy();
 
-  const checkButton = document.querySelector<HTMLButtonElement>(".check-updates");
+  const root = updateSurfaceRoot();
+  const checkButton = root?.querySelector<HTMLButtonElement>(".check-updates") ?? null;
   if (checkButton) {
     checkButton.disabled = busy !== null;
     checkButton.hidden = cachedResult?.state === "available" && busy === null;
@@ -387,7 +402,7 @@ const reconcile = () => {
   const signedIdentity = document.querySelector<HTMLElement>(".steps .step-card:first-child .state-pill");
   if (signedIdentity) signedIdentity.textContent = values.configured;
 
-  let installButton = document.querySelector<HTMLButtonElement>(".install-update");
+  let installButton = root?.querySelector<HTMLButtonElement>(".install-update") ?? null;
 
   if (busy === "installing") {
     installButton?.remove();
@@ -541,10 +556,13 @@ new MutationObserver(() => reconcile()).observe(document.documentElement, {
 
 let workspaceScheduled = false;
 new MutationObserver((mutations) => {
-  const workspaceAdded = mutations.some((mutation) => [...mutation.addedNodes].some((node) =>
-    node instanceof Element && (node.matches(".updates-workspace") || Boolean(node.querySelector(".updates-workspace"))),
+  const updaterSurfaceAdded = mutations.some((mutation) => [...mutation.addedNodes].some((node) =>
+    node instanceof Element && (
+      node.matches(".updates-workspace, [data-settings-surface='updates']")
+      || Boolean(node.querySelector(".updates-workspace, [data-settings-surface='updates']"))
+    ),
   ));
-  if (!workspaceAdded || workspaceScheduled) return;
+  if (!updaterSurfaceAdded || workspaceScheduled) return;
   workspaceScheduled = true;
   requestAnimationFrame(() => {
     workspaceScheduled = false;
