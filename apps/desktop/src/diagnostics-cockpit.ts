@@ -621,7 +621,7 @@ const bind = (surface: HTMLElement) => {
     else state.openProviders.delete(provider);
   }));
   surface.querySelectorAll<HTMLButtonElement>("[data-provider-session-action]").forEach((button) => button.addEventListener("click", async () => {
-    const action = button.dataset.providerSessionAction as "assign" | "unassign" | "automatic" | undefined;
+    const action = button.dataset.providerSessionAction as "assign" | "remove-manual" | "block-auto" | "allow-auto" | undefined;
     const provider = button.dataset.provider as "codex" | "claude" | "gemini" | undefined;
     const providerItemId = button.dataset.providerItemId;
     if (!action || !provider || !providerItemId || button.disabled) return;
@@ -631,8 +631,8 @@ const bind = (surface: HTMLElement) => {
     try {
       if (action === "assign") {
         await invoke("assign_provider_session_to_active_project", { provider, providerItemId });
-      } else if (action === "unassign") {
-        await invoke("unassign_provider_session", { provider, providerItemId });
+      } else if (action === "block-auto") {
+        await invoke("block_provider_session_automatic_assignment", { provider, providerItemId });
       } else {
         await invoke("clear_provider_session_manual_decision", { provider, providerItemId });
       }
@@ -641,9 +641,11 @@ const bind = (surface: HTMLElement) => {
       if (generation !== projectActivationGeneration) return;
       state.notice = action === "assign"
         ? lang("Session assigned to this project.", "Session wurde diesem Projekt zugeordnet.")
-        : action === "unassign"
-          ? lang("Session assignment removed.", "Session-Zuordnung wurde entfernt.")
-          : lang("Automatic assignment is enabled again.", "Automatische Zuordnung ist wieder aktiviert.");
+        : action === "remove-manual"
+          ? lang("Manual assignment removed. Automatic attribution is active again.", "Manuelle Zuordnung entfernt. Die automatische Zuordnung ist wieder aktiv.")
+          : action === "block-auto"
+            ? lang("Automatic assignment blocked for this session.", "Automatische Zuordnung für diese Session blockiert.")
+            : lang("Automatic assignment is enabled again.", "Automatische Zuordnung ist wieder aktiviert.");
     } catch (cause) {
       if (generation !== projectActivationGeneration) return;
       state.error = lang("The session assignment could not be changed. Existing assignments were kept; try again.", "Die Session-Zuordnung konnte nicht geändert werden. Bestehende Zuordnungen wurden beibehalten; versuche es erneut.");
