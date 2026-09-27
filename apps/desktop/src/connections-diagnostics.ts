@@ -724,7 +724,7 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
     const previousError = error;
     checkingConnector = true;
     setRefreshVisualState(true);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_status"); error = null; notifyConnectionHealthChanged(); }
+    try { connector = await invoke<ConnectorStatus>("codex_connector_status"); await refreshCodexMcp(); error = null; notifyConnectionHealthChanged(); }
     catch (_cause) { error = connectionSurfaceError("connector"); }
     finally {
       checkingConnector = false;
@@ -735,16 +735,49 @@ export function bindConnectionDiagnosticsEvents(rerender: () => void): void {
 
   document.querySelector<HTMLButtonElement>(".connector-connect")?.addEventListener("click", async () => {
     connectorAction = "connect"; error = null; rerenderConnectionsSurface(rerender);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); notifyConnectionHealthChanged(); }
+    try { connector = await invoke<ConnectorStatus>("codex_connector_connect", { manualPath: null }); await refreshCodexMcp(); notifyConnectionHealthChanged(); }
     catch (_cause) { error = connectionSurfaceError("connector"); }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
   });
 
   document.querySelector<HTMLButtonElement>(".connector-disconnect")?.addEventListener("click", async () => {
     connectorAction = "disconnect"; error = null; rerenderConnectionsSurface(rerender);
-    try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); notifyConnectionHealthChanged(); }
+    try { connector = await invoke<ConnectorStatus>("codex_connector_disconnect"); codexMcp = null; codexMcpError = null; notifyConnectionHealthChanged(); }
     catch (_cause) { error = connectionSurfaceError("connector"); }
     finally { connectorAction = null; rerenderConnectionsSurface(rerender); }
+  });
+
+
+  document.querySelector<HTMLButtonElement>(".codex-mcp-connect")?.addEventListener("click", async () => {
+    if (codexMcpBusy) return;
+    codexMcpBusy = "connect";
+    codexMcpError = null;
+    rerenderConnectionsSurface(rerender);
+    try {
+      codexMcp = await invoke<CodexMcpIntegrationStatus>("codex_mcp_integration_connect");
+      notifyConnectionHealthChanged();
+    } catch {
+      codexMcpError = codexMcpErrorCopy();
+    } finally {
+      codexMcpBusy = null;
+      rerenderConnectionsSurface(rerender);
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>(".codex-mcp-disconnect")?.addEventListener("click", async () => {
+    if (codexMcpBusy) return;
+    codexMcpBusy = "disconnect";
+    codexMcpError = null;
+    rerenderConnectionsSurface(rerender);
+    try {
+      codexMcp = await invoke<CodexMcpIntegrationStatus>("codex_mcp_integration_disconnect");
+      notifyConnectionHealthChanged();
+    } catch {
+      codexMcpError = codexMcpErrorCopy();
+    } finally {
+      codexMcpBusy = null;
+      rerenderConnectionsSurface(rerender);
+    }
   });
 
   const activeLocalProvider = (): LocalProviderId | null =>
