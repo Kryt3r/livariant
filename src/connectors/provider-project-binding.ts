@@ -21,6 +21,9 @@ export interface CodexThreadProjectBinding {
   sessionId: string;
   cwd: string;
   providerProjectId: string | null;
+  name?: string | null;
+  preview?: string;
+  updatedAt?: number;
   project: ProviderProjectDescriptor | null;
   attribution: "manual" | "user-unassigned" | "manual-project-unavailable" | "provider-context" | "provider-context-conflict" | "provider-workspace" | "provider-workspace-conflict" | "provider-project" | "provider-project-conflict" | "cwd-exact" | "cwd-descendant" | "unattributed";
 }
@@ -66,6 +69,9 @@ export function bindCodexThreadsToProjects(
         sessionId: thread.sessionId,
         cwd: thread.cwd,
         providerProjectId: thread.projectId,
+        name: thread.name,
+        preview: thread.preview,
+        updatedAt: thread.updatedAt,
         project: null,
         attribution: "unattributed" as const,
       };
@@ -76,6 +82,9 @@ export function bindCodexThreadsToProjects(
       sessionId: thread.sessionId,
       cwd: thread.cwd,
       providerProjectId: thread.projectId,
+      name: thread.name,
+      preview: thread.preview,
+      updatedAt: thread.updatedAt,
       project: { ...first.project },
       attribution: first.exact ? "cwd-exact" as const : "cwd-descendant" as const,
     };
