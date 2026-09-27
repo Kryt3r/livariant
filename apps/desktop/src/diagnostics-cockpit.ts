@@ -580,6 +580,37 @@ const bind = (surface: HTMLElement) => {
     if (details.open) state.openProviders.add(provider);
     else state.openProviders.delete(provider);
   }));
+  surface.querySelectorAll<HTMLButtonElement>("[data-provider-session-action]").forEach((button) => button.addEventListener("click", async () => {
+    const action = button.dataset.providerSessionAction as "assign" | "unassign" | "automatic" | undefined;
+    const provider = button.dataset.provider as "codex" | "claude" | "gemini" | undefined;
+    const providerItemId = button.dataset.providerItemId;
+    if (!action || !provider || !providerItemId || button.disabled) return;
+    const generation = projectActivationGeneration;
+    button.disabled = true;
+    state.error = null;
+    try {
+      if (action === "assign") {
+        await invoke("assign_provider_session_to_active_project", { provider, providerItemId });
+      } else if (action === "unassign") {
+        await invoke("unassign_provider_session", { provider, providerItemId });
+      } else {
+        await invoke("clear_provider_session_manual_decision", { provider, providerItemId });
+      }
+      if (generation !== projectActivationGeneration) return;
+      await refreshSessionEvidence();
+      if (generation !== projectActivationGeneration) return;
+      state.notice = action === "assign"
+        ? lang("Session assigned to this project.", "Session wurde diesem Projekt zugeordnet.")
+        : action === "unassign"
+          ? lang("Session assignment removed.", "Session-Zuordnung wurde entfernt.")
+          : lang("Automatic assignment is enabled again.", "Automatische Zuordnung ist wieder aktiviert.");
+    } catch (cause) {
+      if (generation !== projectActivationGeneration) return;
+      state.error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      if (generation === projectActivationGeneration && state.data) renderCockpit(surface);
+    }
+  }));
   surface.querySelector<HTMLSelectElement>(".dc-preset")?.addEventListener("change", (event) => {
     const next = (event.currentTarget as HTMLSelectElement).value as DiagnosticPreset;
     if (!(["1d","7d","30d","90d","all"] as string[]).includes(next)) return;
