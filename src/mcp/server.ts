@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProviderContext } from "../runtime/provider-context.js";
 import { processProviderReturn } from "../runtime/provider-return.js";
@@ -46,6 +47,8 @@ interface ToolCallParams {
   name: string;
   arguments: Record<string, unknown>;
   providerThreadId?: string;
+  providerSessionId?: string;
+  providerWorkspacePaths: string[];
 }
 
 function plainObject(value: unknown): value is Record<string, unknown> {
@@ -121,6 +124,28 @@ function parseReturnToolArguments(value: unknown): { context: Record<string, unk
   return { context: value.context, providerReturn: value.providerReturn };
 }
 
+function boundedProviderMetaText(value: unknown, field: string, max = 8192): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > max || /[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new Error(`${field} is invalid.`);
+  }
+  return normalized;
+}
+
+function providerWorkspacePath(value: unknown, field: string): string | undefined {
+  const text = boundedProviderMetaText(value, field);
+  if (!text) return undefined;
+  if (text.startsWith("file:")) {
+    try {
+      return fileURLToPath(text);
+    } catch {
+      throw new Error(`${field} contains an invalid file URI.`);
+    }
+  }
+  return text;
+}
+
 function parseToolCallParams(value: unknown): ToolCallParams {
   if (!plainObject(value)) throw new Error("tools/call params must be an object.");
   strictKeys(value, ["name", "arguments", "_meta"], ["name"]);
@@ -130,18 +155,38 @@ function parseToolCallParams(value: unknown): ToolCallParams {
   if (!plainObject(args)) throw new Error("tools/call arguments must be an object.");
 
   let providerThreadId: string | undefined;
-  if (plainObject(value._meta) && "threadId" in value._meta) {
-    if (typeof value._meta.threadId !== "string") throw new Error("tools/call _meta.threadId must be a string when present.");
-    const normalized = value._meta.threadId.trim();
-    if (normalized.length === 0 || normalized.length > 240 || /[\u0000-\u001f\u007f]/.test(normalized)) {
-      throw new Error("tools/call _meta.threadId is invalid.");
+  let providerSessionId: string | undefined;
+  const providerWorkspacePaths = new Set<string>();
+  if (plainObject(value._meta)) {
+    providerThreadId = boundedProviderMetaText(value._meta.threadId, "tools/call _meta.threadId", 240);
+    providerSessionId = boundedProviderMetaText(value._meta.sessionId, "tools/call _meta.sessionId", 240);
+
+    const sandboxState = value._meta["codex/sandbox-state-meta"];
+    if (sandboxState !== undefined) {
+      if (!plainObject(sandboxState)) throw new Error("tools/call Codex sandbox state metadata must be an object.");
+      const sandboxCwd = providerWorkspacePath(sandboxState.sandbox_cwd, "tools/call Codex sandbox cwd");
+      if (sandboxCwd) providerWorkspacePaths.add(sandboxCwd);
     }
-    providerThreadId = normalized;
+
+    const turnMetadata = value._meta["x-codex-turn-metadata"];
+    if (turnMetadata !== undefined) {
+      if (!plainObject(turnMetadata)) throw new Error("tools/call Codex turn metadata must be an object.");
+      const workspaces = turnMetadata.workspaces;
+      if (workspaces !== undefined) {
+        if (!plainObject(workspaces)) throw new Error("tools/call Codex turn workspaces must be an object.");
+        for (const workspacePath of Object.keys(workspaces).slice(0, 16)) {
+          const normalized = providerWorkspacePath(workspacePath, "tools/call Codex workspace path");
+          if (normalized) providerWorkspacePaths.add(normalized);
+        }
+      }
+    }
   }
   return {
     name: value.name,
     arguments: args,
     ...(providerThreadId === undefined ? {} : { providerThreadId }),
+    ...(providerSessionId === undefined ? {} : { providerSessionId }),
+    providerWorkspacePaths: [...providerWorkspacePaths],
   };
 }
 
@@ -297,7 +342,10 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         lifecycle = "initializing";
         return response(id, {
           protocolVersion: MCP_PROTOCOL_VERSION,
-          capabilities: { tools: { listChanged: false } },
+          capabilities: {
+            tools: { listChanged: false },
+            experimental: { "codex/sandbox-state-meta": {} },
+          },
           serverInfo: {
             name: "livariant",
             title: "Livariant Local MCP Agent Bridge",
@@ -351,8 +399,24 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         if (call.name === MCP_CONTEXT_TOOL) {
           try {
             const args = parseContextToolArguments(call.arguments);
-            const result = await buildProviderContext(args.provider, args.task, projectPath, {
-              providerSessionId,
+            const effectiveProjectPath = call.providerWorkspacePaths[0] ?? projectPath;
+
+            if (args.provider === "codex" && (call.providerThreadId !== undefined || call.providerWorkspacePaths.length > 0)) {
+              try {
+                await appendProviderContextSessionObservation(providerContextSessionObservation({
+                  provider: args.provider,
+                  providerSessionId: call.providerSessionId ?? providerSessionId,
+                  ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
+                  projectPath: effectiveProjectPath,
+                  providerWorkspacePaths: call.providerWorkspacePaths,
+                }));
+              } catch (observationError) {
+                process.stderr.write(`Livariant provider-session pre-context observation warning: ${observationError instanceof Error ? observationError.message : String(observationError)}\n`);
+              }
+            }
+
+            const result = await buildProviderContext(args.provider, args.task, effectiveProjectPath, {
+              providerSessionId: call.providerSessionId ?? providerSessionId,
               providerThreadId: call.providerThreadId,
             });
             if (result.state === "ready" && typeof result.packetId === "string") {
@@ -367,7 +431,8 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
                     provider: args.provider,
                     providerSessionId: result.providerSession.id,
                     ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
-                    projectPath,
+                    projectPath: effectiveProjectPath,
+                    providerWorkspacePaths: call.providerWorkspacePaths,
                     stableProjectIdentity: result.stableProjectIdentity,
                     observedAt: result.generatedAt,
                   }));
