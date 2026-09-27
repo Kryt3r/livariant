@@ -43,10 +43,10 @@ test("Codex connection UI keeps App Server and Livariant MCP integration explici
   assert.match(source, /kein Livariant-Projekt ausgewählt oder geroutet/);
   assert.match(source, /App Server/);
 
-  assert.match(host, /["mcp", "get", "livariant", "--json"]/);
-  assert.match(host, /["mcp", "add", "livariant", "--"/);
-  assert.match(host, /["mcp", "remove", "livariant"]/);
-  assert.match(host, /runtime[sS]*core[sS]*dist[sS]*src[sS]*cli[sS]*index.js/);
+  assert.ok(host.includes('["mcp", "get", "livariant", "--json"]'));
+  assert.ok(host.includes('["mcp", "add", "livariant", "--"'));
+  assert.ok(host.includes('["mcp", "remove", "livariant"]'));
+  for (const segment of ["runtime", "core", "dist", "src", "cli", "index.js"]) assert.ok(host.includes(segment));
   assert.match(host, /expectedRuntime/);
   assert.match(host, /does not point to this Livariant Desktop runtime/);
   assert.match(host, /will not remove an MCP entry it cannot verify as its own/);
