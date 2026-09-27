@@ -37,7 +37,7 @@ const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).hr
 const appWindow = getCurrentWindow();
 const uiText = (en: string, de: string) => getLanguage() === "de" ? de : en;
 
-type View = "steps" | "updates" | "connections" | "diagnostics";
+type View = "overview" | "steps" | "updates" | "connections" | "diagnostics";
 type SettingsSection = "general" | "projects" | "connections" | "updates" | "system" | "about";
 type NoticeKind = "info" | "success" | "warning" | "error";
 type AreaState = "open" | "deferred" | "review" | "confirmed";
@@ -119,7 +119,7 @@ const areas: TruthArea[] = [
   },
 ];
 
-let currentView: View = "steps";
+let currentView: View = "overview";
 let settingsOpen = false;
 let settingsSection: SettingsSection = "general";
 let truthFilter: TruthFilter = "all";
@@ -598,6 +598,7 @@ const renderUpdatesView = () => {
 };
 
 const renderContent = () => {
+  if (currentView === "overview") return '<div data-shell-overview-host></div>';
   if (currentView === "updates") return renderUpdatesView();
   if (currentView === "connections") return renderConnectionsView();
   if (currentView === "diagnostics") return `<div class="diagnostics-surface" data-surface="diagnostics" data-diagnostics-preset="30d"></div>`;
@@ -749,7 +750,7 @@ const render = () => {
       <div class="app-shell"><aside class="sidebar">
         <div class="brand"><div class="brand-mark" style="overflow:hidden;border:0;background:transparent;box-shadow:none;"><img src="${livariantLogo}" alt="Livariant logo" style="width:100%;height:100%;object-fit:contain;display:block;"/></div><div><strong>Livariant</strong><small>${uiText("Project context", "Projektkontext")}</small></div></div>
         <nav class="nav" aria-label="Primary navigation">
-          <button class="nav-item">${icon("home")}<span>Overview</span></button>
+          <button class="nav-item ${currentView === "overview" ? "active" : ""}" data-view="overview">${icon("home")}<span>Overview</span></button>
           <button class="nav-item ${currentView === "steps" ? "active" : ""}" data-view="steps">${icon("steps")}<span>${uiText("Project knowledge", "Projektwissen")}</span><b>${attentionCount}</b></button>
           <button class="nav-item ${currentView === "diagnostics" ? "active" : ""}" data-view="diagnostics">${icon("diagnostics")}<span>Diagnostics</span></button>
           <button class="nav-item ${currentView === "updates" ? "active" : ""}" data-view="updates">${icon("updates")}<span>Updates</span></button>
@@ -804,7 +805,7 @@ const bindEvents = () => {
   document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       const view = button.dataset.view;
-      if (view === "steps" || view === "updates" || view === "connections" || view === "diagnostics") void activateView(view);
+      if (view === "overview" || view === "steps" || view === "updates" || view === "connections" || view === "diagnostics") void activateView(view);
     });
   });
 
