@@ -24,18 +24,14 @@ permissions:
 jobs:
   preview-update:
     name: Build signed Windows preview update
+    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
     defaults:
       run:
         working-directory: apps/desktop
     env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       LIVARIANT_GITHUB_CLIENT_ID: ${{ vars.LIVARIANT_GITHUB_CLIENT_ID }}
       LIVARIANT_PRIVACY_NOTICE_URL: ${{ vars.LIVARIANT_PRIVACY_NOTICE_URL }}
-      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-      WINDOWS_CODE_SIGNING_TIMESTAMP_URL: ${{ vars.WINDOWS_CODE_SIGNING_TIMESTAMP_URL }}
 
     steps:
       - name: Validate requested source identity
@@ -51,8 +47,10 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Resolve exact source identity
+      - name: Resolve exact source identity and require canonical main ancestry
         id: source
         shell: pwsh
         run: |
@@ -61,11 +59,20 @@ jobs:
           if ($actual -ne $expected) {
             throw "Checkout identity mismatch. Expected $expected, got $actual."
           }
+
+          git merge-base --is-ancestor $actual origin/main
+          if ($LASTEXITCODE -ne 0) {
+            throw "Requested source SHA is not an ancestor of canonical origin/main. Refusing to expose release credentials to unreviewed source."
+          }
+
           "sha=$actual" >> $env:GITHUB_OUTPUT
           Write-Host "Exact source SHA: $actual"
 
       - name: Require updater signing custody
         shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
             throw "TAURI_SIGNING_PRIVATE_KEY is not configured."
@@ -103,6 +110,10 @@ jobs:
         id: authenticode
         if: ${{ inputs.publish_preview && inputs.windows_authenticode }}
         shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_CODE_SIGNING_TIMESTAMP_URL: ${{ vars.WINDOWS_CODE_SIGNING_TIMESTAMP_URL }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) {
             throw "WINDOWS_CERTIFICATE is required to publish a Windows preview. Configure a base64-encoded CA-issued code-signing PFX."
@@ -266,10 +277,16 @@ jobs:
 
       - name: Build updater-signed artifacts without Windows publisher identity
         if: ${{ !inputs.publish_preview || !inputs.windows_authenticode }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri:build -- --config src-tauri/tauri.preview-update.conf.json --bundles nsis --ci -- --locked
 
       - name: Build Authenticode + updater signed publication artifacts
         if: ${{ inputs.publish_preview && inputs.windows_authenticode }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri:build -- --config src-tauri/tauri.preview-update.conf.json --config "${{ steps.authenticode.outputs.config }}" --bundles nsis --ci -- --locked
 
       - name: Resolve updater-signed bundle and immutable candidate identity
