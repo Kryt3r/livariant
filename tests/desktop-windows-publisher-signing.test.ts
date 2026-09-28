@@ -68,7 +68,6 @@ test("publisher certificate policy still rejects unusable identities before Auth
 });
 
 
-// Regression guard: privileged preview publication must remain bound to reviewed canonical main source.
 test("preview publication binds privileged build to canonical main source", async () => {
   const workflow = await read(".github/workflows/desktop-preview-update.yml");
 
