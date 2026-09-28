@@ -34,7 +34,7 @@ fn public_resource_url(resource: &str) -> Option<&'static str> {
         "repository" => Some("https://github.com/Kryt3r/livariant"),
         "issues" => Some("https://github.com/Kryt3r/livariant/issues"),
         "security" => Some("https://github.com/Kryt3r/livariant/security/policy"),
-        "imprint" => Some("https://www.einfachrobin.de/impressum"),
+        "imprint" => Some("https://livariant.dev/imprint/"),
         "privacy-notice" => privacy_notice_url(),
         "privacy-network" => Some("https://github.com/Kryt3r/livariant/blob/main/docs/privacy-and-network.md"),
         "license" => Some("https://github.com/Kryt3r/livariant/blob/main/LICENSE"),
@@ -72,7 +72,7 @@ mod tests {
     fn only_known_public_resources_are_openable() {
         assert_eq!(public_resource_url("repository"), Some("https://github.com/Kryt3r/livariant"));
         assert_eq!(public_resource_url("issues"), Some("https://github.com/Kryt3r/livariant/issues"));
-        assert_eq!(public_resource_url("imprint"), Some("https://www.einfachrobin.de/impressum"));
+        assert_eq!(public_resource_url("imprint"), Some("https://livariant.dev/imprint/"));
         assert_eq!(public_resource_url("privacy-network"), Some("https://github.com/Kryt3r/livariant/blob/main/docs/privacy-and-network.md"));
         assert_eq!(public_resource_url("privacy-notice"), privacy_notice_url());
         assert_eq!(public_resource_url("https://example.com"), None);

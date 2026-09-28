@@ -34,7 +34,7 @@ test("public-resource host command is fixed allowlist and cannot open renderer-s
   assert.match(host, /"repository" => Some\("https:\/\/github\.com\/Kryt3r\/livariant"\)/);
   assert.match(host, /"issues" => Some\("https:\/\/github\.com\/Kryt3r\/livariant\/issues"\)/);
   assert.match(host, /"security" => Some\("https:\/\/github\.com\/Kryt3r\/livariant\/security\/policy"\)/);
-  assert.match(host, /"imprint" => Some\("https:\/\/www\.einfachrobin\.de\/impressum"\)/);
+  assert.match(host, /"imprint" => Some\("https:\/\/livariant\.dev\/imprint\/"\)/);
   assert.match(host, /"privacy-notice" => privacy_notice_url\(\)/);
   assert.match(host, /"privacy-network" => Some/);
   assert.match(host, /LIVARIANT_PRIVACY_NOTICE_URL/);

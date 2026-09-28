@@ -137,8 +137,8 @@ export function renderAboutSupportSettingsView(): string {
 
           <article>
             <div><strong>${text("Imprint / provider information", "Impressum / Anbieterangaben")}</strong><p>${text(
-              "The official provider information is maintained on the maintainer's website. Livariant opens that fixed official destination.",
-              "Die offiziellen Anbieterangaben werden auf der Website des Maintainers gepflegt. Livariant öffnet dieses fest hinterlegte offizielle Ziel.",
+              "The official provider information is maintained on the Livariant website. Livariant opens that fixed official destination.",
+              "Die offiziellen Anbieterangaben werden auf der Livariant-Website gepflegt. Livariant öffnet dieses fest hinterlegte offizielle Ziel.",
             )}</p></div>
             ${resourceButton("imprint", "Open imprint", "Impressum öffnen")}
           </article>
