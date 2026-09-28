@@ -152,6 +152,7 @@ function connectionStatus() {
     launchSource: resolution?.source ?? null,
     connectionMode: selectedResolution ? selectedMode : "auto",
     configuredCommand: selectedResolution?.command ?? null,
+    configuredArgsPrefix: selectedResolution ? [...selectedResolution.argsPrefix] : [],
     capabilities: providerCapabilityMatrix("codex").capabilities,
     detail: lastRestoreError ? `Codex remains configured to reconnect, but automatic reconnection failed: ${lastRestoreError}` : baseDetail,
   };
