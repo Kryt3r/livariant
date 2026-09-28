@@ -57,13 +57,15 @@ test("social and Discord destinations are not exposed before real links exist", 
 });
 
 
-test("public Preview publication requires a formal privacy notice URL", async () => {
-  const workflow = await read(".github/workflows/desktop-preview-update.yml");
+test("Windows release-candidate and Preview builds carry the formal privacy notice URL", async () => {
+  const previewWorkflow = await read(".github/workflows/desktop-preview-update.yml");
+  const installerWorkflow = await read(".github/workflows/desktop-windows-installer.yml");
 
-  assert.match(workflow, /LIVARIANT_PRIVACY_NOTICE_URL: https:\/\/livariant\.dev\/privacy\//);
-  assert.match(workflow, /Require formal privacy notice for publication/);
-  assert.match(workflow, /if: \$\{\{ inputs\.publish_preview \}\}/);
-  assert.match(workflow, /LIVARIANT_PRIVACY_NOTICE_URL is required to publish a Windows preview/);
-  assert.match(workflow, /must be an absolute HTTPS URL/);
-  assert.match(workflow, /must use HTTPS and must not contain a fragment/);
+  assert.match(previewWorkflow, /LIVARIANT_PRIVACY_NOTICE_URL: https:\/\/livariant\.dev\/privacy\//);
+  assert.match(installerWorkflow, /LIVARIANT_PRIVACY_NOTICE_URL: https:\/\/livariant\.dev\/privacy\//);
+  assert.match(previewWorkflow, /Require formal privacy notice for publication/);
+  assert.match(previewWorkflow, /if: \$\{\{ inputs\.publish_preview \}\}/);
+  assert.match(previewWorkflow, /LIVARIANT_PRIVACY_NOTICE_URL is required to publish a Windows preview/);
+  assert.match(previewWorkflow, /must be an absolute HTTPS URL/);
+  assert.match(previewWorkflow, /must use HTTPS and must not contain a fragment/);
 });
