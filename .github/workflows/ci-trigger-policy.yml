@@ -11,6 +11,7 @@ on:
       - reopened
     branches:
       - main
+      - develop
 
 permissions:
   contents: read
