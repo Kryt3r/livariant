@@ -31,7 +31,7 @@ jobs:
         working-directory: apps/desktop
     env:
       LIVARIANT_GITHUB_CLIENT_ID: ${{ vars.LIVARIANT_GITHUB_CLIENT_ID }}
-      LIVARIANT_PRIVACY_NOTICE_URL: ${{ vars.LIVARIANT_PRIVACY_NOTICE_URL }}
+      LIVARIANT_PRIVACY_NOTICE_URL: https://livariant.dev/privacy/
 
     steps:
       - name: Validate requested source identity
