@@ -66,3 +66,27 @@ test("publisher certificate policy still rejects unusable identities before Auth
   const buildIndex = workflow.indexOf("Build Authenticode + updater signed publication artifacts");
   assert.ok(policyIndex >= 0 && buildIndex > policyIndex, "publisher certificate policy must be enforced before Authenticode build");
 });
+
+
+test("preview publication binds privileged build to canonical main source", async () => {
+  const workflow = await read(".github/workflows/desktop-preview-update.yml");
+
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /fetch-depth: 0/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /git merge-base --is-ancestor \$actual origin\/main/);
+  assert.match(workflow, /not an ancestor of canonical origin\/main/);
+});
+
+test("preview publication does not expose signing secrets job-wide", async () => {
+  const workflow = await read(".github/workflows/desktop-preview-update.yml");
+
+  const defaultsIndex = workflow.indexOf("defaults:");
+  const stepsIndex = workflow.indexOf("    steps:");
+  const jobHeader = workflow.slice(defaultsIndex, stepsIndex);
+  assert.doesNotMatch(jobHeader, /secrets\.TAURI_SIGNING_PRIVATE_KEY/);
+  assert.doesNotMatch(jobHeader, /secrets\.WINDOWS_CERTIFICATE/);
+
+  assert.match(workflow, /Require updater signing custody[\s\S]*?TAURI_SIGNING_PRIVATE_KEY: \$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY \}\}/);
+  assert.match(workflow, /Prepare Windows Authenticode signing for publication[\s\S]*?WINDOWS_CERTIFICATE: \$\{\{ secrets\.WINDOWS_CERTIFICATE \}\}/);
+});
