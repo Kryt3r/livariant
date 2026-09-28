@@ -41,6 +41,16 @@ type CodexStatus = {
   detail: string;
   connectionMode?: "auto" | "manual";
 };
+type CodexMcpIntegrationStatus = {
+  state: "registered" | "not-registered" | "conflict" | "unavailable";
+  registered: boolean;
+  expectedRuntime: boolean;
+  detail: string;
+};
+type CodexProviderConnectionResult = {
+  connection: CodexStatus;
+  mcp: CodexMcpIntegrationStatus;
+};
 type LocalProviderId = "claude" | "gemini" | "custom";
 type LocalProviderStatus = {
   provider: LocalProviderId;
@@ -180,8 +190,9 @@ function sources(state: FirstRunState, inspection: RepositoryInspection | null):
   return `<section class="fr-stage"><span class="fr-kicker">${text("Project sources", "Projektquellen")}</span><h1>${text("Confirm the repositories that belong to this project", "Bestätige die Repositories dieses Projekts")}</h1><p>${text("Livariant keeps the project folder and repository identity separate so that detected data is never accepted silently. One primary repository is required; additional repositories are optional.", "Livariant hält Projektordner und Repository-Identität getrennt, damit erkannte Daten niemals stillschweigend übernommen werden. Ein Hauptrepository ist erforderlich; weitere Repositories sind optional.")}</p>${configured}${primary}${additional}<div class="fr-actions"><button class="button secondary" data-fr-move="understanding" type="button">${text("Back", "Zurück")}</button><button class="button primary" data-fr-move="providers" type="button" ${registry ? "" : "disabled"}>${text("Continue", "Weiter")}</button></div></section>`;
 }
 
-function providers(state: FirstRunState, codex: CodexStatus | null, localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>>): string {
+function providers(state: FirstRunState, codex: CodexStatus | null, codexMcp: CodexMcpIntegrationStatus | null, localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>>): string {
   const connected = codex?.connected === true;
+  const codexReady = connected && codexMcp?.state === "registered";
   const available = codex?.installationState === "available";
   const stateLabel = connected ? text("Connected", "Verbunden") : available ? text("Ready", "Bereit") : text("Not ready", "Nicht bereit");
   const connectedProviderIds = [
@@ -189,7 +200,7 @@ function providers(state: FirstRunState, codex: CodexStatus | null, localProvide
     ...(["claude", "gemini", "custom"] as LocalProviderId[]).filter((provider) => localProviders[provider]?.connected),
   ];
   const automaticallyConnectable = [
-    ...(!connected && available ? ["codex"] : []),
+    ...(!codexReady && available ? ["codex"] : []),
     ...(["claude", "gemini"] as LocalProviderId[]).filter((provider) => {
       const status = localProviders[provider];
       return !status?.connected && status?.installationState === "available" && status.authState !== "unavailable";
@@ -217,12 +228,12 @@ function providers(state: FirstRunState, codex: CodexStatus | null, localProvide
   const codexFallback = codex && !connected && !available
     ? `<div class="fr-connect-options fr-provider-fallback"><label><span>${text("Codex executable path (optional fallback)", "Codex-Programmpfad (optionaler Fallback)")}</span><div><input data-fr-codex-path data-fr-focus="codex-path" placeholder="C:\\...\\codex.exe"/><button class="button secondary" data-fr-connect-codex-manual type="button">${text("Connect path", "Pfad verbinden")}</button></div></label></div>`
     : "";
-  const codexAction = available && !connected
-    ? `<button class="button primary fr-provider-connect-button" data-fr-connect-codex type="button">${text("Connect", "Verbinden")} <span aria-hidden="true">→</span></button>`
+  const codexAction = available && !codexReady
+    ? `<button class="button primary fr-provider-connect-button" data-fr-connect-codex type="button">${text(connected ? "Complete setup" : "Connect", connected ? "Einrichtung abschließen" : "Verbinden")} <span aria-hidden="true">→</span></button>`
     : "";
   return `<section class="fr-stage"><span class="fr-kicker">${text("LLM connections", "LLM-Verbindungen")}</span><h1>${text("Connect the providers Livariant found", "Verbinde die von Livariant gefundenen Anbieter")}</h1><p>${text("Livariant detects supported local providers first. Connect all available providers at once, connect one individually, or use a manual executable path only when automatic discovery did not find a usable installation.", "Livariant erkennt unterstützte lokale Anbieter zuerst automatisch. Verbinde alle verfügbaren Anbieter gemeinsam, einen einzelnen Anbieter oder nutze einen manuellen Programmpfad nur dann, wenn die automatische Erkennung keine nutzbare Installation findet.")}</p>
     <div class="fr-provider-list">
-      <div class="fr-provider-block"><article class="fr-provider-card fr-provider-card-mockup"><div class="fr-provider-icon fr-provider-icon-codex">${providerBrandLogo("codex")}</div><div class="fr-provider-copy"><small>OpenAI</small><strong>Codex</strong><span>${codex ? esc(codex.detail) : text("Checking local Codex…", "Lokales Codex wird geprüft…")}</span></div><div class="fr-provider-controls"><span class="fr-provider-state ${connected ? "ok" : available ? "ready" : "muted"}">${stateLabel}</span>${codexAction}</div></article>${codexFallback}</div>
+      <div class="fr-provider-block"><article class="fr-provider-card fr-provider-card-mockup"><div class="fr-provider-icon fr-provider-icon-codex">${providerBrandLogo("codex")}</div><div class="fr-provider-copy"><small>OpenAI</small><strong>Codex</strong><span>${codexReady ? text("Codex App Server and Livariant MCP are ready.", "Codex App Server und Livariant MCP sind bereit.") : connected && codexMcp ? esc(codexMcp.detail) : codex ? esc(codex.detail) : text("Checking local Codex…", "Lokales Codex wird geprüft…")}</span></div><div class="fr-provider-controls"><span class="fr-provider-state ${codexReady ? "ok" : available ? "ready" : "muted"}">${stateLabel}</span>${codexAction}</div></article>${codexFallback}</div>
       ${localCards}
     </div>
     ${automaticallyConnectable.length ? `<div class="fr-provider-connect-all"><button class="button primary" data-fr-connect-all-providers type="button">${text("Connect all available providers", "Alle verfügbaren Anbieter verbinden")}</button><small>${text(`${automaticallyConnectable.length} automatically detected provider(s) are ready.`, `${automaticallyConnectable.length} automatisch erkannte Anbieter sind bereit.`)}</small></div>` : ""}
@@ -237,15 +248,15 @@ function health(state: FirstRunState, snapshot: FirstRunLifecycleSnapshot): stri
     <div class="fr-boundary"><strong>${text("Changes remain controlled", "Änderungen bleiben kontrolliert")}</strong><p>${text("Finishing setup does not let Livariant or a connected AI change project files automatically. Changes still require the normal Livariant approval path.", "Das Abschließen der Einrichtung erlaubt Livariant oder einer verbundenen KI nicht, Projektdateien automatisch zu verändern. Für Änderungen gilt weiterhin der normale Livariant-Freigabepfad.")}</p><p>${text("When Livariant opens, a short optional tour will show you where the most important areas are. You can skip it or start it again later from Settings.", "Wenn Livariant geöffnet wird, zeigt dir eine kurze optionale Tour die wichtigsten Bereiche. Du kannst sie überspringen oder später in den Einstellungen erneut starten.")}</p></div><div class="fr-actions"><button class="button secondary" data-fr-move="providers" type="button">${text("Back", "Zurück")}</button><button class="button primary" data-fr-complete type="button">${text("Finish and open Livariant", "Abschließen und Livariant öffnen")}</button></div></section>`;
 }
 
-function stage(state: FirstRunState, snapshot: FirstRunLifecycleSnapshot, codex: CodexStatus | null, localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>>, force: boolean, inspection: RepositoryInspection | null): string {
+function stage(state: FirstRunState, snapshot: FirstRunLifecycleSnapshot, codex: CodexStatus | null, codexMcp: CodexMcpIntegrationStatus | null, localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>>, force: boolean, inspection: RepositoryInspection | null): string {
   const step = force && state.currentStep === "complete" ? "welcome" : state.currentStep;
-  if (step === "project") return project(state); if (step === "understanding") return understanding(state); if (step === "sources") return sources(state, inspection); if (step === "providers") return providers(state, codex, localProviders); if (step === "health") return health(state, snapshot); return welcome();
+  if (step === "project") return project(state); if (step === "understanding") return understanding(state); if (step === "sources") return sources(state, inspection); if (step === "providers") return providers(state, codex, codexMcp, localProviders); if (step === "health") return health(state, snapshot); return welcome();
 }
 
 export async function mountFirstRunOnboarding(root: HTMLElement, options: { logoUrl: string; force?: boolean; onExit: () => void }): Promise<boolean> {
   let snapshot = await loadFirstRunLifecycle();
   if (snapshot.status === "complete" && !options.force) return false;
-  let codex: CodexStatus | null = null; let localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>> = {}; let inspection: RepositoryInspection | null = null; let busy = false; let error: string | null = null;
+  let codex: CodexStatus | null = null; let codexMcp: CodexMcpIntegrationStatus | null = null; let localProviders: Partial<Record<LocalProviderId, LocalProviderStatus>> = {}; let inspection: RepositoryInspection | null = null; let busy = false; let error: string | null = null;
   let projectDraft: { projectId: string; localRoot: string } | null = null;
   let projectSubmissionInFlight = false;
   let projectActivationGeneration = 0;
@@ -265,6 +276,12 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     ]);
     if (generation !== projectActivationGeneration) return;
     codex = codexResult.status === "fulfilled" ? codexResult.value : null;
+    if (codex?.connected) {
+      try { codexMcp = await invoke<CodexMcpIntegrationStatus>("codex_mcp_integration_status"); }
+      catch { codexMcp = null; }
+    } else {
+      codexMcp = null;
+    }
     localProviders = {
       ...(claude.status === "fulfilled" ? { claude: claude.value } : {}),
       ...(gemini.status === "fulfilled" ? { gemini: gemini.value } : {}),
@@ -273,7 +290,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
     if (rerender && root.isConnected) render(captureContext());
   };
   const connectedProviderIds = (): string[] => [
-    ...(codex?.connected ? ["codex"] : []),
+    ...(codex?.connected && codexMcp?.state === "registered" ? ["codex"] : []),
     ...(["claude", "gemini", "custom"] as LocalProviderId[]).filter((provider) => localProviders[provider]?.connected),
   ];
   const ensureSelectedProjectActive = async () => {
@@ -343,7 +360,7 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
 
   const render = (context?: RenderContext) => {
     const state = stateFrom(snapshot); const displayStep = options.force && state.currentStep === "complete" ? "welcome" : state.currentStep;
-    root.innerHTML = `<div class="desktop-frame first-run-frame ${options.force ? "first-run-revisit" : ""}">${windowBar(options.logoUrl)}<div class="fr-shell"><aside class="fr-rail"><div class="fr-brand"><img src="${options.logoUrl}" alt="Livariant"/><div><strong>Livariant</strong><small>${text("Setup assistant", "Einrichtungsassistent")}</small></div></div><ol>${progress(displayStep)}</ol><div class="fr-rail-footer"><div class="fr-rail-note"><strong>${text("Resumable by design", "Bewusst fortsetzbar")}</strong><span>${text("Your setup progress is saved locally so you can continue later.", "Dein Einrichtungsfortschritt wird lokal gespeichert, damit du später fortsetzen kannst.")}</span></div>${options.force ? `<button class="button secondary fr-return" data-fr-exit type="button">${text("Return to Livariant", "Zurück zu Livariant")}</button>` : ""}</div></aside><main class="fr-main">${error ? `<div class="fr-error" role="alert"><strong>${text("Setup needs attention", "Einrichtung benötigt Aufmerksamkeit")}</strong><span>${esc(error)}</span></div>` : ""}${busy ? `<div class="fr-busy">${state.currentStep === "project" ? text("Preparing Project Brain and project knowledge…", "Project Brain und Projektwissen werden vorbereitet…") : text("Saving…", "Speichere…")}</div>` : ""}${stage(state, snapshot, codex, localProviders, options.force === true, inspection)}</main></div></div>`;
+    root.innerHTML = `<div class="desktop-frame first-run-frame ${options.force ? "first-run-revisit" : ""}">${windowBar(options.logoUrl)}<div class="fr-shell"><aside class="fr-rail"><div class="fr-brand"><img src="${options.logoUrl}" alt="Livariant"/><div><strong>Livariant</strong><small>${text("Setup assistant", "Einrichtungsassistent")}</small></div></div><ol>${progress(displayStep)}</ol><div class="fr-rail-footer"><div class="fr-rail-note"><strong>${text("Resumable by design", "Bewusst fortsetzbar")}</strong><span>${text("Your setup progress is saved locally so you can continue later.", "Dein Einrichtungsfortschritt wird lokal gespeichert, damit du später fortsetzen kannst.")}</span></div>${options.force ? `<button class="button secondary fr-return" data-fr-exit type="button">${text("Return to Livariant", "Zurück zu Livariant")}</button>` : ""}</div></aside><main class="fr-main">${error ? `<div class="fr-error" role="alert"><strong>${text("Setup needs attention", "Einrichtung benötigt Aufmerksamkeit")}</strong><span>${esc(error)}</span></div>` : ""}${busy ? `<div class="fr-busy">${state.currentStep === "project" ? text("Preparing Project Brain and project knowledge…", "Project Brain und Projektwissen werden vorbereitet…") : text("Saving…", "Speichere…")}</div>` : ""}${stage(state, snapshot, codex, codexMcp, localProviders, options.force === true, inspection)}</main></div></div>`;
 
     if (context) {
       const main = root.querySelector<HTMLElement>(".fr-main"); if (main) main.scrollTop = context.scrollTop;
@@ -426,7 +443,12 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
       const failures: string[] = [];
       try {
         if (!codex?.connected && codex?.installationState === "available") {
-          try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath: null }); }
+          try {
+            const result = await invoke<CodexProviderConnectionResult>("codex_provider_connect", { manualPath: null });
+            codex = result.connection;
+            codexMcp = result.mcp;
+            if (result.mcp.state !== "registered") failures.push(`Codex: ${result.mcp.detail}`);
+          }
           catch (cause) { failures.push(`Codex: ${friendlyCodexError(cause)}`); }
         }
         for (const provider of ["claude", "gemini"] as LocalProviderId[]) {
@@ -438,8 +460,8 @@ export async function mountFirstRunOnboarding(root: HTMLElement, options: { logo
         if (failures.length) error = failures.join(" · ");
       } finally { busy = false; render(context); }
     });
-    root.querySelector<HTMLButtonElement>("[data-fr-connect-codex]")?.addEventListener("click", async () => { const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath: null }); } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
-    root.querySelector<HTMLButtonElement>("[data-fr-connect-codex-manual]")?.addEventListener("click", async () => { const manualPath = root.querySelector<HTMLInputElement>("[data-fr-codex-path]")?.value.trim(); if (!manualPath) { error = text("Enter an explicit Codex executable path first.", "Trage zuerst einen expliziten Codex-Programmpfad ein."); render(captureContext()); return; } const context = captureContext(); busy = true; error = null; render(context); try { codex = await invoke<CodexStatus>("codex_connector_connect", { manualPath }); } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
+    root.querySelector<HTMLButtonElement>("[data-fr-connect-codex]")?.addEventListener("click", async () => { const context = captureContext(); busy = true; error = null; render(context); try { const result = await invoke<CodexProviderConnectionResult>("codex_provider_connect", { manualPath: null }); codex = result.connection; codexMcp = result.mcp; if (result.mcp.state !== "registered") error = result.mcp.detail; } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
+    root.querySelector<HTMLButtonElement>("[data-fr-connect-codex-manual]")?.addEventListener("click", async () => { const manualPath = root.querySelector<HTMLInputElement>("[data-fr-codex-path]")?.value.trim(); if (!manualPath) { error = text("Enter an explicit Codex executable path first.", "Trage zuerst einen expliziten Codex-Programmpfad ein."); render(captureContext()); return; } const context = captureContext(); busy = true; error = null; render(context); try { const result = await invoke<CodexProviderConnectionResult>("codex_provider_connect", { manualPath }); codex = result.connection; codexMcp = result.mcp; if (result.mcp.state !== "registered") error = result.mcp.detail; } catch (cause) { error = friendlyCodexError(cause); } finally { busy = false; render(context); } });
     root.querySelectorAll<HTMLButtonElement>("[data-fr-connect-local-provider]").forEach((button) => button.addEventListener("click", async () => {
       const provider = button.dataset.frConnectLocalProvider as LocalProviderId;
       if (!["claude", "gemini", "custom"].includes(provider)) return;
