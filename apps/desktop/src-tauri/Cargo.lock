@@ -1850,7 +1850,7 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "livariant-desktop"
-version = "0.1.0-rc.29"
+version = "0.1.0-rc.30"
 dependencies = [
  "minisign-verify",
  "serde",
