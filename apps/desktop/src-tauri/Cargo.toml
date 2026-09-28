@@ -1,6 +1,6 @@
 [package]
 name = "livariant-desktop"
-version = "0.1.0-rc.29"
+version = "0.1.0-rc.30"
 description = "Livariant Desktop for controlled, verifiable AI-assisted project work"
 authors = ["Livariant contributors"]
 license = "SEE LICENSE IN ../../../LICENSE"

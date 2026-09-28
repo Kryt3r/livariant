@@ -1,10 +1,14 @@
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
+import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { buildProjectContextSnapshot, type ProjectContextSnapshotBuildOptions } from "./context-snapshot.js";
 import { providerContextPacketId } from "./provider-context-hash.js";
 import { validateProviderContextTask } from "./provider-context-task.js";
 import type { ProviderContextBase, ProviderContextPacket, ProviderContextProjection, ProviderContextProvider } from "./provider-context-types.js";
 
-export interface ProviderContextBuildOptions extends ProjectContextSnapshotBuildOptions {}
+export interface ProviderContextBuildOptions extends ProjectContextSnapshotBuildOptions {
+  providerSessionId?: string;
+  providerThreadId?: string;
+}
 
 function projection(): ProviderContextProjection {
   return {
@@ -24,8 +28,17 @@ export async function buildProviderContext(
   projectPath: string = process.cwd(),
   options: ProviderContextBuildOptions = {},
 ): Promise<ProviderContextPacket> {
-  if (provider !== "claude-code" && provider !== "codex") throw new Error("Unsupported provider context target.");
+  if (provider !== "claude-code" && provider !== "codex" && provider !== "gemini" && provider !== "custom") throw new Error("Unsupported provider context target.");
   validateProviderContextTask(task);
+  if (options.providerSessionId !== undefined && !isStableProjectIdentity(options.providerSessionId)) {
+    throw new Error("Provider session id must be a canonical UUID.");
+  }
+  if (options.providerThreadId !== undefined) {
+    const threadId = options.providerThreadId.trim();
+    if (threadId.length === 0 || threadId.length > 240 || /[\u0000-\u001f\u007f]/.test(threadId)) {
+      throw new Error("Provider thread id is invalid.");
+    }
+  }
 
   const snapshot = await buildProjectContextSnapshot(projectPath, options);
   const base: ProviderContextBase = {
@@ -36,6 +49,13 @@ export async function buildProviderContext(
     provider,
     projectLocator: snapshot.projectLocator,
     stableProjectIdentity: snapshot.stableProjectIdentity,
+    providerSession: options.providerSessionId
+      ? {
+          id: options.providerSessionId,
+          source: "mcp-session",
+          ...(options.providerThreadId ? { providerThreadId: options.providerThreadId.trim() } : {}),
+        }
+      : null,
     projection: projection(),
     mutationAuthorization: false,
     applySupported: false,
@@ -50,7 +70,13 @@ export async function buildProviderContext(
   return {
     ...base,
     state: "ready",
-    packetId: providerContextPacketId(provider, snapshot.baseline.digest, task),
+    packetId: providerContextPacketId(
+      provider,
+      snapshot.baseline.digest,
+      task,
+      options.providerSessionId,
+      options.providerThreadId?.trim(),
+    ),
     baseline: snapshot.baseline,
     safetyState: "clear",
     evidence: snapshot.context,

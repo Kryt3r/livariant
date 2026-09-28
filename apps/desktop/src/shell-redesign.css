@@ -390,6 +390,17 @@ body {
 .global-health-group small { display: block; margin-bottom: 7px; color: #8f88a5; font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: .09em; }
 .global-health-row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 9px; border-radius: 9px; background: rgba(255,255,255,.025); }
 .global-health-row span { font-size: 11.5px; color: #d9d4e7; }
+.global-health-provider-name { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.global-health-provider-name b { overflow: hidden; font-size: 11.5px; font-weight: 650; color: #d9d4e7; white-space: nowrap; text-overflow: ellipsis; }
+.global-health-provider-logo {
+  width: 20px; height: 20px; flex: 0 0 20px; display: grid; place-items: center;
+  border-radius: 6px; border: 1px solid rgba(151, 126, 255, .15); background: rgba(255,255,255,.025);
+}
+.global-health-provider-logo .provider-brand-logo { width: 13px; height: 13px; display: block; }
+.global-health-provider-logo-codex { color: #f4fff9; background: rgba(20, 89, 76, .34); border-color: rgba(76,221,179,.18); }
+.global-health-provider-logo-claude { background: rgba(91,50,30,.34); border-color: rgba(217,119,87,.2); }
+.global-health-provider-logo-gemini { background: rgba(13,48,103,.38); border-color: rgba(78,130,255,.22); }
+.global-health-provider-logo-custom { color: #c8a6ff; background: rgba(58,35,110,.34); border-color: rgba(156,111,255,.22); }
 .global-health-row strong { font-size: 10.5px; font-weight: 700; }
 [data-health-tone="healthy"] { color: var(--shell-green) !important; }
 [data-health-tone="degraded"] { color: var(--shell-orange) !important; }

@@ -132,14 +132,20 @@ export async function refreshProjectConnectionsSettings(): Promise<void> {
   const generation = projectActivationGeneration;
   loading = true;
   error = null;
+  const github = invoke<GitHubConnectionStatus>("github_connection_status")
+    .then((status) => {
+      if (generation !== projectActivationGeneration) return;
+      githubStatus = status;
+      activeRerender?.();
+    });
+  const lifecycle = loadFirstRunLifecycle()
+    .then((snapshot) => {
+      if (generation !== projectActivationGeneration) return;
+      updateFromSnapshot(snapshot);
+      activeRerender?.();
+    });
   try {
-    const [github, lifecycle] = await Promise.all([
-      invoke<GitHubConnectionStatus>("github_connection_status"),
-      loadFirstRunLifecycle(),
-    ]);
-    if (generation !== projectActivationGeneration) return;
-    githubStatus = github;
-    updateFromSnapshot(lifecycle);
+    await Promise.all([github, lifecycle]);
   } catch (_cause) {
     if (generation !== projectActivationGeneration) return;
     error = connectionError("load");

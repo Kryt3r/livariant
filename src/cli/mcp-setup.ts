@@ -1,4 +1,4 @@
-export type McpSetupProvider = "claude-code" | "codex";
+export type McpSetupProvider = "claude-code" | "codex" | "gemini";
 
 export interface McpSetupPlan {
   schemaVersion: 1;
@@ -31,6 +31,23 @@ export function buildMcpSetupPlan(provider: McpSetupProvider, projectPath: strin
       notes: [
         "Run the registration command from the Livariant project directory.",
         "Claude Code owns and applies its MCP configuration; Livariant only renders this command.",
+        "The registered server exposes livariant_provider_context, livariant_provider_return, and the read-only livariant_verification_trace tool; none can create or consume mutation Authority.",
+      ],
+    };
+  }
+
+  if (provider === "gemini") {
+    return {
+      schemaVersion: 1,
+      provider,
+      transport: "stdio",
+      mutatesProviderConfiguration: false,
+      registrationCommand: "gemini mcp add --scope project livariant livariant mcp",
+      verificationCommands: ["gemini mcp list"],
+      notes: [
+        "Run the registration command from the Livariant project directory.",
+        "Gemini CLI owns and applies its project-scoped MCP configuration; Livariant only renders this command.",
+        "Gemini CLI can expose session/cwd metadata through its hook system, but Livariant does not install provider hooks implicitly.",
         "The registered server exposes livariant_provider_context, livariant_provider_return, and the read-only livariant_verification_trace tool; none can create or consume mutation Authority.",
       ],
     };
@@ -74,17 +91,17 @@ export function parseMcpSetupArgs(args: readonly string[]): { provider: McpSetup
     if (arg === "--provider") {
       if (provider !== undefined) throw new Error("--provider may be specified exactly once.");
       const value = args[index + 1];
-      if (value !== "claude-code" && value !== "codex") {
-        throw new Error("--provider must be claude-code or codex.");
+      if (value !== "claude-code" && value !== "codex" && value !== "gemini") {
+        throw new Error("--provider must be claude-code, codex, or gemini.");
       }
       provider = value;
       index += 1;
       continue;
     }
-    throw new Error("Usage: livariant mcp setup --provider <claude-code|codex> [--json]");
+    throw new Error("Usage: livariant mcp setup --provider <claude-code|codex|gemini> [--json]");
   }
 
-  if (!provider) throw new Error("Usage: livariant mcp setup --provider <claude-code|codex> [--json]");
+  if (!provider) throw new Error("Usage: livariant mcp setup --provider <claude-code|codex|gemini> [--json]");
   return { provider, json };
 }
 

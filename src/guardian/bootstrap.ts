@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { chmod, chown, copyFile, lstat, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { chmod, chown, copyFile, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { stderr, stdin } from "node:process";
@@ -9,6 +9,7 @@ import { assertProtectedGuardianBootstrapSource, isProtectedPosixMode } from "./
 import {
   buildGuardianRootDescriptor,
   guardianLayoutPaths,
+  inspectGuardianRootAt,
   isProtectedPosixOwner,
   productionGuardianRoot,
   type GuardianPlatform,
@@ -369,6 +370,124 @@ export async function recoverProductionGuardianPreAuthority(): Promise<GuardianR
     nextStep: "Close the privileged terminal and run `livariant guardian status` from an ordinary user terminal. Do not authorize lifecycle changes unless Guardian readiness is reported as ready.",
     recoveryBoundary: "Recovery is bounded to the exact fixed Windows Guardian v1 layout. Before any mutation it requires protected parentage, protected ownership/DACL state, real non-symlink layout, zero Authority records, local interactive confirmation, and unchanged protected release material. It then narrows only descriptor/helper ACLs to SYSTEM and Administrators for privileged preread, validates exact helper bytes and descriptor identity, preserves ownership, and grants ordinary Users read/execute only after validation. It issues no Authority.",
   };
+}
+
+export interface GuardianUpgradeResult {
+  schemaVersion: 1;
+  state: "current" | "upgraded";
+  platform: "win32";
+  root: string;
+  previousHelperSha256: string;
+  helperSha256: string;
+  authorityIssued: false;
+  recordsPreserved: true;
+  changesMade: number;
+}
+
+export async function upgradeProductionGuardianHelper(): Promise<GuardianUpgradeResult> {
+  if (process.platform !== "win32") {
+    throw new Error("Guardian protected helper upgrade is currently implemented for Windows only.");
+  }
+  const root = productionGuardianRoot("win32");
+  if (!root) throw new Error("Guardian production root is unavailable for Windows.");
+
+  const bootstrapModule = fileURLToPath(import.meta.url);
+  const helperSource = fileURLToPath(new URL("./protected-helper.js", import.meta.url));
+  await assertProtectedGuardianBootstrapSource("win32", helperSource, bootstrapModule, process.execPath);
+  await assertProtectedProductionParent(root, "win32");
+
+  const inspection = await inspectGuardianRootAt(root, process.cwd(), "win32");
+  if (inspection.state !== "ready" || !inspection.guardianReady || !inspection.root) {
+    throw new Error(`Guardian helper upgrade requires an already coherent protected Guardian root; current state is ${inspection.state}: ${inspection.reason}`);
+  }
+  requirePrivilegedProcess("win32");
+
+  const physicalRoot = inspection.root;
+  const { descriptor, helper, records } = guardianLayoutPaths(physicalRoot);
+  await assertRealDirectory(records, "Guardian records directory");
+  await assertRealFile(descriptor, "Guardian root descriptor");
+  await assertRealFile(helper, "Guardian helper");
+  assertWindowsProtectedPath(physicalRoot, "Guardian root");
+  assertWindowsProtectedPath(records, "Guardian records directory");
+  assertWindowsProtectedPath(descriptor, "Guardian root descriptor");
+  assertWindowsProtectedPath(helper, "Guardian helper");
+
+  const [sourceBytes, installedBytes] = await Promise.all([readFile(helperSource), readFile(helper)]);
+  const previousHelperSha256 = createHash("sha256").update(installedBytes).digest("hex");
+  const helperSha256 = createHash("sha256").update(sourceBytes).digest("hex");
+  if (previousHelperSha256 === helperSha256) {
+    return {
+      schemaVersion: 1,
+      state: "current",
+      platform: "win32",
+      root: physicalRoot,
+      previousHelperSha256,
+      helperSha256,
+      authorityIssued: false,
+      recordsPreserved: true,
+      changesMade: 0,
+    };
+  }
+
+  const token = randomUUID().toLowerCase();
+  const helperBackup = resolve(physicalRoot, `.guardian-helper-${token}.bak`);
+  const descriptorBackup = resolve(physicalRoot, `.guardian-root-${token}.bak`);
+  const helperTemp = resolve(physicalRoot, `.guardian-helper-${token}.tmp`);
+  const descriptorTemp = resolve(physicalRoot, `.guardian-root-${token}.tmp`);
+  const nextDescriptor = buildGuardianRootDescriptor(sourceBytes, physicalRoot, "win32");
+
+  await copyFile(helper, helperBackup);
+  await copyFile(descriptor, descriptorBackup);
+  try {
+    await writeFile(helperTemp, sourceBytes, { flag: "wx" });
+    await writeFile(descriptorTemp, `${JSON.stringify(nextDescriptor, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    hardenWindowsFile(helperTemp);
+    hardenWindowsFile(descriptorTemp);
+
+    await rm(helper, { force: false });
+    await rename(helperTemp, helper);
+    hardenWindowsFile(helper);
+
+    await rm(descriptor, { force: false });
+    await rename(descriptorTemp, descriptor);
+    hardenWindowsFile(descriptor);
+
+    const verified = await inspectGuardianRootAt(physicalRoot, process.cwd(), "win32");
+    if (verified.state !== "ready" || !verified.guardianReady) {
+      throw new Error(`Updated Guardian helper did not verify as ready: ${verified.state}: ${verified.reason}`);
+    }
+
+    await rm(helperBackup, { force: true });
+    await rm(descriptorBackup, { force: true });
+    return {
+      schemaVersion: 1,
+      state: "upgraded",
+      platform: "win32",
+      root: physicalRoot,
+      previousHelperSha256,
+      helperSha256,
+      authorityIssued: false,
+      recordsPreserved: true,
+      changesMade: 2,
+    };
+  } catch (error) {
+    try {
+      await rm(helper, { force: true });
+      await copyFile(helperBackup, helper);
+      hardenWindowsFile(helper);
+    } catch { /* preserve original failure; readiness will fail closed if rollback cannot restore */ }
+    try {
+      await rm(descriptor, { force: true });
+      await copyFile(descriptorBackup, descriptor);
+      hardenWindowsFile(descriptor);
+    } catch { /* preserve original failure; readiness will fail closed if rollback cannot restore */ }
+    throw error;
+  } finally {
+    await rm(helperTemp, { force: true });
+    await rm(descriptorTemp, { force: true });
+    await rm(helperBackup, { force: true });
+    await rm(descriptorBackup, { force: true });
+  }
 }
 
 export async function bootstrapProductionGuardian(): Promise<GuardianBootstrapResult> {

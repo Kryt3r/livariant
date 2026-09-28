@@ -11,6 +11,9 @@ import { runDoctor } from "./doctor.js";
 export interface CanonicalDecisionChangeOptions {
   authorized: boolean;
   beforePromote?: () => void | Promise<void>;
+  decisionId?: string;
+  replacementDecisionId?: string;
+  supersededDecisionId?: string;
 }
 
 export interface SupersedeDecisionInput {
@@ -92,7 +95,7 @@ export async function recordAcceptedDecision(
   }
 
   const record: DecisionRecord = {
-    id: newDecisionId(),
+    id: options.decisionId ?? newDecisionId(),
     status: "active",
     text: normalized,
     legacy: false,
@@ -124,13 +127,13 @@ export async function supersedeAcceptedDecision(
   }
 
   const replacement: DecisionRecord = {
-    id: newDecisionId(),
+    id: options.replacementDecisionId ?? newDecisionId(),
     status: "active",
     text: replacementText,
     legacy: false,
   };
   const superseded: DecisionRecord = {
-    id: target.legacy ? newDecisionId() : target.id,
+    id: target.legacy ? (options.supersededDecisionId ?? newDecisionId()) : target.id,
     status: "superseded",
     text: target.text,
     supersededBy: replacement.id,

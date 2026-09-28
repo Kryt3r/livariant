@@ -40,7 +40,7 @@ async function loadWritableStore(projectPath: string): Promise<ProjectBrainStore
   return store;
 }
 
-function renderGoals(current: string, goal: string): string {
+export function renderGoalsCandidate(current: string, goal: string): string {
   if (bullets(current).includes(goal)) throw new Error("An identical confirmed goal already exists.");
 
   const placeholder = "No confirmed project goals have been recorded yet.";
@@ -56,7 +56,7 @@ function renderGoals(current: string, goal: string): string {
   return `${before}\n\n- ${goal}\n\n${after}`;
 }
 
-function renderKnowledge(current: string, knowledge: string): string {
+export function renderKnowledgeCandidate(current: string, knowledge: string): string {
   if (bullets(current).includes(knowledge)) throw new Error("Identical confirmed project knowledge already exists.");
 
   const unknownHeading = "## Known unknowns";
@@ -89,7 +89,7 @@ export async function addConfirmedGoal(
   const normalized = normalizedScalar(goal, "Confirmed goal");
   const store = await loadWritableStore(projectPath);
   const current = await store.readGoalsDocument();
-  const candidate = renderGoals(current, normalized);
+  const candidate = renderGoalsCandidate(current, normalized);
   await store.replaceGoalsDocument(current, candidate, { beforePromote: options.beforePromote });
 
   const verify = await store.readGoalsDocument();
@@ -106,7 +106,7 @@ export async function addConfirmedKnowledge(
   const normalized = normalizedScalar(knowledge, "Confirmed project knowledge");
   const store = await loadWritableStore(projectPath);
   const current = await store.readKnowledgeDocument();
-  const candidate = renderKnowledge(current, normalized);
+  const candidate = renderKnowledgeCandidate(current, normalized);
   await store.replaceKnowledgeDocument(current, candidate, { beforePromote: options.beforePromote });
 
   const verify = await store.readKnowledgeDocument();

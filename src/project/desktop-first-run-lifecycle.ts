@@ -109,29 +109,76 @@ export function parsePersistedFirstRunOnboardingState(value: unknown): FirstRunO
     throw new Error("Persisted first-run onboarding currentStep is invalid.");
   }
   if (typeof state.completed !== "boolean") throw new Error("Persisted first-run onboarding completed must be boolean.");
-  requireObject(state.project, "onboardingState.project");
+
+  const project = requireObject(state.project, "onboardingState.project");
   const understanding = requireObject(state.understanding, "onboardingState.understanding");
   if (typeof understanding.projectRoot !== "string" || !Array.isArray(understanding.questions)) {
     throw new Error("Persisted first-run onboarding understanding state is invalid.");
   }
-  const providers = requireObject(state.providers, "onboardingState.providers");
-  if (!Array.isArray(providers.configuredProviderIds) || typeof providers.deferred !== "boolean") {
-    throw new Error("Persisted first-run onboarding provider state is invalid.");
+
+  const rawProviders = state.providers === undefined
+    ? {}
+    : requireObject(state.providers, "onboardingState.providers");
+  if (rawProviders.configuredProviderIds !== undefined
+      && (!Array.isArray(rawProviders.configuredProviderIds)
+        || !rawProviders.configuredProviderIds.every((entry) => typeof entry === "string"))) {
+    throw new Error("Persisted first-run onboarding provider ids are invalid.");
   }
-  requireObject(state.health, "onboardingState.health");
-  const boundaries = requireObject(state.boundaries, "onboardingState.boundaries");
-  for (const key of [
-    "unansweredQuestionGetsDefault",
-    "skippedQuestionBecomesKnown",
-    "onboardingEvidenceIsProjectTruth",
-    "repositoryDescriptionGrantsAuthority",
-    "grantsAuthority",
-    "mutationAuthorized",
-    "changesProjectOwnedFiles",
-  ]) {
-    if (boundaries[key] !== false) throw new Error(`Persisted first-run onboarding boundary ${key} must remain false.`);
+  if (rawProviders.deferred !== undefined && typeof rawProviders.deferred !== "boolean") {
+    throw new Error("Persisted first-run onboarding provider deferred state is invalid.");
   }
-  return state as unknown as FirstRunOnboardingState;
+  const providers = {
+    configuredProviderIds: (rawProviders.configuredProviderIds as string[] | undefined) ?? [],
+    deferred: (rawProviders.deferred as boolean | undefined) ?? false,
+  };
+
+  const safeBoundaries = {
+    unansweredQuestionGetsDefault: false as const,
+    skippedQuestionBecomesKnown: false as const,
+    onboardingEvidenceIsProjectTruth: false as const,
+    repositoryDescriptionGrantsAuthority: false as const,
+    grantsAuthority: false as const,
+    mutationAuthorized: false as const,
+    changesProjectOwnedFiles: false as const,
+  };
+  const rawBoundaries = state.boundaries === undefined
+    ? {}
+    : requireObject(state.boundaries, "onboardingState.boundaries");
+  for (const key of Object.keys(safeBoundaries) as Array<keyof typeof safeBoundaries>) {
+    if (key in rawBoundaries && rawBoundaries[key] !== false) {
+      throw new Error(`Persisted first-run onboarding boundary ${key} must remain false.`);
+    }
+  }
+
+  const currentStep = state.currentStep as FirstRunOnboardingStep;
+  const completed = state.completed as boolean;
+  const questions = understanding.questions as FirstRunOnboardingState["understanding"]["questions"];
+  const openQuestionCount = questions.filter((question) => question?.state === "open").length;
+  const skippedQuestionCount = questions.filter((question) => question?.state === "skipped").length;
+  const hasProjectSelection = Boolean(project.projectId || project.localRoot);
+  const hasSourceRegistry = Boolean(project.sourceRegistry);
+  const reviewed = currentStep === "health" || currentStep === "complete";
+
+  return {
+    schemaVersion: 1,
+    currentStep,
+    completed,
+    project: project as FirstRunOnboardingState["project"],
+    understanding: {
+      projectRoot: understanding.projectRoot as string,
+      questions,
+    },
+    providers,
+    health: {
+      reviewed,
+      readyForMainUi: completed || reviewed,
+      openQuestionCount,
+      skippedQuestionCount,
+      hasProjectSelection,
+      hasSourceRegistry,
+    },
+    boundaries: safeBoundaries,
+  };
 }
 
 function parseAction(value: unknown): DesktopFirstRunLifecycleAction {

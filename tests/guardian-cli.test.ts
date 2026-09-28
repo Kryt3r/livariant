@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { guardianBootstrapHasInteractiveTerminal } from "../src/guardian/bootstrap.js";
 import {
+  buildWindowsLifecycleAuthorizationDialogModel,
   parseProtectedGuardianRequest,
   protectedGuardianMaterialDigest,
 } from "../src/guardian/protected-helper.js";
@@ -61,7 +62,7 @@ test("Windows Stage-B hardening gives leaf files effective requester read withou
 test("Windows pre-Authority recovery is exact-material-bound, zero-record and ACL-only", async () => {
   const builtBootstrap = await readFile(bootstrapPath, "utf8");
   const start = builtBootstrap.indexOf("async function recoverProductionGuardianPreAuthority");
-  const end = builtBootstrap.indexOf("async function bootstrapProductionGuardian", start);
+  const end = builtBootstrap.indexOf("async function upgradeProductionGuardianHelper", start);
   assert.notEqual(start, -1, "compiled Stage-B must expose the bounded recovery core");
   assert.notEqual(end, -1, "compiled Stage-B must keep recovery separate from fresh bootstrap");
   const recovery = builtBootstrap.slice(start, end);
@@ -82,12 +83,35 @@ test("Windows pre-Authority recovery is exact-material-bound, zero-record and AC
   assert.match(builtBootstrap, /Recovery aborted before ACL mutation/u);
 });
 
-test("protected bootstrap bundle contains the Windows recovery launcher and binds it into release material", async () => {
+test("protected bootstrap bundle contains recovery and Desktop Guardian-upgrade launchers in release material", async () => {
   const buildScript = await readFile(protectedBuildPath, "utf8");
   assert.match(buildScript, /guardian-recover-entry\.mjs/u);
   assert.match(buildScript, /guardian-recover\.ps1/u);
   assert.match(buildScript, /recoverProductionGuardianPreAuthority/u);
-  assert.match(buildScript, /filesBelow\(staging\)/u, "release descriptor hashing must cover all staged recovery launcher files");
+  assert.match(buildScript, /guardian-upgrade-entry\.mjs/u);
+  assert.match(buildScript, /guardian-upgrade-desktop\.ps1/u);
+  assert.match(buildScript, /upgradeProductionGuardianHelper/u);
+  assert.match(buildScript, /C:\\\\Program Files\\\\Livariant\\\\livariant-node\.exe/u);
+  assert.match(buildScript, /filesBelow\(staging\)/u, "release descriptor hashing must cover all staged protected launchers");
+});
+
+test("Guardian helper upgrade preserves records and replaces only helper plus descriptor after protected-source verification", async () => {
+  const builtBootstrap = await readFile(bootstrapPath, "utf8");
+  const start = builtBootstrap.indexOf("async function upgradeProductionGuardianHelper");
+  const end = builtBootstrap.indexOf("async function bootstrapProductionGuardian", start);
+  assert.ok(start >= 0 && end > start);
+  const upgrade = builtBootstrap.slice(start, end);
+
+  assert.match(upgrade, /assertProtectedGuardianBootstrapSource/);
+  assert.match(upgrade, /inspectGuardianRootAt/);
+  assert.match(upgrade, /requirePrivilegedProcess\("win32"\)/);
+  assert.match(upgrade, /guardianLayoutPaths/);
+  assert.match(upgrade, /recordsPreserved: true/);
+  assert.match(upgrade, /buildGuardianRootDescriptor/);
+  assert.match(upgrade, /previousHelperSha256/);
+  assert.match(upgrade, /hardenWindowsFile\(helper\)/);
+  assert.match(upgrade, /hardenWindowsFile\(descriptor\)/);
+  assert.doesNotMatch(upgrade, /rm\(records|rename\(records|writeFile\(records|mkdir\(records/);
 });
 
 test("guardian diagnostics surface only the protected recovery launcher for an unsafe Windows machine", async () => {
@@ -153,6 +177,23 @@ test("ordinary global guardian bootstrap is guidance only and never runs request
   });
 });
 
+test("protected Guardian helper accepts Desktop UAC consent only for exact persistent Project Brain Integrity material", async () => {
+  const builtHelper = await readFile(helperPath, "utf8");
+  const start = builtHelper.indexOf("async function requireWindowsDesktopUacConsent");
+  const end = builtHelper.indexOf("async function requireInteractiveIssuance", start);
+  assert.ok(start >= 0 && end > start);
+  const receipt = builtHelper.slice(start, end);
+
+  assert.match(receipt, /project-brain-integrity/);
+  assert.match(receipt, /persistent/);
+  assert.match(receipt, /materialSha256 !== materialSha256/);
+  assert.match(receipt, /DESKTOP_UAC_CONSENT_MAX_AGE_MS/);
+  assert.match(receipt, /inspectWindowsInterpreterProtection/);
+  assert.match(receipt, /ordinaryRequesterWritable/);
+  assert.match(receipt, /await rm\(physicalReceipt, \{ force: false \}\)/);
+  assert.match(builtHelper, /--desktop-uac-receipt/);
+});
+
 test("protected Guardian helper exposes bounded authority transition commands", () => {
   const version = spawnSync(process.execPath, [helperPath, "version"], { encoding: "utf8", shell: false });
   assert.equal(version.status, 0, version.stderr);
@@ -193,6 +234,33 @@ test("protected helper and requester-side authority model derive the same domain
     guardianAuthorityMaterialDigest(request.consumer, request.materialFields),
   );
   assert.throws(() => parseProtectedGuardianRequest({ ...request, attacker: true }), /unsupported field/u);
+});
+
+test("native Windows lifecycle review is exact-request-bound and refuses existing-file mutation", () => {
+  const base = parseProtectedGuardianRequest({
+    schemaVersion: 1,
+    kind: "livariant-guardian-authority-request",
+    consumer: "lifecycle-mutation",
+    mode: "one-shot",
+    materialFields: [
+      { label: "physical-project-root", value: "C:\\Projects\\Demo" },
+      { label: "lifecycle-operation", value: "initialize" },
+      { label: "display-project-name", value: "Demo" },
+      { label: "files-to-create-json", value: JSON.stringify([".project-brain/project.json", ".project-brain/decisions.md"]) },
+      { label: "project-files-to-modify-json", value: "[]" },
+    ],
+  });
+  const model = buildWindowsLifecycleAuthorizationDialogModel(base, "a".repeat(64), "de");
+  assert.equal(model.projectName, "Demo");
+  assert.deepEqual(model.filesToCreate, [".project-brain/project.json", ".project-brain/decisions.md"]);
+  assert.equal(model.authority, "lifecycle-mutation");
+  const modifying = parseProtectedGuardianRequest({
+    ...base,
+    materialFields: base.materialFields.map((field) => field.label === "project-files-to-modify-json" ? { ...field, value: JSON.stringify(["README.md"]) } : field),
+  });
+  assert.throws(() => buildWindowsLifecycleAuthorizationDialogModel(modifying, "b".repeat(64), "en"), /refuses initialization that would modify existing project files/u);
+  const semantic = parseProtectedGuardianRequest({ ...base, consumer: "semantic-mutation" });
+  assert.throws(() => buildWindowsLifecycleAuthorizationDialogModel(semantic, "c".repeat(64), "en"), /restricted to one-shot lifecycle Authority/u);
 });
 
 test("guardian command refuses unsupported mutating-looking subcommands", async () => {

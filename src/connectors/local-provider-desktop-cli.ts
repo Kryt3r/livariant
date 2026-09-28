@@ -3,6 +3,7 @@ import {
   inspectCustomLocalProvider,
   type LocalProviderId,
 } from "./local-provider-runtime.js";
+import { providerCapabilityMatrix } from "./provider-capabilities.js";
 
 function fail(message: string): never {
   process.stderr.write(`${message}\n`);
@@ -27,4 +28,10 @@ const result = provider === "custom"
       ...(manualPath ? { manualPath } : {}),
     });
 
-process.stdout.write(`${JSON.stringify(result)}\n`);
+process.stdout.write(`${JSON.stringify({
+  ...result,
+  capabilities: providerCapabilityMatrix(
+    provider,
+    provider === "custom" ? result.customCapabilities : undefined,
+  ).capabilities,
+})}\n`);

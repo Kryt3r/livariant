@@ -122,11 +122,15 @@ export class CodexWorkflowClient {
     return () => this.#listeners.delete(listener);
   }
 
-  async startThread(options: { cwd?: string; model?: string; ephemeral?: boolean } = {}): Promise<CodexThreadHandle> {
+  async startThread(options: { cwd?: string; model?: string; ephemeral?: boolean; config?: Record<string, unknown> } = {}): Promise<CodexThreadHandle> {
     const params: JsonObject = {};
     if (options.cwd !== undefined) params.cwd = requireText(options.cwd, "Codex thread cwd");
     if (options.model !== undefined) params.model = requireText(options.model, "Codex thread model");
     if (options.ephemeral !== undefined) params.ephemeral = options.ephemeral;
+    if (options.config !== undefined) {
+      if (!isObject(options.config)) throw new Error("Codex thread config must be an object.");
+      params.config = { ...options.config };
+    }
     const result = await this.#request("thread/start", params);
     const thread = requireObject(result.thread, "Codex thread/start result.thread");
     return { threadId: requireText(thread.id, "Codex thread id"), source: "started" };

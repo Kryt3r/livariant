@@ -6,6 +6,7 @@ use crate::{
         ci_project_state_root, ci_register_project, with_project_persistence_scope_current,
         DesktopProjectRegistryState, ProjectPersistenceScope,
     },
+    project_knowledge_bridge::ensure_project_brain_storage_for_roots,
     project_scoped_persistence::{
         first_run_request_path, replace_staged_file, source_review_input_path,
         source_review_presentation_path, staged_path_for_target,
@@ -34,6 +35,11 @@ struct AcceptanceOutcome {
     detach_preserved_project_root: bool,
     detach_preserved_project_brain: bool,
     detach_preserved_project_state: bool,
+    fresh_project_a_has_no_repository_brain: bool,
+    project_a_machine_brain_ready: bool,
+    legacy_b_migrated_out_of_repository: bool,
+    project_b_machine_brain_ready: bool,
+    legacy_b_migration_idempotent: bool,
     project_state_contains_no_global_credentials: bool,
     project_state_contains_no_global_measurement_state: bool,
 }
@@ -53,6 +59,11 @@ impl AcceptanceOutcome {
             detach_preserved_project_root: false,
             detach_preserved_project_brain: false,
             detach_preserved_project_state: false,
+            fresh_project_a_has_no_repository_brain: false,
+            project_a_machine_brain_ready: false,
+            legacy_b_migrated_out_of_repository: false,
+            project_b_machine_brain_ready: false,
+            legacy_b_migration_idempotent: false,
             project_state_contains_no_global_credentials: false,
             project_state_contains_no_global_measurement_state: false,
         }
@@ -73,8 +84,43 @@ fn marker_path(root: &Path) -> PathBuf {
     root.join("ci-project-root-marker.txt")
 }
 
-fn project_brain_marker(root: &Path) -> PathBuf {
-    root.join(".project-brain").join("ci-preserve-marker.txt")
+fn project_brain_path(root: &Path) -> PathBuf {
+    root.join(".project-brain")
+}
+
+fn machine_brain_required_files(root: &Path) -> [PathBuf; 5] {
+    [
+        root.join(".project-brain").join("project.md"),
+        root.join(".project-brain").join("goals.md"),
+        root.join(".project-brain").join("decisions.md"),
+        root.join(".project-brain").join("knowledge.md"),
+        root.join(".project-brain").join("metadata.json"),
+    ]
+}
+
+fn machine_brain_ready(root: &Path) -> bool {
+    machine_brain_required_files(root).iter().all(|path| path.is_file())
+}
+
+fn prepare_legacy_project_brain(root: &Path) -> Result<(), String> {
+    let brain = project_brain_path(root);
+    fs::create_dir(&brain).map_err(|error| format!("Legacy CI Project Brain directory could not be created: {error}"))?;
+    fs::write(brain.join("project.md"), "# Project\n\nCI legacy Project B.\n")
+        .map_err(|error| format!("Legacy CI project.md could not be written: {error}"))?;
+    fs::write(brain.join("goals.md"), "# Goals\n\nNo confirmed project goals have been recorded yet.\n")
+        .map_err(|error| format!("Legacy CI goals.md could not be written: {error}"))?;
+    fs::write(brain.join("decisions.md"), "# Decisions\n\nNo accepted project decisions have been recorded yet.\n")
+        .map_err(|error| format!("Legacy CI decisions.md could not be written: {error}"))?;
+    fs::write(brain.join("knowledge.md"), "# Knowledge\n\n- legacy-ci-project-b\n")
+        .map_err(|error| format!("Legacy CI knowledge.md could not be written: {error}"))?;
+    fs::write(
+        brain.join("metadata.json"),
+        "{\n  \"framework\": { \"version\": \"0.1.0-rc.28\", \"channel\": \"development\" },\n  \"projectBrain\": { \"schemaVersion\": 2, \"projectId\": \"11111111-1111-4111-8111-111111111111\" }\n}\n",
+    )
+    .map_err(|error| format!("Legacy CI metadata.json could not be written: {error}"))?;
+    fs::write(brain.join("ci-legacy-marker.txt"), "legacy-project-b")
+        .map_err(|error| format!("Legacy CI migration marker could not be written: {error}"))?;
+    Ok(())
 }
 
 fn write_json(path: &Path, value: serde_json::Value) -> Result<(), String> {
@@ -163,16 +209,15 @@ fn run_acceptance(app: &AppHandle) -> Result<AcceptanceOutcome, String> {
     if root_a == root_b {
         return Err("CI multi-project acceptance requires two distinct project roots.".to_owned());
     }
-    for required in [
-        marker_path(&root_a),
-        marker_path(&root_b),
-        project_brain_marker(&root_a),
-        project_brain_marker(&root_b),
-    ] {
+    for required in [marker_path(&root_a), marker_path(&root_b)] {
         if !required.is_file() {
             return Err(format!("CI project preservation marker is missing: {}", required.display()));
         }
     }
+    if project_brain_path(&root_a).exists() || project_brain_path(&root_b).exists() {
+        return Err("CI project roots must start without a repository-local Project Brain.".to_owned());
+    }
+    prepare_legacy_project_brain(&root_b)?;
 
     let state = app.state::<DesktopProjectRegistryState>();
     let id_a = ci_register_project(app, state.inner(), &root_a, "CI Project A", "ci-project-a")?;
@@ -180,6 +225,20 @@ fn run_acceptance(app: &AppHandle) -> Result<AcceptanceOutcome, String> {
     if id_a == id_b {
         return Err("Distinct CI projects received the same Desktop project identity.".to_owned());
     }
+
+    let state_root_a = ci_project_state_root(app, &id_a)?;
+    let state_root_b = ci_project_state_root(app, &id_b)?;
+    ensure_project_brain_storage_for_roots(&root_a, &state_root_a)?;
+    let fresh_project_a_has_no_repository_brain = !project_brain_path(&root_a).exists();
+    let project_a_machine_brain_ready = machine_brain_ready(&state_root_a);
+
+    ensure_project_brain_storage_for_roots(&root_b, &state_root_b)?;
+    let legacy_b_migrated_out_of_repository = !project_brain_path(&root_b).exists();
+    let project_b_machine_brain_ready = machine_brain_ready(&state_root_b)
+        && state_root_b.join(".project-brain").join("ci-legacy-marker.txt").is_file();
+    ensure_project_brain_storage_for_roots(&root_b, &state_root_b)?;
+    let legacy_b_migration_idempotent = !project_brain_path(&root_b).exists()
+        && state_root_b.join(".project-brain").join("ci-legacy-marker.txt").is_file();
 
     let active_a = ci_activate_project(app, state.inner(), &id_a)?;
     let scope_a = ProjectPersistenceScope::Active(active_a.clone());
@@ -222,14 +281,12 @@ fn run_acceptance(app: &AppHandle) -> Result<AcceptanceOutcome, String> {
     let diagnostics_binding_restored =
         active_diagnostics_project_id(app, state.inner())? == "ci-project-a";
 
-    let state_root_a = ci_project_state_root(app, &id_a)?;
-    let state_root_b = ci_project_state_root(app, &id_b)?;
     ci_detach_project(app, state.inner(), &id_b)?;
 
     let detach_preserved_project_root =
         marker_path(&root_b).is_file() && marker_path(&root_a).is_file();
     let detach_preserved_project_brain =
-        project_brain_marker(&root_b).is_file() && project_brain_marker(&root_a).is_file();
+        machine_brain_ready(&state_root_b) && machine_brain_ready(&state_root_a);
     let detach_preserved_project_state =
         state_root_b.is_dir() && state_root_a.is_dir();
 
@@ -247,6 +304,11 @@ fn run_acceptance(app: &AppHandle) -> Result<AcceptanceOutcome, String> {
         && detach_preserved_project_root
         && detach_preserved_project_brain
         && detach_preserved_project_state
+        && fresh_project_a_has_no_repository_brain
+        && project_a_machine_brain_ready
+        && legacy_b_migrated_out_of_repository
+        && project_b_machine_brain_ready
+        && legacy_b_migration_idempotent
         && no_global_credentials
         && no_global_measurement;
 
@@ -267,6 +329,11 @@ fn run_acceptance(app: &AppHandle) -> Result<AcceptanceOutcome, String> {
         detach_preserved_project_root,
         detach_preserved_project_brain,
         detach_preserved_project_state,
+        fresh_project_a_has_no_repository_brain,
+        project_a_machine_brain_ready,
+        legacy_b_migrated_out_of_repository,
+        project_b_machine_brain_ready,
+        legacy_b_migration_idempotent,
         project_state_contains_no_global_credentials: no_global_credentials,
         project_state_contains_no_global_measurement_state: no_global_measurement,
     })

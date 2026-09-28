@@ -30,6 +30,11 @@ interface SuppliedReadyProviderContext {
   provider: ProviderContextProvider;
   packetId: string;
   stableProjectIdentity: string;
+  providerSession: {
+    id: string;
+    source: "mcp-session";
+    providerThreadId?: string;
+  } | null;
   baseline: ProjectContextBaseline;
   task: {
     value: string;
@@ -119,7 +124,7 @@ function strictKeys(value: Record<string, unknown>, required: readonly string[])
 }
 
 function parseProvider(value: unknown): ProviderContextProvider {
-  if (value !== "claude-code" && value !== "codex") throw new Error("Provider roundtrip provider is unsupported.");
+  if (value !== "claude-code" && value !== "codex" && value !== "gemini" && value !== "custom") throw new Error("Provider roundtrip provider is unsupported.");
   return value;
 }
 
@@ -195,6 +200,7 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
     "provider",
     "projectLocator",
     "stableProjectIdentity",
+    "providerSession",
     "projection",
     "mutationAuthorization",
     "applySupported",
@@ -217,6 +223,35 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
   const provider = parseProvider(value.provider);
   const packetId = parsePacketId(value.packetId);
   const stableProjectIdentity = parseStableIdentity(value.stableProjectIdentity);
+  let providerSession: SuppliedReadyProviderContext["providerSession"] = null;
+  if (value.providerSession !== null) {
+    if (!plainObject(value.providerSession)) throw new Error("Provider context session binding is invalid.");
+    const keys = Object.keys(value.providerSession);
+    for (const key of keys) {
+      if (!["id", "source", "providerThreadId"].includes(key)) {
+        throw new Error(`Provider context session binding contains unsupported field: ${key}.`);
+      }
+    }
+    if (!("id" in value.providerSession) || !("source" in value.providerSession)) {
+      throw new Error("Provider context session binding is incomplete.");
+    }
+    const id = parseStableIdentity(value.providerSession.id);
+    if (value.providerSession.source !== "mcp-session") throw new Error("Provider context session source is unsupported.");
+    let providerThreadId: string | undefined;
+    if (value.providerSession.providerThreadId !== undefined) {
+      if (typeof value.providerSession.providerThreadId !== "string") throw new Error("Provider context thread id is invalid.");
+      const normalized = value.providerSession.providerThreadId.trim();
+      if (normalized.length === 0 || normalized.length > 240 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+        throw new Error("Provider context thread id is invalid.");
+      }
+      providerThreadId = normalized;
+    }
+    providerSession = {
+      id,
+      source: "mcp-session",
+      ...(providerThreadId === undefined ? {} : { providerThreadId }),
+    };
+  }
   const baseline = parseBaseline(value.baseline);
   parseProjection(value.projection);
   if (value.mutationAuthorization !== false || value.applySupported !== false || value.authorizationEligible !== false || value.changesMade !== 0) {
@@ -231,7 +266,13 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
     throw new Error("Provider context task is invalid.");
   }
   validateProviderContextTask(value.task.value);
-  const expectedPacketId = providerContextPacketId(provider, baseline.digest, value.task.value);
+  const expectedPacketId = providerContextPacketId(
+    provider,
+    baseline.digest,
+    value.task.value,
+    providerSession?.id,
+    providerSession?.providerThreadId,
+  );
   if (packetId !== expectedPacketId) throw new Error("Provider context packet id does not match its provider/baseline/task material.");
 
   return {
@@ -241,6 +282,7 @@ export function parseSuppliedReadyProviderContext(value: unknown): SuppliedReady
     provider,
     packetId,
     stableProjectIdentity,
+    providerSession,
     baseline,
     task: { value: value.task.value, authorityClass: "session-ephemeral" },
   };

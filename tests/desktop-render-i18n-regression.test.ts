@@ -100,31 +100,32 @@ test("Diagnostics live layout is scoped to the structural diagnostics surface", 
   assert.match(css, /\[data-diagnostics-attribution\]/);
 });
 
-test("UI polish discovers Updates structurally, not through visible text", async () => {
+test("legacy standalone Updates route and polish are absent", async () => {
+  const main = await read("apps/desktop/src/main.ts");
   const polish = await read("apps/desktop/src/ui-polish.ts");
-  assert.match(polish, /active\[data-view='updates'\]/);
-  assert.doesNotMatch(polish, /\.topbar h1/);
-  assert.doesNotMatch(polish, /textContent.*Updates/);
-  assert.doesNotMatch(polish, /eyebrowText/);
+
+  assert.doesNotMatch(main, /data-view="updates"/);
+  assert.doesNotMatch(main, /renderUpdatesView/);
+  assert.doesNotMatch(polish, /data-view='updates'/);
+  assert.doesNotMatch(polish, /updates-workspace/);
 });
 
-test("Updater has one active install CTA owner and keeps the available action stable", async () => {
+test("Updater has one active Settings CTA owner", async () => {
   const index = await read("apps/desktop/index.html");
   const entry = await read("apps/desktop/src/desktop-entry.ts");
   const updater = await read("apps/desktop/src/updater-ui.ts");
-  const css = await read("apps/desktop/src/live-ui-regressions.css");
+  const css = await read("apps/desktop/src/updater-experience.css");
+
   assert.match(index, /\/src\/desktop-entry\.ts/);
   assert.doesNotMatch(index, /\/src\/updater-ui\.ts/);
-  assert.doesNotMatch(index, /updater-cta-stabilizer/);
   assert.match(entry, /import\("\.\/updater-ui\.js"\)/);
-  assert.doesNotMatch(entry, /updater-cta-stabilizer/);
+  assert.match(updater, /\[data-settings-surface='updates'\]/);
   assert.match(updater, /const button = installButton \?\? document\.createElement\("button"\)/);
   assert.match(updater, /button\.parentElement !== panel/);
-  assert.doesNotMatch(updater, /document\.querySelector\("\.install-update"\)\?\.remove\(\);/);
-  assert.match(css, /\.updates-status-card \.install-update/);
-  assert.match(css, /opacity: 1 !important/);
-  assert.match(css, /pointer-events: auto !important/);
-  assert.match(css, /animation: none !important/);
+  assert.doesNotMatch(updater, /\.updates-status-card/);
+  assert.doesNotMatch(updater, /\.updates-workspace/);
+  assert.match(css, /\.settings-status-hero \.install-update/);
+  assert.match(css, /\.settings-updater-progress/);
 });
 
 test("redesigned Diagnostics is the sole visible renderer", async () => {

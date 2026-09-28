@@ -2,7 +2,6 @@ import "./glass.css";
 import "./styles.css";
 import "./project-truth.css";
 import "./project-truth-workspace.css";
-import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getLanguage, onLanguageChange } from "./i18n/runtime.js";
 import {
@@ -21,19 +20,29 @@ import {
   refreshProjectSettings,
   renderProjectSettingsView,
 } from "./project-settings.js";
+import {
+  acceptProjectKnowledgeIntegrity,
+  applyProjectKnowledgeProposal,
+  loadProjectKnowledge,
+  loadProjectKnowledgeProtectionStatus,
+  prepareProjectKnowledgeProposal,
+  type ProjectKnowledgePreparedProposal,
+  type ProjectKnowledgeProtectionStatus,
+  type ProjectKnowledgeSnapshot,
+} from "./project-knowledge-bridge.js";
+import { onDesktopProjectActivated } from "./desktop-project-registry.js";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
 const appWindow = getCurrentWindow();
 const uiText = (en: string, de: string) => getLanguage() === "de" ? de : en;
 
-type View = "steps" | "updates" | "connections" | "diagnostics";
+type View = "overview" | "steps" | "connections" | "diagnostics";
 type SettingsSection = "general" | "projects" | "connections" | "updates" | "system" | "about";
 type NoticeKind = "info" | "success" | "warning" | "error";
 type AreaState = "open" | "deferred" | "review" | "confirmed";
 type TruthFilter = "all" | "review" | "open" | "conflicts";
 type TruthImpact = "new" | "extends" | "refines" | "replaces" | "unchanged";
 type SourceMode = "rendered" | "raw";
-type UpdateState = "idle" | "checking" | "not-configured" | "invalid-config" | "available" | "current" | "error";
 type TruthRevision = { value: string; reason: "accepted" | "merged" };
 type TruthArea = {
   id: string;
@@ -46,14 +55,10 @@ type TruthArea = {
   confirmedValue: string;
   history: TruthRevision[];
   sourceHints: string[];
+  activeDecisionId: string | null;
+  preparedProposal: ProjectKnowledgePreparedProposal["proposal"] | null;
 };
 type Notice = { kind: NoticeKind; title: string; detail?: string };
-type UpdateCheckResult = {
-  state: Exclude<UpdateState, "idle" | "checking">;
-  currentVersion: string;
-  availableVersion: string | null;
-  detail: string;
-};
 type TruthProposal = {
   impact: TruthImpact;
   label: string;
@@ -73,6 +78,8 @@ const areas: TruthArea[] = [
     confirmedValue: "",
     history: [],
     sourceHints: ["Project Brain · project identity and intent"],
+    activeDecisionId: null,
+    preparedProposal: null,
   },
   {
     id: "direction",
@@ -85,6 +92,8 @@ const areas: TruthArea[] = [
     confirmedValue: "",
     history: [],
     sourceHints: ["Project Brain · accepted goals and decisions"],
+    activeDecisionId: null,
+    preparedProposal: null,
   },
   {
     id: "rules",
@@ -97,10 +106,12 @@ const areas: TruthArea[] = [
     confirmedValue: "",
     history: [],
     sourceHints: ["Project Brain · protected properties and constraints"],
+    activeDecisionId: null,
+    preparedProposal: null,
   },
 ];
 
-let currentView: View = "steps";
+let currentView: View = "overview";
 let settingsOpen = false;
 let settingsSection: SettingsSection = "general";
 let truthFilter: TruthFilter = "all";
@@ -109,8 +120,14 @@ let selectedReviewAreaId: string | null = null;
 let selectedSourceAreaId: string | null = null;
 let sourceMode: SourceMode = "rendered";
 let notice: Notice | null = null;
-let updateState: UpdateState = "idle";
-let updateResult: UpdateCheckResult | null = null;
+let projectKnowledgeLoading = false;
+let projectKnowledgeLoadedOnce = false;
+let projectKnowledgeLastRefreshAt = 0;
+let projectKnowledgeRefreshInFlight: Promise<void> | null = null;
+let projectKnowledgeApplying = false;
+let projectKnowledgeIntegrityInFlight = false;
+let projectKnowledgeProtection: ProjectKnowledgeProtectionStatus | null = null;
+let projectKnowledgeError: string | null = null;
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Livariant desktop root not found");
 
@@ -120,6 +137,95 @@ const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (character) => (
 
 const normalizeTruth = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 const renderTruthText = (value: string) => value.split(/\n+/).map((line) => line.trim()).filter(Boolean).map((line) => `<p>${escapeHtml(line)}</p>`).join("");
+
+const applyProjectKnowledgeSnapshot = (snapshot: ProjectKnowledgeSnapshot) => {
+  for (const area of areas) {
+    const canonical = snapshot.areas.find((candidate) => candidate.id === area.id);
+    if (!canonical) continue;
+    area.confirmedValue = canonical.confirmedValue;
+    area.activeDecisionId = canonical.activeDecisionId;
+    area.history = canonical.history.map((entry) => ({ value: entry.value, reason: "accepted" as const }));
+    area.pendingValue = "";
+    area.preparedProposal = null;
+    area.state = canonical.state;
+  }
+};
+
+const clearProjectKnowledgeSnapshot = () => {
+  for (const area of areas) {
+    area.confirmedValue = "";
+    area.activeDecisionId = null;
+    area.history = [];
+    area.pendingValue = "";
+    area.preparedProposal = null;
+    area.state = "open";
+  }
+};
+
+const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
+  if (projectKnowledgeRefreshInFlight) return projectKnowledgeRefreshInFlight;
+
+  projectKnowledgeLoading = true;
+  projectKnowledgeError = null;
+  if (renderAfter && currentView === "steps") render();
+
+  const refresh = (async () => {
+    try {
+      // The snapshot command already performs the complete fail-closed protection
+      // check. Ready-state reads should not run the same expensive inspection twice.
+      const snapshot = await loadProjectKnowledge();
+      projectKnowledgeProtection = null;
+      applyProjectKnowledgeSnapshot(snapshot);
+    } catch (readError) {
+      try {
+        let protection = await loadProjectKnowledgeProtectionStatus();
+
+        projectKnowledgeProtection = protection;
+        clearProjectKnowledgeSnapshot();
+
+        if (
+          protection.state === "protected-source-required"
+          || protection.state === "guardian-bootstrap-required"
+          || protection.state === "project-brain-initialization-required"
+        ) {
+          projectKnowledgeError = uiText(
+            "Project knowledge is not ready on this device yet. Livariant will not use an unprotected Project Brain.",
+            "Projektwissen ist auf diesem Gerät noch nicht bereit. Livariant verwendet keinen ungeschützten Project Brain.",
+          );
+        } else if (protection.state === "unsupported-platform") {
+          projectKnowledgeError = uiText(
+            "Protected Project Knowledge is not available on this platform.",
+            "Geschütztes Projektwissen ist auf dieser Plattform nicht verfügbar.",
+          );
+        } else if (protection.state === "unsafe") {
+          projectKnowledgeError = uiText(
+            "Project knowledge is blocked because the protected local setup is not safe to use.",
+            "Projektwissen ist blockiert, weil die geschützte lokale Einrichtung nicht sicher verwendet werden kann.",
+          );
+        } else if (
+          protection.state !== "integrity-recovery-required"
+          && protection.state !== "integrity-acceptance-required"
+        ) {
+          projectKnowledgeError = readError instanceof Error ? readError.message : String(readError);
+        }
+      } catch (statusError) {
+        clearProjectKnowledgeSnapshot();
+        projectKnowledgeProtection = null;
+        projectKnowledgeError = statusError instanceof Error ? statusError.message : String(statusError);
+      }
+    } finally {
+      projectKnowledgeLoadedOnce = true;
+      projectKnowledgeLastRefreshAt = Date.now();
+      projectKnowledgeLoading = false;
+      projectKnowledgeRefreshInFlight = null;
+      if (renderAfter && currentView === "steps") render();
+    }
+  })();
+
+  projectKnowledgeRefreshInFlight = refresh;
+  return refresh;
+};
+
 
 const icon = (name: "home" | "steps" | "updates" | "settings" | "diagnostics") => {
   const paths = {
@@ -314,7 +420,7 @@ const renderTruthReviewModal = () => {
 
         <footer class="truth-review-actions">
           <div class="truth-decision-copy"><span class="eyebrow">${uiText("Decision", "Entscheidung")}</span><strong>${uiText("Choose what should become canonical knowledge.", "Entscheide, was kanonisches Wissen werden soll.")}</strong></div>
-          <div class="truth-decision-buttons"><button class="text-button reject-truth-review" type="button">${uiText("Reject evidence", "Evidence ablehnen")}</button>${existing ? `<button class="button secondary keep-truth-review" type="button">${uiText("Keep existing", "Bestehendes behalten")}</button>` : ""}<button class="button primary accept-truth-review" type="button">${uiText("Accept into Project Truth", "In Project Brain übernehmen")}</button></div>
+          <div class="truth-decision-buttons"><button class="text-button reject-truth-review" type="button">${uiText("Reject evidence", "Evidence ablehnen")}</button>${existing ? `<button class="button secondary keep-truth-review" type="button">${uiText("Keep existing", "Bestehendes behalten")}</button>` : ""}<button class="button primary accept-truth-review" type="button" ${projectKnowledgeApplying ? "disabled" : ""}>${projectKnowledgeApplying ? uiText("Applying…", "Wird übernommen…") : uiText("Accept into Project Truth", "In Project Brain übernehmen")}</button></div>
         </footer>
       </section>
     </div>`;
@@ -329,15 +435,94 @@ const renderTruthSourceModal = () => {
       <section class="truth-source-modal" role="dialog" aria-modal="true" aria-labelledby="truth-source-title" data-truth-source-modal>
         <button class="truth-review-close" type="button" data-close-truth-source aria-label="Close source view">×</button>
         <header class="truth-source-modal-head"><div><span class="eyebrow">Existing Project Brain</span><h2 id="truth-source-title">${escapeHtml(area.title)} source</h2><p>Project Truth does not own another copy. This view is reserved for the existing canonical Project Brain source that backs this area.</p></div><span class="truth-source-origin">Project Brain</span></header>
-        <div class="truth-source-warning"><span>i</span><p><strong>Renderer preview:</strong> the persistent Project Brain read bridge is not connected in PR #124 yet. The content below is a session projection only so the interaction and Markdown presentation can be reviewed without inventing a second source of truth.</p></div>
+        <div class="truth-source-warning"><span>i</span><p><strong>${uiText("Canonical source:", "Kanonische Quelle:")}</strong> ${uiText("This content was read from the active project's Project Brain. The Desktop keeps no separate confirmed copy.", "Dieser Inhalt wurde aus dem Project Brain des aktiven Projekts gelesen. Der Desktop hält keine separate bestätigte Kopie.")}</p></div>
         <div class="truth-source-meta">${area.sourceHints.map((hint) => `<span>${escapeHtml(hint)}</span>`).join("")}</div>
         <div class="truth-source-tabs" role="group" aria-label="Source display mode"><button class="truth-source-tab ${sourceMode === "rendered" ? "active" : ""}" data-source-mode="rendered" type="button">Rendered</button><button class="truth-source-tab ${sourceMode === "raw" ? "active" : ""}" data-source-mode="raw" type="button">Raw Markdown</button></div>
         ${sourceMode === "raw"
           ? `<pre class="truth-source-raw"><code>${escapeHtml(markdown)}</code></pre>`
           : `<article class="truth-source-rendered"><h1>${escapeHtml(area.title)}</h1>${area.confirmedValue ? renderTruthText(area.confirmedValue) : '<p><em>No canonical Project Brain content is loaded for this area in the renderer preview.</em></p>'}</article>`}
-        ${area.history.length ? `<details class="truth-source-history"><summary>Session revision preview · ${area.history.length}</summary>${[...area.history].reverse().map((revision, index) => `<div><small>Previous session revision ${area.history.length - index}</small>${renderTruthText(revision.value)}</div>`).join("")}</details>` : ""}
+        ${area.history.length ? `<details class="truth-source-history"><summary>${uiText("Project Brain history", "Project-Brain-Verlauf")} · ${area.history.length}</summary>${[...area.history].reverse().map((revision, index) => `<div><small>${uiText("Previous canonical revision", "Vorherige kanonische Revision")} ${area.history.length - index}</small>${renderTruthText(revision.value)}</div>`).join("")}</details>` : ""}
       </section>
     </div>`;
+};
+
+const renderProjectKnowledgeProtection = () => {
+  const protection = projectKnowledgeProtection;
+  if (!protection || protection.state === "ready") return "";
+
+  if (protection.state === "integrity-acceptance-required") {
+    return `<section class="project-brain-setup-card project-brain-integrity-activation">
+      <div class="project-brain-setup-icon" aria-hidden="true">✓</div>
+      <div class="project-brain-setup-main"><div class="project-brain-setup-heading">
+        <span class="project-brain-setup-step">${uiText("One-time protection", "Einmaliger Schutz")}</span>
+        <h3>${uiText("Activate project knowledge", "Projektwissen aktivieren")}</h3>
+        <p>${uiText(
+          "The local Project Brain is present, but this project's protected baseline has not been confirmed yet. Windows will ask once for confirmation. Livariant does not change project files.",
+          "Der lokale Project Brain ist vorhanden, aber die geschützte Ausgangsbasis dieses Projekts wurde noch nicht bestätigt. Windows fragt dafür einmalig nach einer Bestätigung. Livariant verändert dabei keine Projektdateien.",
+        )}</p>
+      </div></div>
+      <div class="project-brain-setup-actions">
+        <button class="button primary" type="button" data-project-knowledge-integrity-activate ${projectKnowledgeIntegrityInFlight ? "disabled" : ""}>${projectKnowledgeIntegrityInFlight ? uiText("Waiting for Windows confirmation…", "Warte auf Windows-Bestätigung…") : uiText("Activate project knowledge", "Projektwissen aktivieren")}</button>
+      </div>
+    </section>`;
+  }
+
+  if (protection.state === "integrity-recovery-required" && protection.unexpectedChangeReview) {
+    const changed = protection.unexpectedChangeReview.areas.filter((area) => area.changed);
+    const rows = changed.length > 0
+      ? changed.map((area) => {
+          const labels: Record<string, string> = {
+            purpose: uiText("Project purpose", "Projektziel"),
+            direction: uiText("Current direction", "Aktuelle Richtung"),
+            rules: uiText("Rules and constraints", "Regeln und Grenzen"),
+          };
+          return `<article class="truth-review-section">
+            <div class="truth-review-section-head"><div><span class="eyebrow">${escapeHtml(labels[area.id] ?? area.id)}</span><h3>${uiText("Unexpected change detected", "Unerwartete Änderung erkannt")}</h3></div></div>
+            <div class="truth-review-diff">
+              <div class="truth-diff-row removed"><span>−</span><div><small>${uiText("Previously confirmed", "Bisher bestätigt")}</small><p>${escapeHtml(area.before || uiText("No confirmed value", "Kein bestätigter Wert"))}</p></div></div>
+              <div class="truth-diff-row added"><span>+</span><div><small>${uiText("Current local state", "Aktueller lokaler Stand")}</small><p>${escapeHtml(area.after || uiText("No confirmed value", "Kein bestätigter Wert"))}</p></div></div>
+            </div>
+          </article>`;
+        }).join("")
+      : `<div class="project-brain-setup-note"><span>!</span><p>${uiText(
+          "Managed Project Brain material changed outside the visible curated knowledge fields. Livariant will not trust the new state until it is explicitly confirmed.",
+          "Verwaltetes Project-Brain-Material wurde außerhalb der sichtbaren Wissensfelder verändert. Livariant vertraut dem neuen Stand erst nach ausdrücklicher Bestätigung.",
+        )}</p></div>`;
+
+    return `<section class="project-brain-setup-card project-brain-unexpected-change">
+      <div class="project-brain-setup-icon" aria-hidden="true">!</div>
+      <div class="project-brain-setup-main">
+        <div class="project-brain-setup-heading">
+          <span class="project-brain-setup-step">${uiText("Knowledge change review", "Änderung am Livariant-Wissen prüfen")}</span>
+          <h3>${uiText("Livariant knowledge changed unexpectedly", "Das Livariant-Wissen hat sich verändert")}</h3>
+          <p>${uiText(
+            "This change did not arrive through the normal confirmed Livariant flow. Review the difference before deciding whether the current state should become trusted.",
+            "Diese Änderung entstand nicht über den normalen bestätigten Livariant-Ablauf. Prüfe den Unterschied, bevor du entscheidest, ob der aktuelle Stand vertrauenswürdig werden soll.",
+          )}</p>
+        </div>
+        ${rows}
+      </div>
+      <div class="project-brain-setup-actions">
+        <button class="text-button" type="button" data-project-knowledge-unexpected-reject>${uiText("Do not confirm", "Nicht bestätigen")}</button>
+        <button class="button primary" type="button" data-project-knowledge-unexpected-accept>${uiText("Confirm current state", "Aktuellen Stand bestätigen")}</button>
+      </div>
+    </section>`;
+  }
+
+  if (protection.state === "integrity-recovery-required") {
+    return `<section class="project-brain-setup-card">
+      <div class="project-brain-setup-icon" aria-hidden="true">!</div>
+      <div class="project-brain-setup-main"><div class="project-brain-setup-heading">
+        <span class="project-brain-setup-step">${uiText("Project knowledge needs attention", "Projektwissen benötigt Aufmerksamkeit")}</span>
+        <h3>${uiText("Livariant cannot safely use this Project Brain yet", "Livariant kann diesen Project Brain noch nicht sicher verwenden")}</h3>
+        <p>${escapeHtml(protection.integrity.reason ?? uiText("The stored project knowledge is damaged or ambiguous and cannot be accepted as-is.", "Das gespeicherte Projektwissen ist beschädigt oder mehrdeutig und kann nicht unverändert übernommen werden."))}</p>
+      </div></div>
+      <div class="project-brain-setup-actions"><button class="text-button" type="button" data-project-knowledge-protection-refresh>${uiText("Check again", "Erneut prüfen")}</button></div>
+    </section>`;
+  }
+
+  return "";
+
 };
 
 const renderProjectTruthView = () => {
@@ -351,10 +536,10 @@ const renderProjectTruthView = () => {
 
       <section class="truth-control-band">
         <div class="truth-control-status">
-          <div><small>${uiText("Confirmed", "Bestätigt")}</small><strong>${confirmed}</strong></div>
-          <div><small>${uiText("Review", "Prüfung")}</small><strong>${needsReview}</strong></div>
-          <div><small>${uiText("Gaps", "Lücken")}</small><strong>${openQuestions}</strong></div>
-          <div class="${conflicts > 0 ? "has-conflict" : ""}"><small>${uiText("Conflicts", "Konflikte")}</small><strong>${conflicts}</strong></div>
+          <div><small>${uiText("Confirmed", "Bestätigt")}</small><strong>${projectKnowledgeLoading && !projectKnowledgeLoadedOnce ? "—" : confirmed}</strong></div>
+          <div><small>${uiText("Review", "Prüfung")}</small><strong>${projectKnowledgeLoading && !projectKnowledgeLoadedOnce ? "—" : needsReview}</strong></div>
+          <div><small>${uiText("Gaps", "Lücken")}</small><strong>${projectKnowledgeLoading && !projectKnowledgeLoadedOnce ? "—" : openQuestions}</strong></div>
+          <div class="${conflicts > 0 ? "has-conflict" : ""}"><small>${uiText("Conflicts", "Konflikte")}</small><strong>${projectKnowledgeLoading && !projectKnowledgeLoadedOnce ? "—" : conflicts}</strong></div>
         </div>
         <label class="truth-search" aria-label="${uiText("Search Project Brain", "Project Brain durchsuchen")}"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg><input type="search" value="${escapeHtml(truthSearch)}" placeholder="${uiText("Search project knowledge…", "Projektwissen durchsuchen…")}" data-truth-search /></label>
       </section>
@@ -372,46 +557,22 @@ const renderProjectTruthView = () => {
         <div class="truth-area-list">${areas.map(renderAreaCard).join("")}<div class="truth-empty" data-truth-empty hidden><strong>${uiText("Nothing matches this view", "Keine Treffer in dieser Ansicht")}</strong><p>${uiText("Try another search or filter.", "Versuche eine andere Suche oder einen anderen Filter.")}</p></div></div>
       </section>
 
-      <div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("Suggestions are not automatically project truth.", "Vorschläge werden nicht automatisch zur Projektwahrheit.")}</strong> ${uiText("Livariant keeps observations, AI suggestions and your accepted project knowledge separate. The current Desktop editor is still a review preview and does not yet claim a durable Project Brain write.", "Livariant hält Beobachtungen, KI-Vorschläge und dein bestätigtes Projektwissen getrennt. Der aktuelle Desktop-Editor ist noch eine Prüf-Vorschau und beansprucht noch keine dauerhafte Speicherung im Project Brain.")}</p></div>
+      ${projectKnowledgeLoading ? `<div class="truth-boundary-card truth-boundary-card-redesign"><span>…</span><p><strong>${uiText("Loading Project Brain", "Project Brain wird geladen")}</strong> ${uiText("Livariant is reading the active project's canonical Project Brain before showing confirmed knowledge.", "Livariant liest zuerst den kanonischen Project Brain des aktiven Projekts, bevor bestätigtes Wissen angezeigt wird.")}</p></div>` : ""}
+      ${renderProjectKnowledgeProtection()}
+      ${projectKnowledgeError ? `<div class="truth-boundary-card truth-boundary-card-redesign"><span>!</span><p><strong>${uiText("Project Brain is not available", "Project Brain ist nicht verfügbar")}</strong> ${escapeHtml(projectKnowledgeError)}</p></div>` : `<div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("Suggestions are not automatically project truth.", "Vorschläge werden nicht automatisch zur Projektwahrheit.")}</strong> ${uiText("Confirmed values on this page now come from the active project's canonical Project Brain. A proposal remains non-canonical until the protected authorization and apply path completes.", "Bestätigte Werte auf dieser Seite stammen jetzt aus dem kanonischen Project Brain des aktiven Projekts. Ein Vorschlag bleibt nicht-kanonisch, bis der geschützte Autorisierungs- und Apply-Pfad abgeschlossen ist.")}</p></div>`}
       ${renderTruthReviewModal()}
       ${renderTruthSourceModal()}
     </div>`;
 };
 
-const updateCopy = () => {
-  if (updateState === "checking") return { eyebrow: "Checking update channel", title: "Checking for updates…", detail: "Livariant is asking the fixed host-side updater boundary for update state." };
-  if (updateResult?.state === "available") return { eyebrow: "Update available", title: `${updateResult.availableVersion ?? "A newer version"} is available`, detail: updateResult.detail };
-  if (updateResult?.state === "current") return { eyebrow: "Up to date", title: `Livariant ${updateResult.currentVersion}`, detail: updateResult.detail };
-  if (updateResult?.state === "not-configured") return { eyebrow: "Updater foundation", title: "Update channel not configured yet", detail: updateResult.detail };
-  if (updateResult?.state === "invalid-config" || updateResult?.state === "error") return { eyebrow: "Update check needs attention", title: "Update check did not complete", detail: updateResult.detail };
-  return { eyebrow: "Secure preview updates", title: "Check before changing anything", detail: "Update checks remain behind the fixed host-side updater boundary." };
-};
-
-const renderUpdatesView = () => {
-  const copy = updateCopy();
-  const checking = updateState === "checking";
-  const showCheckButton = updateResult?.state !== "available";
-  return `
-    <header class="topbar"><div><span class="eyebrow">Desktop lifecycle</span><h1>Updates</h1><p>Update availability is evidence. Livariant will not replace installed code until artifact and update authority are explicitly verified.</p></div></header>
-    <section class="progress-panel"><div><span class="eyebrow">${copy.eyebrow}</span><h2>${escapeHtml(copy.title)}</h2><p>${escapeHtml(copy.detail)}</p></div>${showCheckButton ? `<button class="button primary check-updates" type="button" ${checking ? "disabled" : ""}>${checking ? "Checking…" : "Check for updates"}</button>` : ""}</section>
-    <section class="steps">
-      <article class="step-card state-open"><div class="step-head"><div class="step-number">01</div><div class="step-copy"><div class="step-title-row"><h3>Signed update identity</h3><span class="state-pill">Verified boundary</span></div><p>The renderer cannot supply arbitrary update URLs or executable paths.</p></div></div></article>
-      <article class="step-card state-open"><div class="step-head"><div class="step-number">02</div><div class="step-copy"><div class="step-title-row"><h3>Install authority</h3><span class="state-pill">User triggered</span></div><p>A successful availability check alone never authorizes installation or restart.</p></div></div></article>
-    </section>`;
-};
-
 const renderContent = () => {
-  if (currentView === "updates") return renderUpdatesView();
+  if (currentView === "overview") return '<div data-shell-overview-host></div>';
   if (currentView === "connections") return renderConnectionsView();
   if (currentView === "diagnostics") return `<div class="diagnostics-surface" data-surface="diagnostics" data-diagnostics-preset="30d"></div>`;
   return renderProjectTruthView();
 };
 
-const renderUpdatesSettingsView = () => {
-  const copy = updateCopy();
-  const checking = updateState === "checking";
-  const showCheckButton = updateResult?.state !== "available";
-  return `
+const renderUpdatesSettingsView = () => `
     <section class="settings-panel settings-updates" data-settings-surface="updates">
       <span class="eyebrow">${uiText("Desktop lifecycle", "Desktop-Lebenszyklus")}</span><h2>Updates</h2>
       <p>${uiText(
@@ -419,16 +580,21 @@ const renderUpdatesSettingsView = () => {
         "Update-Prüfungen bleiben innerhalb der festen hostseitigen Livariant-Grenze. Verfügbarkeit autorisiert niemals Installation oder Neustart.",
       )}</p>
       <div class="settings-status-hero">
-        <div><small>${escapeHtml(copy.eyebrow)}</small><strong>${escapeHtml(copy.title)}</strong><span>${escapeHtml(copy.detail)}</span></div>
-        ${showCheckButton ? `<button class="button primary check-updates" type="button" ${checking ? "disabled" : ""}>${checking ? uiText("Checking…", "Prüfe…") : uiText("Check for updates", "Nach Updates suchen")}</button>` : ""}
+        <div>
+          <small>${uiText("Secure preview updates", "Sichere Vorschau-Updates")}</small>
+          <strong>${uiText("Check before changing anything", "Prüfen, bevor etwas verändert wird")}</strong>
+          <span>${uiText(
+            "Update checks remain behind the fixed host-side updater boundary.",
+            "Update-Prüfungen bleiben hinter der festen hostseitigen Updater-Grenze.",
+          )}</span>
+        </div>
+        <button class="button primary check-updates" type="button">${uiText("Check for updates", "Nach Updates suchen")}</button>
       </div>
       <div class="settings-safety-grid">
         <article><span>01</span><div><strong>${uiText("Signed update identity", "Signierte Update-Identität")}</strong><p>${uiText("The renderer cannot provide arbitrary update URLs or executable paths.", "Der Renderer kann keine beliebigen Update-URLs oder ausführbaren Pfade vorgeben.")}</p></div></article>
         <article><span>02</span><div><strong>${uiText("Install authority", "Installationsfreigabe")}</strong><p>${uiText("An available update remains evidence only until the user explicitly starts the qualified install path.", "Ein verfügbares Update bleibt zunächst nur Evidence, bis der Nutzer den qualifizierten Installationspfad ausdrücklich startet.")}</p></div></article>
       </div>
     </section>`;
-};
-
 const renderSettingsContent = () => {
   if (settingsSection === "projects") return renderProjectSettingsView();
   if (settingsSection === "connections") return renderConnectionsSettingsView();
@@ -496,32 +662,6 @@ const applyTruthFilters = () => {
   if (empty) empty.hidden = visibleCount > 0;
 };
 
-const updateHostFailureCopy = () => uiText(
-  "The update check could not be completed. The existing installation was not changed. Check your connection and try again.",
-  "Die Update-Prüfung konnte nicht abgeschlossen werden. Die bestehende Installation wurde nicht verändert. Prüfe deine Verbindung und versuche es erneut.",
-);
-
-const bindUpdateCheckEvent = () => {
-  document.querySelector<HTMLButtonElement>(".check-updates")?.addEventListener("click", async () => {
-    updateState = "checking";
-    notice = { kind: "info", title: "Checking for updates", detail: "Livariant is contacting the verified update boundary." };
-    render();
-    try {
-      updateResult = await invoke<UpdateCheckResult>("check_for_update");
-      updateState = updateResult.state;
-      if (updateResult.state === "available") notice = { kind: "success", title: "Update available", detail: updateResult.detail };
-      else if (updateResult.state === "current") notice = { kind: "success", title: "Livariant is up to date", detail: updateResult.detail };
-      else if (updateResult.state === "not-configured") notice = { kind: "warning", title: "Update channel not configured", detail: updateResult.detail };
-      else notice = { kind: "error", title: "Update check needs attention", detail: updateResult.detail };
-    } catch {
-      updateResult = { state: "error", currentVersion: "unknown", availableVersion: null, detail: updateHostFailureCopy() };
-      updateState = "error";
-      notice = { kind: "error", title: "Update check failed", detail: updateResult.detail };
-    }
-    render();
-  });
-};
-
 const renderSettingsSectionOnly = () => {
   const body = document.querySelector<HTMLElement>(".settings-content-body");
   if (!body) { render(); return; }
@@ -529,7 +669,6 @@ const renderSettingsSectionOnly = () => {
   document.querySelectorAll<HTMLButtonElement>("[data-settings-section]").forEach((button) => {
     button.classList.toggle("active", button.dataset.settingsSection === settingsSection);
   });
-  bindUpdateCheckEvent();
   bindConnectionDiagnosticsEvents(renderSettingsSectionOnly);
   bindAboutSupportSettingsEvents(renderSettingsSectionOnly);
   bindProjectSettingsEvents(renderSettingsSectionOnly, closeSettings);
@@ -538,14 +677,6 @@ const renderSettingsSectionOnly = () => {
     render();
     document.dispatchEvent(new Event("livariant:start-product-tour"));
   });
-};
-
-const archiveCurrentTruth = (area: TruthArea, reason: TruthRevision["reason"]) => {
-  const current = area.confirmedValue.trim();
-  if (!current) return;
-  const latest = area.history.at(-1)?.value ?? "";
-  if (normalizeTruth(latest) === normalizeTruth(current)) return;
-  area.history.push({ value: current, reason });
 };
 
 const closeSettings = () => { settingsOpen = false; render(); };
@@ -560,10 +691,9 @@ const render = () => {
       <div class="app-shell"><aside class="sidebar">
         <div class="brand"><div class="brand-mark" style="overflow:hidden;border:0;background:transparent;box-shadow:none;"><img src="${livariantLogo}" alt="Livariant logo" style="width:100%;height:100%;object-fit:contain;display:block;"/></div><div><strong>Livariant</strong><small>${uiText("Project context", "Projektkontext")}</small></div></div>
         <nav class="nav" aria-label="Primary navigation">
-          <button class="nav-item">${icon("home")}<span>Overview</span></button>
+          <button class="nav-item ${currentView === "overview" ? "active" : ""}" data-view="overview">${icon("home")}<span>Overview</span></button>
           <button class="nav-item ${currentView === "steps" ? "active" : ""}" data-view="steps">${icon("steps")}<span>${uiText("Project knowledge", "Projektwissen")}</span><b>${attentionCount}</b></button>
           <button class="nav-item ${currentView === "diagnostics" ? "active" : ""}" data-view="diagnostics">${icon("diagnostics")}<span>Diagnostics</span></button>
-          <button class="nav-item ${currentView === "updates" ? "active" : ""}" data-view="updates">${icon("updates")}<span>Updates</span></button>
         </nav>
         <div class="sidebar-lower">
           <button class="nav-item settings-launcher ${settingsOpen ? "active" : ""}" type="button" data-open-settings>${icon("settings")}<span>Settings</span></button>
@@ -597,6 +727,16 @@ const activateView = async (view: View) => {
   // Diagnostics is enhanced by diagnostics-cockpit.ts, which owns its own qualified summary load.
   // A second connector/diagnostics refresh here used to trigger another full app render and remount
   // the cockpit, producing the visible double reload/twitch reported by the maintainer.
+  if (view === "steps") {
+    // Navigation must never wait for Project Brain / Guardian process work.
+    // Paint the route immediately, then refresh canonical state in the background.
+    const stale = !projectKnowledgeLoadedOnce || Date.now() - projectKnowledgeLastRefreshAt > 15_000;
+    if (!projectKnowledgeLoadedOnce) projectKnowledgeLoading = true;
+    render();
+    if (stale) void refreshProjectKnowledge(true);
+    return;
+  }
+
   if (view === "connections") await refreshConnectionsSettings();
   render();
 };
@@ -605,7 +745,7 @@ const bindEvents = () => {
   document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       const view = button.dataset.view;
-      if (view === "steps" || view === "updates" || view === "connections" || view === "diagnostics") void activateView(view);
+      if (view === "overview" || view === "steps" || view === "connections" || view === "diagnostics") void activateView(view);
     });
   });
 
@@ -662,13 +802,23 @@ const bindEvents = () => {
     const area = areas.find((candidate) => candidate.id === card.dataset.area);
     if (!area) return;
     const composer = card.querySelector<HTMLTextAreaElement>(".truth-composer-input");
-    card.querySelector(".analyze-truth-input")?.addEventListener("click", () => {
+    card.querySelector(".analyze-truth-input")?.addEventListener("click", async () => {
       const value = composer?.value.trim() ?? "";
       if (!value) return;
-      area.pendingValue = value;
-      area.state = "review";
-      selectedReviewAreaId = area.id;
       notice = null;
+      try {
+        const prepared = await prepareProjectKnowledgeProposal(area.id as "purpose" | "direction" | "rules", value);
+        area.pendingValue = prepared.displayValue;
+        area.preparedProposal = prepared.proposal;
+        area.state = "review";
+        selectedReviewAreaId = area.id;
+      } catch (error) {
+        notice = {
+          kind: "error",
+          title: uiText("Proposal could not be prepared", "Vorschlag konnte nicht vorbereitet werden"),
+          detail: error instanceof Error ? error.message : String(error),
+        };
+      }
       render();
     });
     card.querySelector(".review-truth")?.addEventListener("click", () => { selectedReviewAreaId = area.id; render(); });
@@ -701,26 +851,64 @@ const bindEvents = () => {
   });
 
   document.querySelector<HTMLButtonElement>(".edit-review-proposal")?.addEventListener("click", () => {
-    document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.focus();
+    const area = areas.find((candidate) => candidate.id === selectedReviewAreaId);
+    if (!area) return;
+    selectedReviewAreaId = null;
+    area.preparedProposal = null;
+    area.state = area.confirmedValue ? "confirmed" : "open";
+    render();
+    const card = document.querySelector<HTMLElement>(`[data-truth-area="${area.id}"]`);
+    const composer = card?.querySelector<HTMLTextAreaElement>(".truth-composer-input");
+    if (composer) {
+      composer.value = area.pendingValue;
+      composer.focus();
+    }
   });
 
-  document.querySelector<HTMLButtonElement>(".accept-truth-review")?.addEventListener("click", () => {
+  document.querySelector<HTMLButtonElement>(".accept-truth-review")?.addEventListener("click", async () => {
     const area = areas.find((candidate) => candidate.id === selectedReviewAreaId);
-    const proposal = document.querySelector<HTMLTextAreaElement>("[data-review-proposal]")?.value.trim() ?? "";
-    if (!area || !proposal) return;
-    if (area.confirmedValue && normalizeTruth(area.confirmedValue) !== normalizeTruth(proposal)) archiveCurrentTruth(area, "accepted");
-    area.confirmedValue = proposal;
-    area.pendingValue = "";
-    area.state = "confirmed";
-    selectedReviewAreaId = null;
-    notice = { kind: "success", title: "Project Truth updated", detail: `${area.title} was accepted in the renderer preview. Persistent Project Brain mutation is intentionally not claimed by this UI slice.` };
+    if (!area?.preparedProposal || projectKnowledgeApplying) return;
+    projectKnowledgeApplying = true;
+    notice = null;
     render();
+    try {
+      const applied = await applyProjectKnowledgeProposal(
+        area.id as "purpose" | "direction" | "rules",
+        area.preparedProposal,
+        getLanguage(),
+      );
+      applyProjectKnowledgeSnapshot(applied.snapshot);
+      selectedReviewAreaId = null;
+      notice = {
+        kind: "success",
+        title: uiText("Project Brain updated", "Project Brain aktualisiert"),
+        detail: uiText(
+          "The exact reviewed proposal was authorized, applied, verified and re-read from the canonical Project Brain.",
+          "Der exakt geprüfte Vorschlag wurde autorisiert, angewendet, verifiziert und erneut aus dem kanonischen Project Brain gelesen.",
+        ),
+      };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      await refreshProjectKnowledge(false);
+      notice = {
+        kind: "error",
+        title: uiText("Project Brain apply needs attention", "Project-Brain-Übernahme benötigt Aufmerksamkeit"),
+        detail: uiText(
+          `Livariant could not prove the complete protected apply-and-re-read sequence. Current canonical state was checked again. Detail: ${detail}`,
+          `Livariant konnte die vollständige geschützte Übernahme mit erneuter Prüfung nicht nachweisen. Der aktuelle kanonische Stand wurde erneut geprüft. Detail: ${detail}`,
+        ),
+      };
+    } finally {
+      projectKnowledgeApplying = false;
+      render();
+    }
   });
 
   document.querySelector<HTMLButtonElement>(".keep-truth-review")?.addEventListener("click", () => {
     const area = areas.find((candidate) => candidate.id === selectedReviewAreaId);
     if (!area) return;
     area.pendingValue = "";
+    area.preparedProposal = null;
     area.state = area.confirmedValue ? "confirmed" : "open";
     selectedReviewAreaId = null;
     notice = { kind: "info", title: "Existing Project Truth kept", detail: `${area.title} was not changed.` };
@@ -737,9 +925,98 @@ const bindEvents = () => {
     render();
   });
 
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-integrity-activate]")?.addEventListener("click", () => {
+    const digest = projectKnowledgeProtection?.integrity.digest;
+    if (!digest || projectKnowledgeProtection?.state !== "integrity-acceptance-required" || projectKnowledgeIntegrityInFlight) return;
+    projectKnowledgeIntegrityInFlight = true;
+    notice = null;
+    render();
+    void (async () => {
+      try {
+        const protection = await acceptProjectKnowledgeIntegrity(digest, getLanguage());
+        projectKnowledgeProtection = protection;
+        if (!protection.canonicalReadReady) {
+          throw new Error(uiText(
+            "Project knowledge protection did not become ready.",
+            "Der Schutz des Projektwissens wurde nicht bereit.",
+          ));
+        }
+        await refreshProjectKnowledge(false);
+        notice = {
+          kind: "success",
+          title: uiText("Project knowledge activated", "Projektwissen aktiviert"),
+          detail: uiText(
+            "The local Project Brain is now protected and can be used as canonical project knowledge.",
+            "Der lokale Project Brain ist jetzt geschützt und kann als kanonisches Projektwissen verwendet werden.",
+          ),
+        };
+      } catch (error) {
+        notice = {
+          kind: "error",
+          title: uiText("Project knowledge was not activated", "Projektwissen wurde nicht aktiviert"),
+          detail: error instanceof Error ? error.message : String(error),
+        };
+        try {
+          projectKnowledgeProtection = await loadProjectKnowledgeProtectionStatus();
+        } catch {
+          // Preserve the explicit failure above; a failed status refresh must not hide it.
+        }
+      } finally {
+        projectKnowledgeIntegrityInFlight = false;
+        render();
+      }
+    })();
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-protection-refresh]")?.addEventListener("click", async () => {
+    await refreshProjectKnowledge();
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-unexpected-accept]")?.addEventListener("click", async () => {
+    const protection = projectKnowledgeProtection;
+    const digest = protection?.integrity.digest;
+    if (!digest || protection?.state !== "integrity-recovery-required" || !protection.unexpectedChangeReview) return;
+    projectKnowledgeLoading = true;
+    notice = null;
+    render();
+    try {
+      projectKnowledgeProtection = await acceptProjectKnowledgeIntegrity(digest, getLanguage());
+      await refreshProjectKnowledge(false);
+      notice = {
+        kind: "success",
+        title: uiText("Changed project knowledge confirmed", "Geändertes Projektwissen bestätigt"),
+        detail: uiText(
+          "The reviewed current state is now the new trusted Livariant knowledge baseline.",
+          "Der geprüfte aktuelle Stand ist jetzt der neue vertrauenswürdige Ausgangsstand des Livariant-Wissens.",
+        ),
+      };
+    } catch (error) {
+      notice = {
+        kind: "error",
+        title: uiText("The changed state was not confirmed", "Der geänderte Stand wurde nicht bestätigt"),
+        detail: error instanceof Error ? error.message : String(error),
+      };
+      await refreshProjectKnowledge(false);
+    } finally {
+      projectKnowledgeLoading = false;
+      render();
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-project-knowledge-unexpected-reject]")?.addEventListener("click", () => {
+    notice = {
+      kind: "warning",
+      title: uiText("Change remains unconfirmed", "Änderung bleibt unbestätigt"),
+      detail: uiText(
+        "Livariant will continue to distrust the changed Project Brain and keep canonical project knowledge blocked until the change is confirmed or the previous state is restored.",
+        "Livariant vertraut dem veränderten Project Brain weiterhin nicht und blockiert kanonisches Projektwissen, bis die Änderung bestätigt oder der vorherige Stand wiederhergestellt wurde.",
+      ),
+    };
+    render();
+  });
+
   document.querySelector<HTMLButtonElement>(".notice-close")?.addEventListener("click", () => { notice = null; render(); });
 
-  bindUpdateCheckEvent();
 
   bindConnectionDiagnosticsEvents(settingsOpen && settingsSection === "connections" ? renderSettingsSectionOnly : render);
 
@@ -766,8 +1043,32 @@ document.addEventListener("livariant:open-project-settings", () => {
   void refreshProjectSettings().then(() => renderSettingsSectionOnly()).catch(() => renderSettingsSectionOnly());
 });
 
+onDesktopProjectActivated(() => {
+  for (const area of areas) {
+    area.confirmedValue = "";
+    area.pendingValue = "";
+    area.activeDecisionId = null;
+    area.preparedProposal = null;
+    area.history = [];
+    area.state = "open";
+  }
+  projectKnowledgeError = null;
+  projectKnowledgeProtection = null;
+  projectKnowledgeIntegrityInFlight = false;
+  projectKnowledgeLoadedOnce = false;
+  projectKnowledgeLastRefreshAt = 0;
+  projectKnowledgeRefreshInFlight = null;
+  if (currentView === "steps") {
+    projectKnowledgeLoading = true;
+    render();
+    void refreshProjectKnowledge(true);
+  }
+});
+
 onLanguageChange(() => {
   if (document.querySelector(".truth-workspace") || settingsOpen) render();
 });
 
+projectKnowledgeLoading = true;
 render();
+void refreshProjectKnowledge(true);

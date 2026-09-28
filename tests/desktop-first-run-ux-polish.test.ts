@@ -60,3 +60,18 @@ test("normal onboarding copy avoids exposing internal safety jargon as the prima
   assert.doesNotMatch(ui, /Candidate Evidence/);
   assert.doesNotMatch(ui, /Semantic Apply/);
 });
+
+
+test("first-run provider setup mirrors the unified Settings connection model", async () => {
+  const ui = await text("apps/desktop/src/first-run-ui.ts");
+
+  for (const provider of ["codex", "claude", "gemini", "custom"]) {
+    assert.match(ui, new RegExp(provider));
+  }
+  assert.match(ui, /local_provider_status/);
+  assert.match(ui, /local_provider_connect/);
+  assert.match(ui, /codex_provider_connect/);
+  assert.match(ui, /codex_mcp_integration_status/);
+  assert.match(ui, /Codex App Server und Livariant MCP sind bereit/);
+  assert.doesNotMatch(ui, /"codex_connector_connect"/);
+});

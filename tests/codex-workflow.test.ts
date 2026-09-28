@@ -52,6 +52,39 @@ function nextTick(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+test("thread start forwards thread-local config overrides", async () => {
+  const session = new FakeSession();
+  const client = new CodexWorkflowClient(session, { appServerVersion: "0.142.4", requestIdStart: 30 });
+
+  const pending = client.startThread({
+    cwd: "C:/work/project-a",
+    config: {
+      "mcp_servers.livariant": {
+        command: "node",
+        args: ["livariant.js", "mcp"],
+        cwd: "C:/work/project-a",
+      },
+    },
+  });
+  assert.deepEqual(session.sent[0], {
+    method: "thread/start",
+    id: 30,
+    params: {
+      cwd: "C:/work/project-a",
+      config: {
+        "mcp_servers.livariant": {
+          command: "node",
+          args: ["livariant.js", "mcp"],
+          cwd: "C:/work/project-a",
+        },
+      },
+    },
+  });
+  session.emit({ id: 30, result: { thread: { id: "thread-config" } } });
+  assert.deepEqual(await pending, { threadId: "thread-config", source: "started" });
+  client.close();
+});
+
 test("thread start and turn start use official method shapes and capability evidence stays bounded", async () => {
   const session = new FakeSession();
   const client = new CodexWorkflowClient(session, { appServerVersion: "0.142.4", requestIdStart: 10 });

@@ -25,7 +25,8 @@ WP-013 ergänzt eine ausschließlich lesende Setup-Ausgabe für die aktuell unte
 ```text
 livariant mcp setup --provider claude-code
 livariant mcp setup --provider codex
-livariant mcp setup --provider <claude-code|codex> --json
+livariant mcp setup --provider gemini
+livariant mcp setup --provider <claude-code|codex|gemini> --json
 ```
 
 Der Setup-Helfer **führt weder Claude Code noch Codex aus und schreibt keine Provider-Konfiguration**. Er gibt nur providerspezifische native Befehle bzw. Konfigurationsmaterial aus, das der Nutzer selbst prüfen und anwenden kann.
@@ -95,10 +96,11 @@ Eingabe:
 }
 ```
 
-Unterstützte Provider bleiben die bereits durch Provider Context unterstützten Ziele:
+Unterstützte Provider-Context-Ziele sind:
 
 - `codex`
 - `claude-code`
+- `gemini`
 
 Das Tool delegiert direkt an `buildProviderContext()`.
 
@@ -115,9 +117,11 @@ Eingabe:
 }
 ```
 
-Das Tool delegiert direkt an `processProviderReturn()` ohne Authorization-Selector.
+Das Tool delegiert ohne Authorization-Selector an `processProviderReturn()`; die MCP-Bridge erzwingt davor jedoch zusätzlich eine strengere Session-Grenze.
 
-Der bereitgestellte Kontext und das Return-Paket bleiben externe, nicht vertrauenswürdige Evidenz. Provider, Packet-ID, Stable Project Identity, Baseline und Task-Werte sind ausschließlich Korrelationsmaterial; sie beweisen weder frühere Ausgabe noch Zustimmung, vertrauenswürdige aktuelle Wahrheit oder Mutation Authority.
+Ein Ready-Provider-Context für `livariant_provider_return` muss exakt der Kontext sein, den dieselbe laufende MCP-Session zuvor ausgegeben hat. Die Session markiert diese Ausgabe bereits vor der Return-Verarbeitung als verbraucht. Ein Replay benötigt deshalb zuerst einen neuen Aufruf von `livariant_provider_context`. Ein Ready-Kontext aus einer anderen MCP-Session, eine veränderte Kopie oder eine bereits verbrauchte Ausgabe schlägt fail-closed fehl.
+
+Diese Prüfung beweist ausschließlich Ausgabe/Freshness innerhalb dieser MCP-Session für den begrenzten Roundtrip. Kontext und Provider-Return-Evidenz beweisen dadurch weiterhin weder Zustimmung noch kanonische Mutation Authority oder unabhängige Wahrheit. Core `processProviderReturn()` bleibt außerhalb dieser MCP-Garantie eine getrennte allgemeine Korrelations-/Evidenzoberfläche.
 
 Mögliche Ergebnisse bleiben die bestehenden Provider-Return-/Maintenance-Zustände, unter anderem:
 
@@ -186,3 +190,23 @@ Es werden keine MCP-Tasks, Prompts, Resources, Sampling, HTTP-Authorization, Ser
 Diese Fähigkeit ist Repository-Entwicklung nach der unveränderlichen Foundation Preview `v0.1.0-rc.3`.
 
 RC3 enthält weder die MCP-Agent-Bridge noch die native WP-013-Setup-UX. Ein späterer Release benötigt eine separate ausdrückliche Release-Freigabe.
+
+
+## Projekt- und Provider-Session-Bindung
+
+Die in Livariant Desktop ausgewählte Projektansicht ist ausschließlich Navigation/Darstellung und routet keine MCP-Arbeit.
+
+Jede laufende MCP-Bridge ist an den Projektpfad gebunden, aus dem diese Bridge läuft. Livariant rekonstruiert den kanonischen Project-Brain-Kontext aus genau diesem Projektpfad und nimmt zusätzlich eine frische MCP-Session-UUID in die Identität eines Ready-Provider-Context-Pakets auf. Provider Return verlangt weiterhin exakt die gleiche, nur einmal verwendbare Context-Kopie derselben Session.
+
+Dadurch können mehrere Sessions desselben Providers gleichzeitig am selben oder an unterschiedlichen Projekten arbeiten, ohne dass Livariant Desktop geöffnet sein oder das passende Projekt anzeigen muss.
+
+Für Codex kann Livariant zusätzlich später gespeicherte App-Server-Thread-Metadaten abfragen. Provider-eigene Thread-`id`, `sessionId` und das beim Thread erfasste `cwd` dienen als Evidenz, um gespeicherte Codex-Threads gegen alle registrierten Livariant-Projektwurzeln abzugleichen. Exakte/untergeordnete cwd-Treffer werden einem Projekt zugeordnet; unbekannte oder projektübergreifend gemischte Sessions bleiben unzugeordnet/mehrdeutig. Diese nachträgliche Zuordnung ist ausschließlich Evidenz und begründet weder Project Truth noch Authority.
+
+
+### Provider-eigene Gesprächskorrelation
+
+Wenn ein MCP-Client begrenzte provider-eigene Gesprächsmetadaten mitsendet, kann Livariant die Session-Bindung weiter präzisieren. Aktuelles Codex fügt bei MCP-Toolaufrufen eine `threadId` in `_meta` ein. Livariant übernimmt diesen Wert als `providerThreadId` in die ephemere Provider-Context-Session-Bindung und nimmt ihn in die Paketidentität auf.
+
+Ein Provider Return für einen solchen Kontext muss über dieselbe laufende Livariant-MCP-Session **und** mit derselben provider-eigenen Thread-ID eintreffen. Zwei Codex-Threads, die denselben MCP-Server teilen, erhalten dadurch unterschiedliche Provider-Context-Paketidentitäten.
+
+Provider-eigene Thread-Metadaten bleiben ausschließlich Korrelations-Evidenz. Sie sind weder Project Truth noch Nutzerzustimmung, Authentifizierung oder Mutation Authority.

@@ -19,6 +19,7 @@ export interface LocalProviderInspection {
   launchSource: LocalCliLaunch["source"];
   version?: string;
   detail?: string;
+  customCapabilities?: CustomProviderCapabilityDeclaration;
 }
 
 export interface LocalProviderProbeResult {
@@ -167,11 +168,19 @@ export function inspectBundledLocalProvider(options: InspectBundledProviderOptio
   };
 }
 
+export type CustomProviderCapabilityDeclaration = {
+  liveProjectContext?: boolean;
+  liveSessionCorrelation?: boolean;
+  retrospectiveSessionAttribution?: boolean;
+  providerOwnedUsageTelemetry?: boolean;
+};
+
 type CustomProbePayload = {
   schemaVersion: 1;
   ready: boolean;
   displayName?: string;
   version?: string;
+  capabilities?: CustomProviderCapabilityDeclaration;
 };
 
 function parseCustomProbe(stdout: string): CustomProbePayload {
@@ -191,11 +200,37 @@ function parseCustomProbe(stdout: string): CustomProbePayload {
   if (record.version !== undefined && (typeof record.version !== "string" || !record.version.trim())) {
     throw new Error("Custom provider version must be non-blank when present.");
   }
+  let capabilities: CustomProviderCapabilityDeclaration | undefined;
+  if (record.capabilities !== undefined) {
+    if (typeof record.capabilities !== "object" || record.capabilities === null || Array.isArray(record.capabilities)) {
+      throw new Error("Custom provider capabilities must be an object when present.");
+    }
+    const rawCapabilities = record.capabilities as Record<string, unknown>;
+    const supported = [
+      "liveProjectContext",
+      "liveSessionCorrelation",
+      "retrospectiveSessionAttribution",
+      "providerOwnedUsageTelemetry",
+    ] as const;
+    for (const key of Object.keys(rawCapabilities)) {
+      if (!supported.includes(key as typeof supported[number])) {
+        throw new Error(`Custom provider capability is unsupported: ${key}.`);
+      }
+    }
+    capabilities = {};
+    for (const key of supported) {
+      const value = rawCapabilities[key];
+      if (value === undefined) continue;
+      if (typeof value !== "boolean") throw new Error(`Custom provider capability ${key} must be boolean.`);
+      capabilities[key] = value;
+    }
+  }
   return {
     schemaVersion: 1,
     ready: record.ready,
     ...(typeof record.displayName === "string" ? { displayName: record.displayName.trim() } : {}),
     ...(typeof record.version === "string" ? { version: record.version.trim() } : {}),
+    ...(capabilities ? { capabilities } : {}),
   };
 }
 
@@ -239,6 +274,7 @@ export function inspectCustomLocalProvider(
       argsPrefix: launch.argsPrefix,
       launchSource: launch.source,
       ...(payload.version ? { version: payload.version } : {}),
+      ...(payload.capabilities ? { customCapabilities: payload.capabilities } : {}),
       detail: payload.ready
         ? `${payload.displayName ?? "Custom provider"} reported ready through the Livariant local provider bridge.`
         : `${payload.displayName ?? "Custom provider"} reported that it is not ready.`,

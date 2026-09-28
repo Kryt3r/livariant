@@ -203,19 +203,37 @@ export async function activateDesktopProject(desktopProjectId: string): Promise<
 }
 
 
-export async function registerDesktopProject(localRoot: string, displayName?: string): Promise<DesktopProjectRegistrySnapshot> {
+export async function registerDesktopProject(localRoot: string, displayName?: string, projectId?: string): Promise<DesktopProjectRegistrySnapshot> {
   const root = localRoot.trim();
   if (!root) throw new Error("Project local root is required.");
   const result = await invoke<DesktopProjectMutationResult>("desktop_project_register", {
     input: {
       localRoot: root,
       ...(displayName?.trim() ? { displayName: displayName.trim() } : {}),
-      projectId: null,
+      projectId: projectId?.trim() || null,
     },
   });
   const snapshot = validateSnapshot(result.snapshot);
   publishRegistry(snapshot);
   return snapshot;
+}
+
+function localRootKey(value: string): string {
+  let root = value.trim();
+  if (/^\\\\\?\\UNC\\/i.test(root)) root = `\\\\${root.slice(8)}`;
+  else if (/^\\\\\?\\/i.test(root)) root = root.slice(4);
+  const windowsLike = /^[A-Za-z]:[\\/]/.test(root) || root.startsWith("\\\\");
+  if (windowsLike) return root.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+  return root.replace(/\/+$/, "");
+}
+
+export async function ensureDesktopProjectActive(localRoot: string, displayName?: string, projectId?: string): Promise<DesktopProjectRegistrySnapshot> {
+  const registered = await registerDesktopProject(localRoot, displayName, projectId);
+  const key = localRootKey(localRoot);
+  const project = registered.projects.find((candidate) => candidate.state === "registered" && localRootKey(candidate.localRoot) === key);
+  if (!project) throw new Error("The selected project was registered but could not be resolved by its local root.");
+  if (registered.active?.desktopProjectId === project.desktopProjectId) return registered;
+  return activateDesktopProject(project.desktopProjectId);
 }
 
 export async function renameDesktopProject(desktopProjectId: string, displayName: string): Promise<DesktopProjectRegistrySnapshot> {

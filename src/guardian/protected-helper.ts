@@ -15,6 +15,8 @@ const GUARDIAN_AUTHORITY_MATERIAL_DOMAIN = "livariant:guardian-authority-materia
 const GUARDIAN_ROOT_KIND = "livariant-guardian-root" as const;
 const GUARDIAN_DESCRIPTOR_FILE = "guardian-root.json" as const;
 const GUARDIAN_RECORDS_DIRECTORY = "records" as const;
+const DESKTOP_UAC_CONSENT_KIND = "livariant-guardian-desktop-uac-consent" as const;
+const DESKTOP_UAC_CONSENT_MAX_AGE_MS = 2 * 60 * 1000;
 const ONE_SHOT_TTL_MS = 10 * 60 * 1000;
 const WINDOWS_POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
 const WINDOWS_INTERPRETER_TARGET_ENV = "LIVARIANT_GUARDIAN_HELPER_INTERPRETER_TARGET";
@@ -60,6 +62,52 @@ export interface ProtectedGuardianAuthorityRecord {
   issuedAt: string;
   expiresAt?: string;
   consumedAt?: string;
+}
+
+export interface WindowsLifecycleAuthorizationDialogModel {
+  language: "de" | "en";
+  projectName: string;
+  projectRoot: string;
+  filesToCreate: string[];
+  materialSha256: string;
+  authority: "lifecycle-mutation";
+}
+
+function requestField(request: ProtectedGuardianRequest, label: string): string {
+  const matches = request.materialFields.filter((field) => field.label === label);
+  if (matches.length !== 1) throw new Error(`Guardian native lifecycle review requires exactly one '${label}' field.`);
+  return matches[0].value;
+}
+
+function parseStringArrayField(request: ProtectedGuardianRequest, label: string): string[] {
+  let parsed: unknown;
+  try { parsed = JSON.parse(requestField(request, label)) as unknown; }
+  catch { throw new Error(`Guardian native lifecycle review field '${label}' is not valid JSON.`); }
+  if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "string" || !value || /[\r\n\u0000]/u.test(value))) {
+    throw new Error(`Guardian native lifecycle review field '${label}' is invalid.`);
+  }
+  return parsed;
+}
+
+export function buildWindowsLifecycleAuthorizationDialogModel(
+  request: ProtectedGuardianRequest,
+  materialSha256: string,
+  language: "de" | "en",
+): WindowsLifecycleAuthorizationDialogModel {
+  if (request.consumer !== "lifecycle-mutation" || request.mode !== "one-shot") throw new Error("Guardian native Desktop confirmation is restricted to one-shot lifecycle Authority.");
+  if (requestField(request, "lifecycle-operation") !== "initialize") throw new Error("Guardian native Desktop confirmation is restricted to Project Brain initialization.");
+  const filesToCreate = parseStringArrayField(request, "files-to-create-json");
+  const projectFilesToModify = parseStringArrayField(request, "project-files-to-modify-json");
+  if (filesToCreate.length === 0) throw new Error("Guardian native Desktop confirmation requires an explicit initialization write set.");
+  if (projectFilesToModify.length !== 0) throw new Error("Guardian native Desktop confirmation refuses initialization that would modify existing project files.");
+  return {
+    language,
+    projectName: requestField(request, "display-project-name"),
+    projectRoot: requestField(request, "physical-project-root"),
+    filesToCreate,
+    materialSha256,
+    authority: "lifecycle-mutation",
+  };
 }
 
 interface WindowsInterpreterProtection {
@@ -357,7 +405,266 @@ function displaySafe(value: string): string {
   return value.replace(/[\r\n\u0000-\u001f\u007f]/gu, " ");
 }
 
-async function requireInteractiveIssuance(request: ProtectedGuardianRequest, materialSha256: string): Promise<void> {
+function windowsNativeConfirmationRequested(
+  request: ProtectedGuardianRequest,
+  language: "de" | "en" | undefined,
+): boolean {
+  return process.platform === "win32"
+    && language !== undefined
+    && (
+      (request.consumer === "lifecycle-mutation" && request.mode === "one-shot")
+      || (request.consumer === "semantic-mutation" && request.mode === "one-shot")
+      || (request.consumer === "project-brain-integrity" && request.mode === "persistent")
+    );
+}
+
+function requireWindowsNativeLifecycleIssuance(
+  request: ProtectedGuardianRequest,
+  materialSha256: string,
+  language: "de" | "en",
+): void {
+  const model = buildWindowsLifecycleAuthorizationDialogModel(request, materialSha256, language);
+  const env = { ...process.env, LIVARIANT_GUARDIAN_DIALOG_PAYLOAD: Buffer.from(JSON.stringify(model), "utf8").toString("base64") };
+  const script = [
+    "Add-Type -AssemblyName System.Windows.Forms",
+    "Add-Type -AssemblyName System.Drawing",
+    "$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:LIVARIANT_GUARDIAN_DIALOG_PAYLOAD))",
+    "$m=$json | ConvertFrom-Json",
+    "$de=$m.language -eq 'de'",
+    "$form=New-Object Windows.Forms.Form",
+    "$form.Text=if($de){'Project Brain anlegen'}else{'Create Project Brain'}",
+    "$form.StartPosition='CenterScreen'",
+    "$form.Size=New-Object Drawing.Size(660,470)",
+    "$form.MinimumSize=New-Object Drawing.Size(660,470)",
+    "$form.MaximizeBox=$false",
+    "$form.MinimizeBox=$false",
+    "$form.TopMost=$true",
+    "$title=New-Object Windows.Forms.Label",
+    "$title.Location=New-Object Drawing.Point(24,20)",
+    "$title.Size=New-Object Drawing.Size(600,34)",
+    "$title.Font=New-Object Drawing.Font('Segoe UI',15,[Drawing.FontStyle]::Bold)",
+    "$title.Text=if($de){'Project Brain für dieses Projekt anlegen?'}else{'Create a Project Brain for this project?'}",
+    "$form.Controls.Add($title)",
+    "$body=New-Object Windows.Forms.Label",
+    "$body.Location=New-Object Drawing.Point(24,64)",
+    "$body.Size=New-Object Drawing.Size(600,64)",
+    "$body.Font=New-Object Drawing.Font('Segoe UI',9)",
+    "$body.Text=if($de){'Livariant möchte den geschützten Project Brain für dieses Projekt anlegen. Bestehende Projektdateien bleiben unverändert.'}else{'Livariant wants to create the protected Project Brain for this project. Existing project files remain unchanged.'}",
+    "$form.Controls.Add($body)",
+    "$projectLabel=New-Object Windows.Forms.Label",
+    "$projectLabel.Location=New-Object Drawing.Point(24,136)",
+    "$projectLabel.Size=New-Object Drawing.Size(600,42)",
+    "$projectLabel.Font=New-Object Drawing.Font('Segoe UI',9,[Drawing.FontStyle]::Bold)",
+    "$projectPrefix=if($de){'Projekt: '}else{'Project: '}",
+    "$projectLabel.Text=$projectPrefix + $m.projectName + [Environment]::NewLine + $m.projectRoot",
+    "$form.Controls.Add($projectLabel)",
+    "$filesTitle=New-Object Windows.Forms.Label",
+    "$filesTitle.Location=New-Object Drawing.Point(24,188)",
+    "$filesTitle.Size=New-Object Drawing.Size(600,20)",
+    "$filesTitle.Text=if($de){'Diese Dateien werden neu angelegt:'}else{'These files will be created:'}",
+    "$form.Controls.Add($filesTitle)",
+    "$files=New-Object Windows.Forms.TextBox",
+    "$files.Location=New-Object Drawing.Point(24,212)",
+    "$files.Size=New-Object Drawing.Size(600,92)",
+    "$files.Multiline=$true",
+    "$files.ReadOnly=$true",
+    "$files.ScrollBars='Vertical'",
+    "$files.Text=($m.filesToCreate -join [Environment]::NewLine)",
+    "$form.Controls.Add($files)",
+    "$details=New-Object Windows.Forms.Panel",
+    "$details.Location=New-Object Drawing.Point(24,402)",
+    "$details.Size=New-Object Drawing.Size(600,96)",
+    "$details.Visible=$false",
+    "$detailText=New-Object Windows.Forms.TextBox",
+    "$detailText.Dock='Fill'",
+    "$detailText.Multiline=$true",
+    "$detailText.ReadOnly=$true",
+    "$detailText.ScrollBars='Vertical'",
+    "$detailText.Text=('Authority: lifecycle-mutation' + [Environment]::NewLine + 'Material SHA-256: ' + $m.materialSha256)",
+    "$details.Controls.Add($detailText)",
+    "$form.Controls.Add($details)",
+    "$toggle=New-Object Windows.Forms.Button",
+    "$toggle.Location=New-Object Drawing.Point(24,314)",
+    "$toggle.Size=New-Object Drawing.Size(150,28)",
+    "$toggle.Text=if($de){'Technische Details'}else{'Technical details'}",
+    "$toggle.Add_Click({ $details.Visible=-not $details.Visible; if($details.Visible){$form.Height=570}else{$form.Height=470} })",
+    "$form.Controls.Add($toggle)",
+    "$cancel=New-Object Windows.Forms.Button",
+    "$cancel.Location=New-Object Drawing.Point(382,354)",
+    "$cancel.Size=New-Object Drawing.Size(110,32)",
+    "$cancel.Text=if($de){'Abbrechen'}else{'Cancel'}",
+    "$cancel.Add_Click({ [Console]::Write('CANCELLED'); $form.Tag='done'; $form.Close() })",
+    "$form.Controls.Add($cancel)",
+    "$authorize=New-Object Windows.Forms.Button",
+    "$authorize.Location=New-Object Drawing.Point(500,354)",
+    "$authorize.Size=New-Object Drawing.Size(124,32)",
+    "$authorize.Text=if($de){'Anlegen autorisieren'}else{'Authorize creation'}",
+    "$authorize.Add_Click({ [Console]::Write('AUTHORIZED'); $form.Tag='done'; $form.Close() })",
+    "$form.Controls.Add($authorize)",
+    "$form.AcceptButton=$authorize",
+    "$form.CancelButton=$cancel",
+    "$form.Add_FormClosing({ if($form.Tag -ne 'done'){ [Console]::Write('CANCELLED') } })",
+    "[void]$form.ShowDialog()",
+  ].join("; ");
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Sta", "-Command", script], { encoding: "utf8", shell: false, windowsHide: true, env });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || result.stderr || result.stdout || `exit ${String(result.status)}`;
+    throw new Error(`Guardian native lifecycle confirmation failed: ${String(detail).trim()}`);
+  }
+  if (result.stdout.trim() !== "AUTHORIZED") throw new Error("Guardian Authority confirmation was declined.");
+}
+
+
+function requireWindowsNativeSimpleIssuance(
+  request: ProtectedGuardianRequest,
+  language: "de" | "en",
+): void {
+  const isSemantic = request.consumer === "semantic-mutation" && request.mode === "one-shot";
+  const isIntegrity = request.consumer === "project-brain-integrity" && request.mode === "persistent";
+  if (!isSemantic && !isIntegrity) throw new Error("Guardian native confirmation received unsupported Authority.");
+
+  const title = isSemantic
+    ? (language === "de" ? "Änderung am Projektwissen bestätigen" : "Confirm project knowledge change")
+    : (language === "de" ? "Projektwissen sicher einrichten" : "Secure project knowledge setup");
+  const body = isSemantic
+    ? (language === "de"
+      ? "Du hast die Änderung in Livariant als Vorher/Nachher geprüft. Möchtest du genau diese Änderung übernehmen?"
+      : "You reviewed the change in Livariant as Before/After. Apply this exact change?")
+    : (language === "de"
+      ? "Livariant hat den Project Brain automatisch angelegt. Möchtest du den Schutz für unerwartete Änderungen jetzt einmalig einrichten?"
+      : "Livariant created the Project Brain automatically. Set up protection against unexpected changes now?");
+
+  const payload = Buffer.from(JSON.stringify({ title, body, language }), "utf8").toString("base64");
+  const script = [
+    "Add-Type -AssemblyName System.Windows.Forms",
+    "Add-Type -AssemblyName System.Drawing",
+    "$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:LIVARIANT_GUARDIAN_DIALOG_PAYLOAD))",
+    "$m=$json | ConvertFrom-Json",
+    "$form=New-Object Windows.Forms.Form",
+    "$form.Text=$m.title",
+    "$form.StartPosition='CenterScreen'",
+    "$form.Size=New-Object Drawing.Size(580,260)",
+    "$form.MinimumSize=New-Object Drawing.Size(580,260)",
+    "$form.MaximizeBox=$false",
+    "$form.MinimizeBox=$false",
+    "$form.TopMost=$true",
+    "$form.ShowInTaskbar=$true",
+    "$label=New-Object Windows.Forms.Label",
+    "$label.Location=New-Object Drawing.Point(24,24)",
+    "$label.Size=New-Object Drawing.Size(520,112)",
+    "$label.Font=New-Object Drawing.Font('Segoe UI',10)",
+    "$label.Text=$m.body",
+    "$form.Controls.Add($label)",
+    "$cancel=New-Object Windows.Forms.Button",
+    "$cancel.Location=New-Object Drawing.Point(334,164)",
+    "$cancel.Size=New-Object Drawing.Size(100,32)",
+    "$cancel.Text=if($m.language -eq 'de'){'Abbrechen'}else{'Cancel'}",
+    "$cancel.Add_Click({[Console]::Write('CANCELLED');$form.Tag='done';$form.Close()})",
+    "$form.Controls.Add($cancel)",
+    "$ok=New-Object Windows.Forms.Button",
+    "$ok.Location=New-Object Drawing.Point(442,164)",
+    "$ok.Size=New-Object Drawing.Size(100,32)",
+    "$ok.Text=if($m.language -eq 'de'){'Bestätigen'}else{'Confirm'}",
+    "$ok.Add_Click({[Console]::Write('AUTHORIZED');$form.Tag='done';$form.Close()})",
+    "$form.Controls.Add($ok)",
+    "$form.AcceptButton=$ok",
+    "$form.CancelButton=$cancel",
+    "$timer=New-Object Windows.Forms.Timer",
+    "$timer.Interval=300000",
+    "$timer.Add_Tick({$timer.Stop();[Console]::Write('CANCELLED');$form.Tag='done';$form.Close()})",
+    "$timer.Start()",
+    "$form.Add_Shown({$form.Activate();$form.BringToFront()})",
+    "$form.Add_FormClosing({if($form.Tag -ne 'done'){[Console]::Write('CANCELLED')}})",
+    "[void]$form.ShowDialog()",
+    "$timer.Stop()",
+  ].join("; ");
+  const result = spawnSync(WINDOWS_POWERSHELL, ["-NoProfile", "-NonInteractive", "-Sta", "-Command", script], {
+    encoding: "utf8",
+    shell: false,
+    windowsHide: true,
+    env: { ...process.env, LIVARIANT_GUARDIAN_DIALOG_PAYLOAD: payload },
+    timeout: 5 * 60 * 1000,
+  });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || result.stderr || result.stdout || ("exit " + String(result.status));
+    throw new Error("Guardian native confirmation failed: " + String(detail).trim());
+  }
+  if (result.stdout.trim() !== "AUTHORIZED") throw new Error("Guardian Authority confirmation was declined.");
+}
+
+async function requireWindowsDesktopUacConsent(
+  request: ProtectedGuardianRequest,
+  materialSha256: string,
+  receiptPath: string,
+): Promise<void> {
+  if (process.platform !== "win32"
+    || request.consumer !== "project-brain-integrity"
+    || request.mode !== "persistent") {
+    throw new Error("Guardian Desktop UAC consent is restricted to persistent Project Brain Integrity Authority.");
+  }
+
+  const root = await realpath(productionRoot());
+  const physicalReceipt = await realpath(receiptPath);
+  if (dirname(physicalReceipt).toLowerCase() !== root.toLowerCase()) {
+    throw new Error("Guardian Desktop UAC consent receipt must be created directly inside the fixed protected Guardian root.");
+  }
+  const stats = await lstat(physicalReceipt);
+  if (!stats.isFile() || stats.isSymbolicLink()) {
+    throw new Error("Guardian Desktop UAC consent receipt must be a regular protected file.");
+  }
+
+  const protection = inspectWindowsInterpreterProtection(physicalReceipt);
+  if (!protectedWindowsOwner(protection.ownerSid) || protection.ordinaryRequesterWritable) {
+    throw new Error("Guardian Desktop UAC consent receipt is not protected from ordinary requester writes.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(physicalReceipt, "utf8")) as unknown;
+  } catch {
+    throw new Error("Guardian Desktop UAC consent receipt is invalid JSON.");
+  }
+  if (!plainObject(parsed)) throw new Error("Guardian Desktop UAC consent receipt is invalid.");
+  strictKeys(parsed, ["schemaVersion", "kind", "consumer", "mode", "materialSha256", "issuedAt", "expiresAt"]);
+  if (parsed.schemaVersion !== 1
+    || parsed.kind !== DESKTOP_UAC_CONSENT_KIND
+    || parsed.consumer !== "project-brain-integrity"
+    || parsed.mode !== "persistent"
+    || parsed.materialSha256 !== materialSha256
+    || typeof parsed.issuedAt !== "string"
+    || typeof parsed.expiresAt !== "string") {
+    throw new Error("Guardian Desktop UAC consent receipt does not match the exact prepared integrity material.");
+  }
+  const issuedAt = Date.parse(parsed.issuedAt);
+  const expiresAt = Date.parse(parsed.expiresAt);
+  const now = Date.now();
+  if (!Number.isFinite(issuedAt) || !Number.isFinite(expiresAt)
+    || issuedAt > now + 5_000
+    || expiresAt <= now
+    || expiresAt - issuedAt <= 0
+    || expiresAt - issuedAt > DESKTOP_UAC_CONSENT_MAX_AGE_MS) {
+    throw new Error("Guardian Desktop UAC consent receipt is expired or has an invalid validity window.");
+  }
+
+  await rm(physicalReceipt, { force: false });
+}
+
+async function requireInteractiveIssuance(
+  request: ProtectedGuardianRequest,
+  materialSha256: string,
+  nativeConfirmationLanguage?: "de" | "en",
+  desktopUacReceiptPath?: string,
+): Promise<void> {
+  if (desktopUacReceiptPath !== undefined) {
+    await requireWindowsDesktopUacConsent(request, materialSha256, desktopUacReceiptPath);
+    return;
+  }
+  if (windowsNativeConfirmationRequested(request, nativeConfirmationLanguage)) {
+    const language = nativeConfirmationLanguage!;
+    if (request.consumer === "lifecycle-mutation") requireWindowsNativeLifecycleIssuance(request, materialSha256, language);
+    else requireWindowsNativeSimpleIssuance(request, language);
+    return;
+  }
   if (!stdin.isTTY || !stderr.isTTY) {
     throw new Error("Guardian Authority issuance requires a local interactive privileged terminal; requester-only, redirected, scripted, provider, and CI issuance is refused.");
   }
@@ -374,9 +681,7 @@ async function requireInteractiveIssuance(request: ProtectedGuardianRequest, mat
   try {
     const answer = await terminal.question("> ");
     if (answer !== phrase) throw new Error("Guardian Authority confirmation did not match the exact material challenge.");
-  } finally {
-    terminal.close();
-  }
+  } finally { terminal.close(); }
 }
 
 function consumerDirectory(recordsRoot: string, consumer: ProtectedGuardianConsumer): string {
@@ -400,13 +705,17 @@ async function ensureConsumerDirectory(recordsRoot: string, consumer: ProtectedG
   return directory;
 }
 
-async function issueAuthority(requestPath: string): Promise<void> {
+async function issueAuthority(
+  requestPath: string,
+  nativeConfirmationLanguage?: "de" | "en",
+  desktopUacReceiptPath?: string,
+): Promise<void> {
   const { records } = await assertProtectedSelf();
   requirePrivilegedProcess();
   await assertProtectedInterpreter();
   const request = parseProtectedGuardianRequest(JSON.parse(await readFile(requestPath, "utf8")) as unknown);
   const materialSha256 = protectedGuardianMaterialDigest(request.consumer, request.materialFields);
-  await requireInteractiveIssuance(request, materialSha256);
+  await requireInteractiveIssuance(request, materialSha256, nativeConfirmationLanguage, desktopUacReceiptPath);
 
   const issuedAt = new Date();
   const record: ProtectedGuardianAuthorityRecord = {
@@ -482,6 +791,25 @@ function parseConsumerArg(args: string[]): ProtectedGuardianConsumer {
   return value;
 }
 
+function optionalArgValue(args: string[], name: string): string | undefined {
+  const indexes = args.map((value, index) => value === name ? index : -1).filter((index) => index >= 0);
+  if (indexes.length === 0) return undefined;
+  if (indexes.length !== 1) throw new Error(`Guardian helper argument ${name} is duplicated.`);
+  const index = indexes[0];
+  if (index + 1 >= args.length || !args[index + 1]) throw new Error(`Guardian helper requires ${name} <value>.`);
+  return args[index + 1];
+}
+
+function parseDesktopUacReceipt(args: string[]): string | undefined {
+  return optionalArgValue(args, "--desktop-uac-receipt");
+}
+
+function parseNativeConfirmationLanguage(args: string[]): "de" | "en" | undefined {
+  const value = optionalArgValue(args, "--native-confirmation-language");
+  if (value === undefined || value === "de" || value === "en") return value;
+  throw new Error("Guardian native confirmation language is invalid.");
+}
+
 async function main(args: string[]): Promise<void> {
   const [command] = args;
   if (command === "version" && args.length === 1) {
@@ -495,7 +823,11 @@ async function main(args: string[]): Promise<void> {
     return;
   }
   if (command === "issue-authority") {
-    await issueAuthority(argValue(args, "--request"));
+    await issueAuthority(
+      argValue(args, "--request"),
+      parseNativeConfirmationLanguage(args),
+      parseDesktopUacReceipt(args),
+    );
     return;
   }
   if (command === "inspect-authority") {

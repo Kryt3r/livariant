@@ -441,6 +441,280 @@ pub fn restore_persistent_connection(
     request(app, state, registry, "inspect", None, None, None).map(|_| ())
 }
 
+
+fn codex_mcp_runtime_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Desktop executable location could not be resolved: {error}"))?;
+    let install_root = executable
+        .parent()
+        .ok_or_else(|| "Desktop executable has no installation directory.".to_owned())?;
+    let node = bundled_node_path(install_root);
+    let cli = install_root
+        .join("runtime")
+        .join("core")
+        .join("dist")
+        .join("src")
+        .join("cli")
+        .join("index.js");
+    if !node.is_file() || !cli.is_file() {
+        return Err("Bundled Livariant MCP runtime is not present in this Desktop build.".to_owned());
+    }
+    let _ = app;
+    Ok((node, cli))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CodexCliInvocation {
+    command: PathBuf,
+    args_prefix: Vec<String>,
+}
+
+fn codex_connector_command(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
+) -> Result<CodexCliInvocation, String> {
+    let status = request(app, state, registry, "inspect", None, None, None)?;
+    let command = status
+        .get("configuredCommand")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Connect Codex through App Server before configuring Livariant MCP.".to_owned())?;
+    let path = PathBuf::from(command);
+    if !path.is_file() {
+        return Err("Configured Codex executable is no longer available.".to_owned());
+    }
+    let args_prefix = status
+        .get("configuredArgsPrefix")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items.iter()
+                .map(|item| {
+                    item.as_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| "Configured Codex CLI argument prefix is invalid.".to_owned())
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    Ok(CodexCliInvocation { command: path, args_prefix })
+}
+
+fn run_codex_mcp_command(invocation: &CodexCliInvocation, args: &[&str]) -> Result<std::process::Output, String> {
+    hidden_command(&invocation.command)
+        .args(&invocation.args_prefix)
+        .args(args)
+        .output()
+        .map_err(|error| format!("Codex MCP command could not be executed: {error}"))
+}
+
+fn same_path(left: &Path, right: &Path) -> bool {
+    let left = fs::canonicalize(left).unwrap_or_else(|_| left.to_path_buf());
+    let right = fs::canonicalize(right).unwrap_or_else(|_| right.to_path_buf());
+    #[cfg(target_os = "windows")]
+    {
+        left.to_string_lossy().eq_ignore_ascii_case(&right.to_string_lossy())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        left == right
+    }
+}
+
+fn codex_mcp_status_inner(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
+) -> Result<Value, String> {
+    let command = codex_connector_command(app, state, registry)?;
+    let (node, cli) = codex_mcp_runtime_paths(app)?;
+    let output = run_codex_mcp_command(&command, &["mcp", "get", "livariant", "--json"])?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !output.status.success() {
+        let combined = format!("{stdout}\n{stderr}");
+        if combined.contains("No MCP server named 'livariant' found.") {
+            return Ok(json!({
+                "state": "not-registered",
+                "registered": false,
+                "expectedRuntime": false,
+                "detail": "Livariant MCP is not registered in Codex."
+            }));
+        }
+        return Ok(json!({
+            "state": "unavailable",
+            "registered": false,
+            "expectedRuntime": false,
+            "detail": "Codex MCP configuration could not be inspected."
+        }));
+    }
+
+    let parsed: Value = serde_json::from_str(&stdout)
+        .map_err(|_| "Codex returned invalid MCP configuration JSON.".to_owned())?;
+    let transport = parsed
+        .get("transport")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "Codex returned MCP configuration without a transport object.".to_owned())?;
+    let transport_type = transport.get("type").and_then(Value::as_str);
+    let configured_command = transport.get("command").and_then(Value::as_str).unwrap_or_default();
+    let configured_args = transport
+        .get("args")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(Value::as_str).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let expected_args = [cli.to_string_lossy().to_string(), "mcp".to_owned()];
+    let command_matches = !configured_command.trim().is_empty()
+        && same_path(Path::new(configured_command), &node);
+    let args_match = configured_args.len() == expected_args.len()
+        && configured_args
+            .iter()
+            .zip(expected_args.iter())
+            .enumerate()
+            .all(|(index, (actual, expected))| {
+                if index == 0 {
+                    same_path(Path::new(actual), Path::new(expected))
+                } else {
+                    *actual == expected.as_str()
+                }
+            });
+    let matches = transport_type == Some("stdio") && command_matches && args_match;
+    if !matches {
+        return Ok(json!({
+            "state": "conflict",
+            "registered": true,
+            "expectedRuntime": false,
+            "detail": "A Codex MCP entry named Livariant already exists but does not point to this Livariant Desktop runtime."
+        }));
+    }
+    if parsed.get("enabled").and_then(Value::as_bool) == Some(false) {
+        return Ok(json!({
+            "state": "conflict",
+            "registered": true,
+            "expectedRuntime": true,
+            "detail": "Livariant MCP is registered in Codex but disabled by the effective Codex configuration."
+        }));
+    }
+    Ok(json!({
+        "state": "registered",
+        "registered": true,
+        "expectedRuntime": true,
+        "detail": "Livariant MCP is registered in Codex. Start a new Codex session to refresh the available tools."
+    }))
+}
+
+#[tauri::command]
+pub fn codex_mcp_integration_status(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    codex_mcp_status_inner(&app, &state, registry.inner())
+}
+
+fn codex_mcp_connect_inner(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
+) -> Result<Value, String> {
+    let before = codex_mcp_status_inner(app, state, registry)?;
+    let before_state = before.get("state").and_then(Value::as_str);
+    if before_state == Some("registered") {
+        return Ok(before);
+    }
+    if !codex_mcp_registration_is_safe(before_state) {
+        return Err(before
+            .get("detail")
+            .and_then(Value::as_str)
+            .unwrap_or("Codex MCP configuration could not be changed safely.")
+            .to_owned());
+    }
+    let command = codex_connector_command(app, state, registry)?;
+    let (node, cli) = codex_mcp_runtime_paths(app)?;
+    let node_text = node.to_string_lossy().to_string();
+    let cli_text = cli.to_string_lossy().to_string();
+    let output = run_codex_mcp_command(
+        &command,
+        &[
+            "mcp",
+            "add",
+            "livariant",
+            "--",
+            &node_text,
+            &cli_text,
+            "mcp",
+        ],
+    )?;
+    if !output.status.success() {
+        return Err("Codex rejected the Livariant MCP registration.".to_owned());
+    }
+    let after = codex_mcp_status_inner(app, state, registry)?;
+    if after.get("state").and_then(Value::as_str) != Some("registered")
+        || after.get("expectedRuntime").and_then(Value::as_bool) != Some(true)
+    {
+        return Err("Codex MCP registration could not be verified after the change.".to_owned());
+    }
+    Ok(after)
+}
+
+fn codex_mcp_registration_is_safe(state: Option<&str>) -> bool {
+    state == Some("not-registered")
+}
+
+fn unavailable_mcp_status(detail: &str) -> Value {
+    json!({
+        "state": "unavailable",
+        "registered": false,
+        "expectedRuntime": false,
+        "detail": detail
+    })
+}
+
+#[tauri::command]
+pub fn codex_mcp_integration_connect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    codex_mcp_connect_inner(&app, &state, registry.inner())
+}
+
+#[tauri::command]
+pub fn codex_mcp_integration_disconnect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    codex_mcp_disconnect_inner(&app, &state, registry.inner())
+}
+
+fn codex_mcp_disconnect_inner(
+    app: &AppHandle,
+    state: &ConnectorHostState,
+    registry: &DesktopProjectRegistryState,
+) -> Result<Value, String> {
+    let before = codex_mcp_status_inner(app, state, registry)?;
+    if before.get("state").and_then(Value::as_str) == Some("not-registered") {
+        return Ok(before);
+    }
+    if before.get("state").and_then(Value::as_str) == Some("conflict")
+        || before.get("expectedRuntime").and_then(Value::as_bool) != Some(true)
+    {
+        return Err("Livariant will not remove an MCP entry it cannot verify as its own.".to_owned());
+    }
+    let command = codex_connector_command(app, state, registry)?;
+    let output = run_codex_mcp_command(&command, &["mcp", "remove", "livariant"])?;
+    if !output.status.success() {
+        return Err("Codex rejected removal of the Livariant MCP registration.".to_owned());
+    }
+    let after = codex_mcp_status_inner(app, state, registry)?;
+    if after.get("state").and_then(Value::as_str) != Some("not-registered") {
+        return Err("Codex MCP removal could not be verified after the change.".to_owned());
+    }
+    Ok(after)
+}
+
 fn validate_diagnostics_preset(preset: Option<&str>) -> Result<Option<&str>, String> {
     match preset {
         None => Ok(None),
@@ -466,6 +740,69 @@ pub fn codex_connector_connect(
     manual_path: Option<String>,
 ) -> Result<Value, String> {
     request(&app, &state, registry.inner(), "connect", manual_path.as_deref(), None, None)
+}
+
+#[tauri::command]
+pub fn codex_provider_connect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+    manual_path: Option<String>,
+) -> Result<Value, String> {
+    let connection = request(
+        &app,
+        &state,
+        registry.inner(),
+        "connect",
+        manual_path.as_deref(),
+        None,
+        None,
+    )?;
+    let mcp = match codex_mcp_status_inner(&app, &state, registry.inner()) {
+        Ok(inspected_mcp) => match inspected_mcp.get("state").and_then(Value::as_str) {
+            Some("registered") => inspected_mcp,
+            Some("not-registered") => codex_mcp_connect_inner(&app, &state, registry.inner())
+                .unwrap_or_else(|_| unavailable_mcp_status("Livariant MCP registration could not be completed safely. Existing Codex configuration was kept.")),
+            _ => inspected_mcp,
+        },
+        Err(_) => unavailable_mcp_status(
+            "Livariant MCP configuration could not be inspected safely. Existing Codex configuration was kept.",
+        ),
+    };
+    Ok(json!({ "connection": connection, "mcp": mcp }))
+}
+
+#[tauri::command]
+pub fn codex_provider_disconnect(
+    app: AppHandle,
+    state: State<'_, ConnectorHostState>,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    let mcp = match codex_mcp_status_inner(&app, &state, registry.inner()) {
+        Ok(inspected_mcp)
+            if inspected_mcp.get("state").and_then(Value::as_str) == Some("registered") =>
+        {
+            codex_mcp_disconnect_inner(&app, &state, registry.inner()).unwrap_or_else(|_| {
+                unavailable_mcp_status(
+                    "Livariant MCP could not be removed safely. Existing Codex configuration was kept.",
+                )
+            })
+        }
+        Ok(inspected_mcp) => inspected_mcp,
+        Err(_) => unavailable_mcp_status(
+            "Livariant MCP configuration could not be inspected safely. Existing Codex configuration was kept.",
+        ),
+    };
+    let connection = request(
+        &app,
+        &state,
+        registry.inner(),
+        "disconnect",
+        None,
+        None,
+        None,
+    )?;
+    Ok(json!({ "connection": connection, "mcp": mcp }))
 }
 
 #[tauri::command]
@@ -515,7 +852,29 @@ pub fn codex_diagnostics_measure(
 
 #[cfg(test)]
 mod tests {
-    use super::{persisted_connection_desired, validate_diagnostics_preset};
+    use super::{
+        codex_mcp_registration_is_safe, persisted_connection_desired,
+        validate_diagnostics_preset, CodexCliInvocation,
+    };
+    use std::path::PathBuf;
+
+    #[test]
+    fn registers_codex_mcp_only_when_the_entry_is_verified_missing() {
+        assert!(codex_mcp_registration_is_safe(Some("not-registered")));
+        for state in [Some("registered"), Some("conflict"), Some("unavailable"), None] {
+            assert!(!codex_mcp_registration_is_safe(state));
+        }
+    }
+
+    #[test]
+    fn codex_cli_invocation_preserves_resolved_argument_prefix() {
+        let invocation = CodexCliInvocation {
+            command: PathBuf::from(r"C:\Livariant\livariant-node.exe"),
+            args_prefix: vec![r"C:\Users\Robin\AppData\Roaming\npm\node_modules\@openai\codex\bin\codex.js".to_owned()],
+        };
+        assert_eq!(invocation.args_prefix.len(), 1);
+        assert!(invocation.args_prefix[0].ends_with(r"@openai\codex\bin\codex.js"));
+    }
 
     #[test]
     fn accepts_supported_diagnostics_presets() {

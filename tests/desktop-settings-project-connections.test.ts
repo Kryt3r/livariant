@@ -69,3 +69,30 @@ test("destructive-looking source actions use Livariant confirmation UI instead o
   assert.match(css, /\.project-confirm-dialog/);
   assert.match(css, /\.project-confirm-action\.danger/);
 });
+
+
+test("GitHub connection status paints from local protected state without waiting for lifecycle or remote user lookup", async () => {
+  const management = await read("apps/desktop/src/project-connections-settings.ts");
+  const host = await read("apps/desktop/src-tauri/src/github_remote.rs");
+
+  assert.match(management, /const github = invoke<GitHubConnectionStatus>\("github_connection_status"\)/);
+  assert.match(management, /githubStatus = status;[\s\S]*activeRerender\?\.\(\)/);
+  assert.match(management, /const lifecycle = loadFirstRunLifecycle\(\)/);
+  assert.doesNotMatch(management, /const \[github, lifecycle\] = await Promise\.all/);
+
+  const statusStart = host.indexOf("pub fn github_connection_status");
+  const statusEnd = host.indexOf("#[tauri::command]", statusStart + 10);
+  const statusBody = host.slice(statusStart, statusEnd);
+  assert.match(statusBody, /usable_credential\(\)/);
+  assert.doesNotMatch(statusBody, /authenticated_login/);
+  assert.match(host, /#\[serde\(default\)\][\s\S]*login: Option<String>/);
+  assert.match(host, /credential\.login = Some\(login\.clone\(\)\)/);
+});
+
+
+test("onboarding paints GitHub connection before repository discovery finishes", async () => {
+  const picker = await read("apps/desktop/src/github-source-picker.ts");
+  assert.match(picker, /status = await invoke<GitHubConnectionStatus>\("github_connection_status"\);\s*render\(\);\s*if \(status\.connected\) await loadRepositories\(\)/);
+  assert.match(picker, /repositoriesLoading = true;\s*render\(\)/);
+  assert.match(picker, /Loading repositories…/);
+});

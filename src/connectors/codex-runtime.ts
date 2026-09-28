@@ -126,12 +126,12 @@ export class CodexAppServerHandshake {
     return this.#state;
   }
 
-  begin(clientVersion: string): string {
+  begin(clientVersion: string, experimentalApi = false): string {
     if (this.#state !== "created") {
       throw new Error("Codex App Server initialize request can only be sent once per handshake.");
     }
     this.#state = "initialize-sent";
-    return JSON.stringify(createCodexInitializeRequest(clientVersion, this.#requestId));
+    return JSON.stringify(createCodexInitializeRequest(clientVersion, this.#requestId, experimentalApi));
   }
 
   acceptInitializeResponse(line: string, observedAt = new Date().toISOString()): {
@@ -262,6 +262,7 @@ export interface ConnectCodexAppServerOptions {
   versionProbe?: CodexVersionProbe;
   transportFactory?: CodexTransportFactory;
   now?: () => string;
+  experimentalApi?: boolean;
 }
 
 export async function connectCodexAppServer(options: ConnectCodexAppServerOptions): Promise<CodexAppServerSession> {
@@ -395,7 +396,7 @@ export async function connectCodexAppServer(options: ConnectCodexAppServerOption
     }
 
     try {
-      transport.write(handshake.begin(options.clientVersion));
+      transport.write(handshake.begin(options.clientVersion, options.experimentalApi ?? false));
     } catch (error) {
       failBeforeConnect(error instanceof Error ? error : new Error(String(error)));
     }

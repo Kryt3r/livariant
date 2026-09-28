@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { resolveCodexCommand, type CodexCommandResolution } from "./codex-command.js";
+import { providerCapabilityMatrix } from "./provider-capabilities.js";
 import {
   connectCodexAppServer,
   inspectCodexInstallation,
@@ -151,6 +152,8 @@ function connectionStatus() {
     launchSource: resolution?.source ?? null,
     connectionMode: selectedResolution ? selectedMode : "auto",
     configuredCommand: selectedResolution?.command ?? null,
+    configuredArgsPrefix: selectedResolution ? [...selectedResolution.argsPrefix] : [],
+    capabilities: providerCapabilityMatrix("codex").capabilities,
     detail: lastRestoreError ? `Codex remains configured to reconnect, but automatic reconnection failed: ${lastRestoreError}` : baseDetail,
   };
 }
@@ -393,6 +396,25 @@ async function measurementStatus() {
   }
 }
 
+function diagnosticsTelemetryCoverage() {
+  const providers = ["codex", "claude", "gemini", "custom"] as const;
+  return {
+    evidenceContract: "qualified-provider-owned-usage",
+    connectionDoesNotImplyTelemetry: true,
+    qualifiedProviders: providers.filter((provider) =>
+      providerCapabilityMatrix(provider).capabilities["provider-owned-usage-telemetry"].state === "supported"
+    ),
+    providers: Object.fromEntries(providers.map((provider) => {
+      const capability = providerCapabilityMatrix(provider).capabilities["provider-owned-usage-telemetry"];
+      return [provider, {
+        state: capability.state,
+        evidence: capability.evidence,
+        detail: capability.detail,
+      }];
+    })),
+  };
+}
+
 async function diagnostics(preset: DiagnosticPreset = "all", projectId: string) {
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
@@ -414,6 +436,7 @@ async function diagnostics(preset: DiagnosticPreset = "all", projectId: string) 
     hasObservedData: aggregate.observed.eventCount > 0,
     storage: "local-jsonl",
     measurement: await measurementStatus(),
+    telemetryCoverage: diagnosticsTelemetryCoverage(),
   };
 }
 
@@ -429,6 +452,7 @@ async function diagnosticsExport(preset: DiagnosticPreset = "all", projectId: st
   });
   return {
     ...evidence,
+    telemetryCoverage: diagnosticsTelemetryCoverage(),
     projectScope: {
       kind: "project",
       projectId,

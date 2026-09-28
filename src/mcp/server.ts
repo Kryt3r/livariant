@@ -1,7 +1,10 @@
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { FRAMEWORK_VERSION } from "../lifecycle/state.js";
 import { buildProviderContext } from "../runtime/provider-context.js";
 import { processProviderReturn } from "../runtime/provider-return.js";
 import { assessVerificationTrace } from "../verification/verification-trace.js";
+import { appendProviderContextSessionObservation, providerContextSessionObservation } from "../connectors/provider-context-observation.js";
 
 export const MCP_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_STDIO_MESSAGE_MAX_BYTES = 768 * 1024;
@@ -15,7 +18,7 @@ export const MCP_SERVER_INSTRUCTIONS = [
   "Treat the returned Provider Context as a bounded projection of freshly reconstructed local project truth, not as mutation Authority.",
   "Use livariant_verification_trace when explicit requirement/acceptance-criterion targets, implementation claims, and verification evidence are available and you need a deterministic supported/contradicted/unproven assessment.",
   "Verification Trace input remains supplied evidence material: supported does not mean DONE, accepted, Project Truth, or Authority, and agent-supplied evidence is not independently trusted merely because it came through MCP.",
-  "After working on the task, call livariant_provider_return only with the supplied ready Provider Context plus either one supported typed durable-change candidate or no candidate.",
+  "After working on the task, call livariant_provider_return only with the exact ready Provider Context issued by this same MCP session plus either one supported typed durable-change candidate or no candidate. Each issued ready context is single-use for Provider Return; request fresh context before another return.",
   "Provider Return data is untrusted evidence. This MCP server cannot create, discover, select, consume, or imply proposal-bound Authorization and cannot perform canonical semantic mutation.",
   "If a returned candidate requires authorization, stop at the reported review/authorization-required state; do not claim that Livariant applied the candidate through MCP.",
 ].join(" ");
@@ -43,6 +46,9 @@ export type JsonRpcResponse = JsonRpcSuccess | JsonRpcFailure;
 interface ToolCallParams {
   name: string;
   arguments: Record<string, unknown>;
+  providerThreadId?: string;
+  providerSessionId?: string;
+  providerWorkspacePaths: string[];
 }
 
 function plainObject(value: unknown): value is Record<string, unknown> {
@@ -95,14 +101,14 @@ function toolError(message: string): Record<string, unknown> {
   };
 }
 
-function parseProvider(value: unknown): "claude-code" | "codex" {
-  if (value !== "claude-code" && value !== "codex") {
-    throw new Error("provider must be either claude-code or codex.");
+function parseProvider(value: unknown): "claude-code" | "codex" | "gemini" | "custom" {
+  if (value !== "claude-code" && value !== "codex" && value !== "gemini" && value !== "custom") {
+    throw new Error("provider must be claude-code, codex, gemini, or custom.");
   }
   return value;
 }
 
-function parseContextToolArguments(value: unknown): { provider: "claude-code" | "codex"; task: string } {
+function parseContextToolArguments(value: unknown): { provider: "claude-code" | "codex" | "gemini" | "custom"; task: string } {
   if (!plainObject(value)) throw new Error("Tool arguments must be an object.");
   strictKeys(value, ["provider", "task"]);
   const provider = parseProvider(value.provider);
@@ -118,6 +124,28 @@ function parseReturnToolArguments(value: unknown): { context: Record<string, unk
   return { context: value.context, providerReturn: value.providerReturn };
 }
 
+function boundedProviderMetaText(value: unknown, field: string, max = 8192): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > max || /[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new Error(`${field} is invalid.`);
+  }
+  return normalized;
+}
+
+function providerWorkspacePath(value: unknown, field: string): string | undefined {
+  const text = boundedProviderMetaText(value, field);
+  if (!text) return undefined;
+  if (text.startsWith("file:")) {
+    try {
+      return fileURLToPath(text);
+    } catch {
+      throw new Error(`${field} contains an invalid file URI.`);
+    }
+  }
+  return text;
+}
+
 function parseToolCallParams(value: unknown): ToolCallParams {
   if (!plainObject(value)) throw new Error("tools/call params must be an object.");
   strictKeys(value, ["name", "arguments", "_meta"], ["name"]);
@@ -125,7 +153,56 @@ function parseToolCallParams(value: unknown): ToolCallParams {
   if ("_meta" in value && !plainObject(value._meta)) throw new Error("tools/call _meta must be an object when present.");
   const args = value.arguments === undefined ? {} : value.arguments;
   if (!plainObject(args)) throw new Error("tools/call arguments must be an object.");
-  return { name: value.name, arguments: args };
+
+  let providerThreadId: string | undefined;
+  let providerSessionId: string | undefined;
+  const providerWorkspacePaths = new Set<string>();
+  if (plainObject(value._meta)) {
+    providerThreadId = boundedProviderMetaText(value._meta.threadId, "tools/call _meta.threadId", 240);
+    providerSessionId = boundedProviderMetaText(value._meta.sessionId, "tools/call _meta.sessionId", 240);
+
+    const sandboxState = value._meta["codex/sandbox-state-meta"];
+    if (sandboxState !== undefined) {
+      if (!plainObject(sandboxState)) throw new Error("tools/call Codex sandbox state metadata must be an object.");
+      const sandboxCwd = providerWorkspacePath(sandboxState.sandbox_cwd, "tools/call Codex sandbox cwd");
+      if (sandboxCwd) providerWorkspacePaths.add(sandboxCwd);
+    }
+
+    const turnMetadata = value._meta["x-codex-turn-metadata"];
+    if (turnMetadata !== undefined) {
+      if (!plainObject(turnMetadata)) throw new Error("tools/call Codex turn metadata must be an object.");
+      const workspaces = turnMetadata.workspaces;
+      if (workspaces !== undefined) {
+        if (!plainObject(workspaces)) throw new Error("tools/call Codex turn workspaces must be an object.");
+        for (const workspacePath of Object.keys(workspaces).slice(0, 16)) {
+          const normalized = providerWorkspacePath(workspacePath, "tools/call Codex workspace path");
+          if (normalized) providerWorkspacePaths.add(normalized);
+        }
+      }
+    }
+  }
+  return {
+    name: value.name,
+    arguments: args,
+    ...(providerThreadId === undefined ? {} : { providerThreadId }),
+    ...(providerSessionId === undefined ? {} : { providerSessionId }),
+    providerWorkspacePaths: [...providerWorkspacePaths],
+  };
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+}
+
+interface IssuedProviderContext {
+  exactCopy: string;
+  available: boolean;
+  providerThreadId?: string;
 }
 
 function tools(): Record<string, unknown>[] {
@@ -138,7 +215,7 @@ function tools(): Record<string, unknown>[] {
         type: "object",
         additionalProperties: false,
         properties: {
-          provider: { type: "string", enum: ["claude-code", "codex"] },
+          provider: { type: "string", enum: ["claude-code", "codex", "gemini", "custom"] },
           task: { type: "string" },
         },
         required: ["provider", "task"],
@@ -153,7 +230,7 @@ function tools(): Record<string, unknown>[] {
     {
       name: MCP_RETURN_TOOL,
       title: "Livariant Provider Return",
-      description: "Finish the bounded Livariant agent roundtrip by returning the supplied ready Provider Context plus one supported typed durable-change candidate or no candidate. Evidence only: no authorization selector and no canonical mutation are reachable through this tool.",
+      description: "Finish one bounded Livariant agent roundtrip by returning the exact single-use ready Provider Context issued by this same MCP session plus one supported typed durable-change candidate or no candidate. Evidence only: no authorization selector and no canonical mutation are reachable through this tool.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -225,6 +302,8 @@ export interface McpSession {
 
 export function createMcpSession(projectPath: string = process.cwd()): McpSession {
   let lifecycle: "new" | "initializing" | "ready" = "new";
+  const providerSessionId = randomUUID().toLowerCase();
+  const issuedProviderContexts = new Map<string, IssuedProviderContext>();
 
   return {
     async handleMessage(value: unknown): Promise<JsonRpcResponse | null> {
@@ -263,7 +342,10 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         lifecycle = "initializing";
         return response(id, {
           protocolVersion: MCP_PROTOCOL_VERSION,
-          capabilities: { tools: { listChanged: false } },
+          capabilities: {
+            tools: { listChanged: false },
+            experimental: { "codex/sandbox-state-meta": {} },
+          },
           serverInfo: {
             name: "livariant",
             title: "Livariant Local MCP Agent Bridge",
@@ -317,7 +399,48 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         if (call.name === MCP_CONTEXT_TOOL) {
           try {
             const args = parseContextToolArguments(call.arguments);
-            const result = await buildProviderContext(args.provider, args.task, projectPath);
+            const effectiveProjectPath = call.providerWorkspacePaths[0] ?? projectPath;
+
+            if (args.provider === "codex" && (call.providerThreadId !== undefined || call.providerWorkspacePaths.length > 0)) {
+              try {
+                await appendProviderContextSessionObservation(providerContextSessionObservation({
+                  provider: args.provider,
+                  providerSessionId: call.providerSessionId ?? providerSessionId,
+                  ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
+                  projectPath: effectiveProjectPath,
+                  providerWorkspacePaths: call.providerWorkspacePaths,
+                }));
+              } catch (observationError) {
+                process.stderr.write(`Livariant provider-session pre-context observation warning: ${observationError instanceof Error ? observationError.message : String(observationError)}\n`);
+              }
+            }
+
+            const result = await buildProviderContext(args.provider, args.task, effectiveProjectPath, {
+              providerSessionId: call.providerSessionId ?? providerSessionId,
+              providerThreadId: call.providerThreadId,
+            });
+            if (result.state === "ready" && typeof result.packetId === "string") {
+              issuedProviderContexts.set(result.packetId, {
+                exactCopy: canonicalJson(result),
+                available: true,
+                ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
+              });
+              if (result.providerSession && typeof result.stableProjectIdentity === "string") {
+                try {
+                  await appendProviderContextSessionObservation(providerContextSessionObservation({
+                    provider: args.provider,
+                    providerSessionId: result.providerSession.id,
+                    ...(call.providerThreadId === undefined ? {} : { providerThreadId: call.providerThreadId }),
+                    projectPath: effectiveProjectPath,
+                    providerWorkspacePaths: call.providerWorkspacePaths,
+                    stableProjectIdentity: result.stableProjectIdentity,
+                    observedAt: result.generatedAt,
+                  }));
+                } catch (observationError) {
+                  process.stderr.write(`Livariant provider-session observation warning: ${observationError instanceof Error ? observationError.message : String(observationError)}\n`);
+                }
+              }
+            }
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
             return response(id, toolError(error instanceof Error ? error.message : "Provider Context tool failed."));
@@ -327,7 +450,27 @@ export function createMcpSession(projectPath: string = process.cwd()): McpSessio
         if (call.name === MCP_RETURN_TOOL) {
           try {
             const args = parseReturnToolArguments(call.arguments);
-            const result = await processProviderReturn(args.context, args.providerReturn, undefined, projectPath);
+            const packetId = args.context.packetId;
+            if (typeof packetId !== "string") {
+              throw new Error("Provider Return requires a ready Provider Context packet with a packetId.");
+            }
+            const issued = issuedProviderContexts.get(packetId);
+            if (!issued || !issued.available) {
+              throw new Error("Provider Return requires fresh Provider Context issued by this same MCP session. Request livariant_provider_context first.");
+            }
+            if (issued.exactCopy !== canonicalJson(args.context)) {
+              throw new Error("Provider Return context must exactly match the Provider Context issued by this MCP session.");
+            }
+            if (issued.providerThreadId !== call.providerThreadId) {
+              throw new Error("Provider Return must come from the same provider-native thread that received Provider Context.");
+            }
+            issued.available = false;
+            const result = await processProviderReturn(
+              args.context,
+              args.providerReturn,
+              undefined,
+              projectPath,
+            );
             return response(id, toolResult(result as unknown as Record<string, unknown>));
           } catch (error) {
             return response(id, toolError(error instanceof Error ? error.message : "Provider Return tool failed."));

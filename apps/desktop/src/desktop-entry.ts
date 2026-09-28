@@ -42,7 +42,15 @@ async function start(): Promise<void> {
     if (!handled) await loadMainSurface();
   } catch (error) {
     console.error("Livariant first-run startup failed", error);
-    root.innerHTML = `<main style="padding:32px;font-family:system-ui;color:#eef1ff;background:#0b0d12;min-height:100vh"><h1>${text("Livariant setup could not start", "Livariant-Einrichtung konnte nicht gestartet werden")}</h1><p>${text("Livariant could not open the setup flow. Restart Livariant. If the problem continues, review Diagnostics after the app opens or collect the diagnostic information for support.", "Livariant konnte die Einrichtung nicht öffnen. Starte Livariant neu. Wenn das Problem bestehen bleibt, prüfe nach dem Öffnen der App die Diagnose oder sammle die Diagnoseinformationen für den Support.")}</p><p>${text("No project-owned files were changed.", "Es wurden keine projekt-eigenen Dateien verändert.")}</p></main>`;
+    try {
+      // A broken or older resumable setup record must never make an existing
+      // installation unusable. Preserve all app/project data and enter the
+      // normal Desktop surface; setup remains explicitly resumable later.
+      await loadMainSurface();
+    } catch (mainError) {
+      console.error("Livariant main surface recovery failed", mainError);
+      root.innerHTML = `<main style="padding:32px;font-family:system-ui;color:#eef1ff;background:#0b0d12;min-height:100vh"><h1>${text("Livariant could not start", "Livariant konnte nicht gestartet werden")}</h1><p>${text("The setup state could not be loaded, and the normal Desktop surface could not be opened either. Restart Livariant and collect Diagnostics for support.", "Der Einrichtungszustand konnte nicht geladen werden und auch die normale Desktop-Oberfläche ließ sich nicht öffnen. Starte Livariant neu und sammle die Diagnoseinformationen für den Support.")}</p><p>${text("No project-owned files or Livariant app data were deleted.", "Es wurden keine projekt-eigenen Dateien und keine Livariant-Anwendungsdaten gelöscht.")}</p></main>`;
+    }
   }
 }
 

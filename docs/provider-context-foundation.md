@@ -38,3 +38,10 @@ Automatic provider injection is not implemented. Post-RC3 repository source now 
 See [Provider Roundtrip Evidence Intake](provider-roundtrip-evidence.md) for the return-side contract and [Stable Project Identity Foundation](stable-project-identity-foundation.md) for logical identity semantics.
 
 This capability is repository development after RC3 and is not part of the immutable `v0.1.0-rc.3` release.
+
+
+## Provider-session freshness
+
+A stable Project Brain identity identifies the logical project, not one provider conversation. MCP adds a separate ephemeral provider-session binding: each running Livariant MCP session gets its own UUID, and that UUID is material to the Provider Context packet identity. Desktop UI selection is not part of this binding.
+
+This means two Codex or Claude MCP sessions may independently target the same project, while another session of the same provider targets a different project. Cross-project returns are rejected by current Project Brain identity/baseline checks; MCP additionally requires exact same-session single-use issuance.
