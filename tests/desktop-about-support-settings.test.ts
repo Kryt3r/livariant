@@ -60,7 +60,7 @@ test("social and Discord destinations are not exposed before real links exist", 
 test("public Preview publication requires a formal privacy notice URL", async () => {
   const workflow = await read(".github/workflows/desktop-preview-update.yml");
 
-  assert.match(workflow, /LIVARIANT_PRIVACY_NOTICE_URL: \$\{\{ vars\.LIVARIANT_PRIVACY_NOTICE_URL \}\}/);
+  assert.match(workflow, /LIVARIANT_PRIVACY_NOTICE_URL: https:\/\/livariant\.dev\/privacy\//);
   assert.match(workflow, /Require formal privacy notice for publication/);
   assert.match(workflow, /if: \$\{\{ inputs\.publish_preview \}\}/);
   assert.match(workflow, /LIVARIANT_PRIVACY_NOTICE_URL is required to publish a Windows preview/);
