@@ -8,6 +8,7 @@ on:
       - reopened
     branches:
       - main
+      - develop
     paths:
       - "apps/desktop/**"
       - ".github/workflows/desktop-windows-foundation.yml"

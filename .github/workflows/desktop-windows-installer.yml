@@ -8,6 +8,7 @@ on:
       - reopened
     branches:
       - main
+      - develop
     paths:
       - "apps/desktop/**"
       - "src/**"
