@@ -68,7 +68,6 @@ test("publisher certificate policy still rejects unusable identities before Auth
 });
 
 
-// CI sync sentinel: ensure full develop-targeted qualification after CI branch-model migration.
 test("preview publication binds privileged build to canonical main source", async () => {
   const workflow = await read(".github/workflows/desktop-preview-update.yml");
 
