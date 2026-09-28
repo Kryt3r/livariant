@@ -463,11 +463,17 @@ fn codex_mcp_runtime_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String
     Ok((node, cli))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CodexCliInvocation {
+    command: PathBuf,
+    args_prefix: Vec<String>,
+}
+
 fn codex_connector_command(
     app: &AppHandle,
     state: &ConnectorHostState,
     registry: &DesktopProjectRegistryState,
-) -> Result<PathBuf, String> {
+) -> Result<CodexCliInvocation, String> {
     let status = request(app, state, registry, "inspect", None, None, None)?;
     let command = status
         .get("configuredCommand")
@@ -479,11 +485,26 @@ fn codex_connector_command(
     if !path.is_file() {
         return Err("Configured Codex executable is no longer available.".to_owned());
     }
-    Ok(path)
+    let args_prefix = status
+        .get("configuredArgsPrefix")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items.iter()
+                .map(|item| {
+                    item.as_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| "Configured Codex CLI argument prefix is invalid.".to_owned())
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    Ok(CodexCliInvocation { command: path, args_prefix })
 }
 
-fn run_codex_mcp_command(command: &Path, args: &[&str]) -> Result<std::process::Output, String> {
-    hidden_command(command)
+fn run_codex_mcp_command(invocation: &CodexCliInvocation, args: &[&str]) -> Result<std::process::Output, String> {
+    hidden_command(&invocation.command)
+        .args(&invocation.args_prefix)
         .args(args)
         .output()
         .map_err(|error| format!("Codex MCP command could not be executed: {error}"))
@@ -833,8 +854,9 @@ pub fn codex_diagnostics_measure(
 mod tests {
     use super::{
         codex_mcp_registration_is_safe, persisted_connection_desired,
-        validate_diagnostics_preset,
+        validate_diagnostics_preset, CodexCliInvocation,
     };
+    use std::path::PathBuf;
 
     #[test]
     fn registers_codex_mcp_only_when_the_entry_is_verified_missing() {
@@ -842,6 +864,16 @@ mod tests {
         for state in [Some("registered"), Some("conflict"), Some("unavailable"), None] {
             assert!(!codex_mcp_registration_is_safe(state));
         }
+    }
+
+    #[test]
+    fn codex_cli_invocation_preserves_resolved_argument_prefix() {
+        let invocation = CodexCliInvocation {
+            command: PathBuf::from(r"C:\Livariant\livariant-node.exe"),
+            args_prefix: vec![r"C:\Users\Robin\AppData\Roaming\npm\node_modules\@openai\codex\bin\codex.js".to_owned()],
+        };
+        assert_eq!(invocation.args_prefix.len(), 1);
+        assert!(invocation.args_prefix[0].ends_with(r"@openai\codex\bin\codex.js"));
     }
 
     #[test]
