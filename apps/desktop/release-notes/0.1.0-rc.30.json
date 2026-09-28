@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "de": {
+    "title": "Desktop Preview 30",
+    "items": [
+      "Project Knowledge und Project Brain sind jetzt dauerhaft pro Desktop-Projekt in Livariant-eigenem, maschinenlokalem App-Datenzustand gebunden. Normale Nutzung legt keinen Project Brain im Repository an und verändert dafür keine .gitignore.",
+      "Projektwechsel, Onboarding und Provider-Zustand wurden weiter gehärtet: projektbezogene Verbindungen und Kontext bleiben getrennt, und veraltete oder einem anderen Projekt zugehörige Provider-Ergebnisse werden vor dauerhafter Übernahme abgewiesen.",
+      "Codex, Claude Code, Gemini CLI und eigene Provider werden mit expliziten, unterschiedlichen Fähigkeiten dargestellt. Eine lokale Verbindung bedeutet nicht automatisch gleiche Project-Context-, Session-, Return- oder Diagnose-Funktionen.",
+      "Diagnose bleibt projektbezogen und weist fehlende oder nicht sicher zuordenbare Provider-Telemetrie ausdrücklich als nicht verfügbar beziehungsweise nicht zugeordnet aus, statt daraus Nullwerte oder vollständige Abdeckung abzuleiten.",
+      "Release- und Update-Grenzen wurden weiter abgesichert. Die öffentliche Datenschutzerklärung ist jetzt fest unter https://livariant.dev/privacy/ angebunden; bestehende HTTPS-, Signatur- und Fail-closed-Prüfungen bleiben erhalten."
+    ]
+  },
+  "en": {
+    "title": "Desktop Preview 30",
+    "items": [
+      "Project Knowledge and Project Brain are now durably scoped per Desktop project in Livariant-owned machine-local app data. Normal use does not create a Project Brain inside the repository and does not modify .gitignore for that storage.",
+      "Project switching, onboarding, and provider state have been further hardened: project-specific connections and context stay separated, and stale or wrong-project provider results are rejected before durable intake.",
+      "Codex, Claude Code, Gemini CLI, and Custom providers now expose explicit provider-specific capability truth. A local connection does not imply equal Project Context, session, Provider Return, or diagnostics support.",
+      "Diagnostics remains project-scoped and reports missing or safely unattributable provider telemetry as unavailable or unattributed instead of turning it into zero values or implying complete provider coverage.",
+      "Release and update boundaries have been further hardened. The public Privacy Notice is now pinned to https://livariant.dev/privacy/ while the existing HTTPS, signature, and fail-closed checks remain in place."
+    ]
+  }
+}
