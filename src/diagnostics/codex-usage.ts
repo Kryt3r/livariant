@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { CodexTokenUsageBreakdown, CodexUsageSnapshot } from "../connectors/codex-app-server.js";
 import type { ObservedDiagnosticEvent, ObservedTokenUsage } from "./efficiency.js";
 
@@ -7,6 +7,7 @@ export type CodexUsageSequenceResult =
   | { kind: "duplicate" }
   | { kind: "reset" }
   | { kind: "delta"; event: ObservedDiagnosticEvent };
+export type CodexUsageCheckpoint = { usage: CodexTokenUsageBreakdown; epoch: number };
 
 const ZERO_BREAKDOWN: CodexTokenUsageBreakdown = {
   inputTokens: 0,
@@ -50,6 +51,23 @@ function delta(previous: CodexTokenUsageBreakdown, current: CodexTokenUsageBreak
 
 export class CodexUsageSequencer {
   readonly #byThread = new Map<string, CodexTokenUsageBreakdown>();
+  readonly #epochs = new Map<string, number>();
+
+  constructor(checkpoints: Readonly<Record<string, CodexUsageCheckpoint>> = {}) {
+    for (const [threadId, checkpoint] of Object.entries(checkpoints)) {
+      const { usage, epoch } = checkpoint;
+      if (!threadId.trim() || threadId.length > 240) throw new Error("Codex usage checkpoint thread id is invalid.");
+      if (!Number.isSafeInteger(epoch) || epoch < 0) throw new Error("Codex usage checkpoint epoch is invalid.");
+      for (const key of ["inputTokens", "cachedInputTokens", "outputTokens", "reasoningOutputTokens", "totalTokens"] as const) {
+        if (!Number.isSafeInteger(usage[key]) || usage[key] < 0) throw new Error(`Codex usage checkpoint ${key} is invalid.`);
+      }
+      if (usage.cacheWriteInputTokens !== undefined && (!Number.isSafeInteger(usage.cacheWriteInputTokens) || usage.cacheWriteInputTokens < 0)) {
+        throw new Error("Codex usage checkpoint cacheWriteInputTokens is invalid.");
+      }
+      this.#byThread.set(threadId, { ...usage });
+      this.#epochs.set(threadId, epoch);
+    }
+  }
 
   /**
    * Zero is a valid baseline only for a thread Livariant has just created via a
@@ -60,18 +78,22 @@ export class CodexUsageSequencer {
   markNewThread(threadId: string): void {
     if (!threadId.trim()) throw new Error("Codex new thread id must not be blank.");
     this.#byThread.set(threadId, { ...ZERO_BREAKDOWN });
+    this.#epochs.set(threadId, 0);
   }
 
   accept(snapshot: CodexUsageSnapshot, observedAt = new Date().toISOString()): CodexUsageSequenceResult {
     const previous = this.#byThread.get(snapshot.threadId);
     this.#byThread.set(snapshot.threadId, { ...snapshot.total });
     if (previous === undefined) return { kind: "baseline" };
-    if (regressed(previous, snapshot.total)) return { kind: "reset" };
+    if (regressed(previous, snapshot.total)) {
+      this.#epochs.set(snapshot.threadId, (this.#epochs.get(snapshot.threadId) ?? 0) + 1);
+      return { kind: "reset" };
+    }
     if (same(previous, snapshot.total)) return { kind: "duplicate" };
     return {
       kind: "delta",
       event: {
-        id: `codex-observed:${randomUUID()}`,
+        id: `codex-observed:${createHash("sha256").update(JSON.stringify({ threadId: snapshot.threadId, epoch: this.#epochs.get(snapshot.threadId) ?? 0, previous, current: snapshot.total })).digest("hex")}`,
         kind: "observed",
         timestamp: new Date(observedAt).toISOString(),
         source: { kind: "runtime", id: snapshot.source.id, version: snapshot.source.version },
@@ -82,7 +104,16 @@ export class CodexUsageSequencer {
   }
 
   reset(threadId?: string): void {
-    if (threadId === undefined) this.#byThread.clear();
-    else this.#byThread.delete(threadId);
+    if (threadId === undefined) {
+      this.#byThread.clear();
+      this.#epochs.clear();
+    } else {
+      this.#byThread.delete(threadId);
+      this.#epochs.delete(threadId);
+    }
+  }
+
+  checkpoints(): Record<string, CodexUsageCheckpoint> {
+    return Object.fromEntries([...this.#byThread].map(([threadId, usage]) => [threadId, { usage: { ...usage }, epoch: this.#epochs.get(threadId) ?? 0 }]));
   }
 }

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { lstat, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
@@ -27,7 +28,7 @@ import {
 } from "../diagnostics/efficiency.js";
 import { buildDiagnosticEvidenceExport } from "../diagnostics/export.js";
 import { filterDiagnosticEventsByProjectScope } from "../diagnostics/project-scope.js";
-import { CodexUsageSequencer } from "../diagnostics/codex-usage.js";
+import { CodexUsageSequencer, type CodexUsageCheckpoint } from "../diagnostics/codex-usage.js";
 import {
   DIAGNOSTIC_MEASUREMENT_COOLDOWN_MS,
   DiagnosticMeasurementStateStore,
@@ -46,9 +47,14 @@ function requiredEnv(name: "LIVARIANT_DIAGNOSTICS_ROOT" | "LIVARIANT_CORE_VERSIO
 const diagnosticsRoot = requiredEnv("LIVARIANT_DIAGNOSTICS_ROOT");
 const clientVersion = requiredEnv("LIVARIANT_CORE_VERSION");
 const connectionIntentPath = requiredEnv("LIVARIANT_CONNECTION_INTENT_PATH");
+const codexBindingsPath = process.env.LIVARIANT_CODEX_BINDINGS_PATH?.trim();
 const store = new DiagnosticEventStore(diagnosticsRoot);
 const measurementStore = new DiagnosticMeasurementStateStore(join(diagnosticsRoot, "measurement-state.json"));
-const sequencer = new CodexUsageSequencer();
+let sequencer = new CodexUsageSequencer();
+let sequencerHydrated = false;
+let checkpointDirty = false;
+const persistedDiagnosticIds = new Set<string>();
+const usageCheckpointPath = join(diagnosticsRoot, "codex-usage-checkpoints.json");
 let session: CodexAppServerSession | undefined;
 let workflow: CodexWorkflowClient | undefined;
 let unsubscribeWorkflow: (() => void) | undefined;
@@ -59,9 +65,85 @@ const measurementProjectScopes = new Map<string, string>();
 let selectedResolution: CodexCommandResolution | undefined;
 let selectedMode: "auto" | "manual" = "auto";
 let lastRestoreError: string | undefined;
+let lastUsageWriteError: string | undefined;
 
 const DIAGNOSTIC_PRESETS = ["1d", "7d", "30d", "90d", "all"] as const satisfies readonly DiagnosticPreset[];
 const MEASUREMENT_PROVIDER = "openai-codex";
+let lastAutomaticCodexProjects = new Map<string, string>();
+let lastManualCodexProjects = new Map<string, string>();
+
+async function hydrateUsageSequencer(): Promise<void> {
+  if (sequencerHydrated) return;
+  let checkpoints: Record<string, CodexUsageCheckpoint> = {};
+  try {
+    const parsed = JSON.parse(await readFile(usageCheckpointPath, "utf8")) as unknown;
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("checkpoint must be an object");
+    const record = parsed as Record<string, unknown>;
+    if (record.schemaVersion !== 1 || typeof record.threads !== "object" || record.threads === null || Array.isArray(record.threads)) {
+      throw new Error("checkpoint schema is unsupported");
+    }
+    checkpoints = record.threads as Record<string, CodexUsageCheckpoint>;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw new Error(`Codex usage checkpoints could not be loaded safely: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  sequencer = new CodexUsageSequencer(checkpoints);
+  for (const event of await store.readAll()) persistedDiagnosticIds.add(event.id);
+  sequencerHydrated = true;
+}
+
+async function persistUsageCheckpoints(): Promise<void> {
+  const temporary = `${usageCheckpointPath}.tmp-${process.pid}`;
+  await writeFile(temporary, `${JSON.stringify({ schemaVersion: 1, threads: sequencer.checkpoints() })}\n`, "utf8");
+  await rename(temporary, usageCheckpointPath);
+}
+
+async function readQualifiedCodexSessionProjects(manualOnly = false): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (!codexBindingsPath) return result;
+  let parsed: unknown;
+  try {
+    const metadata = await lstat(codexBindingsPath);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("binding evidence must be a real file");
+    parsed = JSON.parse(await readFile(codexBindingsPath, "utf8")) as unknown;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return new Map(manualOnly ? lastManualCodexProjects : lastAutomaticCodexProjects);
+    }
+    throw new Error(`Codex project binding evidence could not be read safely: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("Codex project binding evidence must be an object.");
+  const snapshot = parsed as Record<string, unknown>;
+  if (snapshot.schemaVersion !== 1 || snapshot.provider !== "codex" || snapshot.state !== "ready" || !Array.isArray(snapshot.bindings)) {
+    throw new Error("Codex project binding evidence schema is unsupported.");
+  }
+  const conflicts = new Set<string>();
+  for (const item of snapshot.bindings) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) throw new Error("Codex project binding evidence contains an invalid binding.");
+    const binding = item as Record<string, unknown>;
+    const threadId = typeof binding.threadId === "string" ? binding.threadId.trim() : "";
+    const project = binding.project;
+    const projectRecord = typeof project === "object" && project !== null && !Array.isArray(project)
+      ? project as Record<string, unknown>
+      : undefined;
+    const logicalProjectId = typeof projectRecord?.projectId === "string" ? projectRecord.projectId.trim() : "";
+    const stableProjectIdentity = typeof projectRecord?.stableProjectIdentity === "string" ? projectRecord.stableProjectIdentity.trim() : "";
+    const projectId = logicalProjectId || stableProjectIdentity;
+    const attribution = typeof binding.attribution === "string" ? binding.attribution : "";
+    if (!threadId || threadId.length > 240) throw new Error("Codex project binding thread id is invalid.");
+    const allowed = manualOnly
+      ? attribution === "manual"
+      : ["manual", "provider-context", "provider-workspace", "provider-project", "cwd-exact", "cwd-descendant"].includes(attribution);
+    if (!projectId || !allowed) continue;
+    const previous = result.get(threadId);
+    if (previous && previous !== projectId) {
+      conflicts.add(threadId);
+      result.delete(threadId);
+    } else if (!conflicts.has(threadId)) result.set(threadId, projectId);
+  }
+  if (manualOnly) lastManualCodexProjects = new Map(result);
+  else lastAutomaticCodexProjects = new Map(result);
+  return result;
+}
 
 type Request = {
   id: number;
@@ -154,7 +236,11 @@ function connectionStatus() {
     configuredCommand: selectedResolution?.command ?? null,
     configuredArgsPrefix: selectedResolution ? [...selectedResolution.argsPrefix] : [],
     capabilities: providerCapabilityMatrix("codex").capabilities,
-    detail: lastRestoreError ? `Codex remains configured to reconnect, but automatic reconnection failed: ${lastRestoreError}` : baseDetail,
+    detail: lastRestoreError
+      ? `Codex remains configured to reconnect, but automatic reconnection failed: ${lastRestoreError}`
+      : lastUsageWriteError
+        ? `${baseDetail} Diagnostics persistence failed: ${lastUsageWriteError}`
+        : baseDetail,
   };
 }
 
@@ -174,7 +260,6 @@ async function disconnectSession(): Promise<void> {
   session?.close();
   session = undefined;
   pendingApprovals = 0;
-  sequencer.reset();
   completedTurns.clear();
   measurementProjectScopes.clear();
 }
@@ -191,6 +276,7 @@ async function connectSession(options: ConnectSessionOptions = {}) {
 
   selectedResolution = resolution;
   selectedMode = manualPath ? "manual" : "auto";
+  await hydrateUsageSequencer();
   session = await connectCodexAppServer({ clientVersion, command: resolution.command, argsPrefix: resolution.argsPrefix });
   workflow = new CodexWorkflowClient(session, { appServerVersion: inspection.version });
   unsubscribeWorkflow = workflow.onEvent((event) => {
@@ -203,22 +289,39 @@ async function connectSession(options: ConnectSessionOptions = {}) {
       return;
     }
     if (event.kind !== "usage") return;
-    const result = sequencer.accept(event.snapshot);
-    if (result.kind !== "delta") return;
-    const sessionId = result.event.attribution?.sessionId;
-    const measurementProjectId = sessionId
-      ? measurementProjectScopes.get(sessionId)
-      : undefined;
-    const diagnosticEvent = measurementProjectId
-      ? {
-          ...result.event,
-          attribution: {
-            ...result.event.attribution,
-            projectId: measurementProjectId,
-          },
+    writeQueue = writeQueue.then(async () => {
+      if (checkpointDirty) {
+        await persistUsageCheckpoints();
+        checkpointDirty = false;
+      }
+      const automaticProjects = await readQualifiedCodexSessionProjects();
+      const before = sequencer.checkpoints();
+      const result = sequencer.accept(event.snapshot);
+      if (result.kind === "delta") {
+        const sessionId = result.event.attribution?.sessionId;
+        const measurementProjectId = sessionId ? measurementProjectScopes.get(sessionId) : undefined;
+        const automaticProjectId = measurementProjectId ? undefined : automaticProjects.get(sessionId ?? "");
+        const projectId = measurementProjectId ?? automaticProjectId;
+        const diagnosticEvent = projectId
+          ? { ...result.event, attribution: { ...result.event.attribution, projectId } }
+          : result.event;
+        if (!persistedDiagnosticIds.has(diagnosticEvent.id)) {
+          try {
+            await store.append(diagnosticEvent);
+          } catch (error) {
+            sequencer = new CodexUsageSequencer(before);
+            throw error;
+          }
+          persistedDiagnosticIds.add(diagnosticEvent.id);
         }
-      : result.event;
-    writeQueue = writeQueue.then(() => store.append(diagnosticEvent));
+      }
+      checkpointDirty = true;
+      await persistUsageCheckpoints();
+      checkpointDirty = false;
+      lastUsageWriteError = undefined;
+    }).catch((error) => {
+      lastUsageWriteError = error instanceof Error ? error.message : String(error);
+    });
   });
   return connectionStatus();
 }
@@ -419,7 +522,7 @@ async function diagnostics(preset: DiagnosticPreset = "all", projectId: string) 
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
   const allEvents = await store.readAll();
-  const scoped = filterDiagnosticEventsByProjectScope(allEvents, range, projectId);
+  const scoped = filterDiagnosticEventsByProjectScope(allEvents, range, projectId, await readQualifiedCodexSessionProjects(true));
   const aggregate = aggregateDiagnosticEvents(scoped.events, range);
   return {
     preset,
@@ -444,7 +547,7 @@ async function diagnosticsExport(preset: DiagnosticPreset = "all", projectId: st
   await writeQueue;
   const range = diagnosticRangeForPreset(preset);
   const allEvents = await store.readAll();
-  const scoped = filterDiagnosticEventsByProjectScope(allEvents, range, projectId);
+  const scoped = filterDiagnosticEventsByProjectScope(allEvents, range, projectId, await readQualifiedCodexSessionProjects(true));
   const evidence = buildDiagnosticEvidenceExport(scoped.events, {
     preset,
     range,

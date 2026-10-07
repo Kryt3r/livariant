@@ -46,6 +46,28 @@ test("unattributed diagnostics evidence is never assigned to the active project"
   assert.equal(scoped.unattributedEventCount, 1);
 });
 
+test("qualified session bindings attribute raw usage at query time without rewriting evidence", () => {
+  const scoped = filterDiagnosticEventsByProjectScope(events, {}, "project-a", new Map([["session-raw", "project-a"]]));
+  assert.equal(scoped.events.some((event) => event.id === "u-1"), false);
+
+  const raw: DiagnosticEvent = {
+    ...events[2]!,
+    id: "raw-session",
+    attribution: { provider: "openai-codex", sessionId: "session-raw" },
+  };
+  const attributed = filterDiagnosticEventsByProjectScope([...events, raw], {}, "project-a", new Map([["session-raw", "project-a"]]));
+  assert.deepEqual(attributed.events.map((event) => event.id), ["a-1", "raw-session"]);
+  assert.equal(attributed.unattributedEventCount, 1);
+  assert.equal(raw.attribution?.projectId, undefined);
+});
+
+test("unknown and conflicting sessions remain unattributed", () => {
+  const raw = events[2]!;
+  const scoped = filterDiagnosticEventsByProjectScope([raw], {}, "project-a", new Map());
+  assert.deepEqual(scoped.events, []);
+  assert.equal(scoped.unattributedEventCount, 1);
+});
+
 test("project diagnostics applies the requested time range before scope counting", () => {
   const scoped = filterDiagnosticEventsByProjectScope(events, {
     start: "2026-09-20T10:01:30.000Z",
