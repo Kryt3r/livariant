@@ -27,6 +27,8 @@ test("knowledge projection reads accepted facts, decisions, goals and unknowns w
       await store.replaceKnowledgeDocument(original, original.includes("## Confirmed project knowledge")
         ? original.replace("## Confirmed project knowledge", "## Confirmed project knowledge\n\n- All Settings Cards use a shared layout.")
         : original + "\n## Confirmed project knowledge\n\n- All Settings Cards use a shared layout.\n");
+    });
+    await mutateAcceptedFixture(path, async () => {
       await recordAcceptedDecision("All Settings Cards use a shared layout", path, { authorized: true });
     });
 
@@ -114,6 +116,7 @@ test("knowledge projection rejects a changed source baseline during the read", a
       },
     });
     assert.equal(result.state, "blocked");
+    if (result.state !== "blocked") return;
     assert.deepEqual(result.records, []);
     assert.match(result.reason, /stale|changed|integrity/i);
   });
