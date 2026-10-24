@@ -12,8 +12,8 @@ import { readProjectBrainSemanticRegions } from "../runtime/project-brain-semant
  * Legacy markdown does not encode domain, scope, verification or creation date:
  * do not invent those values from prose or from apparent semantics.
  */
-export type KnowledgeRecordType = "project-identity" | "goal" | "decision" | "fact" | "open-question";
-export type KnowledgeLifecycle = "active" | "superseded" | "unresolved";
+export type KnowledgeRecordType = "project-identity" | "goal" | "decision" | "fact" | "observation" | "unclassified-knowledge" | "open-question";
+export type KnowledgeLifecycle = "active" | "superseded" | "observed" | "unresolved";
 
 export interface ProjectKnowledgeRecord {
   recordId: string;
@@ -26,6 +26,7 @@ export interface ProjectKnowledgeRecord {
   source: {
     kind: "canonical-project-brain";
     document: "project.md" | "goals.md" | "decisions.md" | "knowledge.md";
+    sourceSection?: string;
     sourceRecordId?: string;
     structuredIdentity: boolean;
   };
@@ -117,9 +118,37 @@ interface CandidateRecord {
   lifecycle: KnowledgeLifecycle;
   statement: string;
   document: ProjectKnowledgeRecord["source"]["document"];
+  sourceSection?: string;
   sourceRecordId?: string;
   structuredIdentity: boolean;
   supersededBy?: string;
+}
+
+function knowledgeSections(markdown: string): CandidateRecord[] {
+  const items: CandidateRecord[] = [];
+  let section = "";
+  for (const raw of markdown.split(/\r?\n/)) {
+    const header = /^## (.+)$/.exec(raw);
+    if (header) {
+      section = header[1].trim();
+      if (section.length > 120) throw new Error("Project Brain knowledge heading is too long.");
+      continue;
+    }
+    if (!raw.startsWith("- ")) continue;
+    const statement = raw.slice(2).trim();
+    const isConfirmed = section === "Confirmed project knowledge";
+    const isDiscovery = section === "Verified discovery evidence";
+    const isUnknown = section === "Known unknowns";
+    items.push({
+      recordType: isConfirmed ? "fact" : isDiscovery ? "observation" : isUnknown ? "open-question" : "unclassified-knowledge",
+      lifecycle: isConfirmed ? "active" : isUnknown ? "unresolved" : "observed",
+      statement,
+      document: "knowledge.md",
+      sourceSection: section || "(no section)",
+      structuredIdentity: false,
+    });
+  }
+  return items;
 }
 
 function projectRecords(entries: CandidateRecord[]): {
@@ -135,12 +164,12 @@ function projectRecords(entries: CandidateRecord[]): {
     assertStatement(item.statement);
     const identityMaterial = item.structuredIdentity
       ? item.sourceRecordId!
-      : digest(item.recordType, item.document, item.statement);
-    const uniqueness = item.recordType + "|" + item.document + "|" + identityMaterial;
+      : digest(item.recordType, item.document, item.sourceSection ?? "", item.statement);
+    const uniqueness = item.recordType + "|" + item.document + "|" + (item.sourceSection ?? "") + "|" + identityMaterial;
     const ordinal = seenLegacy.get(uniqueness) ?? 0;
     if (!item.structuredIdentity) seenLegacy.set(uniqueness, ordinal + 1);
     const recordId = "pkr-v1:" + digest(
-      item.recordType, item.document,
+      item.recordType, item.document, item.sourceSection ?? "",
       item.structuredIdentity ? "structured" : "legacy",
       identityMaterial, item.structuredIdentity ? "" : String(ordinal),
     );
@@ -157,6 +186,7 @@ function projectRecords(entries: CandidateRecord[]): {
       source: {
         kind: "canonical-project-brain",
         document: item.document,
+        ...(item.sourceSection ? { sourceSection: item.sourceSection } : {}),
         ...(item.sourceRecordId ? { sourceRecordId: item.sourceRecordId } : {}),
         structuredIdentity: item.structuredIdentity,
       },
@@ -234,14 +264,7 @@ export async function buildProjectKnowledgeProjection(
         structuredIdentity: !item.legacy,
         ...(item.supersededBy ? { supersededBy: item.supersededBy } : {}),
       })),
-      ...regions.knownFacts.map(statement => ({
-        recordType: "fact" as const, lifecycle: "active" as const,
-        document: "knowledge.md" as const, statement, structuredIdentity: false,
-      })),
-      ...regions.unresolvedUnknowns.map(statement => ({
-        recordType: "open-question" as const, lifecycle: "unresolved" as const,
-        document: "knowledge.md" as const, statement, structuredIdentity: false,
-      })),
+      ...knowledgeSections(inputs.get("knowledge.md")!.toString("utf8")),
     ];
     const { records, relationships } = projectRecords(entries);
 
