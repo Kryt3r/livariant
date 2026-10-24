@@ -53,6 +53,10 @@ test("knowledge projection reads accepted facts, decisions, goals and unknowns w
     assert.equal(fact.grantsAuthority, false);
     assert.ok(first.records.every(x => x.source.kind === "canonical-project-brain"));
     assert.ok(first.records.every(x => x.revisionDigest.startsWith("sha256:")));
+    assert.ok(first.records.some(x => x.recordType === "observation" && x.source.sourceSection === "Verified discovery evidence"));
+    assert.ok(!first.records.some(x => x.recordType === "fact" && x.source.sourceSection === "Verified discovery evidence"));
+    assert.ok(first.records.some(x => x.recordType === "open-question" && x.source.sourceSection === "Known unknowns"));
+    assert.equal(fact.source.sourceSection, "Confirmed project knowledge");
 
     const after = await Promise.all(managed.map(async name => readFile(resolve(path, ".project-brain", name))));
     assert.deepEqual(after, before);
@@ -138,5 +142,26 @@ test("knowledge projection does not classify generic source statements as global
     assert.equal(decision.verification, "not-assessed");
     assert.equal(decision.grantsAuthority, false);
     assert.ok(!result.records.some(x => (x.recordType as string) === "invariant"));
+  });
+});
+
+
+test("unrecognized legacy knowledge headings remain unclassified observations, not authoritative facts", async () => {
+  await withProject(async path => {
+    const store = new ProjectBrainStore(path);
+    await mutateAcceptedFixture(path, async () => {
+      const original = await store.readKnowledgeDocument();
+      await store.replaceKnowledgeDocument(original, original + "\n## Human notes\n\n- This might be a design guideline someday.\n");
+    });
+    const result = await buildProjectKnowledgeProjection(path);
+    assert.equal(result.state, "ready");
+    if (result.state !== "ready") return;
+    const note = result.records.find(x => x.statement === "This might be a design guideline someday.");
+    assert.ok(note);
+    assert.equal(note.recordType, "unclassified-knowledge");
+    assert.equal(note.lifecycle, "observed");
+    assert.equal(note.source.sourceSection, "Human notes");
+    assert.equal(note.verification, "not-assessed");
+    assert.equal(note.grantsAuthority, false);
   });
 });
