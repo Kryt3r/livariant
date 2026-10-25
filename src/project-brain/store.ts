@@ -22,6 +22,8 @@ import type {
 } from "./types.js";
 
 const REQUIRED_FILES = ["project.md", "goals.md", "decisions.md", "knowledge.md", "metadata.json"] as const;
+// Reserved for a FUTURE protected schema upgrade; never accept this as unprotected schema-2 truth.
+export const RESERVED_KNOWLEDGE_INDEX_FILE = "knowledge-registry.json" as const;
 type ManagedTextDocument = "goals.md" | "decisions.md" | "knowledge.md";
 
 export interface BootstrapOptions {
@@ -38,6 +40,10 @@ function metadataShapeIsValid(metadata: Partial<ProjectBrainMetadata>): boolean 
     typeof metadata.framework?.channel !== "string" ||
     typeof metadata.projectBrain?.schemaVersion !== "number"
   ) {
+    return false;
+  }
+
+  if (metadata.projectBrain.schemaVersion !== 1 && metadata.projectBrain.schemaVersion !== 2) {
     return false;
   }
 
@@ -77,6 +83,12 @@ export class ProjectBrainStore {
     }
 
     const entries = new Set(await readdir(brainPath));
+    if (entries.has(RESERVED_KNOWLEDGE_INDEX_FILE)) {
+      return {
+        health: "unsupported-or-ambiguous", path: brainPath, missingFiles: [],
+        reason: "Reserved Knowledge Registry file requires an authorized, fully verified Project Brain schema migration; schema-1/2 cannot accept a sidecar knowledge index.",
+      };
+    }
     const missingFiles = REQUIRED_FILES.filter((file) => !entries.has(file));
     if (missingFiles.length > 0) {
       return {
