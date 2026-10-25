@@ -359,7 +359,7 @@ test("Windows Project Knowledge integrity activation is prepared in Core and ele
 
 test("bounded Project Knowledge reads cannot leave the renderer waiting forever", async () => {
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
-  assert.match(rust, /Some\("read"\) \| Some\("protection"\)/);
+  assert.match(rust, /Some\("read"\) \| Some\("explorer"\) \| Some\("protection"\)/);
   assert.match(rust, /Some\("accept-integrity"\)/);
   assert.match(rust, /Duration::from_secs\(10\)/);
   assert.match(rust, /Duration::from_secs\(360\)/);
