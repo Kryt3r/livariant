@@ -155,7 +155,7 @@ function assertValidProjection(projection: ReadyKnowledgeProjection): void {
  */
 export function planTypedKnowledgeMigration(projection: ReadyKnowledgeProjection): TypedKnowledgeMigrationPreview {
   assertValidProjection(projection);
-  const records: TypedKnowledgeRecord[] = projection.records.map(record => ({
+  const records: TypedKnowledgeRecord[] = projection.records.map((record): TypedKnowledgeRecord => ({
     recordId: record.recordId,
     recordType: record.recordType,
     domain: "unclassified",
@@ -171,16 +171,16 @@ export function planTypedKnowledgeMigration(projection: ReadyKnowledgeProjection
     },
     ...(record.supersededBy ? { supersededBySourceId: record.supersededBy } : {}),
     grantsAuthority: false,
-  })).sort((a, b) => a.recordId.localeCompare(b.recordId, "en"));
+  })).sort((a, b) => a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0);
 
-  const relationships: TypedKnowledgeRelationship[] = projection.relationships.map(link => ({
+  const relationships: TypedKnowledgeRelationship[] = projection.relationships.map((link): TypedKnowledgeRelationship => ({
     kind: "supersedes",
     fromRecordId: link.fromRecordId,
     toRecordId: link.toRecordId,
     grantsAuthority: false,
   })).sort((a, b) =>
-    a.fromRecordId.localeCompare(b.fromRecordId, "en")
-    || a.toRecordId.localeCompare(b.toRecordId, "en"));
+    (a.fromRecordId < b.fromRecordId ? -1 : a.fromRecordId > b.fromRecordId ? 1 : 0)
+    || (a.toRecordId < b.toRecordId ? -1 : a.toRecordId > b.toRecordId ? 1 : 0));
 
   const source = {
     kind: "protected-project-brain" as const,
