@@ -223,6 +223,20 @@ export function planTypedKnowledgeMigration(projection: ReadyKnowledgeProjection
   };
 }
 
+/**
+ * Pure replay/staleness guard for preview consumers. This does NOT verify
+ * Guardian Authority or allow a migration to be committed.
+ */
+export function assertTypedKnowledgeMigrationPreviewStillCurrent(
+  preview: TypedKnowledgeMigrationPreview,
+  currentProjection: ReadyKnowledgeProjection,
+): void {
+  const fresh = planTypedKnowledgeMigration(currentProjection);
+  if (JSON.stringify(preview) !== JSON.stringify(fresh)) {
+    throw new Error("Typed knowledge migration preview differs from the exact current Project Brain baseline or record material.");
+  }
+}
+
 export interface TypedKnowledgeMigrationPreviewOptions {
   // Adversarial revalidation seam, not an authorization or migration hook.
   beforeRevalidate?: () => Promise<void> | void;
