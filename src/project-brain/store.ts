@@ -83,7 +83,9 @@ export class ProjectBrainStore {
     }
 
     const entries = new Set(await readdir(brainPath));
-    if (entries.has(RESERVED_KNOWLEDGE_INDEX_FILE)) {
+    // Windows names are case-insensitive and may alias trailing spaces/dots.
+    // Reject aliases on all platforms rather than allowing a mixed-schema sidecar.
+    if ([...entries].some((name) => name.toLowerCase().replace(/[ .]+$/u, "") === RESERVED_KNOWLEDGE_INDEX_FILE)) {
       return {
         health: "unsupported-or-ambiguous", path: brainPath, missingFiles: [],
         reason: "Reserved Knowledge Registry file requires an authorized, fully verified Project Brain schema migration; schema-1/2 cannot accept a sidecar knowledge index.",

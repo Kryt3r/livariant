@@ -139,6 +139,22 @@ test("schema-2 Project Brain rejects an unprotected registry sidecar, even if it
   });
 });
 
+test("case-folded and Windows-aliased reserved index filenames cannot bypass schema-2 protection", async () => {
+  await fixture(async path => {
+    const store = new ProjectBrainStore(path);
+    const brain = resolve(path, ".project-brain");
+    for (const name of ["KNOWLEDGE-REGISTRY.JSON", "knowledge-registry.json."]) {
+      const injected = resolve(brain, name);
+      await writeFile(injected, "{}", { flag: "wx" });
+      const state = await store.inspect();
+      assert.equal(state.health, "unsupported-or-ambiguous");
+      assert.match(state.reason ?? "", /reserved.*index|authorized.*migration/i);
+      await rm(injected);
+    }
+    assert.equal((await store.inspect()).health, "valid");
+  });
+});
+
 test("unsupported future metadata cannot be treated as a valid Project Brain before schema-3 protections exist", async () => {
   await fixture(async path => {
     const store = new ProjectBrainStore(path);
