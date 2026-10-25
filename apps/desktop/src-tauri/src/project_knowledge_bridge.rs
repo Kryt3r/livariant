@@ -79,7 +79,7 @@ fn run_project_knowledge_for_roots(
 
     let method = request.get("method").and_then(Value::as_str);
     let bounded_timeout = match method {
-        Some("read") | Some("protection") => Some((Duration::from_secs(10), "Project Knowledge local read timed out after 10 seconds.")),
+        Some("read") | Some("explorer") | Some("protection") => Some((Duration::from_secs(10), "Project Knowledge local read timed out after 10 seconds.")),
         Some("accept-integrity") => Some((Duration::from_secs(360), "Project Knowledge integrity confirmation timed out after 6 minutes.")),
         _ => None,
     };
@@ -155,6 +155,19 @@ pub async fn project_knowledge_snapshot(
         let state = app_for_worker.state::<DesktopProjectRegistryState>();
         run_project_knowledge(&app_for_worker, state.inner(), json!({ "method": "read" }))
     }).await.map_err(|error| format!("Project Knowledge worker failed: {error}"))??;
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn project_knowledge_explorer(
+    app: tauri::AppHandle,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    let app_for_worker = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_worker.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app_for_worker, state.inner(), json!({ "method": "explorer" }))
+    }).await.map_err(|error| format!("Project Knowledge Explorer worker failed: {error}"))??;
     Ok(result)
 }
 
