@@ -366,6 +366,14 @@ test("bounded Project Knowledge reads cannot leave the renderer waiting forever"
   assert.match(rust, /Project Knowledge local read timed out after 10 seconds/);
   assert.match(rust, /Project Knowledge integrity confirmation timed out after 6 minutes/);
   assert.match(rust, /child\.kill\(\)/);
+  assert.match(rust, /let stdout_reader = thread::spawn/);
+  assert.match(rust, /let stderr_reader = thread::spawn/);
+  assert.match(rust, /stdout_pipe\.take\(MAX_OUTPUT_BYTES \+ 1\)/);
+  assert.match(rust, /stderr_pipe\.take\(MAX_ERROR_BYTES \+ 1\)/);
+  assert.match(rust, /MAX_OUTPUT_BYTES: u64 = 16 \* 1024 \* 1024/);
+  assert.match(rust, /Project Knowledge response exceeds the bounded read limit/);
+  assert.match(rust, /let stdout = stdout_reader\.join\(\)/);
+  assert.match(rust, /let stderr = stderr_reader\.join\(\)/);
 });
 
 test("Project Knowledge begins canonical refresh immediately on initial render and project activation", async () => {
