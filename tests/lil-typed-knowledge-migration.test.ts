@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import {
   planTypedKnowledgeMigration,
+  assertTypedKnowledgeMigrationPreviewStillCurrent,
   prepareProtectedTypedKnowledgeMigrationPreview,
 } from "../src/intelligence/typed-knowledge-migration.js";
 import { buildProjectKnowledgeProjection } from "../src/intelligence/knowledge-projection.js";
@@ -32,11 +33,15 @@ async function managedBytes(path: string): Promise<Buffer[]> {
 test("protected typed migration preview is deterministic, versioned, read-only, and does not create truth", async () => {
   await fixture(async path => {
     const before = await managedBytes(path);
-    const first = await prepareProtectedTypedKnowledgeMigrationPreview(path);
-    const second = await prepareProtectedTypedKnowledgeMigrationPreview(path);
-    assert.equal(first.state, "preview-ready");
-    assert.equal(second.state, "preview-ready");
-    if (first.state !== "preview-ready" || second.state !== "preview-ready") return;
+    const projection = await buildProjectKnowledgeProjection(path);
+    assert.equal(projection.state, "ready");
+    if (projection.state !== "ready") return;
+    const first = planTypedKnowledgeMigration(projection);
+    const second = planTypedKnowledgeMigration(projection);
+    assertTypedKnowledgeMigrationPreviewStillCurrent(first, projection);
+    // A local test receipt must NEVER pass the independent Guardian gate.
+    const protectedAttempt = await prepareProtectedTypedKnowledgeMigrationPreview(path);
+    assert.equal(protectedAttempt.state, "blocked");
 
     assert.deepEqual(first, second);
     assert.equal(first.schemaVersion, 1);
@@ -86,9 +91,10 @@ test("typed plan preserves source IDs, historical revisions, provenance and supe
         replacement: "Use accessible component padding",
       }, path, { authorized: true });
     });
-    const latest = await prepareProtectedTypedKnowledgeMigrationPreview(path);
-    assert.equal(latest.state, "preview-ready");
-    if (latest.state !== "preview-ready") return;
+    const latestProjection = await buildProjectKnowledgeProjection(path);
+    assert.equal(latestProjection.state, "ready");
+    if (latestProjection.state !== "ready") return;
+    const latest = planTypedKnowledgeMigration(latestProjection);
     const historical = latest.records.find(record => record.provenance.sourceRecordId === old.id);
     const replacement = latest.records.find(record => record.provenance.sourceRecordId === change.replacement.id);
     assert.ok(historical && replacement);
@@ -106,11 +112,13 @@ test("typed plan preserves source IDs, historical revisions, provenance and supe
 test("typed previews are project/baseline-bound and cannot silently transfer across projects", async () => {
   await fixture(async a => {
     await fixture(async b => {
-      const first = await prepareProtectedTypedKnowledgeMigrationPreview(a);
-      const second = await prepareProtectedTypedKnowledgeMigrationPreview(b);
-      assert.equal(first.state, "preview-ready");
-      assert.equal(second.state, "preview-ready");
-      if (first.state !== "preview-ready" || second.state !== "preview-ready") return;
+      const sourceA = await buildProjectKnowledgeProjection(a);
+      const sourceB = await buildProjectKnowledgeProjection(b);
+      assert.equal(sourceA.state, "ready");
+      assert.equal(sourceB.state, "ready");
+      if (sourceA.state !== "ready" || sourceB.state !== "ready") return;
+      const first = planTypedKnowledgeMigration(sourceA);
+      const second = planTypedKnowledgeMigration(sourceB);
       assert.notEqual(first.projectId, second.projectId);
       assert.notEqual(first.previewDigest, second.previewDigest);
     });
@@ -140,21 +148,27 @@ test("unsupported and authority-bearing source content cannot generate a typed m
   });
 });
 
-test("stale protected baseline during migration preparation fails closed with no canonical mutation", async () => {
+test("stale typed preview is rejected even when newer material is itself locally accepted", async () => {
   await fixture(async path => {
-    const result = await prepareProtectedTypedKnowledgeMigrationPreview(path, {
-      beforeRevalidate: async () => {
-        await mutateAcceptedFixture(path, async () => {
-          await recordAcceptedDecision("Introduce a new valid decision", path, { authorized: true });
-        });
-      },
+    const before = await buildProjectKnowledgeProjection(path);
+    assert.equal(before.state, "ready");
+    if (before.state !== "ready") return;
+    const plan = planTypedKnowledgeMigration(before);
+    await mutateAcceptedFixture(path, async () => {
+      await recordAcceptedDecision("Introduce a new valid decision", path, { authorized: true });
     });
-    assert.equal(result.state, "blocked");
-    if (result.state !== "blocked") return;
-    assert.deepEqual(result.records, []);
-    assert.deepEqual(result.relationships, []);
-    assert.equal(result.grantsAuthority, false);
-    assert.match(result.reason, /changed|integrity|baseline/i);
+    const after = await buildProjectKnowledgeProjection(path);
+    assert.equal(after.state, "ready");
+    if (after.state !== "ready") return;
+    assert.throws(() => assertTypedKnowledgeMigrationPreviewStillCurrent(plan, after), /differs|baseline/i);
+    assert.notEqual(plan.previewDigest, planTypedKnowledgeMigration(after).previewDigest);
+    const attempt = await prepareProtectedTypedKnowledgeMigrationPreview(path, {
+      beforeRevalidate: () => { throw new Error("An unprotected fixture must not reach the revalidation hook."); },
+    });
+    assert.equal(attempt.state, "blocked");
+    if (attempt.state !== "blocked") return;
+    assert.deepEqual(attempt.records, []);
+    assert.equal(attempt.grantsAuthority, false);
   });
 });
 
