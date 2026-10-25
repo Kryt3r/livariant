@@ -294,6 +294,7 @@ pub fn run() {
             project_source_review_bridge::configure_project_source_review,
             project_source_observation::observe_project_sources,
             project_knowledge_bridge::project_knowledge_snapshot,
+            project_knowledge_bridge::project_knowledge_explorer,
             project_knowledge_bridge::prepare_project_knowledge_proposal,
             project_knowledge_bridge::apply_project_knowledge_proposal,
             project_knowledge_bridge::project_knowledge_protection_status,
