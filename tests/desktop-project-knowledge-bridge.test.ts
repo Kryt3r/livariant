@@ -393,6 +393,8 @@ test("LIL Knowledge Explorer Desktop IPC remains read-only, protected and tied t
   assert.match(reader, /readDesktopProjectKnowledge\(projectPath, checkoutPath\)/);
   assert.match(reader, /buildProjectKnowledgeProjection\(projectPath\)/);
   assert.match(reader, /project identity differs from protected Project Brain/);
+  assert.match(reader, /fresh\.baseline\.digest !== projected\.baseline\.digest/);
+  assert.match(reader, /stale projection rejected/);
   assert.doesNotMatch(reader, /authorizeActionableProposal|issueSemanticGuardianAuthority|applyActionableProposal/);
 
   const hostStart = rust.indexOf("pub async fn project_knowledge_explorer(");
