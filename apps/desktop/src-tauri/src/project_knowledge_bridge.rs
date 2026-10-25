@@ -85,6 +85,34 @@ fn run_project_knowledge_for_roots(
     };
 
     let (status, stdout, stderr) = if let Some((timeout, timeout_message)) = bounded_timeout {
+        // Drain both pipes while the child runs. Waiting for process exit BEFORE
+        // draining blocks indefinitely when larger Explorer results fill stdout.
+        // Also bound memory: malformed providers must not stream without limit.
+        const MAX_OUTPUT_BYTES: u64 = 16 * 1024 * 1024;
+        const MAX_ERROR_BYTES: u64 = 512 * 1024;
+        let stdout_pipe = child.stdout.take().ok_or_else(|| "Project Knowledge stdout pipe is unavailable.".to_owned())?;
+        let stderr_pipe = child.stderr.take().ok_or_else(|| "Project Knowledge stderr pipe is unavailable.".to_owned())?;
+        let stdout_reader = thread::spawn(move || -> Result<Vec<u8>, String> {
+            let mut bytes = Vec::new();
+            stdout_pipe.take(MAX_OUTPUT_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|error| format!("Project Knowledge stdout read failed: {error}"))?;
+            if bytes.len() as u64 > MAX_OUTPUT_BYTES {
+                return Err("Project Knowledge response exceeds the bounded read limit.".to_owned());
+            }
+            Ok(bytes)
+        });
+        let stderr_reader = thread::spawn(move || -> Result<Vec<u8>, String> {
+            let mut bytes = Vec::new();
+            stderr_pipe.take(MAX_ERROR_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|error| format!("Project Knowledge stderr read failed: {error}"))?;
+            if bytes.len() as u64 > MAX_ERROR_BYTES {
+                return Err("Project Knowledge error output exceeds the bounded read limit.".to_owned());
+            }
+            Ok(bytes)
+        });
+
         let started = Instant::now();
         let status = loop {
             if let Some(status) = child.try_wait()
@@ -94,20 +122,14 @@ fn run_project_knowledge_for_roots(
             if started.elapsed() >= timeout {
                 let _ = child.kill();
                 let _ = child.wait();
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
                 return Err(timeout_message.to_owned());
             }
             thread::sleep(Duration::from_millis(25));
         };
-        let mut stdout = Vec::new();
-        let mut stderr = Vec::new();
-        if let Some(mut pipe) = child.stdout.take() {
-            pipe.read_to_end(&mut stdout)
-                .map_err(|error| format!("Project Knowledge runtime stdout could not be read: {error}"))?;
-        }
-        if let Some(mut pipe) = child.stderr.take() {
-            pipe.read_to_end(&mut stderr)
-                .map_err(|error| format!("Project Knowledge runtime stderr could not be read: {error}"))?;
-        }
+        let stdout = stdout_reader.join().map_err(|_| "Project Knowledge stdout reader panicked.".to_owned())??;
+        let stderr = stderr_reader.join().map_err(|_| "Project Knowledge stderr reader panicked.".to_owned())??;
         (status, stdout, stderr)
     } else {
         let output = child.wait_with_output()
