@@ -378,6 +378,13 @@ export async function readDesktopProjectKnowledgeExplorer(
   if (after.stableProjectIdentity !== before.stableProjectIdentity) {
     throw new Error("Knowledge Explorer project identity changed during protected read.");
   }
+  const fresh = await buildProjectKnowledgeProjection(projectPath);
+  if (fresh.state !== "ready"
+      || fresh.stableProjectIdentity !== projected.stableProjectIdentity
+      || fresh.baseline.digest !== projected.baseline.digest
+      || fresh.baseline.schemaVersion !== projected.baseline.schemaVersion) {
+    throw new Error("Knowledge Explorer changed during protected read; stale projection rejected.");
+  }
   return projected;
 }
 
