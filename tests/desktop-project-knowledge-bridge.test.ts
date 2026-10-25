@@ -378,3 +378,32 @@ test("Project Knowledge begins canonical refresh immediately on initial render a
   const activation = main.slice(activationStart, activationEnd);
   assert.match(activation, /render\(\);\s*void refreshProjectKnowledge\(true\)/);
 });
+
+
+test("LIL Knowledge Explorer Desktop IPC remains read-only, protected and tied to the active project generation", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  const lib = await readFile("apps/desktop/src-tauri/src/lib.rs", "utf8");
+  const bridge = await readFile("apps/desktop/src/project-knowledge-bridge.ts", "utf8");
+
+  const start = core.indexOf("export async function readDesktopProjectKnowledgeExplorer(");
+  const end = core.indexOf("export interface DesktopProjectKnowledgeIntegrityAuthorityPreparation", start);
+  assert.ok(start >= 0 && end > start);
+  const reader = core.slice(start, end);
+  assert.match(reader, /readDesktopProjectKnowledge\(projectPath, checkoutPath\)/);
+  assert.match(reader, /buildProjectKnowledgeProjection\(projectPath\)/);
+  assert.match(reader, /project identity differs from protected Project Brain/);
+  assert.doesNotMatch(reader, /authorizeActionableProposal|issueSemanticGuardianAuthority|applyActionableProposal/);
+
+  const hostStart = rust.indexOf("pub async fn project_knowledge_explorer(");
+  const hostEnd = rust.indexOf("pub async fn prepare_project_knowledge_proposal(", hostStart);
+  assert.ok(hostStart >= 0 && hostEnd > hostStart);
+  const host = rust.slice(hostStart, hostEnd);
+  assert.match(host, /run_project_knowledge\(&app_for_worker, state\.inner\(\), json!\(\{ "method": "explorer" \}\)\)/);
+  assert.match(rust, /current\.generation != scope\.generation/);
+  assert.match(rust, /Some\("read"\) \| Some\("explorer"\) \| Some\("protection"\)/);
+  assert.match(lib, /project_knowledge_bridge::project_knowledge_explorer/);
+  assert.match(bridge, /invoke<ProjectKnowledgeExplorer>\("project_knowledge_explorer"\)/);
+  assert.match(bridge, /mutationSupported: false/);
+  assert.match(bridge, /grantsAuthority: false/);
+});
