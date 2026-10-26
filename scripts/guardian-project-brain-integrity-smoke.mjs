@@ -14,6 +14,7 @@ import {
 import { inspectProtectedProjectBrainIntegrity } from "../dist/src/project-brain/protected-integrity.js";
 import { buildProtectedProjectContextSnapshot } from "../dist/src/runtime/protected-context.js";
 import { runProtectedDoctor } from "../dist/src/runtime/protected-doctor.js";
+import { prepareProtectedKnowledgeSchemaTransition } from "../dist/src/intelligence/protected-knowledge-schema-transition.js";
 import { buildProtectedProviderContext } from "../dist/src/runtime/protected-provider-context.js";
 import { buildProtectedResumeContext } from "../dist/src/runtime/protected-resume.js";
 import { FRAMEWORK_VERSION } from "../dist/src/lifecycle/state.js";
@@ -147,6 +148,19 @@ try {
   assert.equal(protectedMatch.guardian.recordId, RECORD_ID);
   assert.equal((await runProtectedDoctor(project)).state, "healthy");
 
+  // WP-058: only actual independently Guardian-protected source material may
+  // produce a proposed-v3 REVIEW PLAN. A digest or local receipt is not approval.
+  const protectedTransition = await prepareProtectedKnowledgeSchemaTransition(project);
+  assert.equal(protectedTransition.state, "protected-plan-only");
+  assert.equal(protectedTransition.grantsAuthority, false);
+  assert.equal(protectedTransition.acceptsTargetSchema, false);
+  assert.equal(protectedTransition.writesPerformed, false);
+  assert.equal(protectedTransition.changesMade, 0);
+  assert.equal(protectedTransition.plan.source.schemaVersion, 2);
+  assert.equal(protectedTransition.plan.proposedTarget.schemaVersion, 3);
+  assert.equal(protectedTransition.plan.proposedTarget.writesPerformed, false);
+  assert.equal((await readFile(resolve(project, ".project-brain", "metadata.json"), "utf8")), originalMetadata);
+
   // Positive release-relevant product-surface proof: exact protected Guardian
   // acceptance must permit canonical Context, Resume, and Provider Context reads.
   const protectedContext = await buildProtectedProjectContextSnapshot(project);
@@ -179,6 +193,10 @@ try {
   await store.replaceKnowledgeDocument(originalKnowledge, mutatedKnowledge);
   assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "mismatch");
   assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
+  const rejectedTransition = await prepareProtectedKnowledgeSchemaTransition(project);
+  assert.equal(rejectedTransition.state, "blocked");
+  assert.equal(rejectedTransition.plan, null);
+  assert.equal(rejectedTransition.writesPerformed, false);
 
   // S-03 attack: the same user can rewrite the local receipt to bless the new bytes,
   // but the protected Guardian still binds the original exact material. The forged
