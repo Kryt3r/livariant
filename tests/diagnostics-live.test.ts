@@ -30,6 +30,49 @@ test("a thread successfully created by Livariant may use zero as trustworthy bas
   if (result.kind === "delta") assert.deepEqual(result.event.usage, { inputTokens: 12, cacheReadTokens: 3, outputTokens: 4, reasoningTokens: 1, totalTokens: 17 });
 });
 
+test("persisted Codex checkpoints produce exact restart deltas with stable event ids", () => {
+  const first = new CodexUsageSequencer();
+  assert.equal(first.accept(snapshot({ inputTokens: 100, cachedInputTokens: 40, outputTokens: 20, reasoningOutputTokens: 5, totalTokens: 125 })).kind, "baseline");
+
+  const afterRestart = new CodexUsageSequencer(first.checkpoints());
+  const current = snapshot({ inputTokens: 130, cachedInputTokens: 50, outputTokens: 27, reasoningOutputTokens: 8, totalTokens: 165 });
+  const delta = afterRestart.accept(current);
+  assert.equal(delta.kind, "delta");
+  if (delta.kind !== "delta") return;
+  assert.deepEqual(delta.event.usage, { inputTokens: 30, cacheReadTokens: 10, outputTokens: 7, reasoningTokens: 3, totalTokens: 40 });
+
+  const crashReplay = new CodexUsageSequencer(first.checkpoints()).accept(current);
+  assert.equal(crashReplay.kind, "delta");
+  if (crashReplay.kind === "delta") assert.equal(crashReplay.event.id, delta.event.id);
+});
+
+test("invalid persisted Codex checkpoints fail closed", () => {
+  assert.throws(() => new CodexUsageSequencer({ broken: { usage: { inputTokens: -1 } as never, epoch: 0 } }), /checkpoint inputTokens is invalid/);
+});
+
+test("burst snapshots expose only the checkpoint reached by each serialized accept", () => {
+  const sequencer = new CodexUsageSequencer();
+  const first = snapshot({ inputTokens: 10, cachedInputTokens: 2, outputTokens: 3, reasoningOutputTokens: 1, totalTokens: 14 });
+  const second = snapshot({ inputTokens: 20, cachedInputTokens: 4, outputTokens: 6, reasoningOutputTokens: 2, totalTokens: 28 });
+  assert.equal(sequencer.accept(first).kind, "baseline");
+  assert.deepEqual(sequencer.checkpoints()["thread-1"]?.usage, first.total);
+  assert.equal(sequencer.accept(second).kind, "delta");
+  assert.deepEqual(sequencer.checkpoints()["thread-1"]?.usage, second.total);
+});
+
+test("counter resets advance the deterministic event-id epoch", () => {
+  const sequencer = new CodexUsageSequencer();
+  const high = snapshot({ inputTokens: 10, cachedInputTokens: 2, outputTokens: 3, reasoningOutputTokens: 1, totalTokens: 14 });
+  const higher = snapshot({ inputTokens: 20, cachedInputTokens: 4, outputTokens: 6, reasoningOutputTokens: 2, totalTokens: 28 });
+  assert.equal(sequencer.accept(high).kind, "baseline");
+  const first = sequencer.accept(higher);
+  assert.equal(first.kind, "delta");
+  assert.equal(sequencer.accept(high).kind, "reset");
+  const second = sequencer.accept(higher);
+  assert.equal(second.kind, "delta");
+  if (first.kind === "delta" && second.kind === "delta") assert.notEqual(first.event.id, second.event.id);
+});
+
 test("newly appearing optional cache-write data is not fabricated from zero", () => {
   const sequencer = new CodexUsageSequencer();
   sequencer.accept(snapshot({ inputTokens: 10, cachedInputTokens: 2, outputTokens: 2, reasoningOutputTokens: 0, totalTokens: 12 }));

@@ -322,11 +322,18 @@ fn spawn_host(app: &AppHandle, scope: &ActiveProjectScope) -> Result<ConnectorHo
 
     let diagnostics_root = ensure_real_child_directory(&scope.state_root, "diagnostics")?;
     let connection_intent_path = project_codex_intent_path(app, scope, true)?;
+    let codex_bindings_path = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Livariant app-data location could not be resolved: {error}"))?
+        .join("provider-sessions")
+        .join("codex-bindings.json");
 
     let mut child = hidden_command(&node)
         .arg(&host)
         .current_dir(install_root)
         .env("LIVARIANT_DIAGNOSTICS_ROOT", &diagnostics_root)
+        .env("LIVARIANT_CODEX_BINDINGS_PATH", &codex_bindings_path)
         .env("LIVARIANT_CONNECTION_INTENT_PATH", &connection_intent_path)
         .env("LIVARIANT_CORE_VERSION", &manifest.core_version)
         .stdin(Stdio::piped())
