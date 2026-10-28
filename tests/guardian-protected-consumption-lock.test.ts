@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
-import { withExclusiveGuardianConsumeLock } from "../src/guardian/protected-consumption-lock.js";
+import { withExclusiveGuardianConsumeLock } from "../src/guardian/protected-helper.js";
 
 const RECORD = "f6ae1508-8aa3-4afe-92e0-70144201f881.json";
 async function withFixture(run: (dir: string, record: string) => Promise<void>) {

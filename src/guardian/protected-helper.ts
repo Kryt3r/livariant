@@ -2,10 +2,10 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, parse, resolve } from "node:path";
+import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm, rmdir, writeFile } from "node:fs/promises";
+import { basename, dirname, parse, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { withExclusiveGuardianConsumeLock } from "./protected-consumption-lock.js";
+
 import { createInterface } from "node:readline/promises";
 import { stderr, stdin } from "node:process";
 
@@ -683,6 +683,43 @@ async function requireInteractiveIssuance(
     const answer = await terminal.question("> ");
     if (answer !== phrase) throw new Error("Guardian Authority confirmation did not match the exact material challenge.");
   } finally { terminal.close(); }
+}
+
+/**
+ * Protected Helper-local exclusion (Guardian is bootstrapped as ONE FILE).
+ * This is not a durable migration fence or native Windows transaction proof.
+ * Leftover locks intentionally block consumption until independently reviewed.
+ */
+export async function withExclusiveGuardianConsumeLock<T>(
+  protectedAuthorityRecordPath: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  const file = basename(protectedAuthorityRecordPath);
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.json$/iu.test(file)) {
+    throw new Error("Guardian consumption lock requires an exact protected Authority record filename.");
+  }
+  const directory = dirname(protectedAuthorityRecordPath);
+  const parent = await lstat(directory);
+  if (!parent.isDirectory() || parent.isSymbolicLink()) {
+    throw new Error("Guardian consumption lock parent must be a real protected directory.");
+  }
+  const lockPath = resolve(directory, "." + file + ".consume.lock");
+  try {
+    await mkdir(lockPath, { recursive: false, mode: 0o700 });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error("Guardian consumption transition is already active or interrupted; refusing reuse until protected recovery.");
+    }
+    throw error;
+  }
+
+  try {
+    return await action();
+  } finally {
+    // Never delete an unknown non-directory or chase a substituted link.
+    // Failure leaves a visible blocking artifact in the protected namespace.
+    await rmdir(lockPath);
+  }
 }
 
 function consumerDirectory(recordsRoot: string, consumer: ProtectedGuardianConsumer): string {
