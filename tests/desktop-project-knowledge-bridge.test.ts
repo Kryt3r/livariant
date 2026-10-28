@@ -359,13 +359,21 @@ test("Windows Project Knowledge integrity activation is prepared in Core and ele
 
 test("bounded Project Knowledge reads cannot leave the renderer waiting forever", async () => {
   const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
-  assert.match(rust, /Some\("read"\) \| Some\("protection"\)/);
+  assert.match(rust, /Some\("read"\) \| Some\("explorer"\) \| Some\("protection"\)/);
   assert.match(rust, /Some\("accept-integrity"\)/);
   assert.match(rust, /Duration::from_secs\(10\)/);
   assert.match(rust, /Duration::from_secs\(360\)/);
   assert.match(rust, /Project Knowledge local read timed out after 10 seconds/);
   assert.match(rust, /Project Knowledge integrity confirmation timed out after 6 minutes/);
   assert.match(rust, /child\.kill\(\)/);
+  assert.match(rust, /let stdout_reader = thread::spawn/);
+  assert.match(rust, /let stderr_reader = thread::spawn/);
+  assert.match(rust, /stdout_pipe\.take\(MAX_OUTPUT_BYTES \+ 1\)/);
+  assert.match(rust, /stderr_pipe\.take\(MAX_ERROR_BYTES \+ 1\)/);
+  assert.match(rust, /MAX_OUTPUT_BYTES: u64 = 16 \* 1024 \* 1024/);
+  assert.match(rust, /Project Knowledge response exceeds the bounded read limit/);
+  assert.match(rust, /let stdout = stdout_reader\.join\(\)/);
+  assert.match(rust, /let stderr = stderr_reader\.join\(\)/);
 });
 
 test("Project Knowledge begins canonical refresh immediately on initial render and project activation", async () => {
@@ -377,4 +385,35 @@ test("Project Knowledge begins canonical refresh immediately on initial render a
   assert.ok(activationStart >= 0 && activationEnd > activationStart);
   const activation = main.slice(activationStart, activationEnd);
   assert.match(activation, /render\(\);\s*void refreshProjectKnowledge\(true\)/);
+});
+
+
+test("LIL Knowledge Explorer Desktop IPC remains read-only, protected and tied to the active project generation", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const rust = await readFile("apps/desktop/src-tauri/src/project_knowledge_bridge.rs", "utf8");
+  const lib = await readFile("apps/desktop/src-tauri/src/lib.rs", "utf8");
+  const bridge = await readFile("apps/desktop/src/project-knowledge-bridge.ts", "utf8");
+
+  const start = core.indexOf("export async function readDesktopProjectKnowledgeExplorer(");
+  const end = core.indexOf("export interface DesktopProjectKnowledgeIntegrityAuthorityPreparation", start);
+  assert.ok(start >= 0 && end > start);
+  const reader = core.slice(start, end);
+  assert.match(reader, /readDesktopProjectKnowledge\(projectPath, checkoutPath\)/);
+  assert.match(reader, /buildProjectKnowledgeProjection\(projectPath\)/);
+  assert.match(reader, /project identity differs from protected Project Brain/);
+  assert.match(reader, /fresh\.baseline\.digest !== projected\.baseline\.digest/);
+  assert.match(reader, /stale projection rejected/);
+  assert.doesNotMatch(reader, /authorizeActionableProposal|issueSemanticGuardianAuthority|applyActionableProposal/);
+
+  const hostStart = rust.indexOf("pub async fn project_knowledge_explorer(");
+  const hostEnd = rust.indexOf("pub async fn prepare_project_knowledge_proposal(", hostStart);
+  assert.ok(hostStart >= 0 && hostEnd > hostStart);
+  const host = rust.slice(hostStart, hostEnd);
+  assert.match(host, /run_project_knowledge\(&app_for_worker, state\.inner\(\), json!\(\{ "method": "explorer" \}\)\)/);
+  assert.match(rust, /current\.generation != scope\.generation/);
+  assert.match(rust, /Some\("read"\) \| Some\("explorer"\) \| Some\("protection"\)/);
+  assert.match(lib, /project_knowledge_bridge::project_knowledge_explorer/);
+  assert.match(bridge, /invoke<ProjectKnowledgeExplorer>\("project_knowledge_explorer"\)/);
+  assert.match(bridge, /mutationSupported: false/);
+  assert.match(bridge, /grantsAuthority: false/);
 });

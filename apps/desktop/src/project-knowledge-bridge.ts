@@ -38,6 +38,54 @@ export type ProjectKnowledgePreparedProposal = {
 export const loadProjectKnowledge = () =>
   invoke<ProjectKnowledgeSnapshot>("project_knowledge_snapshot");
 
+export type KnowledgeExplorerRecord = {
+  recordId: string;
+  recordType: "project-identity" | "goal" | "decision" | "fact" | "observation" | "unclassified-knowledge" | "open-question";
+  domain: "unclassified";
+  scope: "unspecified";
+  lifecycle: "active" | "superseded" | "observed" | "unresolved";
+  verification: "not-assessed";
+  statement: string;
+  source: {
+    kind: "canonical-project-brain";
+    document: "project.md" | "goals.md" | "decisions.md" | "knowledge.md";
+    sourceSection?: string;
+    sourceRecordId?: string;
+    structuredIdentity: boolean;
+  };
+  revisionDigest: string;
+  supersededBy?: string;
+  grantsAuthority: false;
+};
+
+export type ProjectKnowledgeExplorer = {
+  schemaVersion: 1;
+  state: "ready";
+  stableProjectIdentity: string;
+  baseline: { algorithm: "sha256"; domain: string; digest: string; schemaVersion: number };
+  boundaries: {
+    source: "accepted-project-brain";
+    derived: true;
+    grantsAuthority: false;
+    mutationSupported: false;
+    classificationVerified: false;
+  };
+  records: KnowledgeExplorerRecord[];
+  relationships: Array<{
+    type: "supersedes";
+    fromRecordId: string;
+    toRecordId: string;
+    grantsAuthority: false;
+  }>;
+  changesMade: 0;
+};
+
+/** Source for the future categorized Knowledge Explorer; not a mutation endpoint. */
+export const loadProjectKnowledgeExplorer = () =>
+  invoke<ProjectKnowledgeExplorer>("project_knowledge_explorer");
+
+
+
 export const prepareProjectKnowledgeProposal = (areaId: ProjectKnowledgeAreaId, value: string) =>
   invoke<ProjectKnowledgePreparedProposal>("prepare_project_knowledge_proposal", { areaId, value });
 

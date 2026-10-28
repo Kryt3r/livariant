@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { buildProjectKnowledgeProjection, type ReadyKnowledgeProjection } from "../intelligence/knowledge-projection.js";
 import { resolve } from "node:path";
 import { stderr, stdin, stdout } from "node:process";
 import { discoverProject } from "./discovery.js";
@@ -353,6 +354,40 @@ export async function readDesktopProjectKnowledge(
   return localProjectKnowledgeSnapshot(projectPath);
 }
 
+/**
+ * Read-only Knowledge Explorer source for the Desktop. Reuses the existing
+ * protected Project Brain status and checkout-identity guard.
+ *
+ * This is a projection, NOT a second truth store or authorization endpoint.
+ * The consumer must treat records as derived, with unclassified scope unless
+ * future Guardian-authorized schema upgrades introduce typed metadata.
+ */
+export async function readDesktopProjectKnowledgeExplorer(
+  projectPath: string,
+  checkoutPath?: string,
+): Promise<ReadyKnowledgeProjection> {
+  const before = await readDesktopProjectKnowledge(projectPath, checkoutPath);
+  const projected = await buildProjectKnowledgeProjection(projectPath);
+  if (projected.state !== "ready") {
+    throw new Error("Protected Project Knowledge Explorer is blocked: " + projected.reason);
+  }
+  if (projected.stableProjectIdentity !== before.stableProjectIdentity) {
+    throw new Error("Knowledge Explorer project identity differs from protected Project Brain.");
+  }
+  const after = await readDesktopProjectKnowledge(projectPath, checkoutPath);
+  if (after.stableProjectIdentity !== before.stableProjectIdentity) {
+    throw new Error("Knowledge Explorer project identity changed during protected read.");
+  }
+  const fresh = await buildProjectKnowledgeProjection(projectPath);
+  if (fresh.state !== "ready"
+      || fresh.stableProjectIdentity !== projected.stableProjectIdentity
+      || fresh.baseline.digest !== projected.baseline.digest
+      || fresh.baseline.schemaVersion !== projected.baseline.schemaVersion) {
+    throw new Error("Knowledge Explorer changed during protected read; stale projection rejected.");
+  }
+  return projected;
+}
+
 export interface DesktopProjectKnowledgeIntegrityAuthorityPreparation {
   schemaVersion: 1;
   state: "authority-required";
@@ -600,6 +635,7 @@ export async function applyDesktopProjectKnowledgeProposal(
 type HostRequest =
   | { method: "ensure-storage" }
   | { method: "read" }
+  | { method: "explorer" }
   | { method: "protection" }
   | { method: "accept-integrity"; confirmedDigest: unknown; language?: unknown }
   | { method: "prepare-integrity-authority"; confirmedDigest: unknown }
@@ -625,6 +661,7 @@ async function main(): Promise<void> {
   let result: unknown;
   if (request.method === "ensure-storage") result = storage;
   else if (request.method === "read") result = await readDesktopProjectKnowledge(projectBrainRoot, checkoutRoot);
+  else if (request.method === "explorer") result = await readDesktopProjectKnowledgeExplorer(projectBrainRoot, checkoutRoot);
   else if (request.method === "protection") result = await projectKnowledgeProtectionStatus(projectBrainRoot, checkoutRoot);
   else if (request.method === "accept-integrity") {
     if (typeof request.confirmedDigest !== "string") throw new Error("Project Brain integrity confirmation digest is invalid.");

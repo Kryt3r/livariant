@@ -79,12 +79,40 @@ fn run_project_knowledge_for_roots(
 
     let method = request.get("method").and_then(Value::as_str);
     let bounded_timeout = match method {
-        Some("read") | Some("protection") => Some((Duration::from_secs(10), "Project Knowledge local read timed out after 10 seconds.")),
+        Some("read") | Some("explorer") | Some("protection") => Some((Duration::from_secs(10), "Project Knowledge local read timed out after 10 seconds.")),
         Some("accept-integrity") => Some((Duration::from_secs(360), "Project Knowledge integrity confirmation timed out after 6 minutes.")),
         _ => None,
     };
 
     let (status, stdout, stderr) = if let Some((timeout, timeout_message)) = bounded_timeout {
+        // Drain both pipes while the child runs. Waiting for process exit BEFORE
+        // draining blocks indefinitely when larger Explorer results fill stdout.
+        // Also bound memory: malformed providers must not stream without limit.
+        const MAX_OUTPUT_BYTES: u64 = 16 * 1024 * 1024;
+        const MAX_ERROR_BYTES: u64 = 512 * 1024;
+        let stdout_pipe = child.stdout.take().ok_or_else(|| "Project Knowledge stdout pipe is unavailable.".to_owned())?;
+        let stderr_pipe = child.stderr.take().ok_or_else(|| "Project Knowledge stderr pipe is unavailable.".to_owned())?;
+        let stdout_reader = thread::spawn(move || -> Result<Vec<u8>, String> {
+            let mut bytes = Vec::new();
+            stdout_pipe.take(MAX_OUTPUT_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|error| format!("Project Knowledge stdout read failed: {error}"))?;
+            if bytes.len() as u64 > MAX_OUTPUT_BYTES {
+                return Err("Project Knowledge response exceeds the bounded read limit.".to_owned());
+            }
+            Ok(bytes)
+        });
+        let stderr_reader = thread::spawn(move || -> Result<Vec<u8>, String> {
+            let mut bytes = Vec::new();
+            stderr_pipe.take(MAX_ERROR_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|error| format!("Project Knowledge stderr read failed: {error}"))?;
+            if bytes.len() as u64 > MAX_ERROR_BYTES {
+                return Err("Project Knowledge error output exceeds the bounded read limit.".to_owned());
+            }
+            Ok(bytes)
+        });
+
         let started = Instant::now();
         let status = loop {
             if let Some(status) = child.try_wait()
@@ -94,20 +122,14 @@ fn run_project_knowledge_for_roots(
             if started.elapsed() >= timeout {
                 let _ = child.kill();
                 let _ = child.wait();
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
                 return Err(timeout_message.to_owned());
             }
             thread::sleep(Duration::from_millis(25));
         };
-        let mut stdout = Vec::new();
-        let mut stderr = Vec::new();
-        if let Some(mut pipe) = child.stdout.take() {
-            pipe.read_to_end(&mut stdout)
-                .map_err(|error| format!("Project Knowledge runtime stdout could not be read: {error}"))?;
-        }
-        if let Some(mut pipe) = child.stderr.take() {
-            pipe.read_to_end(&mut stderr)
-                .map_err(|error| format!("Project Knowledge runtime stderr could not be read: {error}"))?;
-        }
+        let stdout = stdout_reader.join().map_err(|_| "Project Knowledge stdout reader panicked.".to_owned())??;
+        let stderr = stderr_reader.join().map_err(|_| "Project Knowledge stderr reader panicked.".to_owned())??;
         (status, stdout, stderr)
     } else {
         let output = child.wait_with_output()
@@ -155,6 +177,19 @@ pub async fn project_knowledge_snapshot(
         let state = app_for_worker.state::<DesktopProjectRegistryState>();
         run_project_knowledge(&app_for_worker, state.inner(), json!({ "method": "read" }))
     }).await.map_err(|error| format!("Project Knowledge worker failed: {error}"))??;
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn project_knowledge_explorer(
+    app: tauri::AppHandle,
+    registry: State<'_, DesktopProjectRegistryState>,
+) -> Result<Value, String> {
+    let app_for_worker = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_worker.state::<DesktopProjectRegistryState>();
+        run_project_knowledge(&app_for_worker, state.inner(), json!({ "method": "explorer" }))
+    }).await.map_err(|error| format!("Project Knowledge Explorer worker failed: {error}"))??;
     Ok(result)
 }
 
