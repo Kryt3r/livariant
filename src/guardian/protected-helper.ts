@@ -2,9 +2,10 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, parse, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { withExclusiveGuardianConsumeLock } from "./protected-consumption-lock.js";
 import { createInterface } from "node:readline/promises";
 import { stderr, stdin } from "node:process";
 
@@ -758,25 +759,47 @@ async function consumeAuthority(consumer: ProtectedGuardianConsumer, recordId: s
   requirePrivilegedProcess();
   await assertProtectedInterpreter();
   if (!validSha256(expectedMaterialSha256)) throw new Error("Guardian Authority expected material digest is invalid.");
-  const { path, raw, record } = await readRecord(records, consumer, recordId);
-  if (record.mode !== "one-shot") throw new Error("Persistent Guardian Authority cannot be consumed as a one-shot capability.");
-  if (record.state !== "active") throw new Error("Guardian Authority capability has already been consumed.");
-  if (record.materialSha256 !== expectedMaterialSha256) throw new Error("Guardian Authority capability does not match the exact requested material.");
-  const consumedAt = new Date();
-  if (record.expiresAt === undefined || Date.parse(record.expiresAt) <= consumedAt.getTime()) throw new Error("Guardian Authority capability is expired and cannot be consumed.");
-  const consumed: ProtectedGuardianAuthorityRecord = { ...record, state: "consumed", consumedAt: consumedAt.toISOString() };
-  const temporary = resolve(dirname(path), `.${record.recordId}.consume-${randomUUID()}.tmp`);
-  await writeFile(temporary, `${JSON.stringify(consumed, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o444 });
-  if (process.platform === "linux") await chmod(temporary, 0o444);
-  try {
-    const observed = await readFile(path, "utf8");
-    if (observed !== raw) throw new Error("Guardian Authority capability changed concurrently; refusing ambiguous consumption.");
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
-  process.stdout.write(`${JSON.stringify({ schemaVersion: 1, state: "consumed", authority: consumed })}\n`);
+
+  // A protected per-record exclusive directory serializes independent helpers.
+  // Read/revalidate the active capability INSIDE the lock, not before it.
+  // Crash remnants intentionally refuse automatic retries. These guards do
+  // NOT establish full Windows power-loss durability or schema-3 Authority.
+  const selectedRecordPath = recordPath(records, consumer, recordId);
+  await withExclusiveGuardianConsumeLock(selectedRecordPath, async () => {
+    const { path, raw, record } = await readRecord(records, consumer, recordId);
+    if (record.mode !== "one-shot") throw new Error("Persistent Guardian Authority cannot be consumed as a one-shot capability.");
+    if (record.state !== "active") throw new Error("Guardian Authority capability has already been consumed.");
+    if (record.materialSha256 !== expectedMaterialSha256) throw new Error("Guardian Authority capability does not match the exact requested material.");
+    const consumedAt = new Date();
+    if (record.expiresAt === undefined || Date.parse(record.expiresAt) <= consumedAt.getTime()) throw new Error("Guardian Authority capability is expired and cannot be consumed.");
+    const consumed: ProtectedGuardianAuthorityRecord = { ...record, state: "consumed", consumedAt: consumedAt.toISOString() };
+    const temporary = resolve(dirname(path), "." + record.recordId + ".consume-" + randomUUID() + ".tmp");
+
+    // Flush file contents before promotion. Directory/rename crash durability
+    // on Windows remains an explicit native-adapter acceptance gate.
+    const tempFile = await open(temporary, "wx", 0o444);
+    try {
+      await tempFile.writeFile(JSON.stringify(consumed, null, 2) + "\n", "utf8");
+      await tempFile.sync();
+    } catch (error) {
+      await tempFile.close();
+      await rm(temporary, { force: true });
+      throw error;
+    }
+    await tempFile.close();
+    if (process.platform === "linux") await chmod(temporary, 0o444);
+    try {
+      const observed = await readFile(path, "utf8");
+      if (observed !== raw) throw new Error("Guardian Authority capability changed concurrently; refusing ambiguous consumption.");
+      await rename(temporary, path);
+    } catch (error) {
+      await rm(temporary, { force: true });
+      throw error;
+    }
+    // A process interrupted after promotion but before the response can leave
+    // a consumed record; nobody may assume the call is safe to repeat.
+    process.stdout.write(JSON.stringify({ schemaVersion: 1, state: "consumed", authority: consumed }) + "\n");
+  });
 }
 
 function argValue(args: string[], name: string): string {
