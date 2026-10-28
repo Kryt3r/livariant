@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -75,5 +77,56 @@ test("lock paths reject arbitrary record names and cannot be substituted with an
       /active or interrupted/i,
     );
     assert.ok((await readdir(dir)).includes("." + RECORD + ".consume.lock"));
+  });
+});
+
+
+test("separate OS processes exclude concurrent consumption and leave a fail-closed lock after kill", async () => {
+  await withFixture(async (dir, record) => {
+    const moduleUri = new URL("../src/guardian/protected-helper.js", import.meta.url).href;
+    const program = [
+      'import { withExclusiveGuardianConsumeLock } from ' + JSON.stringify(moduleUri),
+      'await withExclusiveGuardianConsumeLock(process.argv[1], async () => {',
+      '  process.stdout.write("ACQUIRED\\n");',
+      '  process.stdin.resume();',
+      '  await new Promise(resolve => process.stdin.once("data", resolve));',
+      '});',
+    ].join("\n");
+    const child = spawn(process.execPath, ["--input-type=module", "-e", program, record], {
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let exited = false;
+    child.once("exit", () => { exited = true; });
+    try {
+      const acquired = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("Guardian lock worker did not acquire the lock")), 20000);
+        child.stdout!.once("data", bytes => {
+          clearTimeout(timeout);
+          resolve(String(bytes));
+        });
+        child.once("error", error => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+      });
+      assert.match(acquired, /ACQUIRED/);
+      await assert.rejects(
+        withExclusiveGuardianConsumeLock(record, async () => "cross-process-contender"),
+        /active or interrupted/i,
+      );
+      child.kill("SIGKILL");
+      if (!exited) await once(child, "exit");
+      await assert.rejects(
+        withExclusiveGuardianConsumeLock(record, async () => "post-crash-retry"),
+        /active or interrupted/i,
+      );
+      assert.ok((await readdir(dir)).includes("." + RECORD + ".consume.lock"));
+    } finally {
+      if (!exited) {
+        child.kill("SIGKILL");
+        await once(child, "exit");
+      }
+    }
   });
 });
