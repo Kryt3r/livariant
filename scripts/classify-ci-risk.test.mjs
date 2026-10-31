@@ -94,6 +94,9 @@ test("classifies workflow, packaging, authority, Guardian, external knowledge, f
   assert.equal(classifyPaths(["tests/runtime/recovery.test.ts"]).class, "D");
   assert.equal(classifyPaths(["src/external-knowledge/local-directory-adapter.ts"]).class, "D");
   assert.equal(classifyPaths(["src/guardian/trust-root.ts"]).class, "D");
+  assert.equal(classifyPaths(["src/intelligence/event-ledger.ts"]).class, "D");
+  assert.equal(classifyPaths(["src/intelligence/task-journal.ts"]).class, "D");
+  assert.equal(classifyPaths(["tests/lil-foundation.test.ts"]).class, "D");
   assert.equal(classifyPaths(["src/cli/guardian-command.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/guardian-trust-root.test.ts"]).class, "D");
   assert.equal(classifyPaths(["tests/guardian-cli.test.ts"]).class, "D");

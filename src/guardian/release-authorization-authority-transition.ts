@@ -88,6 +88,7 @@ export async function consumeReleaseAuthorizationGuardianAuthority(
   const consumed = await consumeGuardianAuthority({
     record,
     expectedMaterialSha256: material.materialSha256,
+    request: material.request,
     projectPath,
   });
   if (consumed.consumer !== "release-authorization"

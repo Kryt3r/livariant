@@ -1,5 +1,8 @@
 import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
+import { ProjectBrainStore } from "./store.js";
+import { isStableProjectIdentity } from "./identity.js";
+import { inspectProtectedMigrationFence } from "../guardian/protected-migration-fence-inspection.js";
 import type { GuardianAuthorityRecord } from "../guardian/authority-record.js";
 import { findMatchingConsumedGuardianAuthority } from "../guardian/authority-client.js";
 import { buildSemanticGuardianAuthorityRequestFromBinding } from "../guardian/semantic-authority.js";
@@ -88,11 +91,20 @@ export async function inspectProtectedProjectBrainIntegrity(
   if (local.state === "invalid") return { state: "invalid", local, reason: local.reason };
 
   try {
+    // This central protected boundary is shared by Doctor, Context, Resume,
+    // Provider and the protected Project Intelligence read paths. Even an
+    // apparently completed migration fence cannot authorize v3 here.
+    const fence = await inspectProtectedMigrationFence(projectRoot, local.receipt.stableProjectIdentity);
+    if (fence.state === "blocked") {
+      return { state: "invalid", local, reason: fence.reason };
+    }
     const protectedState = await findProjectBrainIntegrityGuardianAuthority(integrityIdentity(local), projectRoot);
-    if (protectedState.record) return { state: "match", local, guardian: protectedState.record };
-
-    const semanticProof = await semanticGuardianProof(local, projectRoot);
-    if (semanticProof) return { state: "match", local, guardian: semanticProof };
+    const proof = protectedState.record ?? await semanticGuardianProof(local, projectRoot);
+    if (proof) {
+      const finalFence = await inspectProtectedMigrationFence(projectRoot, local.receipt.stableProjectIdentity);
+      if (finalFence.state === "blocked") return { state: "invalid", local, reason: finalFence.reason };
+      return { state: "match", local, guardian: proof };
+    }
 
     return {
       state: "unprotected",
@@ -113,6 +125,18 @@ export async function establishProtectedProjectBrainIntegrityState(
   source: ProjectBrainIntegritySource,
   options: ProtectedIntegrityEstablishOptions = {},
 ): Promise<{ local: LocalMatch; guardian: GuardianAuthorityRecord }> {
+  // Do not even advance the same-user local receipt when an independently
+  // protected migration transaction exists or the Guardian scan is unsafe.
+  // This check is not a transaction lock; no real v3 migration is enabled.
+  const store = new ProjectBrainStore(projectRoot);
+  const metadata = await store.readMetadata();
+  if (metadata.projectBrain.schemaVersion !== 2 || !isStableProjectIdentity(metadata.projectBrain.projectId)) {
+    throw new Error("Legacy Project Brain integrity establishment requires schema 2 and a valid stable project identity.");
+  }
+  const fence = await inspectProtectedMigrationFence(projectRoot, metadata.projectBrain.projectId);
+  if (fence.state !== "legacy-no-fence") {
+    throw new Error("Project Brain integrity establishment blocked by protected schema-migration fence: " + fence.reason);
+  }
   await recordAcceptedProjectBrainState(projectRoot, source, options);
   const local = await inspectProjectBrainIntegrity(projectRoot, options);
   if (local.state !== "match") {

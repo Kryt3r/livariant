@@ -50,6 +50,7 @@ function isClassD(path) {
   if (path.startsWith("src/external-knowledge/")) return true;
   if (path.startsWith("src/autonomy/")) return true;
   if (path.startsWith("src/guardian/")) return true;
+  if (path.startsWith("src/intelligence/")) return true; // durable LIL state and replay
   if (path.startsWith("src/findings/")) return true;
   if (path === "src/cli/index.ts") return true;
   if (path === "src/cli/autonomy-command.ts") return true;
@@ -66,6 +67,7 @@ function isClassD(path) {
   if (path === "tests/protected-bootstrap-release.test.ts") return true;
   if (path === "tests/stage-a-installer-contract.test.ts") return true;
   if (path.startsWith("tests/project-findings")) return true;
+  if (path.startsWith("tests/lil-")) return true;
 
   const safetySegments = [
     "/distribution/",

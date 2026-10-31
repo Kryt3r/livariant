@@ -2,9 +2,10 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, parse, resolve } from "node:path";
+import { chmod, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, parse, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
 import { createInterface } from "node:readline/promises";
 import { stderr, stdin } from "node:process";
 
@@ -684,6 +685,401 @@ async function requireInteractiveIssuance(
   } finally { terminal.close(); }
 }
 
+/**
+ * Protected Helper-local exclusion (Guardian is bootstrapped as ONE FILE).
+ * This is not a durable migration fence or native Windows transaction proof.
+ * Leftover locks intentionally block consumption until independently reviewed.
+ */
+export async function withExclusiveGuardianConsumeLock<T>(
+  protectedAuthorityRecordPath: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  const file = basename(protectedAuthorityRecordPath);
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.json$/iu.test(file)) {
+    throw new Error("Guardian consumption lock requires an exact protected Authority record filename.");
+  }
+  const directory = dirname(protectedAuthorityRecordPath);
+  const parent = await lstat(directory);
+  if (!parent.isDirectory() || parent.isSymbolicLink()) {
+    throw new Error("Guardian consumption lock parent must be a real protected directory.");
+  }
+  const lockPath = resolve(directory, "." + file + ".consume.lock");
+  try {
+    await mkdir(lockPath, { recursive: false, mode: 0o700 });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new Error("Guardian consumption transition is already active or interrupted; refusing reuse until protected recovery.");
+    }
+    throw error;
+  }
+
+  try {
+    return await action();
+  } finally {
+    // Never delete an unknown non-directory or chase a substituted link.
+    // Failure leaves a visible blocking artifact in the protected namespace.
+    await rmdir(lockPath);
+  }
+}
+
+// Keep this core self-contained: the installed helper is a single trusted file.
+// This is a DENY-ONLY persistent quarantine, never an armed migration capability.
+export const GUARDIAN_TRANSITION_LOCK = ".guardian-transition.lock";
+export const MIGRATION_FENCE_MARKER = "schema-migration-state-v1.json";
+export const MIGRATION_FENCE_NAMESPACE = "schema-migration-v1";
+const MIGRATION_FENCE_DOMAIN = "livariant:guardian-deny-migration-fence:v1";
+const FENCE_FIELDS = ["schemaVersion", "kind", "stableProjectIdentity", "transactionId", "authorizationOperationId", "protectedSourceRecordId", "declaredPhysicalProjectRoot", "declaredPhysicalProjectBrainRoot", "sourceSchemaVersion", "targetSchemaVersion", "sourceBaselineDomain", "sourceBaselineSha256", "sourceProtectedIntegrityMaterialSha256", "proposedTargetDomain", "proposedTargetSha256", "migrationIntentSha256", "phase", "sequence"] as const;
+export interface DeniedMigrationFence extends Record<string, string | number> {
+  schemaVersion: 1;
+  kind: "livariant-guardian-schema-migration-fence";
+  stableProjectIdentity: string;
+  transactionId: string;
+  authorizationOperationId: string;
+  protectedSourceRecordId: string;
+  declaredPhysicalProjectRoot: string;
+  declaredPhysicalProjectBrainRoot: string;
+  sourceProtectedIntegrityMaterialSha256: string;
+  phase: "recovery-required";
+  sequence: 1;
+}
+function normalizedFencePath(path: string): string {
+  return process.platform === "win32" ? resolve(path).toLowerCase() : resolve(path);
+}
+export function parseDeniedMigrationFence(value: unknown): DeniedMigrationFence {
+  if (!plainObject(value)) throw new Error("Migration fence must be a plain object.");
+  strictKeys(value, [...FENCE_FIELDS]);
+  if (value.schemaVersion !== 1 || value.kind !== "livariant-guardian-schema-migration-fence"
+    || value.sourceSchemaVersion !== 2 || value.targetSchemaVersion !== 3
+    || value.sourceBaselineDomain !== "livariant:project-context-baseline:v1"
+    || value.proposedTargetDomain !== "livariant:proposed-project-brain-v3-target:v1"
+    || value.phase !== "recovery-required" || value.sequence !== 1) {
+    throw new Error("Only an initial deny-only recovery-required fence is supported; arming, completion and clearing remain disabled.");
+  }
+  for (const key of ["stableProjectIdentity", "transactionId", "authorizationOperationId", "protectedSourceRecordId"]) {
+    if (!validRecordId(value[key]) || value[key] !== (value[key] as string).toLowerCase()) throw new Error("Migration fence identity is invalid: " + key);
+  }
+  if (new Set([value.transactionId, value.authorizationOperationId, value.protectedSourceRecordId]).size !== 3) throw new Error("Migration operation identities must differ.");
+  for (const key of ["sourceBaselineSha256", "sourceProtectedIntegrityMaterialSha256", "proposedTargetSha256", "migrationIntentSha256"]) {
+    if (!validSha256(value[key])) throw new Error("Migration fence digest is invalid: " + key);
+  }
+  for (const key of ["declaredPhysicalProjectRoot", "declaredPhysicalProjectBrainRoot"]) {
+    const path = value[key];
+    if (typeof path !== "string" || !isAbsolute(path) || resolve(path) !== path || /[\x00-\x1f]/u.test(path)) throw new Error("Migration physical path is invalid.");
+  }
+  if (normalizedFencePath(value.declaredPhysicalProjectBrainRoot as string) !== normalizedFencePath(resolve(value.declaredPhysicalProjectRoot as string, ".project-brain"))) throw new Error("Migration Brain path does not belong to project.");
+  return Object.fromEntries(FENCE_FIELDS.map(key => [key, value[key]])) as DeniedMigrationFence;
+}
+function fenceHash(value: unknown): string {
+  return createHash("sha256").update(MIGRATION_FENCE_DOMAIN + "\n" + JSON.stringify(value)).digest("hex");
+}
+async function fencePathIdentity(path: string, directory: boolean): Promise<string> {
+  const absolute = resolve(path);
+  let current = absolute;
+  for (;;) {
+    const stat = await lstat(current);
+    const physical = await realpath(current);
+    if (stat.isSymbolicLink() || normalizedFencePath(physical) !== normalizedFencePath(current)) {
+      throw new Error("Migration path contains an alias, junction or symbolic link: " + current + " -> " + physical);
+    }
+    if (current === absolute && (directory ? !stat.isDirectory() : !stat.isFile())) throw new Error("Migration entry has an invalid file type.");
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  const stat = await lstat(absolute);
+  return [stat.dev, stat.ino, stat.birthtimeMs].join(":");
+}
+async function fenceExists(path: string): Promise<boolean> {
+  try { await lstat(path); return true; } catch (error) {
+    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+async function syncFenceDirectory(path: string): Promise<void> {
+  // Windows directory/rename power-loss guarantees are NOT established here.
+  // Therefore this implementation never permits productive migration arming.
+  if (process.platform !== "linux") return;
+  const handle = await open(path, "r");
+  try { await handle.sync(); } finally { await handle.close(); }
+}
+async function writeFenceExclusive(path: string, value: unknown): Promise<void> {
+  const parentIdentity = await fencePathIdentity(dirname(path), true);
+  const handle = await open(path, "wx", 0o644);
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.nlink !== 1) throw new Error("Migration journal handle is not an exclusive regular file.");
+    await handle.writeFile(JSON.stringify(value) + "\n", "utf8");
+    await handle.sync();
+    const named = await lstat(path);
+    if (named.dev !== stat.dev || named.ino !== stat.ino || named.isSymbolicLink()) throw new Error("Migration file handle was substituted.");
+  } finally { await handle.close(); }
+  if (await fencePathIdentity(dirname(path), true) !== parentIdentity) throw new Error("Migration parent directory changed during write.");
+  await syncFenceDirectory(dirname(path));
+}
+interface FenceInventoryEntry { sequence: number; previousSha256: string; transactionId: string; bindingSha256: string; journalSha256: string; eventSha256: string }
+async function readFenceInventory(path: string): Promise<FenceInventoryEntry[]> {
+  await fencePathIdentity(path, false);
+  const handle = await open(path, "r");
+  let raw: string;
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.nlink !== 1 || stat.size > 512 * 1024 || stat.size === 0) throw new Error("Migration inventory handle/size is unsafe.");
+    raw = await handle.readFile("utf8");
+    const named = await lstat(path);
+    if (named.dev !== stat.dev || named.ino !== stat.ino || named.isSymbolicLink()) throw new Error("Migration inventory handle was substituted.");
+  } finally { await handle.close(); }
+  if (!raw.endsWith("\n")) throw new Error("Migration inventory has a truncated tail.");
+  const lines = raw.slice(0, -1).split("\n");
+  if (lines.length < 2 || lines.length > 513) throw new Error("Migration inventory is empty or unbounded.");
+  const header: unknown = JSON.parse(lines[0]);
+  if (!plainObject(header)) throw new Error("Migration inventory header is invalid.");
+  strictKeys(header, ["schemaVersion", "kind", "domain"]);
+  if (header.schemaVersion !== 1 || header.kind !== "livariant-guardian-migration-fence-activation" || header.domain !== MIGRATION_FENCE_DOMAIN) throw new Error("Migration activation marker is invalid.");
+  const entries: FenceInventoryEntry[] = [];
+  const ids = new Set<string>();
+  let previous = "0".repeat(64);
+  for (const line of lines.slice(1)) {
+    const entry: unknown = JSON.parse(line);
+    if (!plainObject(entry)) throw new Error("Migration inventory event is invalid.");
+    strictKeys(entry, ["sequence", "previousSha256", "transactionId", "bindingSha256", "journalSha256", "eventSha256"]);
+    const payload = { sequence: entries.length + 1, previousSha256: previous, transactionId: entry.transactionId, bindingSha256: entry.bindingSha256, journalSha256: entry.journalSha256 };
+    if (!validRecordId(entry.transactionId) || ids.has(entry.transactionId) || !validSha256(entry.bindingSha256) || !validSha256(entry.journalSha256)
+      || entry.sequence !== payload.sequence || entry.previousSha256 !== previous || entry.eventSha256 !== fenceHash(payload)) throw new Error("Migration inventory chain is corrupt, duplicated or conflicting.");
+    ids.add(entry.transactionId);
+    previous = entry.eventSha256 as string;
+    entries.push(entry as unknown as FenceInventoryEntry);
+  }
+  return entries;
+}
+async function validateFenceSource(records: string, binding: DeniedMigrationFence): Promise<void> {
+  const metadata = await readFenceJSON(resolve(binding.declaredPhysicalProjectBrainRoot, "metadata.json"), false);
+  if (!plainObject(metadata.projectBrain) || metadata.projectBrain.schemaVersion !== 2 || metadata.projectBrain.projectId !== binding.stableProjectIdentity) throw new Error("Migration declared project identity does not match canonical schema-2 metadata.");
+  const names = ["decisions.md", "goals.md", "knowledge.md", "metadata.json", "project.md"];
+  const inputs = new Map<string, Buffer>();
+  for (const name of names) {
+    const path = resolve(binding.declaredPhysicalProjectBrainRoot, name);
+    await fencePathIdentity(path, false);
+    const handle = await open(path, "r");
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.nlink !== 1 || stat.size > 16 * 1024 * 1024) throw new Error("Migration source handle/size is unsafe.");
+      inputs.set(name, await handle.readFile());
+      const named = await lstat(path);
+      if (named.dev !== stat.dev || named.ino !== stat.ino || named.isSymbolicLink()) throw new Error("Migration source handle changed.");
+    } finally { await handle.close(); }
+  }
+  function bytesFrame(hash: ReturnType<typeof createHash>, label: string, bytes: Buffer): void {
+    const labels = Buffer.from(label);
+    const lengths = Buffer.alloc(8);
+    lengths.writeUInt32BE(labels.length, 0); lengths.writeUInt32BE(bytes.length, 4);
+    hash.update(lengths).update(labels).update(bytes);
+  }
+  const contextHash = createHash("sha256");
+  bytesFrame(contextHash, "domain", Buffer.from("livariant:project-context-baseline:v1"));
+  bytesFrame(contextHash, "schema-version", Buffer.from("2"));
+  for (const name of names) bytesFrame(contextHash, "managed:" + name, inputs.get(name)!);
+  if (contextHash.digest("hex") !== binding.sourceBaselineSha256) throw new Error("Migration source bytes no longer match the exact declared baseline.");
+  const integrityHash = createHash("sha256");
+  bytesFrame(integrityHash, "domain", Buffer.from("livariant:project-brain-integrity-material:v1"));
+  bytesFrame(integrityHash, "schema-version", Buffer.from("2"));
+  bytesFrame(integrityHash, "stable-project-identity", Buffer.from(binding.stableProjectIdentity));
+  for (const name of ["project.md", "goals.md", "decisions.md", "knowledge.md"]) bytesFrame(integrityHash, "managed:" + name, inputs.get(name)!);
+  const expectedMaterial = protectedGuardianMaterialDigest("project-brain-integrity", [
+    { label: "stable-project-identity", value: binding.stableProjectIdentity },
+    { label: "physical-project-root", value: normalizedFencePath(binding.declaredPhysicalProjectRoot) },
+    { label: "physical-project-brain-root", value: normalizedFencePath(binding.declaredPhysicalProjectBrainRoot) },
+    { label: "integrity-schema-version", value: "1" },
+    { label: "baseline-schema-version", value: "2" },
+    { label: "baseline-domain", value: "livariant:project-brain-integrity-material:v1" },
+    { label: "baseline-algorithm", value: "sha256" },
+    { label: "baseline-sha256", value: integrityHash.digest("hex") },
+  ]);
+  const source = (await readRecord(records, "project-brain-integrity", binding.protectedSourceRecordId)).record;
+  if (source.consumer !== "project-brain-integrity" || source.mode !== "persistent" || source.state !== "active" || source.materialSha256 !== expectedMaterial || expectedMaterial !== binding.sourceProtectedIntegrityMaterialSha256) throw new Error("Migration source does not match independently protected project/path-bound integrity Authority.");
+}
+async function appendFenceInventory(path: string, binding: DeniedMigrationFence, journalSha256: string): Promise<void> {
+  const existing = await readFile(path, "utf8");
+  const inventory = existing.trim().includes("\n") ? await readFenceInventory(path) : [];
+  if (inventory.length >= 512 || inventory.some(entry => entry.transactionId === binding.transactionId)) throw new Error("Migration inventory cannot duplicate an existing transaction.");
+  const payload = { sequence: inventory.length + 1, previousSha256: inventory.at(-1)?.eventSha256 ?? "0".repeat(64), transactionId: binding.transactionId, bindingSha256: fenceHash(binding), journalSha256 };
+  const identity = await fencePathIdentity(path, false);
+  const handle = await open(path, "a");
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.nlink !== 1 || await fencePathIdentity(path, false) !== identity) throw new Error("Migration inventory append handle is unsafe.");
+    await handle.writeFile(JSON.stringify({ ...payload, eventSha256: fenceHash(payload) }) + "\n", "utf8");
+    await handle.sync();
+    if (await fencePathIdentity(path, false) !== identity) throw new Error("Migration inventory changed during append.");
+  } finally { await handle.close(); }
+}
+/** Shared by fence creation AND legacy protected issuance/consumption. A failed
+ * transition leaves its lock permanently; no PID, age or timeout clears it. */
+class GuardianPrewriteRejection extends Error {}
+export interface GuardianTransitionGuard {
+  markMutationStarted(): void;
+  rejectBeforeMutation(reason: unknown): never;
+}
+export async function withExclusiveGuardianTransitionLock<T>(records: string, action: (guard: GuardianTransitionGuard) => Promise<T>): Promise<T> {
+  const parentIdentity = await fencePathIdentity(records, true);
+  const lock = resolve(records, GUARDIAN_TRANSITION_LOCK);
+  try { await mkdir(lock, { mode: 0o700 }); } catch (error) {
+    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Guardian global transition is active or interrupted; protected recovery required.");
+    throw error;
+  }
+  const lockIdentity = await fencePathIdentity(lock, true);
+  await syncFenceDirectory(records);
+  let mutationStarted = false;
+  const guard: GuardianTransitionGuard = {
+    markMutationStarted() { mutationStarted = true; },
+    rejectBeforeMutation(reason: unknown): never {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      if (mutationStarted) throw new Error("Guardian transition changed protected state before rejection; recovery required: " + message);
+      throw new GuardianPrewriteRejection(message);
+    },
+  };
+  async function releaseOwnedLock(): Promise<void> {
+    if (await fencePathIdentity(records, true) !== parentIdentity || await fencePathIdentity(lock, true) !== lockIdentity) throw new Error("Guardian transition lock was substituted; recovery required.");
+    await rmdir(lock);
+    await syncFenceDirectory(records);
+  }
+  try {
+    const result = await action(guard);
+    await releaseOwnedLock();
+    return result;
+  } catch (error) {
+    // ONLY explicit, known pre-write validation denial may release this live
+    // process's verified lock. Unknown failures and killed processes retain it.
+    if (error instanceof GuardianPrewriteRejection && !mutationStarted) await releaseOwnedLock();
+    throw error;
+  }
+}
+async function readFenceJSON(path: string, singleLine = true): Promise<Record<string, unknown>> {
+  await fencePathIdentity(path, false);
+  const handle = await open(path, "r");
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.nlink !== 1 || stat.size < 2 || stat.size > 65536) throw new Error("Migration record handle/size is unsafe.");
+    const bytes = await handle.readFile("utf8");
+    if (singleLine && (!bytes.endsWith("\n") || bytes.slice(0, -1).includes("\n"))) throw new Error("Migration journal is truncated or has unsupported events.");
+    const named = await lstat(path);
+    if (named.dev !== stat.dev || named.ino !== stat.ino || named.isSymbolicLink()) throw new Error("Migration read handle was substituted.");
+    const parsed: unknown = JSON.parse(bytes);
+    if (!plainObject(parsed)) throw new Error("Migration record is not an object.");
+    return parsed;
+  } finally { await handle.close(); }
+}
+/** Caller must independently verify the fixed Guardian root and ACL/owner.
+ * Returned records are deny-only, not Authority, migration or read permission. */
+export async function inspectGuardianMigrationFenceStorage(records: string, withinTransition = false): Promise<{ activated: boolean; transactions: DeniedMigrationFence[] }> {
+  await fencePathIdentity(records, true);
+  const parentIdentity = await fencePathIdentity(records, true);
+  if (!withinTransition && await fenceExists(resolve(records, GUARDIAN_TRANSITION_LOCK))) throw new Error("Guardian transition is active/interrupted; migration state cannot be accepted.");
+  const names = await readdir(records);
+  if (names.length > 4096) throw new Error("Guardian record namespace is unbounded.");
+  if (names.includes("schema-migration")) {
+    const legacy = resolve(records, "schema-migration");
+    await fencePathIdentity(legacy, true);
+    if ((await readdir(legacy)).length !== 0) throw new Error("Legacy protected migration evidence requires recovery.");
+  }
+  const markerPresent = names.includes(MIGRATION_FENCE_MARKER);
+  const namespacePresent = names.includes(MIGRATION_FENCE_NAMESPACE);
+  const anchorNames = names.filter(name => name.startsWith(".schema-migration-v1."));
+  if (names.some(name => /^(?:schema-migration-state-v1|schema-migration-v1|\.schema-migration-v1\.)/iu.test(name)
+    && name !== MIGRATION_FENCE_MARKER && name !== MIGRATION_FENCE_NAMESPACE && !anchorNames.includes(name))) throw new Error("Migration namespace alias or unexpected entry.");
+  if (!markerPresent && !namespacePresent && anchorNames.length === 0) return { activated: false, transactions: [] };
+  if (!markerPresent || !namespacePresent || anchorNames.length === 0) throw new Error("Sticky migration state, anchor or journal namespace is missing; recovery required.");
+  const inventory = await readFenceInventory(resolve(records, MIGRATION_FENCE_MARKER));
+  const directory = resolve(records, MIGRATION_FENCE_NAMESPACE);
+  await fencePathIdentity(directory, true);
+  const journalNames = await readdir(directory);
+  if (anchorNames.length > 512 || journalNames.length !== anchorNames.length || anchorNames.length !== inventory.length) throw new Error("Migration inventory, journals and permanent anchors disagree.");
+  const transactions: DeniedMigrationFence[] = [];
+  for (const name of anchorNames) {
+    const match = /^\.schema-migration-v1\.([a-f0-9-]+)\.anchor\.json$/u.exec(name);
+    if (!match || !validRecordId(match[1])) throw new Error("Invalid migration anchor filename.");
+    const anchor = await readFenceJSON(resolve(records, name));
+    strictKeys(anchor, ["schemaVersion", "kind", "binding", "bindingSha256", "journalSha256"]);
+    const binding = parseDeniedMigrationFence(anchor.binding);
+    const inventoryEntry = inventory.find(entry => entry.transactionId === binding.transactionId);
+    if (!inventoryEntry || inventoryEntry.bindingSha256 !== fenceHash(binding) || inventoryEntry.journalSha256 !== anchor.journalSha256) throw new Error("Migration write-ahead inventory does not match anchor.");
+    if (anchor.schemaVersion !== 1 || anchor.kind !== "livariant-guardian-migration-fence-anchor" || binding.transactionId !== match[1] || anchor.bindingSha256 !== fenceHash(binding)) throw new Error("Migration anchor binding is invalid.");
+    const journalName = binding.transactionId + ".jsonl";
+    if (!journalNames.includes(journalName)) throw new Error("Migration journal was lost.");
+    const event = await readFenceJSON(resolve(directory, journalName));
+    strictKeys(event, ["schemaVersion", "kind", "sequence", "previousSha256", "binding", "eventSha256"]);
+    const payload = { schemaVersion: 1, kind: "livariant-guardian-migration-fence-event", sequence: 1, previousSha256: "0".repeat(64), binding };
+    if (event.schemaVersion !== 1 || event.kind !== payload.kind || event.sequence !== 1 || event.previousSha256 !== payload.previousSha256 || fenceHash(parseDeniedMigrationFence(event.binding)) !== fenceHash(binding)
+      || event.eventSha256 !== fenceHash(payload) || anchor.journalSha256 !== event.eventSha256) throw new Error("Migration journal chain or anchored event hash is corrupt.");
+    transactions.push(binding);
+  }
+  if (await fencePathIdentity(records, true) !== parentIdentity || (!withinTransition && await fenceExists(resolve(records, GUARDIAN_TRANSITION_LOCK)))) throw new Error("Migration storage changed while inspected.");
+  return { activated: true, transactions };
+}
+/** Match only scope cryptographically bound into the exact protected material.
+ * Legacy clients without that material remain denied while any fence is active.
+ * A caller inside the global writer lock passes withinTransition=true. */
+export async function assertGuardianRequestNotMigrationFenced(
+  records: string,
+  input: unknown,
+  expectedMaterialSha256?: string,
+  withinTransition = false,
+): Promise<void> {
+  const request = parseProtectedGuardianRequest(input);
+  const digest = protectedGuardianMaterialDigest(request.consumer, request.materialFields);
+  if (expectedMaterialSha256 !== undefined && digest !== expectedMaterialSha256) throw new Error("Guardian request scope does not match exact protected Authority material.");
+  const state = await inspectGuardianMigrationFenceStorage(records, withinTransition);
+  if (!state.activated) return;
+  const root = requestField(request, "physical-project-root");
+  const id = request.materialFields.find(field => field.label === "stable-project-identity")?.value;
+  const requiresIdentity = request.consumer === "semantic-mutation" || request.consumer === "project-brain-integrity";
+  if ((requiresIdentity && id === undefined) || (id !== undefined && !validRecordId(id))
+    || typeof root !== "string" || !isAbsolute(root) || resolve(root) !== root || /[\x00-\x1f]/u.test(root)) {
+    throw new Error("Guardian request lacks exact project scope while migration quarantine exists.");
+  }
+  // Lifecycle/runtime/release contracts bind physical root without a stable ID.
+  // Do not invent a new field or change their existing exact material digests.
+  await fencePathIdentity(root, true);
+  if (state.transactions.some(record => (id !== undefined && record.stableProjectIdentity === id.toLowerCase())
+    || normalizedFencePath(record.declaredPhysicalProjectRoot) === normalizedFencePath(root))) {
+    throw new Error("Protected migration quarantine blocks this exact Guardian project scope; recovery required.");
+  }
+}
+export async function createDeniedGuardianMigrationFence(records: string, input: unknown, options: { checkpoint?: (name: string) => Promise<void> } = {}): Promise<DeniedMigrationFence> {
+  const binding = parseDeniedMigrationFence(input);
+  return withExclusiveGuardianTransitionLock(records, async guard => {
+    await options.checkpoint?.("lock-acquired");
+    const existing = await inspectGuardianMigrationFenceStorage(records, true);
+    if (existing.transactions.some(record => record.transactionId === binding.transactionId)) guard.rejectBeforeMutation(new Error("Protected migration transaction already exists; refusing duplicate denial."));
+    let projectIdentity!: string;
+    let brainIdentity!: string;
+    try {
+      projectIdentity = await fencePathIdentity(binding.declaredPhysicalProjectRoot, true);
+      brainIdentity = await fencePathIdentity(binding.declaredPhysicalProjectBrainRoot, true);
+      await validateFenceSource(records, binding);
+    } catch (error) { guard.rejectBeforeMutation(error); }
+    await options.checkpoint?.("source-validated");
+    guard.markMutationStarted();
+    const markerPath = resolve(records, MIGRATION_FENCE_MARKER);
+    if (!await fenceExists(markerPath)) await writeFenceExclusive(markerPath, { schemaVersion: 1, kind: "livariant-guardian-migration-fence-activation", domain: MIGRATION_FENCE_DOMAIN });
+    const payload = { schemaVersion: 1, kind: "livariant-guardian-migration-fence-event", sequence: 1, previousSha256: "0".repeat(64), binding };
+    const eventSha256 = fenceHash(payload);
+    await appendFenceInventory(markerPath, binding, eventSha256);
+    await options.checkpoint?.("activation-synced");
+    const directory = resolve(records, MIGRATION_FENCE_NAMESPACE);
+    if (!await fenceExists(directory)) { await mkdir(directory, { mode: 0o755 }); await syncFenceDirectory(records); }
+    await fencePathIdentity(directory, true);
+    await writeFenceExclusive(resolve(records, ".schema-migration-v1." + binding.transactionId + ".anchor.json"), { schemaVersion: 1, kind: "livariant-guardian-migration-fence-anchor", binding, bindingSha256: fenceHash(binding), journalSha256: eventSha256 });
+    await options.checkpoint?.("anchor-synced");
+    await writeFenceExclusive(resolve(directory, binding.transactionId + ".jsonl"), { ...payload, eventSha256 });
+    await options.checkpoint?.("journal-synced");
+    if (await fencePathIdentity(binding.declaredPhysicalProjectRoot, true) !== projectIdentity || await fencePathIdentity(binding.declaredPhysicalProjectBrainRoot, true) !== brainIdentity) throw new Error("Migration physical project changed during quarantine.");
+    await validateFenceSource(records, binding);
+    await inspectGuardianMigrationFenceStorage(records, true);
+    await options.checkpoint?.("verified-before-unlock");
+    return binding;
+  });
+}
+
 function consumerDirectory(recordsRoot: string, consumer: ProtectedGuardianConsumer): string {
   return resolve(recordsRoot, consumer);
 }
@@ -715,8 +1111,15 @@ async function issueAuthority(
   await assertProtectedInterpreter();
   const request = parseProtectedGuardianRequest(JSON.parse(await readFile(requestPath, "utf8")) as unknown);
   const materialSha256 = protectedGuardianMaterialDigest(request.consumer, request.materialFields);
+  // Avoid presenting an authorization dialogue for an already quarantined
+  // store. This preflight is not a lease; repeat under the writer lock below.
+  await assertGuardianRequestNotMigrationFenced(records, request);
   await requireInteractiveIssuance(request, materialSha256, nativeConfirmationLanguage, desktopUacReceiptPath);
-
+  await withExclusiveGuardianTransitionLock(records, async guard => {
+  // All legacy transitions synchronize with deny-fence creation. Since old
+  // clients do not implement this protocol, productive arming stays disabled.
+  try { await assertGuardianRequestNotMigrationFenced(records, request, materialSha256, true); }
+  catch (error) { guard.rejectBeforeMutation(error); }
   const issuedAt = new Date();
   const record: ProtectedGuardianAuthorityRecord = {
     schemaVersion: GUARDIAN_AUTHORITY_SCHEMA_VERSION,
@@ -730,11 +1133,13 @@ async function issueAuthority(
     issuedAt: issuedAt.toISOString(),
     ...(request.mode === "one-shot" ? { expiresAt: new Date(issuedAt.getTime() + ONE_SHOT_TTL_MS).toISOString() } : {}),
   };
+  guard.markMutationStarted();
   const directory = await ensureConsumerDirectory(records, request.consumer);
   const path = resolve(directory, `${record.recordId}.json`);
   await writeFile(path, `${JSON.stringify(record, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o444 });
   if (process.platform === "linux") await chmod(path, 0o444);
   process.stdout.write(`${JSON.stringify({ schemaVersion: 1, state: "issued", authority: record })}\n`);
+  });
 }
 
 async function readRecord(recordsRoot: string, consumer: ProtectedGuardianConsumer, recordId: string): Promise<{ path: string; raw: string; record: ProtectedGuardianAuthorityRecord }> {
@@ -749,34 +1154,102 @@ async function readRecord(recordsRoot: string, consumer: ProtectedGuardianConsum
 
 async function inspectAuthority(consumer: ProtectedGuardianConsumer, recordId: string): Promise<void> {
   const { records } = await assertProtectedSelf();
+  const fence = await inspectGuardianMigrationFenceStorage(records);
   const { record } = await readRecord(records, consumer, recordId);
+  const rechecked = await inspectGuardianMigrationFenceStorage(records);
+  if (JSON.stringify(rechecked) !== JSON.stringify(fence)) throw new Error("Guardian migration state changed during inspection.");
   process.stdout.write(`${JSON.stringify({ schemaVersion: 1, state: "inspected", authority: record })}\n`);
 }
 
-async function consumeAuthority(consumer: ProtectedGuardianConsumer, recordId: string, expectedMaterialSha256: string): Promise<void> {
+async function consumeAuthority(consumer: ProtectedGuardianConsumer, recordId: string, expectedMaterialSha256: string, requestPath?: string): Promise<void> {
   const { records } = await assertProtectedSelf();
   requirePrivilegedProcess();
   await assertProtectedInterpreter();
   if (!validSha256(expectedMaterialSha256)) throw new Error("Guardian Authority expected material digest is invalid.");
-  const { path, raw, record } = await readRecord(records, consumer, recordId);
-  if (record.mode !== "one-shot") throw new Error("Persistent Guardian Authority cannot be consumed as a one-shot capability.");
-  if (record.state !== "active") throw new Error("Guardian Authority capability has already been consumed.");
-  if (record.materialSha256 !== expectedMaterialSha256) throw new Error("Guardian Authority capability does not match the exact requested material.");
-  const consumedAt = new Date();
-  if (record.expiresAt === undefined || Date.parse(record.expiresAt) <= consumedAt.getTime()) throw new Error("Guardian Authority capability is expired and cannot be consumed.");
-  const consumed: ProtectedGuardianAuthorityRecord = { ...record, state: "consumed", consumedAt: consumedAt.toISOString() };
-  const temporary = resolve(dirname(path), `.${record.recordId}.consume-${randomUUID()}.tmp`);
-  await writeFile(temporary, `${JSON.stringify(consumed, null, 2)}\n`, { encoding: "utf8", flag: "wx", mode: 0o444 });
-  if (process.platform === "linux") await chmod(temporary, 0o444);
-  try {
-    const observed = await readFile(path, "utf8");
-    if (observed !== raw) throw new Error("Guardian Authority capability changed concurrently; refusing ambiguous consumption.");
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
+  const request = requestPath === undefined ? undefined : parseProtectedGuardianRequest(JSON.parse(await readFile(requestPath, "utf8")) as unknown);
+  if (request && (request.consumer !== consumer || request.mode !== "one-shot"
+    || protectedGuardianMaterialDigest(request.consumer, request.materialFields) !== expectedMaterialSha256)) {
+    throw new Error("Guardian consumption request does not match exact consumer, mode and material.");
   }
-  process.stdout.write(`${JSON.stringify({ schemaVersion: 1, state: "consumed", authority: consumed })}\n`);
+
+  // A protected per-record exclusive directory serializes independent helpers.
+  // Read/revalidate the active capability INSIDE the lock, not before it.
+  // Crash remnants intentionally refuse automatic retries. These guards do
+  // NOT establish full Windows power-loss durability or schema-3 Authority.
+  const selectedRecordPath = recordPath(records, consumer, recordId);
+  await withExclusiveGuardianTransitionLock(records, async guard => {
+  if (request) {
+    try { await assertGuardianRequestNotMigrationFenced(records, request, expectedMaterialSha256, true); }
+    catch (error) { guard.rejectBeforeMutation(error); }
+  } else if ((await inspectGuardianMigrationFenceStorage(records, true)).activated) {
+    guard.rejectBeforeMutation(new Error("Protected migration quarantine requires exact request material; unscoped legacy consumption is blocked."));
+  }
+  await withExclusiveGuardianConsumeLock(selectedRecordPath, async () => {
+    let current!: Awaited<ReturnType<typeof readRecord>>;
+    try {
+      current = await readRecord(records, consumer, recordId);
+      if (current.record.mode !== "one-shot") throw new Error("Persistent Guardian Authority cannot be consumed as a one-shot capability.");
+      if (current.record.state !== "active") throw new Error("Guardian Authority capability has already been consumed.");
+      if (current.record.materialSha256 !== expectedMaterialSha256) throw new Error("Guardian Authority capability does not match the exact requested material.");
+      if (current.record.expiresAt === undefined || Date.parse(current.record.expiresAt) <= Date.now()) throw new Error("Guardian Authority capability is expired and cannot be consumed.");
+    } catch (error) { guard.rejectBeforeMutation(error); }
+    const { path, raw, record } = current;
+    const consumedAt = new Date();
+    if (record.expiresAt === undefined || Date.parse(record.expiresAt) <= consumedAt.getTime()) guard.rejectBeforeMutation(new Error("Guardian Authority capability is expired and cannot be consumed."));
+    const consumed: ProtectedGuardianAuthorityRecord = { ...record, state: "consumed", consumedAt: consumedAt.toISOString() };
+    const temporary = resolve(dirname(path), "." + record.recordId + ".consume-" + randomUUID() + ".tmp");
+
+    // Flush file contents before promotion. Directory/rename crash durability
+    // on Windows remains an explicit native-adapter acceptance gate.
+    guard.markMutationStarted();
+    const tempFile = await open(temporary, "wx", 0o444);
+    try {
+      await tempFile.writeFile(JSON.stringify(consumed, null, 2) + "\n", "utf8");
+      await tempFile.sync();
+    } catch (error) {
+      await tempFile.close();
+      await rm(temporary, { force: true });
+      throw error;
+    }
+    await tempFile.close();
+    if (process.platform === "linux") await chmod(temporary, 0o444);
+    try {
+      const observed = await readFile(path, "utf8");
+      if (observed !== raw) throw new Error("Guardian Authority capability changed concurrently; refusing ambiguous consumption.");
+      await rename(temporary, path);
+    } catch (error) {
+      await rm(temporary, { force: true });
+      throw error;
+    }
+    // A process interrupted after promotion but before the response can leave
+    // a consumed record; nobody may assume the call is safe to repeat.
+    process.stdout.write(JSON.stringify({ schemaVersion: 1, state: "consumed", authority: consumed }) + "\n");
+  });
+  });
+}
+
+async function assertMigrationProtectedOwner(path: string): Promise<void> {
+  const stat = await lstat(path);
+  if (stat.isSymbolicLink()) throw new Error("Guardian migration protected path is a reparse/symbolic entry.");
+  if (process.platform === "linux") {
+    if (stat.uid !== 0 || (stat.mode & 0o022) !== 0) throw new Error("Guardian migration path must be root-owned and not ordinary-user writable.");
+  } else if (process.platform === "win32") {
+    const protection = inspectWindowsInterpreterProtection(path);
+    if (!protectedWindowsOwner(protection.ownerSid) || protection.ordinaryRequesterWritable || protection.ordinaryRequesterCanReplaceChildren) throw new Error("Guardian migration path ACL/owner is not independently protected.");
+  } else throw new Error("Guardian migration protection platform is unsupported.");
+}
+
+async function denyMigrationFence(requestPath: string): Promise<void> {
+  const { root, records } = await assertProtectedSelf();
+  requirePrivilegedProcess();
+  await assertProtectedInterpreter();
+  await assertMigrationProtectedOwner(root);
+  await assertMigrationProtectedOwner(records);
+  const request = parseDeniedMigrationFence(await readFenceJSON(resolve(requestPath), false));
+  await assertMigrationProtectedOwner(resolve(records, "project-brain-integrity"));
+  await assertMigrationProtectedOwner(recordPath(records, "project-brain-integrity", request.protectedSourceRecordId));
+  const binding = await createDeniedGuardianMigrationFence(records, request);
+  process.stdout.write(JSON.stringify({ schemaVersion: 1, state: "recovery-required", binding, armed: false, migrationAuthorityIssued: false, canonicalWritesPerformed: false, nativeWindowsDurabilityProven: false, oldClientQuiescenceProven: false }) + "\n");
 }
 
 function argValue(args: string[], name: string): string {
@@ -830,12 +1303,19 @@ async function main(args: string[]): Promise<void> {
     );
     return;
   }
+  if (command === "deny-migration-fence" && args.length === 3 && args[1] === "--request") {
+    await denyMigrationFence(argValue(args, "--request"));
+    return;
+  }
+  if (command === "arm-migration-fence" || command === "complete-migration-fence" || command === "clear-migration-fence") {
+    throw new Error("Productive migration arming, completion and clearing remain disabled: native Windows durability and old-client quiescence are unproven.");
+  }
   if (command === "inspect-authority") {
     await inspectAuthority(parseConsumerArg(args), argValue(args, "--record"));
     return;
   }
   if (command === "consume-authority") {
-    await consumeAuthority(parseConsumerArg(args), argValue(args, "--record"), argValue(args, "--material"));
+    await consumeAuthority(parseConsumerArg(args), argValue(args, "--record"), argValue(args, "--material"), optionalArgValue(args, "--request"));
     return;
   }
   throw new Error("Livariant Guardian helper supports only version, issue-authority, inspect-authority, and consume-authority.");

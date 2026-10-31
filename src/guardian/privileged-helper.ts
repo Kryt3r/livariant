@@ -49,8 +49,12 @@ async function assertWindowsProtectedInterpreter(): Promise<string> {
   return interpreter;
 }
 
-function assertSafeHelperArguments(args: readonly string[]): void {
-  if (args.length === 0 || args.length > 8 || args.some((arg) => !SAFE_HELPER_ARGUMENT.test(arg))) {
+export function assertSafeHelperArguments(args: readonly string[]): void {
+  // Only the exact scoped-consumption grammar extends the historical bound.
+  const scopedConsume = args.length === 9 && args[0] === "consume-authority"
+    && args[1] === "--consumer" && args[3] === "--record" && args[5] === "--material"
+    && args[7] === "--request" && args[8] === "request.json";
+  if (args.length === 0 || (args.length > 8 && !scopedConsume) || args.some((arg) => !SAFE_HELPER_ARGUMENT.test(arg))) {
     throw new Error("Guardian privileged transition arguments contain unsupported shell-sensitive or unbounded material.");
   }
 }

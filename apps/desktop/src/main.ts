@@ -2,6 +2,7 @@ import "./glass.css";
 import "./styles.css";
 import "./project-truth.css";
 import "./project-truth-workspace.css";
+import "./knowledge-explorer.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getLanguage, onLanguageChange } from "./i18n/runtime.js";
 import {
@@ -31,6 +32,12 @@ import {
   type ProjectKnowledgeSnapshot,
 } from "./project-knowledge-bridge.js";
 import { onDesktopProjectActivated } from "./desktop-project-registry.js";
+import {
+  bindKnowledgeExplorerEvents,
+  invalidateKnowledgeExplorer,
+  refreshKnowledgeExplorer,
+  renderKnowledgeExplorer,
+} from "./knowledge-explorer-view.js";
 
 const livariantLogo = new URL("./assets/livariant-logo.png", import.meta.url).href;
 const appWindow = getCurrentWindow();
@@ -124,6 +131,7 @@ let projectKnowledgeLoading = false;
 let projectKnowledgeLoadedOnce = false;
 let projectKnowledgeLastRefreshAt = 0;
 let projectKnowledgeRefreshInFlight: Promise<void> | null = null;
+let projectKnowledgeRequestGeneration = 0;
 let projectKnowledgeApplying = false;
 let projectKnowledgeIntegrityInFlight = false;
 let projectKnowledgeProtection: ProjectKnowledgeProtectionStatus | null = null;
@@ -165,6 +173,7 @@ const clearProjectKnowledgeSnapshot = () => {
 const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
   if (projectKnowledgeRefreshInFlight) return projectKnowledgeRefreshInFlight;
 
+  const generation = projectKnowledgeRequestGeneration;
   projectKnowledgeLoading = true;
   projectKnowledgeError = null;
   if (renderAfter && currentView === "steps") render();
@@ -174,11 +183,16 @@ const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
       // The snapshot command already performs the complete fail-closed protection
       // check. Ready-state reads should not run the same expensive inspection twice.
       const snapshot = await loadProjectKnowledge();
+      if (generation !== projectKnowledgeRequestGeneration) return;
       projectKnowledgeProtection = null;
       applyProjectKnowledgeSnapshot(snapshot);
+      if (currentView === "steps") void refreshKnowledgeExplorer();
     } catch (readError) {
+      if (generation !== projectKnowledgeRequestGeneration) return;
+      invalidateKnowledgeExplorer();
       try {
         let protection = await loadProjectKnowledgeProtectionStatus();
+        if (generation !== projectKnowledgeRequestGeneration) return;
 
         projectKnowledgeProtection = protection;
         clearProjectKnowledgeSnapshot();
@@ -209,16 +223,19 @@ const refreshProjectKnowledge = (renderAfter = true): Promise<void> => {
           projectKnowledgeError = readError instanceof Error ? readError.message : String(readError);
         }
       } catch (statusError) {
+        if (generation !== projectKnowledgeRequestGeneration) return;
         clearProjectKnowledgeSnapshot();
         projectKnowledgeProtection = null;
         projectKnowledgeError = statusError instanceof Error ? statusError.message : String(statusError);
       }
     } finally {
-      projectKnowledgeLoadedOnce = true;
-      projectKnowledgeLastRefreshAt = Date.now();
-      projectKnowledgeLoading = false;
-      projectKnowledgeRefreshInFlight = null;
-      if (renderAfter && currentView === "steps") render();
+      if (generation === projectKnowledgeRequestGeneration) {
+        projectKnowledgeLoadedOnce = true;
+        projectKnowledgeLastRefreshAt = Date.now();
+        projectKnowledgeLoading = false;
+        projectKnowledgeRefreshInFlight = null;
+        if (renderAfter && currentView === "steps") render();
+      }
     }
   })();
 
@@ -557,6 +574,7 @@ const renderProjectTruthView = () => {
         <div class="truth-area-list">${areas.map(renderAreaCard).join("")}<div class="truth-empty" data-truth-empty hidden><strong>${uiText("Nothing matches this view", "Keine Treffer in dieser Ansicht")}</strong><p>${uiText("Try another search or filter.", "Versuche eine andere Suche oder einen anderen Filter.")}</p></div></div>
       </section>
 
+      ${renderKnowledgeExplorer()}
       ${projectKnowledgeLoading ? `<div class="truth-boundary-card truth-boundary-card-redesign"><span>…</span><p><strong>${uiText("Loading Project Brain", "Project Brain wird geladen")}</strong> ${uiText("Livariant is reading the active project's canonical Project Brain before showing confirmed knowledge.", "Livariant liest zuerst den kanonischen Project Brain des aktiven Projekts, bevor bestätigtes Wissen angezeigt wird.")}</p></div>` : ""}
       ${renderProjectKnowledgeProtection()}
       ${projectKnowledgeError ? `<div class="truth-boundary-card truth-boundary-card-redesign"><span>!</span><p><strong>${uiText("Project Brain is not available", "Project Brain ist nicht verfügbar")}</strong> ${escapeHtml(projectKnowledgeError)}</p></div>` : `<div class="truth-boundary-card truth-boundary-card-redesign"><span>i</span><p><strong>${uiText("Suggestions are not automatically project truth.", "Vorschläge werden nicht automatisch zur Projektwahrheit.")}</strong> ${uiText("Confirmed values on this page now come from the active project's canonical Project Brain. A proposal remains non-canonical until the protected authorization and apply path completes.", "Bestätigte Werte auf dieser Seite stammen jetzt aus dem kanonischen Project Brain des aktiven Projekts. Ein Vorschlag bleibt nicht-kanonisch, bis der geschützte Autorisierungs- und Apply-Pfad abgeschlossen ist.")}</p></div>`}
@@ -708,6 +726,7 @@ const render = () => {
   // so navigation never paints an intermediate legacy header/sidebar frame.
   document.dispatchEvent(new Event("livariant:shell-rendered"));
   bindEvents();
+  bindKnowledgeExplorerEvents();
   applyTruthFilters();
 };
 
@@ -878,6 +897,7 @@ const bindEvents = () => {
         getLanguage(),
       );
       applyProjectKnowledgeSnapshot(applied.snapshot);
+      if (currentView === "steps") void refreshKnowledgeExplorer();
       selectedReviewAreaId = null;
       notice = {
         kind: "success",
@@ -1044,6 +1064,8 @@ document.addEventListener("livariant:open-project-settings", () => {
 });
 
 onDesktopProjectActivated(() => {
+  projectKnowledgeRequestGeneration++;
+  invalidateKnowledgeExplorer();
   for (const area of areas) {
     area.confirmedValue = "";
     area.pendingValue = "";

@@ -66,6 +66,9 @@ jobs:
             /var/lib/livariant-guardian/v1/records/project-brain-integrity
           sudo install -o root -g root -m 0555 "$staging/guardian-helper.js" /var/lib/livariant-guardian/v1/guardian-helper.js
           sudo install -o root -g root -m 0444 "$staging/guardian-root.json" /var/lib/livariant-guardian/v1/guardian-root.json
+          # The mutating helper rejects runner-owned interpreters. Provision an
+          # explicit protected fixture copy without relaxing that trust check.
+          sudo install -o root -g root -m 0555 "$(command -v node)" /var/lib/livariant-guardian/v1/guardian-node
 
       - name: Provision protected Guardian on Windows
         if: matrix.os == 'windows-latest'
@@ -123,6 +126,9 @@ jobs:
           Copy-Item -LiteralPath (Join-Path $staging 'guardian-root.json') -Destination (Join-Path $root 'guardian-root.json')
           Set-ProtectedFile (Join-Path $root 'guardian-helper.js')
           Set-ProtectedFile (Join-Path $root 'guardian-root.json')
+          $nodeSource = (Get-Command node.exe).Source
+          Copy-Item -LiteralPath $nodeSource -Destination (Join-Path $root 'guardian-node.exe')
+          Set-ProtectedFile (Join-Path $root 'guardian-node.exe')
 
       - name: Run protected C-02 acceptance
         run: node scripts/guardian-project-brain-integrity-smoke.mjs

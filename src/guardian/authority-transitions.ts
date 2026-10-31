@@ -70,6 +70,8 @@ export async function issueGuardianAuthority(input: {
 export async function consumeGuardianAuthority(input: {
   record: GuardianAuthorityRecord;
   expectedMaterialSha256: string;
+  /** Exact independently digest-bound request; supplies scope without widening Authority. */
+  request?: GuardianAuthorityRequest;
   projectPath?: string;
 }): Promise<GuardianAuthorityRecord> {
   const projectPath = input.projectPath ?? process.cwd();
@@ -79,7 +81,7 @@ export async function consumeGuardianAuthority(input: {
     mode: "one-shot",
     materialSha256: input.expectedMaterialSha256,
   });
-  await runPrivilegedGuardianHelper(support, [
+  const args = [
     "consume-authority",
     "--consumer",
     input.record.consumer,
@@ -87,7 +89,22 @@ export async function consumeGuardianAuthority(input: {
     input.record.recordId,
     "--material",
     input.expectedMaterialSha256,
-  ]);
+  ];
+  let requestDirectory: string | undefined;
+  try {
+    if (input.request) {
+      if (input.request.consumer !== input.record.consumer || input.request.mode !== "one-shot"
+          || guardianAuthorityMaterialDigest(input.request.consumer, input.request.materialFields) !== input.expectedMaterialSha256) {
+        throw new Error("Guardian consumption request does not match exact protected Authority material.");
+      }
+      requestDirectory = await mkdtemp(resolve(tmpdir(), "livariant-guardian-consume-"));
+      await writeFile(resolve(requestDirectory, "request.json"), JSON.stringify(input.request) + "\n", { flag: "wx", mode: 0o600 });
+      args.push("--request", "request.json");
+    }
+    await runPrivilegedGuardianHelper(support, args, requestDirectory ? { cwd: requestDirectory } : {});
+  } finally {
+    if (requestDirectory) await rm(requestDirectory, { recursive: true, force: true });
+  }
   const consumed = await readGuardianAuthorityById({
     consumer: input.record.consumer,
     recordId: input.record.recordId,

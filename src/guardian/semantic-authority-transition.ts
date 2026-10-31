@@ -1,4 +1,5 @@
 import { realpath } from "node:fs/promises";
+import { inspectProtectedMigrationFence } from "./protected-migration-fence-inspection.js";
 import { discoverProject } from "../project/discovery.js";
 import type { ActionableProposal } from "../runtime/actionable-proposal.js";
 import {
@@ -8,6 +9,18 @@ import {
 import { consumeGuardianAuthority, issueGuardianAuthority } from "./authority-transitions.js";
 import { buildSemanticGuardianAuthorityRequest } from "./semantic-authority.js";
 import { buildSemanticMutationPlan } from "../runtime/semantic-mutation-plan.js";
+
+/**
+ * Existing schema-2 Semantic Authority is never a schema migration grant.
+ * Presence/ambiguity in the protected migration namespace blocks issue and
+ * consumption. This is only a precondition, NOT a global transaction lock.
+ */
+async function assertNoMigrationFence(proposal: ActionableProposal, projectPath: string): Promise<void> {
+  const fence = await inspectProtectedMigrationFence(projectPath, proposal.stableProjectIdentity);
+  if (fence.state !== "legacy-no-fence") {
+    throw new Error("Semantic Guardian Authority is blocked by protected schema-migration fence: " + fence.reason);
+  }
+}
 
 async function semanticRequest(
   authorizationId: string,
@@ -30,7 +43,9 @@ export async function issueSemanticGuardianAuthority(
   projectPath: string = process.cwd(),
   options: { nativeConfirmationLanguage?: "de" | "en" } = {},
 ) {
+  await assertNoMigrationFence(proposal, projectPath);
   const material = await semanticRequest(authorizationId, proposal, projectPath);
+  await assertNoMigrationFence(proposal, projectPath);
   const record = await issueGuardianAuthority({
     request: material.request,
     projectPath,
@@ -47,7 +62,9 @@ export async function consumeSemanticGuardianAuthority(
   proposal: ActionableProposal,
   projectPath: string = process.cwd(),
 ) {
+  await assertNoMigrationFence(proposal, projectPath);
   const material = await semanticRequest(authorizationId, proposal, projectPath);
+  await assertNoMigrationFence(proposal, projectPath);
   const record = await findMatchingActiveGuardianAuthority({
     consumer: "semantic-mutation",
     mode: "one-shot",
@@ -57,9 +74,11 @@ export async function consumeSemanticGuardianAuthority(
   if (!record) {
     throw new Error("Matching active protected Guardian Semantic Authority is missing; legacy same-user authorization evidence is not sufficient.");
   }
+  await assertNoMigrationFence(proposal, projectPath);
   const consumed = await consumeGuardianAuthority({
     record,
     expectedMaterialSha256: material.materialSha256,
+    request: material.request,
     projectPath,
   });
   return { material, record: consumed };
