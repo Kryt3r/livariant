@@ -78,6 +78,7 @@ export async function consumeSemanticGuardianAuthority(
   const consumed = await consumeGuardianAuthority({
     record,
     expectedMaterialSha256: material.materialSha256,
+    request: material.request,
     projectPath,
   });
   return { material, record: consumed };

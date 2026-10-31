@@ -99,10 +99,12 @@ export async function inspectProtectedProjectBrainIntegrity(
       return { state: "invalid", local, reason: fence.reason };
     }
     const protectedState = await findProjectBrainIntegrityGuardianAuthority(integrityIdentity(local), projectRoot);
-    if (protectedState.record) return { state: "match", local, guardian: protectedState.record };
-
-    const semanticProof = await semanticGuardianProof(local, projectRoot);
-    if (semanticProof) return { state: "match", local, guardian: semanticProof };
+    const proof = protectedState.record ?? await semanticGuardianProof(local, projectRoot);
+    if (proof) {
+      const finalFence = await inspectProtectedMigrationFence(projectRoot, local.receipt.stableProjectIdentity);
+      if (finalFence.state === "blocked") return { state: "invalid", local, reason: finalFence.reason };
+      return { state: "match", local, guardian: proof };
+    }
 
     return {
       state: "unprotected",

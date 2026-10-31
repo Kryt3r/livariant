@@ -4,6 +4,7 @@ import { isStableProjectIdentity } from "../project-brain/identity.js";
 import { parseSchemaMigrationFenceRecord } from "./schema-migration-fence-contract.js";
 import { assertProductionGuardianRootReady, guardianLayoutPaths } from "./trust-root.js";
 import { assertWindowsProtectedPath } from "./windows-protection.js";
+import { inspectGuardianMigrationFenceStorage } from "./protected-helper.js";
 
 export type ProtectedMigrationFenceStatus =
   | { state: "legacy-no-fence"; reason: string }
@@ -24,7 +25,7 @@ function isMissing(error: unknown): boolean {
   return error instanceof Error && "code" in error
     && (error as NodeJS.ErrnoException).code === "ENOENT";
 }
-async function assertProtected(path: string, directory: boolean): Promise<void> {
+async function assertProtected(path: string, directory: boolean, maxBytes = MAX_BYTES): Promise<void> {
   const stat = await lstat(path);
   if (stat.isSymbolicLink() || (directory ? !stat.isDirectory() : !stat.isFile())
     || normalized(await realpath(path)) !== normalized(path)) {
@@ -37,9 +38,57 @@ async function assertProtected(path: string, directory: boolean): Promise<void> 
   } else if (process.platform === "win32") {
     assertWindowsProtectedPath(path, "Guardian schema migration fence");
   } else throw new Error("Migration fence operating system is unsupported.");
-  if (!directory && (stat.size === 0 || stat.size > MAX_BYTES)) {
+  if (!directory && (stat.nlink !== 1 || stat.size === 0 || stat.size > maxBytes)) {
     throw new Error("Migration fence record has unsupported size.");
   }
+}
+
+/** Authenticate every durable artifact BEFORE interpreting the helper's journal.
+ * Missing expected anchors/journals are checked by the single-file helper core.
+ * This is a fail-closed observation, not a shared read lease or arming proof.
+ */
+async function inspectDurableFence(recordsRoot: string, projectId: string, physical: string): Promise<ProtectedMigrationFenceStatus> {
+  const names = await readdir(recordsRoot);
+  if (names.length > 4096) return blocked("Guardian record namespace is unbounded.");
+  const marker = "schema-migration-state-v1.json";
+  const namespace = "schema-migration-v1";
+  const normalizeName = (name: string) => name.toLowerCase().replace(/[ .]+$/u, "");
+  const artifacts = names.filter(name => {
+    const canonical = normalizeName(name);
+    return canonical === marker || canonical === namespace
+      || canonical.startsWith(".schema-migration-v1.") || canonical === ".guardian-transition.lock";
+  });
+  if (artifacts.some(name => name !== normalizeName(name))) return blocked("Aliased durable migration artifact.");
+  if (artifacts.includes(".guardian-transition.lock")) return blocked("Guardian transition is in progress or requires recovery.");
+  for (const name of artifacts) {
+    if (name === namespace) {
+      const directory = resolve(recordsRoot, name);
+      await assertProtected(directory, true);
+      const journals = await readdir(directory);
+      if (journals.length > MAX_ENTRIES) return blocked("Migration journal namespace is unbounded.");
+      for (const journal of journals) {
+        if (!/^[a-f0-9-]{36}\.jsonl$/u.test(journal)) return blocked("Unexpected migration journal or alias.");
+        await assertProtected(resolve(directory, journal), false);
+      }
+    } else {
+      if (name !== marker && !/^\.schema-migration-v1\.[a-f0-9-]{36}\.anchor\.json$/u.test(name)) {
+        return blocked("Unexpected durable migration anchor.");
+      }
+      await assertProtected(resolve(recordsRoot, name), false, name === marker ? 512 * 1024 : MAX_BYTES);
+    }
+  }
+  const state = await inspectGuardianMigrationFenceStorage(recordsRoot);
+  if (state.activated && state.transactions.length === 0) return blocked("Activated migration store has no recoverable transaction.");
+  const entries = state.transactions.map(record => {
+    const parsed = parseSchemaMigrationFenceRecord(record);
+    return { name: parsed.transactionId + ".json", bytes: Buffer.from(JSON.stringify(parsed), "utf8") };
+  });
+  const result = assessUntrustedMigrationFenceRecords(entries, projectId, physical);
+  // Detect artifact insertion/removal during interpretation. This narrows the
+  // observation window; productive arming remains disabled without native leases.
+  const after = await readdir(recordsRoot);
+  if (JSON.stringify(names.sort()) !== JSON.stringify(after.sort())) return blocked("Guardian migration state changed during inspection.");
+  return result;
 }
 /** Raw material comparison alone provides NO Guardian Authority or legacy-read permission. */
 export function assessUntrustedMigrationFenceRecords(
@@ -71,9 +120,8 @@ export function assessUntrustedMigrationFenceRecords(
   return { state: "legacy-no-fence", reason: "No matching fence observed; normal protected schema-2 integrity remains mandatory." };
 }
 /**
- * Read-only Guardian-root probe. No writer/issuer exists. A missing migration
- * namespace is compatible only with legacy v2; it is NOT proof that a previously
- * armed transaction was durably cleared and MUST NOT permit schema-3 activation.
+ * Guardian-root probe of permanent anchors plus journal, retaining the older
+ * presence namespace for compatibility. No observation permits schema-3 arming.
  */
 export async function inspectProtectedMigrationFence(
   projectRoot: string,
@@ -84,7 +132,10 @@ export async function inspectProtectedMigrationFence(
     const physical = await realpath(projectRoot);
     const ready = await assertProductionGuardianRootReady(physical);
     if (!ready.root) return blocked("Guardian physical root is unavailable.");
-    const directory = resolve(guardianLayoutPaths(ready.root).records, "schema-migration");
+    const recordsRoot = guardianLayoutPaths(ready.root).records;
+    const durable = await inspectDurableFence(recordsRoot, projectId, physical);
+    if (durable.state === "blocked") return durable;
+    const directory = resolve(recordsRoot, "schema-migration");
     try {
       await assertProtected(directory, true);
     } catch (error) {

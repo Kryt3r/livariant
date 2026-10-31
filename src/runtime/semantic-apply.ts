@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { inspectProtectedMigrationFence } from "../guardian/protected-migration-fence-inspection.js";
 import { discoverProject } from "../project/discovery.js";
 import { recordAcceptedProjectBrainState } from "../project-brain/integrity.js";
 import {
@@ -74,9 +75,17 @@ function sameBaseline(left: ActionableProposal["baseline"], right: ActionablePro
 }
 
 async function assertProposalStillCurrent(proposal: ActionableProposal, projectRoot: string): Promise<void> {
+  await assertNoMigrationFence(proposal, projectRoot);
   const rebuilt = await buildActionableProposal(proposal.candidate, projectRoot);
   if (rebuilt.state !== "actionable-proposal" || !sameProposalMaterial(proposal, rebuilt.proposal)) {
     throw new Error("Canonical Project Brain state changed after authorization; refusing stale semantic mutation.");
+  }
+}
+
+async function assertNoMigrationFence(proposal: ActionableProposal, projectRoot: string): Promise<void> {
+  const fence = await inspectProtectedMigrationFence(projectRoot, proposal.stableProjectIdentity);
+  if (fence.state !== "legacy-no-fence") {
+    throw new Error("Semantic Apply blocked by protected migration fence: " + fence.reason);
   }
 }
 
@@ -326,6 +335,7 @@ export async function applyActionableProposal(
   const project = discoverProject(projectPath);
   let consumed = false;
   let authorityCompleted = false;
+  await assertNoMigrationFence(proposal, project.root);
   const mutationPlan = await buildSemanticMutationPlan(proposal, project.root);
 
   try {
@@ -345,6 +355,7 @@ export async function applyActionableProposal(
     }
 
     await options.afterPromoteBeforeVerify?.();
+    await assertNoMigrationFence(proposal, project.root);
     const verifiedPostState = await captureCoherentManagedState(project.root);
     if (!projectContextManagedInputsEqual(writerPostState, verifiedPostState)) {
       throw new Error("Managed Project Brain state changed after the authorized writer returned and before Semantic Apply verification.");
@@ -352,6 +363,7 @@ export async function applyActionableProposal(
     assertSemanticPostconditionFromInputs(proposal, verifiedPostState);
 
     await options.beforeComplete?.();
+    await assertNoMigrationFence(proposal, project.root);
     const beforeCompletion = await captureCoherentManagedState(project.root);
     if (!projectContextManagedInputsEqual(verifiedPostState, beforeCompletion)) {
       throw new Error("Managed Project Brain state changed after Semantic Apply verification and before Authority completion.");
@@ -360,6 +372,7 @@ export async function applyActionableProposal(
     await completeAuthorizationApplication(authorizationId, project.root);
     authorityCompleted = true;
     await recordAcceptedProjectBrainState(project.root, "semantic-apply");
+    await assertNoMigrationFence(proposal, project.root);
     return {
       state: "completed",
       authorizationId,

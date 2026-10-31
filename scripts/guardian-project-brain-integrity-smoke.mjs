@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cp, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { buildGuardianAuthorityRecord } from "../dist/src/guardian/authority-record.js";
+import { buildGuardianAuthorityRequest } from "../dist/src/guardian/authority-client.js";
 import { buildProjectBrainIntegrityGuardianRequest } from "../dist/src/guardian/project-brain-integrity-authority.js";
 import { ProjectBrainStore } from "../dist/src/project-brain/store.js";
 import {
@@ -21,6 +22,10 @@ import { prepareProtectedKnowledgeSchemaTransition } from "../dist/src/intellige
 import { buildProtectedProviderContext } from "../dist/src/runtime/protected-provider-context.js";
 import { buildProtectedResumeContext } from "../dist/src/runtime/protected-resume.js";
 import { FRAMEWORK_VERSION } from "../dist/src/lifecycle/state.js";
+import { inspectGuardianMigrationFenceStorage } from "../dist/src/guardian/protected-helper.js";
+import { buildProtectedSemanticProposal } from "../dist/src/runtime/protected-semantic-proposal.js";
+import { applyActionableProposal } from "../dist/src/runtime/semantic-apply.js";
+import { readDesktopProjectKnowledge, readDesktopProjectKnowledgeExplorer } from "../dist/src/project/desktop-project-knowledge.js";
 
 const RECORD_ID = "55555555-5555-4555-8555-555555555555";
 const MALFORMED_RECORD_ID = "66666666-6666-4666-8666-666666666666";
@@ -150,6 +155,25 @@ function removeProtectedFenceDirectory() {
   } else throw new Error("unsupported platform");
 }
 
+function installedHelperCommand(args) {
+  const root = resolve(protectedConsumerDirectory(), "..", "..");
+  const helper = resolve(root, "guardian-helper.js");
+  return process.platform === "linux"
+    ? { executable: "/usr/bin/sudo", args: [process.execPath, helper, ...args] }
+    : { executable: process.execPath, args: [helper, ...args] };
+}
+async function invokeInstalledHelper(args) {
+  const command = installedHelperCommand(args);
+  return new Promise((resolveResult, reject) => {
+    const child = spawn(command.executable, command.args, { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", chunk => { stdout += chunk; });
+    child.stderr.on("data", chunk => { stderr += chunk; });
+    child.once("error", reject);
+    child.once("close", status => resolveResult({ status, stdout, stderr }));
+  });
+}
+
 async function bootstrap(project) {
   const store = new ProjectBrainStore(project);
   await store.bootstrap(
@@ -170,7 +194,7 @@ async function localMatch(project) {
   return state;
 }
 
-async function stageExactProtectedRecord(project, staging) {
+async function stageExactProtectedRecord(project, staging, recordId = RECORD_ID) {
   const local = await localMatch(project);
   const material = buildProjectBrainIntegrityGuardianRequest({
     stableProjectIdentity: local.receipt.stableProjectIdentity,
@@ -183,17 +207,20 @@ async function stageExactProtectedRecord(project, staging) {
     consumer: "project-brain-integrity",
     mode: "persistent",
     materialSha256: material.materialSha256,
-    recordId: RECORD_ID,
+    recordId,
   });
-  const source = resolve(staging, `${RECORD_ID}.json`);
+  const source = resolve(staging, `${recordId}.json`);
   await writeFile(source, `${JSON.stringify(record, null, 2)}\n`, "utf8");
-  installProtectedRecord(source, protectedRecordPath(RECORD_ID));
+  installProtectedRecord(source, protectedRecordPath(recordId));
   return { local, material, record };
 }
 
 const project = await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-smoke-"));
 const copiedProject = await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-copy-"));
 const staging = await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-record-"));
+const unrelatedProject = await mkdtemp(resolve(tmpdir(), "livariant-guardian-unrelated-"));
+const unrelatedIntegrityId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const unrelatedConsumeId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 try {
   const store = await bootstrap(project);
   const originalMetadata = await readFile(resolve(project, ".project-brain", "metadata.json"), "utf8");
@@ -379,11 +406,112 @@ try {
   assert.equal(malformed.state, "invalid");
   assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
 
+  // Actual installed, OS-protected writer. This quarantines only disposable CI
+  // fixtures and intentionally leaves recovery artifacts for workflow teardown.
+  // It never arms a migration, grants Authority or changes canonical documents.
+  assert.equal(process.env.GITHUB_ACTIONS, "true", "Durable quarantine smoke requires the disposable GitHub Actions Guardian fixture");
+  removeProtectedRecord(protectedRecordPath(MALFORMED_RECORD_ID));
+  installProtectedRecord(resolve(staging, RECORD_ID + ".json"), protectedRecordPath(RECORD_ID));
+  assert.equal((await runProtectedDoctor(project)).state, "healthy");
+  const durableRequest = { ...fenceRecord, phase: "recovery-required", sequence: 1 };
+  await bootstrap(unrelatedProject);
+  const unrelated = await stageExactProtectedRecord(unrelatedProject, staging, unrelatedIntegrityId);
+  assert.equal((await runProtectedDoctor(unrelatedProject)).state, "healthy");
+  const durableRequestPath = resolve(staging, "deny-request.json");
+  await writeFile(durableRequestPath, JSON.stringify(durableRequest) + "\n", "utf8");
+  const armed = await invokeInstalledHelper(["arm-migration-fence", "--request", durableRequestPath]);
+  assert.notEqual(armed.status, 0);
+  assert.match(armed.stderr, /disabled|unproven/i);
+  let created;
+  // The snapshot is already being assembled when a separate privileged process
+  // commits the denial. Its protected completion check must reject the result.
+  const racingSnapshot = await buildProtectedProjectContextSnapshot(project, {
+    beforeRevalidate: async () => {
+      const attempts = await Promise.all([
+        invokeInstalledHelper(["deny-migration-fence", "--request", durableRequestPath]),
+        invokeInstalledHelper(["deny-migration-fence", "--request", durableRequestPath]),
+      ]);
+      assert.equal(attempts.filter(result => result.status === 0).length, 1, JSON.stringify(attempts));
+      created = attempts.find(result => result.status === 0);
+    },
+  });
+  assert.equal(racingSnapshot.safetyState, "blocked");
+  assert.ok(created);
+  const createdResult = JSON.parse(created.stdout);
+  assert.equal(createdResult.state, "recovery-required");
+  assert.equal(createdResult.armed, false);
+  assert.equal(createdResult.migrationAuthorityIssued, false);
+  assert.equal(createdResult.canonicalWritesPerformed, false);
+  const records = resolve(protectedConsumerDirectory(), "..");
+  const durableState = await inspectGuardianMigrationFenceStorage(records);
+  assert.equal(durableState.activated, true);
+  assert.equal(durableState.transactions.length, 1);
+  assert.equal((await runProtectedDoctor(unrelatedProject)).state, "healthy", "Never-migrated project B remains readable");
+  const unrelatedMaterial = buildGuardianAuthorityRequest({ consumer: "semantic-mutation", mode: "one-shot", materialFields: [
+    { label: "stable-project-identity", value: unrelated.local.receipt.stableProjectIdentity },
+    { label: "physical-project-root", value: await realpath(unrelatedProject) },
+  ] });
+  const unrelatedRecord = buildGuardianAuthorityRecord({ consumer: "semantic-mutation", mode: "one-shot",
+    materialSha256: unrelatedMaterial.materialSha256, recordId: unrelatedConsumeId,
+    expiresAt: new Date(Date.now() + 600000).toISOString() });
+  const unrelatedSource = resolve(staging, "unrelated-authority.json");
+  await writeFile(unrelatedSource, JSON.stringify(unrelatedRecord) + "\n");
+  const semanticDirectory = resolve(protectedConsumerDirectory(), "..", "semantic-mutation");
+  // Consumer directory is normally provisioned by issuance; provision this
+  // fixture without minting any interactive Authority or changing a project.
+  if (process.platform === "linux") {
+    protectedCommand(spawnSync("/usr/bin/sudo", ["install", "-d", "-o", "root", "-g", "root", "-m", "0755", semanticDirectory], { encoding: "utf8", shell: false }), "provision unrelated Authority fixture directory");
+  } else {
+    protectedCommand(spawnSync("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "[void][System.IO.Directory]::CreateDirectory($env:LIVARIANT_TEST_FENCE_DIRECTORY)"], { encoding: "utf8", shell: false, windowsHide: true, env: { ...process.env, LIVARIANT_TEST_FENCE_DIRECTORY: semanticDirectory } }), "provision unrelated Authority fixture directory");
+  }
+  installProtectedRecord(unrelatedSource, resolve(semanticDirectory, unrelatedConsumeId + ".json"));
+  const unrelatedRequestPath = resolve(staging, "unrelated-consume.json");
+  await writeFile(unrelatedRequestPath, JSON.stringify(unrelatedMaterial.request) + "\n");
+  const consumedB = await invokeInstalledHelper(["consume-authority", "--consumer", "semantic-mutation", "--record", unrelatedConsumeId,
+    "--material", unrelatedMaterial.materialSha256, "--request", unrelatedRequestPath]);
+  if (consumedB.status !== 0) fail("unrelated project B protected consumption", consumedB);
+  assert.equal(JSON.parse(consumedB.stdout).authority.state, "consumed");
+  assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "invalid");
+  assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
+  assert.equal((await buildProtectedProjectContextSnapshot(project)).safetyState, "blocked");
+  assert.equal((await buildProtectedProviderContext("codex", "Durable quarantine", project)).state, "blocked");
+  await assert.rejects(buildProtectedResumeContext(project));
+  assert.equal((await buildProtectedSemanticProposal(semanticCandidate, project)).state, "blocked");
+  await assert.rejects(readDesktopProjectKnowledge(project), /blocked|protection/i);
+  await assert.rejects(readDesktopProjectKnowledgeExplorer(project), /blocked|protection/i);
+  await assert.rejects(applyActionableProposal(randomUUID(), preparedSemantic.proposal, project), /migration.fence/i);
+  await assert.rejects(establishProtectedProjectBrainIntegrityState(project, "manual-bootstrap"), /migration.fence/i);
+  await assert.rejects(issueSemanticGuardianAuthority(randomUUID(), preparedSemantic.proposal, project), /migration.fence/i);
+  await assert.rejects(consumeSemanticGuardianAuthority(randomUUID(), preparedSemantic.proposal, project), /migration.fence/i);
+  // A separate installed process cannot clear or promote this terminal denial.
+  for (const command of ["complete-migration-fence", "clear-migration-fence"]) {
+    assert.notEqual((await invokeInstalledHelper([command])).status, 0);
+  }
+  assert.equal(await readFile(resolve(project, ".project-brain", "metadata.json"), "utf8"), originalMetadata);
+  assert.equal(await store.readKnowledgeDocument(), originalKnowledge);
+  // Two privileged processes contend on the production transition lock. No
+  // replay succeeds; a failed transition may conservatively retain its lock.
+  const replays = await Promise.all([
+    invokeInstalledHelper(["deny-migration-fence", "--request", durableRequestPath]),
+    invokeInstalledHelper(["deny-migration-fence", "--request", durableRequestPath]),
+  ]);
+  assert.ok(replays.every(result => result.status !== 0));
+  await assert.rejects(lstat(resolve(records, ".guardian-transition.lock")), { code: "ENOENT" }, "Known replay denial must not leave a global lock");
+  // Simulate loss of the committed journal using explicit fixture-only admin
+  // deletion. The inventory/anchor/lock must preserve denial after restart.
+  removeProtectedRecord(resolve(records, "schema-migration-v1", durableRequest.transactionId + ".jsonl"));
+  await assert.rejects(inspectGuardianMigrationFenceStorage(records), /journal|inventory|anchor|disagree|lost/i);
+  assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
+  console.log("Durable deny-only fence: installed privileged writer, restart inspection, protected consumer denial, concurrent replay refusal and lost-journal fail-closed passed; productive arming and Windows power-loss proof remain disabled/unproven.");
+
   console.log("Protected Project Brain Integrity acceptance passed: exact Guardian acceptance enabled protected Context, Resume, Provider Context, and Doctor; direct mutation, forged local re-acceptance, stable-id substitution, physical copy, Guardian removal, and malformed protected state all failed closed.");
 } finally {
   removeProtectedRecord(protectedRecordPath(RECORD_ID));
   removeProtectedRecord(protectedRecordPath(MALFORMED_RECORD_ID));
+  removeProtectedRecord(protectedRecordPath(unrelatedIntegrityId));
+  removeProtectedRecord(resolve(protectedConsumerDirectory(), "..", "semantic-mutation", unrelatedConsumeId + ".json"));
   await rm(project, { recursive: true, force: true });
   await rm(copiedProject, { recursive: true, force: true });
   await rm(staging, { recursive: true, force: true });
+  await rm(unrelatedProject, { recursive: true, force: true });
 }
