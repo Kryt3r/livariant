@@ -417,3 +417,22 @@ test("LIL Knowledge Explorer Desktop IPC remains read-only, protected and tied t
   assert.match(bridge, /mutationSupported: false/);
   assert.match(bridge, /grantsAuthority: false/);
 });
+
+
+test("Desktop canonical read endpoints revalidate protected migration fence after materialization", async () => {
+  const core = await readFile("src/project/desktop-project-knowledge.ts", "utf8");
+  const simple = core.slice(core.indexOf("export async function readDesktopProjectKnowledge("),
+    core.indexOf("export async function readDesktopProjectKnowledgeExplorer("));
+  const explorer = core.slice(core.indexOf("export async function readDesktopProjectKnowledgeExplorer("),
+    core.indexOf("export interface DesktopProjectKnowledgeIntegrityAuthorityPreparation"));
+  assert.match(simple, /const snapshot = await localProjectKnowledgeSnapshot\(projectPath\)/);
+  assert.match(simple, /const after = await projectKnowledgeProtectionStatus\(projectPath, checkoutPath\)/);
+  assert.match(simple, /!after\.canonicalReadReady/);
+  assert.match(simple, /status\.integrity\.digest !== after\.integrity\.digest/);
+  assert.match(simple, /stale output refused/);
+  assert.match(explorer, /const fresh = await buildProjectKnowledgeProjection\(projectPath\)/);
+  assert.match(explorer, /const finalIntegrity = await inspectProtectedProjectBrainIntegrity\(projectPath\)/);
+  assert.match(explorer, /finalIntegrity\.state !== "match"/);
+  assert.match(explorer, /finalIntegrity\.local\.receipt\.stableProjectIdentity !== projected\.stableProjectIdentity/);
+  assert.match(explorer, /stale canonical projection refused/);
+});

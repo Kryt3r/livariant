@@ -351,7 +351,16 @@ export async function readDesktopProjectKnowledge(
   if (!status.canonicalReadReady) {
     throw new Error(`Canonical Project Knowledge is blocked until protected Project Brain integrity is ready; current protection state is ${status.state}.`);
   }
-  return localProjectKnowledgeSnapshot(projectPath);
+  const snapshot = await localProjectKnowledgeSnapshot(projectPath);
+  // Revalidate protected Guardian state after materialization. The original
+  // pre-read status cannot be treated as proof that a migration fence was not
+  // armed while the local Project Brain documents were being assembled.
+  const after = await projectKnowledgeProtectionStatus(projectPath, checkoutPath);
+  if (!after.canonicalReadReady || !status.integrity.digest
+      || status.integrity.digest !== after.integrity.digest) {
+    throw new Error("Canonical Project Knowledge became unprotected, migrated or changed during read; stale output refused.");
+  }
+  return snapshot;
 }
 
 /**
@@ -384,6 +393,16 @@ export async function readDesktopProjectKnowledgeExplorer(
       || fresh.baseline.digest !== projected.baseline.digest
       || fresh.baseline.schemaVersion !== projected.baseline.schemaVersion) {
     throw new Error("Knowledge Explorer changed during protected read; stale projection rejected.");
+  }
+  // This check MUST follow even the final derived projection; otherwise a
+  // migration fence armed between the previous protected read and the last
+  // projection could leak a formerly accepted snapshot to the Desktop.
+  // It narrows that race; only future shared Guardian serialization can make
+  // migration fencing atomic across independent processes.
+  const finalIntegrity = await inspectProtectedProjectBrainIntegrity(projectPath);
+  if (finalIntegrity.state !== "match"
+      || finalIntegrity.local.receipt.stableProjectIdentity !== projected.stableProjectIdentity) {
+    throw new Error("Knowledge Explorer became unprotected or migration-fenced before return; stale canonical projection refused.");
   }
   return projected;
 }
