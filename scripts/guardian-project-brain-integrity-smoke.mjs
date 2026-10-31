@@ -92,6 +92,61 @@ function removeProtectedRecord(destination) {
   throw new Error("unsupported platform");
 }
 
+
+const MIGRATION_TEST_TX = "77777777-7777-4777-8777-777777777777";
+function fenceDirectory() {
+  return resolve(process.platform === "linux"
+    ? "/var/lib/livariant-guardian/v1/records/schema-migration"
+    : "C:\\ProgramData\\Livariant\\Guardian\\v1\\records\\schema-migration");
+}
+function protectedCommand(result, label) {
+  if (result.error || result.status !== 0) fail(label, result);
+}
+function createProtectedFenceDirectory() {
+  const directory = fenceDirectory();
+  if (process.platform === "linux") {
+    protectedCommand(spawnSync("/usr/bin/sudo",
+      ["install", "-d", "-o", "root", "-g", "root", "-m", "0555", directory],
+      { encoding: "utf8", shell: false }), "install protected migration test namespace");
+  } else if (process.platform === "win32") {
+    const script = [
+      "$ErrorActionPreference='Stop'",
+      "$path=$env:LIVARIANT_TEST_FENCE_DIRECTORY",
+      "if([System.IO.Directory]::Exists($path)){throw 'Migration test namespace unexpectedly exists'}",
+      "[void][System.IO.Directory]::CreateDirectory($path)",
+      "$acl=[System.IO.Directory]::GetAccessControl($path)",
+      "$acl.SetOwner((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')))",
+      "$acl.SetAccessRuleProtection($true,$false)",
+      "$acl.Access | ForEach-Object { [void]$acl.RemoveAccessRule($_) }",
+      "$allow=[System.Security.AccessControl.AccessControlType]::Allow",
+      "$inherit=[System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit",
+      "$none=[System.Security.AccessControl.PropagationFlags]::None",
+      "$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')),'FullControl',$inherit,$none,$allow)))",
+      "$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')),'FullControl',$inherit,$none,$allow)))",
+      "$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-545')),'ReadAndExecute',$inherit,$none,$allow)))",
+      "[System.IO.Directory]::SetAccessControl($path,$acl)",
+    ].join("; ");
+    protectedCommand(spawnSync("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { encoding: "utf8", shell: false, windowsHide: true,
+        env: { ...process.env, LIVARIANT_TEST_FENCE_DIRECTORY: directory } }),
+      "install Windows protected migration test namespace");
+  } else throw new Error("unsupported platform");
+}
+function removeProtectedFenceDirectory() {
+  if (process.platform === "linux") {
+    protectedCommand(spawnSync("/usr/bin/sudo", ["rmdir", fenceDirectory()],
+      { encoding: "utf8", shell: false }), "remove protected migration test namespace");
+  } else if (process.platform === "win32") {
+    protectedCommand(spawnSync("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command",
+        "$ErrorActionPreference='Stop'; [System.IO.Directory]::Delete($env:LIVARIANT_TEST_FENCE_DIRECTORY)"],
+      { encoding: "utf8", shell: false, windowsHide: true,
+        env: { ...process.env, LIVARIANT_TEST_FENCE_DIRECTORY: fenceDirectory() } }),
+      "remove protected Windows migration test namespace");
+  } else throw new Error("unsupported platform");
+}
+
 async function bootstrap(project) {
   const store = new ProjectBrainStore(project);
   await store.bootstrap(
@@ -187,6 +242,50 @@ try {
   assert.equal(protectedProvider.mutationAuthorization, false);
   assert.equal(protectedProvider.changesMade, 0);
   assert.equal(typeof protectedProvider.packetId, "string");
+
+
+  // WP-058 real OS-protected read-gate integration: a deliberately staged
+  // mock fence is NOT a real issuance, migration or user project mutation.
+  // Its mere protected presence must block all canonical read surfaces.
+  const fenceSource = resolve(staging, MIGRATION_TEST_TX + ".json");
+  const fencePath = resolve(fenceDirectory(), MIGRATION_TEST_TX + ".json");
+  const physical = await realpath(project);
+  const sourceBaseline = (await import("../dist/src/runtime/project-context-material.js"))
+    .buildProjectContextBaseline(
+      await (await import("../dist/src/runtime/project-context-material.js"))
+        .readProjectContextManagedInputs(resolve(project, ".project-brain")), 2);
+  const fenceRecord = {
+    schemaVersion: 1, kind: "livariant-guardian-schema-migration-fence",
+    stableProjectIdentity: staged.local.receipt.stableProjectIdentity,
+    transactionId: MIGRATION_TEST_TX,
+    authorizationOperationId: "88888888-8888-4888-8888-888888888888",
+    protectedSourceRecordId: RECORD_ID,
+    declaredPhysicalProjectRoot: physical,
+    declaredPhysicalProjectBrainRoot: await realpath(resolve(project, ".project-brain")),
+    sourceSchemaVersion: 2, targetSchemaVersion: 3,
+    sourceBaselineDomain: sourceBaseline.domain,
+    sourceBaselineSha256: sourceBaseline.digest,
+    sourceProtectedIntegrityMaterialSha256: staged.material.materialSha256,
+    proposedTargetDomain: protectedTransition.plan.proposedTarget.targetDigestDomain,
+    proposedTargetSha256: protectedTransition.plan.proposedTarget.targetDigest,
+    migrationIntentSha256: "f".repeat(64), phase: "armed", sequence: 0,
+  };
+  await writeFile(fenceSource, JSON.stringify(fenceRecord, null, 2) + "\n", "utf8");
+  createProtectedFenceDirectory();
+  try {
+    installProtectedRecord(fenceSource, fencePath);
+    const blockedFence = await inspectProtectedProjectBrainIntegrity(project);
+    assert.equal(blockedFence.state, "invalid", "protected migration fence must override healthy v2 integrity");
+    assert.notEqual((await runProtectedDoctor(project)).state, "healthy");
+    assert.equal((await buildProtectedProjectContextSnapshot(project)).safetyState, "blocked");
+    assert.equal((await buildProtectedProviderContext("codex", "migration fence safety acceptance", project)).state, "blocked");
+    await assert.rejects(buildProtectedResumeContext(project));
+  } finally {
+    removeProtectedRecord(fencePath);
+    removeProtectedFenceDirectory();
+  }
+  assert.equal((await inspectProtectedProjectBrainIntegrity(project)).state, "match");
+  assert.equal((await runProtectedDoctor(project)).state, "healthy");
 
   // Direct managed-byte mutation must be detected before any local receipt rewrite.
   const mutatedKnowledge = `${originalKnowledge.trimEnd()}\n\n## Confirmed project knowledge\n\n- same-user direct mutation attack\n`;
