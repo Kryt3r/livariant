@@ -1,5 +1,6 @@
 import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
+import { inspectProtectedMigrationFence } from "../guardian/protected-migration-fence-inspection.js";
 import type { GuardianAuthorityRecord } from "../guardian/authority-record.js";
 import { findMatchingConsumedGuardianAuthority } from "../guardian/authority-client.js";
 import { buildSemanticGuardianAuthorityRequestFromBinding } from "../guardian/semantic-authority.js";
@@ -88,6 +89,13 @@ export async function inspectProtectedProjectBrainIntegrity(
   if (local.state === "invalid") return { state: "invalid", local, reason: local.reason };
 
   try {
+    // This central protected boundary is shared by Doctor, Context, Resume,
+    // Provider and the protected Project Intelligence read paths. Even an
+    // apparently completed migration fence cannot authorize v3 here.
+    const fence = await inspectProtectedMigrationFence(projectRoot, local.receipt.stableProjectIdentity);
+    if (fence.state === "blocked") {
+      return { state: "invalid", local, reason: fence.reason };
+    }
     const protectedState = await findProjectBrainIntegrityGuardianAuthority(integrityIdentity(local), projectRoot);
     if (protectedState.record) return { state: "match", local, guardian: protectedState.record };
 
