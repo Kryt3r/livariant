@@ -1,6 +1,7 @@
 import { realpath } from "node:fs/promises";
 import { resolve } from "node:path";
 import { ProjectBrainStore } from "./store.js";
+import { isStableProjectIdentity } from "./identity.js";
 import { inspectProtectedMigrationFence } from "../guardian/protected-migration-fence-inspection.js";
 import type { GuardianAuthorityRecord } from "../guardian/authority-record.js";
 import { findMatchingConsumedGuardianAuthority } from "../guardian/authority-client.js";
@@ -127,8 +128,8 @@ export async function establishProtectedProjectBrainIntegrityState(
   // This check is not a transaction lock; no real v3 migration is enabled.
   const store = new ProjectBrainStore(projectRoot);
   const metadata = await store.readMetadata();
-  if (metadata.projectBrain.schemaVersion !== 2) {
-    throw new Error("Legacy Project Brain integrity establishment requires schema 2.");
+  if (metadata.projectBrain.schemaVersion !== 2 || !isStableProjectIdentity(metadata.projectBrain.projectId)) {
+    throw new Error("Legacy Project Brain integrity establishment requires schema 2 and a valid stable project identity.");
   }
   const fence = await inspectProtectedMigrationFence(projectRoot, metadata.projectBrain.projectId);
   if (fence.state !== "legacy-no-fence") {
