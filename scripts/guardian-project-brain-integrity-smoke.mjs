@@ -11,7 +11,10 @@ import {
   inspectProjectBrainIntegrity,
   recordAcceptedProjectBrainState,
 } from "../dist/src/project-brain/integrity.js";
-import { inspectProtectedProjectBrainIntegrity } from "../dist/src/project-brain/protected-integrity.js";
+import { inspectProtectedProjectBrainIntegrity, establishProtectedProjectBrainIntegrityState } from "../dist/src/project-brain/protected-integrity.js";
+import { issueSemanticGuardianAuthority, consumeSemanticGuardianAuthority } from "../dist/src/guardian/semantic-authority-transition.js";
+import { buildActionableProposal } from "../dist/src/runtime/actionable-proposal.js";
+import { parseSemanticProposalCandidate } from "../dist/src/runtime/semantic-proposal.js";
 import { buildProtectedProjectContextSnapshot } from "../dist/src/runtime/protected-context.js";
 import { runProtectedDoctor } from "../dist/src/runtime/protected-doctor.js";
 import { prepareProtectedKnowledgeSchemaTransition } from "../dist/src/intelligence/protected-knowledge-schema-transition.js";
@@ -271,6 +274,15 @@ try {
     migrationIntentSha256: "f".repeat(64), phase: "armed", sequence: 0,
   };
   await writeFile(fenceSource, JSON.stringify(fenceRecord, null, 2) + "\n", "utf8");
+  const semanticCandidate = parseSemanticProposalCandidate({
+    schemaVersion: 1, domain: "project-decision", changeKind: "add",
+    proposedStatement: "Keep migration authorization distinct from existing semantic changes",
+    rationale: "Verify an existing mutation path cannot run across a schema migration fence",
+    origin: "explicit-user",
+  });
+  const preparedSemantic = await buildActionableProposal(semanticCandidate, project);
+  assert.equal(preparedSemantic.state, "actionable-proposal");
+  if (preparedSemantic.state !== "actionable-proposal") throw new Error("Expected legacy schema-2 proposal fixture");
   createProtectedFenceDirectory();
   try {
     installProtectedRecord(fenceSource, fencePath);
@@ -280,6 +292,21 @@ try {
     assert.equal((await buildProtectedProjectContextSnapshot(project)).safetyState, "blocked");
     assert.equal((await buildProtectedProviderContext("codex", "migration fence safety acceptance", project)).state, "blocked");
     await assert.rejects(buildProtectedResumeContext(project));
+    // No local accepted-state receipt may be advanced before fenced integrity
+    // is refused. Existing Semantic Authority cannot be issued or consumed
+    // while an independently protected schema migration status is present.
+    let localReceiptCommitAttempted = false;
+    await assert.rejects(establishProtectedProjectBrainIntegrityState(project, "manual-bootstrap", {
+      beforeCommit: () => { localReceiptCommitAttempted = true; },
+    }), /migration.fence/i);
+    assert.equal(localReceiptCommitAttempted, false);
+    const semanticAuthorization = "99999999-9999-4999-8999-999999999999";
+    await assert.rejects(issueSemanticGuardianAuthority(
+      semanticAuthorization, preparedSemantic.proposal, project,
+    ), /migration.fence/i);
+    await assert.rejects(consumeSemanticGuardianAuthority(
+      semanticAuthorization, preparedSemantic.proposal, project,
+    ), /migration.fence/i);
   } finally {
     removeProtectedRecord(fencePath);
     removeProtectedFenceDirectory();
