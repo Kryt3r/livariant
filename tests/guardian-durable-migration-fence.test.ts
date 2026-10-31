@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, rename, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile, rename, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -14,7 +14,7 @@ import { assertGuardianRequestNotMigrationFenced, protectedGuardianMaterialDiges
 // These exercise the ACTUAL exported production core on real filesystem and
 // child processes. Temp fixtures are NOT protected Guardian-installation proof.
 async function fixture() {
-  const root = await mkdtemp(resolve(tmpdir(), "livariant-real-fence-core-"));
+  const root = await realpath(await mkdtemp(resolve(tmpdir(), "livariant-real-fence-core-")));
   const records = resolve(root, "records");
   const project = resolve(root, "project");
   const brain = resolve(project, ".project-brain");
@@ -36,7 +36,7 @@ async function fixture() {
   const binding = parseDeniedMigrationFence({ schemaVersion: 1, kind: "livariant-guardian-schema-migration-fence", stableProjectIdentity: projectId, transactionId: randomUUID(), authorizationOperationId: randomUUID(), protectedSourceRecordId: sourceId, declaredPhysicalProjectRoot: project, declaredPhysicalProjectBrainRoot: brain, sourceSchemaVersion: 2, targetSchemaVersion: 3, sourceBaselineDomain: "livariant:project-context-baseline:v1", sourceBaselineSha256: buildProjectContextBaseline(inputs as never, 2).digest, sourceProtectedIntegrityMaterialSha256: source.materialSha256, proposedTargetDomain: "livariant:proposed-project-brain-v3-target:v1", proposedTargetSha256: "a".repeat(64), migrationIntentSha256: "b".repeat(64), phase: "recovery-required", sequence: 1 });
   return { root, records, project, brain, binding, inputs };
 }
-async function clean(root: string) { assert.ok(root.startsWith(resolve(tmpdir(), "livariant-real-fence-core-"))); await rm(root, { recursive: true, force: true }); }
+async function clean(root: string) { assert.ok(root.startsWith(resolve(await realpath(tmpdir()), "livariant-real-fence-core-"))); await rm(root, { recursive: true, force: true }); }
 const helperURL = pathToFileURL(fileURLToPath(new URL("../src/guardian/protected-helper.js", import.meta.url))).href;
 async function childPaused(records: string, binding: DeniedMigrationFence, checkpoint: string): Promise<ChildProcess> {
   const code = `import { createDeniedGuardianMigrationFence } from ${JSON.stringify(helperURL)};

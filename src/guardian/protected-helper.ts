@@ -777,7 +777,10 @@ async function fencePathIdentity(path: string, directory: boolean): Promise<stri
   let current = absolute;
   for (;;) {
     const stat = await lstat(current);
-    if (stat.isSymbolicLink() || normalizedFencePath(await realpath(current)) !== normalizedFencePath(current)) throw new Error("Migration path contains an alias, junction or symbolic link.");
+    const physical = await realpath(current);
+    if (stat.isSymbolicLink() || normalizedFencePath(physical) !== normalizedFencePath(current)) {
+      throw new Error("Migration path contains an alias, junction or symbolic link: " + current + " -> " + physical);
+    }
     if (current === absolute && (directory ? !stat.isDirectory() : !stat.isFile())) throw new Error("Migration entry has an invalid file type.");
     const parent = dirname(current);
     if (parent === current) break;

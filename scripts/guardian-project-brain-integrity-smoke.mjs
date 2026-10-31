@@ -216,10 +216,12 @@ async function stageExactProtectedRecord(project, staging, recordId = RECORD_ID)
   return { local, material, record };
 }
 
-const project = await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-smoke-"));
-const copiedProject = await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-copy-"));
-const staging = await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-record-"));
-const unrelatedProject = await mkdtemp(resolve(tmpdir(), "livariant-guardian-unrelated-"));
+// A Windows runner may advertise TEMP through an 8.3 alias. Test requests must
+// use the real path; the privileged writer must continue to reject aliases.
+const project = await realpath(await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-smoke-")));
+const copiedProject = await realpath(await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-copy-")));
+const staging = await realpath(await mkdtemp(resolve(tmpdir(), "livariant-guardian-integrity-record-")));
+const unrelatedProject = await realpath(await mkdtemp(resolve(tmpdir(), "livariant-guardian-unrelated-")));
 const unrelatedIntegrityId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const unrelatedConsumeId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 try {
