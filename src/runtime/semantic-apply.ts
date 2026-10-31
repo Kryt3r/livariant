@@ -335,7 +335,6 @@ export async function applyActionableProposal(
   const project = discoverProject(projectPath);
   let consumed = false;
   let authorityCompleted = false;
-  await assertNoMigrationFence(proposal, project.root);
   const mutationPlan = await buildSemanticMutationPlan(proposal, project.root);
 
   try {

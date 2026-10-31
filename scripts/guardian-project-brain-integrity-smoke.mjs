@@ -158,9 +158,10 @@ function removeProtectedFenceDirectory() {
 function installedHelperCommand(args) {
   const root = resolve(protectedConsumerDirectory(), "..", "..");
   const helper = resolve(root, "guardian-helper.js");
+  const interpreter = resolve(root, process.platform === "win32" ? "guardian-node.exe" : "guardian-node");
   return process.platform === "linux"
-    ? { executable: "/usr/bin/sudo", args: [process.execPath, helper, ...args] }
-    : { executable: process.execPath, args: [helper, ...args] };
+    ? { executable: "/usr/bin/sudo", args: [interpreter, helper, ...args] }
+    : { executable: interpreter, args: [helper, ...args] };
 }
 async function invokeInstalledHelper(args) {
   const command = installedHelperCommand(args);
