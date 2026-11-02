@@ -163,6 +163,8 @@ const state: CockpitState = {
   sessionDisclosureState: new Map(),
 };
 let projectActivationGeneration = 0;
+let refreshRequestGeneration = 0;
+let liveRefreshInFlight = false;
 
 const lang = <T>(en: T, de: T): T => getLanguage() === "de" ? de : en;
 const diagnosticsErrorCopy = (kind: "load" | "export"): string => kind === "export"
@@ -251,30 +253,24 @@ const renderSessionAction = (provider: "codex" | "claude" | "gemini", providerIt
   return `<button type="button" class="button secondary dc-session-action" data-provider-session-action="${action}" data-provider="${provider}" data-provider-item-id="${esc(providerItemId)}">${label}</button>`;
 };
 
-const renderLimitedSessionRows = (rows: string[], initial = 12) => {
+const renderLimitedSessionRows = (rows: string[], disclosureKey: string, initial = 12) => {
   const visible = rows.slice(0, initial).join("");
   const older = rows.slice(initial);
   return `<div class="dc-session-list">${visible}</div>${older.length
-    ? `<details class="dc-session-more"><summary>${lang("Show older sessions", "Ältere Sessions anzeigen")} <strong>${older.length}</strong></summary><div class="dc-session-list">${older.join("")}</div></details>`
+    ? `<details class="dc-session-more" data-dc-session-disclosure="${disclosureKey}" ${sessionDisclosureOpen(disclosureKey) ? "open" : ""}><summary>${lang("Show older sessions", "Ältere Sessions anzeigen")} <strong>${older.length}</strong></summary><div class="dc-session-list">${older.join("")}</div></details>`
     : ""}`;
 };
-async function refreshSessionEvidence(): Promise<void> {
+async function refreshSessionEvidence(previous: ProviderSessionEvidence): Promise<ProviderSessionEvidence> {
   const [codex, hooks] = await Promise.allSettled([
     invoke<CodexReconciliation>("reconcile_codex_provider_sessions"),
     invoke<HookReconciliation>("reconcile_provider_hook_sessions"),
   ]);
-  if (codex.status === "fulfilled") {
-    state.sessions.codex = codex.value;
-    state.sessions.codexError = null;
-  } else {
-    state.sessions.codexError = codex.reason instanceof Error ? codex.reason.message : String(codex.reason);
-  }
-  if (hooks.status === "fulfilled") {
-    state.sessions.hooks = hooks.value;
-    state.sessions.hooksError = null;
-  } else {
-    state.sessions.hooksError = hooks.reason instanceof Error ? hooks.reason.message : String(hooks.reason);
-  }
+  return {
+    codex: codex.status === "fulfilled" ? codex.value : previous.codex,
+    hooks: hooks.status === "fulfilled" ? hooks.value : previous.hooks,
+    codexError: codex.status === "fulfilled" ? null : codex.reason instanceof Error ? codex.reason.message : String(codex.reason),
+    hooksError: hooks.status === "fulfilled" ? null : hooks.reason instanceof Error ? hooks.reason.message : String(hooks.reason),
+  };
 }
 
 const telemetryStateLabel = (state: DiagnosticsTelemetryProviderState["state"]) => ({
@@ -448,7 +444,7 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
         <span class="dc-session-state ${stateClass}">${codexAttributionLabel(binding.attribution)}</span>
         <div class="dc-session-actions">${primaryAction}${secondaryAction}</div>
       </article>`;
-    }));
+    }), `codex:${relation}:older`);
     const current = reconciliation.bindings.filter((binding) => belongsToDiagnosticsProject(binding.project, data.scope.projectId));
     const other = reconciliation.bindings.filter((binding) => binding.project !== null && !belongsToDiagnosticsProject(binding.project, data.scope.projectId));
     const unattributed = reconciliation.bindings.filter((binding) => binding.project === null);
@@ -457,7 +453,7 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
       : `<div class="dc-session-empty">${lang("No Codex sessions are currently assigned to this project.", "Aktuell ist diesem Projekt keine Codex-Session zugeordnet.")}</div>`;
     const diagnosticsGroups = [
       unattributed.length ? `<details class="dc-session-diagnostic-group warning" data-dc-session-disclosure="codex:unattributed" ${sessionDisclosureOpen("codex:unattributed", true) ? "open" : ""}><summary><span>${lang("Unassigned sessions", "Nicht zugeordnete Sessions")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div><p class="dc-session-guidance">${lang("The project could not be detected automatically. Assign only sessions you recognize.", "Das Projekt konnte nicht automatisch erkannt werden. Ordne nur Sessions zu, die du erkennst.")}</p>${renderCodexRows(unattributed, "unattributed")}</div></details>` : "",
-      other.length ? `<details class="dc-session-diagnostic-group" data-dc-session-disclosure="codex:other" ${sessionDisclosureOpen("codex:other") ? "open" : ""}><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderCodexRows(other, "other")}</div></details>` : "",
+      other.length ? `<div class="dc-session-diagnostic-group"><span>${lang("Sessions assigned to other registered projects", "Sessions in anderen registrierten Projekten")}</span><strong>${other.length}</strong></div>` : "",
     ].join("");
     const catalogSummary = `<div class="dc-session-catalog-summary"><span>Codex</span><strong>${reconciliation.bindings.length} ${lang("detected sessions", "erkannte Sessions")}</strong><small>${current.length} ${lang("assigned to this project", "diesem Projekt zugeordnet")} · ${unattributed.length} ${lang("unassigned", "nicht zugeordnet")}</small></div>`;
     const runtimeWorkspace = reconciliation.runtimeWorkspaceEvidence;
@@ -525,14 +521,14 @@ const renderSessionRows = (provider: "codex" | "claude" | "gemini", data: Diagno
       <span class="dc-session-state ${stateClass}">${label}</span>
       <div class="dc-session-actions">${primaryAction}${secondaryAction}</div>
     </article>`;
-  }));
+  }), `${provider}:${relation}:older`);
   if (!providerRows.length) {
     return `<div class="dc-session-empty">${lang("No provider session evidence is currently available.", "Aktuell ist keine Provider-Session-Evidence verfügbar.")}</div>`;
   }
   return [
     current.length ? `<section class="dc-session-section"><div class="dc-session-section-head"><span>${lang("Assigned to this project", "Diesem Projekt zugeordnet")}</span><strong>${current.length}</strong></div>${renderHookRows(current, "current")}</section>` : "",
     unattributed.length ? `<details class="dc-session-diagnostic-group warning" data-dc-session-disclosure="${provider}:unattributed" ${sessionDisclosureOpen(`${provider}:unattributed`) ? "open" : ""}><summary><span>${lang("Unassigned sessions", "Nicht zugeordnete Sessions")}</span><strong>${unattributed.length}</strong><i>⌄</i></summary><div>${renderHookRows(unattributed, "unattributed")}</div></details>` : "",
-    other.length ? `<details class="dc-session-diagnostic-group" data-dc-session-disclosure="${provider}:other" ${sessionDisclosureOpen(`${provider}:other`) ? "open" : ""}><summary><span>${lang("Other registered projects", "Andere registrierte Projekte")}</span><strong>${other.length}</strong><i>⌄</i></summary><div>${renderHookRows(other, "other")}</div></details>` : "",
+    other.length ? `<div class="dc-session-diagnostic-group"><span>${lang("Sessions assigned to other registered projects", "Sessions in anderen registrierten Projekten")}</span><strong>${other.length}</strong></div>` : "",
   ].join("");
 };
 
@@ -583,6 +579,7 @@ const renderCockpit = (surface: HTMLElement) => {
 
 const load = async (surface: HTMLElement) => {
   const generation = projectActivationGeneration;
+  const requestGeneration = ++refreshRequestGeneration;
   state.busy = true;
   state.error = null;
   state.notice = null;
@@ -593,21 +590,20 @@ const load = async (surface: HTMLElement) => {
   else surface.innerHTML = `<div class="dc-loading"><span></span><strong>${lang("Loading diagnostic evidence…", "Lade Diagnose-Evidence…")}</strong></div>`;
 
   try {
-    const [next] = await Promise.all([
-      invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: state.preset }),
-      refreshSessionEvidence(),
-    ]);
-    if (generation !== projectActivationGeneration) return;
+    const sessions = await refreshSessionEvidence(state.sessions);
+    const next = await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: state.preset });
+    if (generation !== projectActivationGeneration || requestGeneration !== refreshRequestGeneration) return;
     state.data = next;
+    state.sessions = sessions;
   } catch (cause) {
-    if (generation !== projectActivationGeneration) return;
+    if (generation !== projectActivationGeneration || requestGeneration !== refreshRequestGeneration) return;
     const errorCopy = diagnosticsErrorCopy("load");
     state.error = errorCopy;
     if (!state.data) {
       surface.innerHTML = `<div class="dc-error dc-error-standalone"><strong>${lang("Diagnostics could not be loaded.", "Diagnose konnte nicht geladen werden.")}</strong><p>${esc(errorCopy)}</p></div>`;
     }
   } finally {
-    if (generation !== projectActivationGeneration) return;
+    if (generation !== projectActivationGeneration || requestGeneration !== refreshRequestGeneration) return;
     state.busy = false;
     if (state.data) renderCockpit(surface);
   }
@@ -637,6 +633,7 @@ const bind = (surface: HTMLElement) => {
     const providerItemId = button.dataset.providerItemId;
     if (!action || !provider || !providerItemId || button.disabled) return;
     const generation = projectActivationGeneration;
+    const requestGeneration = ++refreshRequestGeneration;
     button.disabled = true;
     state.error = null;
     try {
@@ -647,9 +644,10 @@ const bind = (surface: HTMLElement) => {
       } else {
         await invoke("clear_provider_session_manual_decision", { provider, providerItemId });
       }
-      if (generation !== projectActivationGeneration) return;
-      await refreshSessionEvidence();
-      if (generation !== projectActivationGeneration) return;
+      if (generation !== projectActivationGeneration || requestGeneration !== refreshRequestGeneration) return;
+      const sessions = await refreshSessionEvidence(state.sessions);
+      if (generation !== projectActivationGeneration || requestGeneration !== refreshRequestGeneration) return;
+      state.sessions = sessions;
       state.notice = action === "assign"
         ? lang("Session assigned to this project.", "Session wurde diesem Projekt zugeordnet.")
         : action === "remove-manual"
@@ -658,10 +656,10 @@ const bind = (surface: HTMLElement) => {
             ? lang("Automatic assignment blocked for this session.", "Automatische Zuordnung für diese Session blockiert.")
             : lang("Automatic assignment is enabled again.", "Automatische Zuordnung ist wieder aktiviert.");
     } catch (cause) {
-      if (generation !== projectActivationGeneration) return;
+      if (generation !== projectActivationGeneration || requestGeneration !== refreshRequestGeneration) return;
       state.error = lang("The session assignment could not be changed. Existing assignments were kept; try again.", "Die Session-Zuordnung konnte nicht geändert werden. Bestehende Zuordnungen wurden beibehalten; versuche es erneut.");
     } finally {
-      if (generation === projectActivationGeneration && state.data) renderCockpit(surface);
+      if (generation === projectActivationGeneration && requestGeneration === refreshRequestGeneration && state.data) renderCockpit(surface);
     }
   }));
   surface.querySelector<HTMLSelectElement>(".dc-preset")?.addEventListener("change", (event) => {
@@ -708,6 +706,7 @@ mount();
 
 onDesktopProjectActivated(() => {
   projectActivationGeneration += 1;
+  refreshRequestGeneration += 1;
   state.data = null;
   state.busy = false;
   state.error = null;
@@ -725,10 +724,21 @@ onLanguageChange(() => {
 const LIVE_SESSION_REFRESH_MS = 15_000;
 window.setInterval(() => {
   const surface = document.querySelector<HTMLElement>("[data-surface='diagnostics']");
-  if (!surface || surface.dataset.diagnosticsCockpit !== "mounted" || !state.data) return;
+  if (!surface || surface.dataset.diagnosticsCockpit !== "mounted" || !state.data || state.busy || liveRefreshInFlight) return;
   const generation = projectActivationGeneration;
-  void refreshSessionEvidence().then(() => {
-    if (generation !== projectActivationGeneration) return;
-    if (state.tab === "sessions") renderCockpit(surface);
+  const requestGeneration = ++refreshRequestGeneration;
+  liveRefreshInFlight = true;
+  void refreshSessionEvidence(state.sessions).then(async (sessions) => ({
+    sessions,
+    data: await invoke<DiagnosticsSummary>("codex_diagnostics_summary", { preset: state.preset }),
+  })).then(({ data, sessions }) => {
+    if (generation !== projectActivationGeneration || requestGeneration !== refreshRequestGeneration) return;
+    state.data = data;
+    state.sessions = sessions;
+    renderCockpit(surface);
+  }).catch(() => {
+    // Live refresh is best-effort; retain the last committed evidence.
+  }).finally(() => {
+    liveRefreshInFlight = false;
   });
 }, LIVE_SESSION_REFRESH_MS);

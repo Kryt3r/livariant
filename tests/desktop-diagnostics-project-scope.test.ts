@@ -25,7 +25,10 @@ test("connector host filters event evidence while keeping measurement state glob
   assert.match(host, /new DiagnosticMeasurementStateStore\(join\(diagnosticsRoot, "measurement-state\.json"\)\)/);
   assert.doesNotMatch(host, /measurement-state[^\n]*projectId/);
   assert.match(host, /measurementProjectScopes/);
-  assert.match(host, /projectId: measurementProjectId/);
+  assert.match(host, /writeQueue = writeQueue\.then\(async \(\) => \{/);
+  assert.match(host, /\.catch\(\(error\) => \{\s+lastUsageWriteError =/);
+  assert.ok(host.indexOf("const result = sequencer.accept(event.snapshot)") > host.indexOf("writeQueue = writeQueue.then"));
+  assert.match(host, /const projectId = measurementProjectId \?\? automaticProjectId/);
   assert.match(host, /diagnostics: await diagnostics\(preset, projectId\)/);
 });
 
@@ -111,17 +114,19 @@ test("diagnostics exposes live provider sessions as branded provider accordions"
 });
 
 
-test("live Codex diagnostics keeps unmatched provider evidence visible", async () => {
+test("live Codex diagnostics keeps unmatched evidence visible without exposing other-project details", async () => {
   const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
   const css = await readFile("apps/desktop/src/diagnostics-cockpit.css", "utf8");
 
   assert.match(cockpit, /erkannte Sessions/);
   assert.match(cockpit, /Das Projekt konnte nicht automatisch erkannt werden/);
-  assert.match(cockpit, /Andere registrierte Projekte/);
+  assert.match(cockpit, /Sessions in anderen registrierten Projekten/);
   assert.match(cockpit, /Nicht zugeordnete Sessions/);
   assert.match(cockpit, /binding\.project === null/);
   assert.match(cockpit, /binding\.project !== null && !belongsToDiagnosticsProject/);
   assert.match(cockpit, /binding\.cwd/);
+  assert.doesNotMatch(cockpit, /renderCodexRows\(other, "other"\)/);
+  assert.doesNotMatch(cockpit, /renderHookRows\(other, "other"\)/);
 
   assert.match(css, /\.dc-session-catalog-summary/);
   assert.match(css, /\.dc-session-diagnostic-group/);
@@ -311,6 +316,8 @@ test("hybrid provider session attribution keeps user decisions explicit and reve
   assert.match(cockpit, /assign_provider_session_to_active_project/);
   assert.match(cockpit, /block_provider_session_automatic_assignment/);
   assert.match(cockpit, /clear_provider_session_manual_decision/);
+  assert.match(cockpit, /const requestGeneration = \+\+refreshRequestGeneration/);
+  assert.match(cockpit, /requestGeneration !== refreshRequestGeneration/);
   assert.match(css, /\.dc-session-actions/);
   assert.match(css, /\.dc-session-more/);
 });
@@ -324,7 +331,36 @@ test("live-session disclosure state survives the 15-second reconciliation rerend
   assert.match(cockpit, /data-dc-session-disclosure="codex:unattributed"/);
   assert.match(cockpit, /sessionDisclosureOpen\("codex:unattributed", true\)/);
   assert.match(cockpit, /data-dc-session-disclosure="codex:technical"/);
+  assert.match(cockpit, /data-dc-session-disclosure="\$\{disclosureKey\}"/);
+  assert.match(cockpit, /`codex:\$\{relation\}:older`/);
+  assert.match(cockpit, /`\$\{provider\}:\$\{relation\}:older`/);
   assert.match(cockpit, /\[data-dc-session-disclosure\]/);
   assert.match(cockpit, /state\.sessionDisclosureState\.set\(key, details\.open\)/);
   assert.match(cockpit, /LIVE_SESSION_REFRESH_MS = 15_000/);
+});
+
+test("15-second diagnostics refresh is read-only, non-overlapping and stale-safe", async () => {
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const interval = cockpit.slice(cockpit.indexOf("const LIVE_SESSION_REFRESH_MS"));
+
+  assert.match(interval, /state\.busy \|\| liveRefreshInFlight/);
+  assert.match(interval, /liveRefreshInFlight = true/);
+  assert.match(interval, /codex_diagnostics_summary/);
+  assert.match(interval, /refreshSessionEvidence\(state\.sessions\)/);
+  assert.match(interval, /requestGeneration !== refreshRequestGeneration/);
+  assert.match(interval, /state\.data = data;\s+state\.sessions = sessions/);
+  assert.match(interval, /\.finally\(\(\) => \{\s+liveRefreshInFlight = false/);
+  assert.doesNotMatch(interval, /measure|turn\/start|thread\/start/);
+});
+
+test("session evidence refresh returns a snapshot instead of mutating renderer state", async () => {
+  const cockpit = await readFile("apps/desktop/src/diagnostics-cockpit.ts", "utf8");
+  const refresh = cockpit.slice(
+    cockpit.indexOf("async function refreshSessionEvidence"),
+    cockpit.indexOf("const telemetryStateLabel"),
+  );
+
+  assert.match(refresh, /Promise<ProviderSessionEvidence>/);
+  assert.match(refresh, /return \{/);
+  assert.doesNotMatch(refresh, /state\.sessions\./);
 });
